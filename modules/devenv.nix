@@ -11,14 +11,20 @@
 #
 # and in devenv.nix:
 #
-#   vendor.enable = true;
-#   vendor.libs   = [ "pyjutsu" ];   # install-only; never build these from source
+#   vendor.enable    = true;            # Face A — vendored native wheels
+#   vendor.libs      = [ "pyjutsu" ];   # install-only; never build these from source
+#   knowledge.enable = true;            # Face B — per-dependency knowledge skills, usage-gated
+#
+# Then run `vendor-sync` (after deps resolve, e.g. after repoman-sync) to install the SKILL.md's
+# for the libraries this repo actually depends on.
 { pkgs, lib, config, inputs, ... }:
 
 let
   cfg = config.vendor;
+  kcfg = config.knowledge;
   system = pkgs.stdenv.system;
   wheelhouse = inputs.vendomat.packages.${system}.wheelhouse;
+  vendomatCli = inputs.vendomat.packages.${system}.vendomat;
 
   # A repo never vendors itself: the lib's own source repo keeps editable `maturin develop`.
   # Expressed via `vendor.self` rather than read from config.env.PROJ — reading config.env
@@ -57,32 +63,70 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    {
-      # uv treats the wheelhouse as an extra package source. `pyjutsu>=0.8` in a consumer's
-      # pyproject now resolves to the prebuilt cp313-abi3 wheel sitting here.
-      env.UV_FIND_LINKS = "${wheelhouse}";
+  # Face B — knowledge: install per-dependency SKILL.md's into this repo, gated on the deps it
+  # actually uses. Independent of `vendor.enable` (Face A); a repo can take either or both.
+  options.knowledge = {
+    enable = lib.mkEnableOption "per-dependency knowledge skills (usage-gated SKILL.md install)";
 
-      tasks."vendor:status".exec = ''
-        echo "vendomat wheelhouse: ${wheelhouse}"
-        ls -1 ${wheelhouse}
-        echo "install-only libs: ${lib.concatStringsSep " " vendoredLibs}"
+    skillsDir = lib.mkOption {
+      type = lib.types.str;
+      default = ".claude/skills";
+      description = ''
+        Where `dep-<lib>/SKILL.md` skills install (flat siblings of repoman/devman's skills).
+        An externally-set REPOMAN_SKILLS_DIR wins over this default, keeping vendomat aligned
+        with repoman's skills home when both are present.
       '';
-    }
+    };
+  };
 
-    # Safety latch: forbid uv from building these from source. A missing/mismatched wheel
-    # then fails loudly instead of silently falling back to a from-scratch maturin compile.
-    (lib.mkIf (vendoredLibs != [ ]) {
-      env.UV_NO_BUILD_PACKAGE = lib.concatStringsSep " " vendoredLibs;
-    })
+  config = lib.mkMerge [
+    # --- Face A: vendored native wheels -------------------------------------------------------
+    (lib.mkIf cfg.enable (lib.mkMerge [
+      {
+        # uv treats the wheelhouse as an extra package source. `pyjutsu>=0.8` in a consumer's
+        # pyproject now resolves to the prebuilt cp313-abi3 wheel sitting here.
+        env.UV_FIND_LINKS = "${wheelhouse}";
 
-    (lib.mkIf cfg.sharedCargo {
-      packages = [ pkgs.sccache ];
-      enterShell = ''
-        export RUSTC_WRAPPER="${pkgs.sccache}/bin/sccache"
-        export CARGO_TARGET_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/bullish/cargo-target"
-        mkdir -p "$CARGO_TARGET_DIR"
-      '';
+        tasks."vendor:status".exec = ''
+          echo "vendomat wheelhouse: ${wheelhouse}"
+          ls -1 ${wheelhouse}
+          echo "install-only libs: ${lib.concatStringsSep " " vendoredLibs}"
+        '';
+      }
+
+      # Safety latch: forbid uv from building these from source. A missing/mismatched wheel
+      # then fails loudly instead of silently falling back to a from-scratch maturin compile.
+      (lib.mkIf (vendoredLibs != [ ]) {
+        env.UV_NO_BUILD_PACKAGE = lib.concatStringsSep " " vendoredLibs;
+      })
+
+      (lib.mkIf cfg.sharedCargo {
+        packages = [ pkgs.sccache ];
+        enterShell = ''
+          export RUSTC_WRAPPER="${pkgs.sccache}/bin/sccache"
+          export CARGO_TARGET_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/bullish/cargo-target"
+          mkdir -p "$CARGO_TARGET_DIR"
+        '';
+      })
+    ]))
+
+    # --- Face B: per-dependency knowledge -----------------------------------------------------
+    (lib.mkIf kcfg.enable {
+      # The CLI rides on PATH (Nix-built package), never the consumer's venv (DESIGN issue #3).
+      packages = [ vendomatCli ];
+
+      # The knowledge tree is the flake source already in the store — not bundled into the wheel.
+      env.VENDOMAT_VENDOR_ROOT = "${inputs.vendomat}/vendor";
+
+      # Opt-in install. Run it after the consumer's deps resolve (so uv.lock/pyproject is readable)
+      # — e.g. after `repoman-sync`. Mirrors repoman-sync's resolve-then-install ordering.
+      scripts.vendor-sync = {
+        description = "Install per-dependency knowledge skills for the deps this repo uses (vendomat sync).";
+        exec = ''
+          export REPOMAN_SKILLS_DIR="''${REPOMAN_SKILLS_DIR:-${kcfg.skillsDir}}"
+          exec ${vendomatCli}/bin/vendomat sync
+        '';
+      };
     })
-  ]);
+  ];
 }
