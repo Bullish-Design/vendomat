@@ -12,7 +12,12 @@ raised by the commands themselves, not by self-checks.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+
 from pydantic import BaseModel
+
+from .install import LIB_PREFIX, MANIFEST, matched_libs
 
 _LEVELS: dict[str, int] = {"ok": 0, "warn": 0, "fail": 2}
 
@@ -36,3 +41,47 @@ def format_self_check(checks: list[SelfCheck]) -> str:
 
     mark = {"ok": "OK  ", "warn": "WARN", "fail": "FAIL"}
     return "\n".join(f"{mark.get(c.level, '?')} {c.name}" + (f" — {c.detail}" if c.detail else "") for c in checks)
+
+
+def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set[str]) -> list[SelfCheck]:
+    """Knowledge-layer drift checks for ``vendomat doctor`` (mirrors devman's ``devman_checks``).
+
+    Are the skills the repo's deps *should* have installed actually present, and is the manifest at
+    the current vendomat version? **Warn-only** for now (like devman) — knowledge is advisory, not
+    mandatory; flip to ``fail`` if it ever becomes required.
+    """
+
+    skills_root = repo_root / skills_dir
+    manifest = skills_root / MANIFEST
+    want = matched_libs(vendor_root, deps)
+    out: list[SelfCheck] = []
+
+    # Nothing expected and nothing installed → a clean repo, not a problem.
+    if not want and not manifest.exists():
+        return [SelfCheck(name="vendor:manifest", level="ok", detail="no knowledge installed (run `vendomat sync`)")]
+
+    missing = [lib for lib in want if not (skills_root / f"{LIB_PREFIX}{lib}" / "SKILL.md").is_file()]
+    missing_detail = f"missing {[LIB_PREFIX + m for m in missing]} — run `vendomat sync`"
+    out.append(
+        SelfCheck(
+            name="vendor:skills",
+            level="ok" if not missing else "warn",
+            detail="all installed" if not missing else missing_detail,
+        )
+    )
+
+    if manifest.exists():
+        try:
+            current = f"vendomat version: {version('vendomat')}"
+        except PackageNotFoundError:  # pragma: no cover - only when run uninstalled
+            current = "vendomat version: 0+unknown"
+        fresh = current in manifest.read_text()
+        out.append(
+            SelfCheck(
+                name="vendor:current",
+                level="ok" if fresh else "warn",
+                detail="up to date" if fresh else "manifest stale — re-run `vendomat sync`",
+            )
+        )
+
+    return out

@@ -13,17 +13,18 @@ is never installed into the consumer's venv and has no ``repoman.lock`` entry.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import typer
 
-from .checks import SelfCheck, format_self_check, self_check_exit
+from .checks import format_self_check, self_check_exit, vendor_checks
+from .deps import read_deps
+from .install import LIB_PREFIX, install_knowledge
 
 app = typer.Typer(
     help="vendomat - the vendor layer for repoman's *man family (artifacts + knowledge).",
     no_args_is_help=True,
 )
-
-MANIFEST = ".vendor-source"
 
 
 def _repo_root() -> str:
@@ -38,15 +39,42 @@ def _skills_dir() -> str:
     return os.environ.get("REPOMAN_SKILLS_DIR", ".claude/skills")
 
 
-@app.command()
-def sync() -> None:
-    """Install per-dependency knowledge skills, gated on the repo's actual deps.
+def _vendor_root(flag: str | None) -> str | None:
+    """The knowledge tree location: ``--vendor-root`` flag → ``VENDOMAT_VENDOR_ROOT`` env → None.
 
-    Wired in M2 (Face B slice 1). For now this is a no-op placeholder that keeps the
-    command surface stable.
+    The devenv module sets ``VENDOMAT_VENDOR_ROOT`` to ``${inputs.vendomat}/vendor`` (the flake
+    source in the store); the flag is the unit-test / manual-override seam.
     """
 
-    typer.echo("vendomat sync: knowledge install lands in M2 (not yet wired).")
+    return flag or os.environ.get("VENDOMAT_VENDOR_ROOT")
+
+
+@app.command()
+def sync(
+    vendor_root: str | None = typer.Option(
+        None, "--vendor-root", help="Knowledge tree (defaults to $VENDOMAT_VENDOR_ROOT)."
+    ),
+) -> None:
+    """Install per-dependency knowledge skills, gated on the repo's actual deps.
+
+    Reads the consuming repo's dependency set and installs a ``dep-<lib>`` skill for each lib it
+    actually uses that the vendor tree carries. Idempotent.
+    """
+
+    vr = _vendor_root(vendor_root)
+    if not vr:
+        typer.echo("vendomat sync: VENDOMAT_VENDOR_ROOT is unset (set it or pass --vendor-root).", err=True)
+        raise typer.Exit(code=2)  # infra/config
+
+    repo_root = Path(_repo_root())
+    deps = read_deps(repo_root)
+    written = install_knowledge(Path(vr), deps, _skills_dir(), repo_root)
+
+    installed = [p.parent.name for p in written if p.name == "SKILL.md"]
+    if installed:
+        typer.echo(f"vendomat sync: installed {len(installed)} skill(s): {', '.join(installed)}")
+    else:
+        typer.echo("vendomat sync: no matching dependency skills to install.")
 
 
 @app.command()
@@ -60,32 +88,27 @@ def add(lib: str) -> None:
 
 
 @app.command()
-def doctor() -> None:
+def doctor(
+    vendor_root: str | None = typer.Option(
+        None, "--vendor-root", help="Knowledge tree (defaults to $VENDOMAT_VENDOR_ROOT)."
+    ),
+) -> None:
     """Self-check vendomat's knowledge wiring under the shared 0/1/2/3 contract.
 
-    Reads the ``.vendor-source`` drift manifest (once M2 writes it) and reports
-    missing/stale skills. On a repo with no knowledge installed there is nothing to flag,
-    so the manifest's absence is reported (not an error) and the exit code is 0.
+    Reads ``.vendor-source`` and the repo's deps, then reports whether the skills the repo *should*
+    have are installed and current. Warn-only for now (knowledge is advisory) — a clean repo with
+    nothing installed reports ``ok`` and exits 0.
     """
 
-    repo_root = _repo_root()
+    repo_root = Path(_repo_root())
     skills_dir = _skills_dir()
+    vr = _vendor_root(vendor_root)
+    # Without a vendor root we can't enumerate expected libs; point at a path that won't exist so
+    # `vendor_checks` still validates an already-written manifest but expects no new skills.
+    vroot = Path(vr) if vr else repo_root / f".{LIB_PREFIX}no-vendor-root"
 
-    checks: list[SelfCheck] = []
-
-    # M2 folds the real .vendor-source drift checks in here. Until then doctor has nothing
-    # to validate, and the manifest's absence is informational, not a failure.
-    manifest = os.path.join(repo_root, skills_dir, MANIFEST)
-    if os.path.exists(manifest):
-        checks.append(SelfCheck(name="vendor:manifest", level="ok", detail=manifest))
-    else:
-        checks.append(
-            SelfCheck(
-                name="vendor:manifest",
-                level="ok",
-                detail="no knowledge installed (run `vendomat sync`)",
-            )
-        )
+    deps = read_deps(repo_root)
+    checks = vendor_checks(repo_root, skills_dir, vroot, deps)
 
     typer.echo("=== vendomat (self-check) ===")
     typer.echo(format_self_check(checks))

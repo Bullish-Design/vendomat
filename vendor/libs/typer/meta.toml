@@ -1,0 +1,23 @@
+# Curation metadata for the per-dependency knowledge entry.
+#
+# `version` is the range my personal libs target; `pin` is the concrete version the SKILL.md
+# below was written against. M2 records `pin` into the `.vendor-source` manifest at install time;
+# M4 compares it against the consumer's resolved version to flag a skill as stale (review-on-bump).
+# Keep `pin` updated in lockstep with any rewrite of SKILL.md / notes.md.
+
+[lib]
+name = "typer"
+version = ">=0.12"
+pin = "0.12.5"
+docs = "https://typer.tiangolo.com"
+
+[curation]
+why = """
+Typer is the *man-family CLI contract: one Typer app per tool, command-per-subcommand, with the
+0/1/2/3 exit code surface expressed through typer.Exit. It gives type-hint-driven arg parsing for
+free and pairs cleanly with Pydantic-normalized output.
+"""
+rejected = """
+argparse (too much boilerplate for the family's many small CLIs); click directly (Typer wraps it
+with the type-hint ergonomics we want); fire (too implicit — no explicit command surface).
+"""
