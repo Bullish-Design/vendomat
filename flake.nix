@@ -26,6 +26,11 @@
     {
       # The build recipe, per system.
       lib = forAllSystems (pkgs: {
+        mkArtifact = import ./lib/mkArtifact.nix {
+          inherit pkgs;
+          python = pkgs.python313;
+        };
+        # Back-compat alias: the original single-builder entry point (unchanged).
         mkMaturinWheel = import ./lib/mkMaturinWheel.nix {
           inherit pkgs;
           python = pkgs.python313;
@@ -36,11 +41,12 @@
       packages = forAllSystems (pkgs:
         let
           system = pkgs.stdenv.system;
-          mkWheel = self.lib.${system}.mkMaturinWheel;
+          mkArtifact = self.lib.${system}.mkArtifact;
 
-          pyjutsu-wheel = mkWheel {
+          pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
             src = inputs.pyjutsu;
+            builder = "maturinWheel";
           };
         in
         {

@@ -2,3 +2,10 @@
 /.direnv
 result
 result-*
+
+# jujutsu (gitman colocated VCS) state — never tracked
+.jj/
+.gitman/
+
+# Claude Code local-only settings (skills under .claude/skills/ are tracked)
+.claude/settings.local.json
