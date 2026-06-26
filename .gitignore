@@ -3,9 +3,19 @@
 result
 result-*
 
+# Python build/test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
 # jujutsu (gitman colocated VCS) state — never tracked
 .jj/
 .gitman/
 
 # Claude Code local-only settings (skills under .claude/skills/ are tracked)
 .claude/settings.local.json
+
+# Testee run artifacts (the verify manager; testee.toml + nix/testee.nix are tracked)
+.testee/runs/
+.testee/last-run
