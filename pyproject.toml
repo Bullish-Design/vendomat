@@ -1,0 +1,70 @@
+[project]
+name = "vendomat"
+version = "0.1.0"
+description = "The vendor layer for repoman's *man family: native-wheel artifacts (Face A) + per-dependency knowledge skills (Face B)."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Bullish Design", email = "BullishDesignEngineering@gmail.com" },
+]
+
+# Lean base: typer (the CLI) + pydantic (normalized output / validated frontmatter). The dep
+# reader and manifest use stdlib tomllib — no extra runtime deps.
+dependencies = [
+  "pydantic>=2.12",
+  "typer>=0.12",
+]
+
+[dependency-groups]
+# Verification is owned by the `testee` manager — the *man-family verify interface. It
+# brings ruff / ruff-format / ty / pytest into the venv and normalizes their output into
+# one report. Run `testee verify` (or the testee:* devenv tasks), not pytest/ruff directly.
+# vendomat is not repoman-managed, so testee is depended on directly (path to the sibling)
+# rather than installed by repoman-sync the way roster-managed repos get it.
+dev = [
+  "testee",
+]
+
+[tool.uv.sources]
+testee = { path = "../testee", editable = true }
+
+[project.scripts]
+vendomat = "vendomat.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vendomat"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src",
+  "README.md",
+  "tests",
+  "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# testee runs ty (type check); scope it to package + tests so it never scans .scratch/ etc.
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

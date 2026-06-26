@@ -1,0 +1,26 @@
+# Testee verification policy.
+default_mode = "quick"
+# Tools to run per mode, in order. Omit a list to run all enabled tools.
+quick = ["ruff", "ruff-format", "ty", "pytest"]
+detailed = ["ruff", "ruff-format", "ty", "pytest"]
+
+[tools.ruff]
+enabled = true
+
+[tools.ruff-format]
+enabled = true
+
+[tools.ty]
+enabled = true
+
+[tools.pytest]
+enabled = true
+
+# Scripted post-failure workflow: in `testee verify --mode ci` (or `testee triage`),
+# run a command once per matching failure and save its stdout as a report. Command
+# tokens and the prompt are Jinja2 templates. Example: have an AI agent research each
+# failed test and recommend a fix.
+# [workflows.triage]
+# kinds = ["test"]
+# prompt = "A test failed in CI. Research the cause and recommend a fix.\n\nTest: {{ test_id }}\nLocation: {{ file }}:{{ line }}\nMessage: {{ message }}\n\nInspect the test and the code under test, then write a concise report: likely root cause and the specific change to make."
+# command = ["claude", "-p", "{{ prompt }}"]

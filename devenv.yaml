@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  # Pins the Python 3.13 interpreter for languages.python.version (matches the *man stack
+  # and the flake's python313, which builds the Face A wheel + the vendomat CLI package).
+  nixpkgs-python:
+    url: github:cachix/nixpkgs-python

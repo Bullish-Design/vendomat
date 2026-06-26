@@ -48,9 +48,27 @@
             src = inputs.pyjutsu;
             builder = "maturinWheel";
           };
+
+          # Face B: the vendomat CLI, delivered to a consumer repo as a package on PATH
+          # (DESIGN issue #3 — the zelligate-provisions-zellij pattern), never via the
+          # consumer's venv. `modules/devenv.nix` puts this on PATH and runs `vendomat sync`.
+          vendomat = pkgs.python313.pkgs.buildPythonApplication {
+            pname = "vendomat";
+            version = "0.1.0";
+            pyproject = true;
+            # Flake source = git-tracked files only (excludes .jj/.gitman/.devenv/result).
+            src = ./.;
+            build-system = [ pkgs.python313.pkgs.hatchling ];
+            dependencies = [
+              pkgs.python313.pkgs.typer
+              pkgs.python313.pkgs.pydantic
+            ];
+            # Tests run in the devenv (pytest), not at nix-build time.
+            doCheck = false;
+          };
         in
         {
-          inherit pyjutsu-wheel;
+          inherit pyjutsu-wheel vendomat;
 
           # A single directory of every vendored wheel — this is what UV_FIND_LINKS points at.
           wheelhouse = pkgs.symlinkJoin {
