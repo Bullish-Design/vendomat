@@ -11,8 +11,12 @@ from vendomat.install import install_knowledge
 def _seed_lib(vendor: Path, lib: str, pin: str = "0.12.5") -> None:
     d = vendor / "libs" / lib
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text("# skill\n")
-    (d / "meta.toml").write_text(f'[lib]\nname = "{lib}"\npin = "{pin}"\n')
+    # A structurally-valid entry (real frontmatter + full meta) so the vendor:frontmatter check is ok.
+    (d / "SKILL.md").write_text(f"---\nname: dep-{lib}\ndescription: use {lib}\n---\n\n# skill\n")
+    (d / "meta.toml").write_text(
+        f'[lib]\nname = "{lib}"\nversion = ">=0"\npin = "{pin}"\ndocs = "https://x"\n\n'
+        '[curation]\nwhy = "y"\nrejected = "n"\n'
+    )
 
 
 def test_empty_is_zero():
@@ -62,7 +66,7 @@ def test_vendor_checks_up_to_date(tmp_path):
 
     checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"})
     assert self_check_exit(checks) == 0
-    assert {c.name for c in checks} == {"vendor:skills", "vendor:current"}
+    assert {c.name for c in checks} == {"vendor:frontmatter", "vendor:skills", "vendor:current"}
     assert all(c.level == "ok" for c in checks)
 
 

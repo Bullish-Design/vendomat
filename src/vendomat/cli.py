@@ -17,6 +17,7 @@ from pathlib import Path
 
 import typer
 
+from .add import EntryExistsError, gather, scaffold
 from .checks import format_self_check, self_check_exit, vendor_checks
 from .deps import read_deps
 from .install import LIB_PREFIX, install_knowledge
@@ -77,14 +78,51 @@ def sync(
         typer.echo("vendomat sync: no matching dependency skills to install.")
 
 
-@app.command()
-def add(lib: str) -> None:
-    """Draft a ``vendor/libs/<lib>/`` knowledge entry for human curation.
+def _add_vendor_root(flag: str | None) -> Path:
+    """Where ``add`` *authors* the entry: ``--vendor-root`` flag → the local ``<repo>/vendor`` tree.
 
-    Wired in M3 (Face B tooling). For now this is a no-op placeholder.
+    Unlike ``sync``, ``add`` deliberately ignores ``VENDOMAT_VENDOR_ROOT``: the devenv module sets
+    it to ``${inputs.vendomat}/vendor``, a **read-only nix store path** — wrong for writing. ``add``
+    is a maintainer command run inside vendomat's own repo, so it writes the repo-local ``vendor/``.
     """
 
-    typer.echo(f"vendomat add {lib}: draft scaffolding lands in M3 (not yet wired).")
+    if flag:
+        return Path(flag)
+    return Path(_repo_root()) / "vendor"
+
+
+@app.command()
+def add(
+    lib: str,
+    vendor_root: str | None = typer.Option(
+        None, "--vendor-root", help="Vendor tree to author into (defaults to the repo's ./vendor)."
+    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing entry (clobbers curated prose)."),
+) -> None:
+    """Draft a ``vendor/libs/<lib>/`` knowledge entry for human/agent curation.
+
+    Scaffolds ``meta.toml`` + ``notes.md`` + ``SKILL.md``, mechanically pre-filling what it can
+    derive offline from the installed dist (version → pin, docs, summary) and leaving the prose as
+    clearly-marked DRAFT/TODO stubs. Never auto-published. No-clobber: refuses an existing entry
+    (exit 1) unless ``--force``.
+    """
+
+    vr = _add_vendor_root(vendor_root)
+    material = gather(lib)
+    try:
+        written = scaffold(vr, lib, material, force=force)
+    except EntryExistsError as exc:
+        typer.echo(f"vendomat add: {exc}", err=True)
+        raise typer.Exit(code=1) from exc  # domain decision: refuse to clobber
+
+    typer.echo(f"vendomat add {material.lib}: drafted {len(written)} file(s) under {written[0].parent}:")
+    for p in written:
+        typer.echo(f"  {p.name}")
+    if not material.gathered:
+        typer.echo(f"  (offline metadata for {material.lib} unavailable — fields stubbed as TODO)")
+    elif material.missing:
+        typer.echo(f"  (could not derive: {', '.join(material.missing)} — stubbed as TODO)")
+    typer.echo("Now curate the DRAFT/TODO sections, then publish with `vendomat sync`.")
 
 
 @app.command()

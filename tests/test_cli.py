@@ -54,6 +54,29 @@ def test_sync_installs_gated_skill(tmp_path, monkeypatch):
     assert (repo / ".claude/skills/dep-typer/SKILL.md").is_file()
 
 
-def test_add_stub_runs(tmp_path, monkeypatch):
+def test_add_drafts_into_local_vendor(tmp_path, monkeypatch):
+    # `add` authors into <repo>/vendor; ghost-lib isn't installed → degrades to TODO stubs, exit 0.
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    assert runner.invoke(app, ["add", "typer"]).exit_code == 0
+    result = runner.invoke(app, ["add", "ghost-lib"])
+    assert result.exit_code == 0
+    assert "dep-ghost-lib" not in result.stdout  # entry name is the lib, not the dep- skill name
+    entry = tmp_path / "vendor" / "libs" / "ghost-lib"
+    assert (entry / "SKILL.md").is_file()
+    assert (entry / "meta.toml").is_file()
+    assert (entry / "notes.md").is_file()
+
+
+def test_add_refuses_existing_entry_without_force(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+    assert runner.invoke(app, ["add", "ghost-lib"]).exit_code == 0
+    # Second run without --force is a domain refusal (exit 1); --force succeeds.
+    assert runner.invoke(app, ["add", "ghost-lib"]).exit_code == 1
+    assert runner.invoke(app, ["add", "ghost-lib", "--force"]).exit_code == 0
+
+
+def test_add_respects_vendor_root_flag(tmp_path, monkeypatch):
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "elsewhere"))
+    target = tmp_path / "authored"
+    result = runner.invoke(app, ["add", "ghost-lib", "--vendor-root", str(target)])
+    assert result.exit_code == 0
+    assert (target / "libs" / "ghost-lib" / "SKILL.md").is_file()
