@@ -39,11 +39,21 @@ def _requirement_name(req: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _uv_lock_packages(path: Path) -> dict[str, str]:
+    """Normalized name -> resolved version for every `[[package]]` in a uv.lock.
+
+    The shared parse behind both the name-set reader (`_from_uv_lock`) and the version reader
+    (`resolved_versions`). A package missing a `version` maps to `""` (still a real entry).
+    """
+
+    data = tomllib.loads(path.read_text())
+    return {normalize(p["name"]): str(p.get("version", "")) for p in data.get("package", []) if "name" in p}
+
+
 def _from_uv_lock(path: Path) -> set[str]:
     """Every resolved package in a uv.lock (`[[package]]` tables with a `name`)."""
 
-    data = tomllib.loads(path.read_text())
-    return {normalize(p["name"]) for p in data.get("package", []) if "name" in p}
+    return set(_uv_lock_packages(path))
 
 
 def _from_pyproject(path: Path) -> set[str]:
@@ -111,3 +121,20 @@ def read_deps(repo_root: Path) -> set[str]:
         if path.is_file():
             return parser(path)
     return set()
+
+
+def resolved_versions(repo_root: Path) -> dict[str, str]:
+    """Resolved concrete version per normalized dist name, from the repo's ``uv.lock``.
+
+    ``uv.lock`` is the only dep source that carries fully-resolved versions — ``pyproject.toml`` and
+    ``repoman.lock`` declare *ranges/pins*, not what is actually installed. Review-on-bump (M4) needs
+    the installed version to compare against the pin a skill was written against, so it reads here.
+
+    Returns ``{}`` when no ``uv.lock`` exists; the staleness check then **skips** (it cannot judge a
+    bump it can't see) rather than guessing.
+    """
+
+    path = repo_root / "uv.lock"
+    if not path.is_file():
+        return {}
+    return _uv_lock_packages(path)

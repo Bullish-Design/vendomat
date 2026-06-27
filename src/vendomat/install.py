@@ -56,6 +56,31 @@ def lib_pin(vendor_root: Path, lib: str) -> str:
     return str(pin) if pin else "unpinned"
 
 
+def read_constraints(vendor_root: Path) -> dict[str, str]:
+    """Parse ``vendor/constraints.txt`` into ``{normalized-name: version}``.
+
+    The unified external pins the personal libs reference (DESIGN §7.3). Pip-style ``name==version``
+    lines; ``#`` comments and blanks are ignored. Only the simple ``==`` pin form is read (the file's
+    purpose is exact, lockstep pins) — anything else is skipped rather than mis-parsed. Returns ``{}``
+    if the file is absent.
+    """
+
+    path = vendor_root / "constraints.txt"
+    if not path.is_file():
+        return {}
+
+    out: dict[str, str] = {}
+    for raw in path.read_text().splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if "==" not in line:
+            continue
+        name, _, ver = line.partition("==")
+        name, ver = name.strip(), ver.strip()
+        if name and ver:
+            out[normalize(name)] = ver
+    return out
+
+
 def _vendomat_version() -> str:
     try:
         return version("vendomat")
@@ -99,3 +124,28 @@ def install_knowledge(vendor_root: Path, deps: set[str], skills_dir: str, repo_r
     )
     written.append(manifest)
     return written
+
+
+def read_manifest_pins(skills_root: Path) -> dict[str, str]:
+    """Recorded ``{dep-<lib>: pin}`` from a ``.vendor-source`` manifest's ``pins:`` block.
+
+    The reader paired with the ``pins:`` writer in :func:`install_knowledge` — the pin captured for
+    each installed skill *at sync time*. Review-on-bump (M4) compares these against the consumer's
+    currently-resolved versions to flag a skill written for an older version. Returns ``{}`` if the
+    manifest is absent or carries no pins (e.g. an all-``unpinned`` install).
+    """
+
+    manifest = skills_root / MANIFEST
+    if not manifest.is_file():
+        return {}
+
+    pins: dict[str, str] = {}
+    in_pins = False
+    for line in manifest.read_text().splitlines():
+        if line.rstrip() == "pins:":
+            in_pins = True
+            continue
+        if in_pins and " @ " in line:
+            name, _, pin = line.strip().partition(" @ ")
+            pins[name] = pin
+    return pins

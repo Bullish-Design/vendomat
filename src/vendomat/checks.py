@@ -17,7 +17,16 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from .install import LIB_PREFIX, MANIFEST, expected_libs, matched_libs
+from .deps import normalize, resolved_versions
+from .install import (
+    LIB_PREFIX,
+    MANIFEST,
+    expected_libs,
+    lib_pin,
+    matched_libs,
+    read_constraints,
+    read_manifest_pins,
+)
 from .models import LibMeta, SkillFrontmatter, split_frontmatter
 
 _LEVELS: dict[str, int] = {"ok": 0, "warn": 0, "fail": 2}
@@ -55,9 +64,13 @@ def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set
     skills_root = repo_root / skills_dir
     manifest = skills_root / MANIFEST
     want = matched_libs(vendor_root, deps)
-    out: list[SelfCheck] = [_frontmatter_check(vendor_root)] if (vendor_root / "libs").is_dir() else []
+    # Authoring-side checks (frontmatter validity + constraints lockstep) only apply when a real vendor
+    # tree is present; in a consumer this is the read-only nix-store knowledge source.
+    out: list[SelfCheck] = (
+        [_frontmatter_check(vendor_root), _constraints_check(vendor_root)] if (vendor_root / "libs").is_dir() else []
+    )
 
-    # Nothing expected and nothing installed → a clean repo, not a problem (keep any frontmatter check).
+    # Nothing expected and nothing installed → a clean repo, not a problem (keep any authoring checks).
     if not want and not manifest.exists():
         return out + [
             SelfCheck(name="vendor:manifest", level="ok", detail="no knowledge installed (run `vendomat sync`)")
@@ -86,8 +99,69 @@ def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set
                 detail="up to date" if fresh else "manifest stale — re-run `vendomat sync`",
             )
         )
+        out.append(_staleness_check(skills_root, repo_root))
 
     return out
+
+
+def _staleness_check(skills_root: Path, repo_root: Path) -> SelfCheck:
+    """Review-on-bump: flag a skill whose recorded pin no longer matches the resolved version (M4).
+
+    For each ``dep-<lib> @ <pin>`` recorded in ``.vendor-source`` at sync time, compare ``<pin>`` to
+    the version the repo currently resolves the lib to (``uv.lock``). A divergence means the skill was
+    written for an older version and should be reviewed (DESIGN §7.5). **Warn-only** — a bump is a
+    prompt to re-curate, not broken wiring.
+
+    Skips judgement (counts as fine) for any skill that is ``unpinned`` or whose lib has no resolved
+    version available (no ``uv.lock``, or the lib is no longer in the resolved set) — a bump it cannot
+    see is not flagged rather than guessed.
+    """
+
+    pins = read_manifest_pins(skills_root)
+    resolved = resolved_versions(repo_root)
+
+    stale: list[str] = []
+    for skill, pin in pins.items():
+        if pin == "unpinned":
+            continue
+        lib = skill[len(LIB_PREFIX) :] if skill.startswith(LIB_PREFIX) else skill
+        current = resolved.get(normalize(lib))
+        if current is not None and current != pin:
+            stale.append(f"{skill} (skill@{pin} → repo@{current})")
+
+    return SelfCheck(
+        name="vendor:staleness",
+        level="ok" if not stale else "warn",
+        detail="pins current" if not stale else f"review stale skill(s): {', '.join(stale)}",
+    )
+
+
+def _constraints_check(vendor_root: Path) -> SelfCheck:
+    """Lockstep: every authored ``meta.toml`` pin must match ``vendor/constraints.txt`` (M4).
+
+    ``constraints.txt`` is the single source of truth for external pins (DESIGN §7.3); each entry's
+    ``[lib].pin`` is meant to track it. Warns when a pinned lib is missing from ``constraints.txt`` or
+    its constraint disagrees with the entry's pin, so the two never silently drift. ``unpinned`` entries
+    are skipped (nothing to reconcile). **Warn-only.**
+    """
+
+    constraints = read_constraints(vendor_root)
+    mismatched: list[str] = []
+    for lib in expected_libs(vendor_root):
+        pin = lib_pin(vendor_root, lib)
+        if pin == "unpinned":
+            continue
+        constraint = constraints.get(normalize(lib))
+        if constraint is None:
+            mismatched.append(f"{lib} (pinned {pin}, absent from constraints.txt)")
+        elif constraint != pin:
+            mismatched.append(f"{lib} (meta {pin} ≠ constraints {constraint})")
+
+    return SelfCheck(
+        name="vendor:constraints",
+        level="ok" if not mismatched else "warn",
+        detail="pins in lockstep" if not mismatched else f"drift: {'; '.join(mismatched)}",
+    )
 
 
 def _frontmatter_check(vendor_root: Path) -> SelfCheck:

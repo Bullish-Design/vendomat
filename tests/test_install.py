@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vendomat.install import MANIFEST, expected_libs, install_knowledge, matched_libs
+from vendomat.install import (
+    MANIFEST,
+    expected_libs,
+    install_knowledge,
+    matched_libs,
+    read_constraints,
+    read_manifest_pins,
+)
 
 
 def _seed_lib(vendor_root: Path, lib: str, pin: str = "1.2.3", skill: str = "# skill\n") -> None:
@@ -79,3 +86,35 @@ def test_idempotent_rerun(tmp_path):
     assert first == second
     skills = list((repo / ".claude/skills").glob("dep-*/SKILL.md"))
     assert len(skills) == 1
+
+
+# --- read_manifest_pins (review-on-bump input) -------------------------------------------------
+
+
+def test_read_manifest_pins_round_trips_the_writer(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    _seed_lib(vendor, "click", pin="8.1.7")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer", "click"}, ".claude/skills", repo)
+
+    pins = read_manifest_pins(repo / ".claude/skills")
+    assert pins == {"dep-typer": "0.12.5", "dep-click": "8.1.7"}
+
+
+def test_read_manifest_pins_absent_manifest_is_empty(tmp_path):
+    assert read_manifest_pins(tmp_path / "nope") == {}
+
+
+# --- read_constraints --------------------------------------------------------------------------
+
+
+def test_read_constraints_parses_pins_and_skips_noise(tmp_path):
+    (tmp_path / "constraints.txt").write_text(
+        "# a comment\n\ntyper==0.12.5\nPydantic == 2.12.0  # trailing comment\nnot-a-pin>=1\n"
+    )
+    assert read_constraints(tmp_path) == {"typer": "0.12.5", "pydantic": "2.12.0"}
+
+
+def test_read_constraints_absent_file_is_empty(tmp_path):
+    assert read_constraints(tmp_path) == {}
