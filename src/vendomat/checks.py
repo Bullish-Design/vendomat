@@ -15,9 +15,10 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from .install import LIB_PREFIX, MANIFEST, matched_libs
+from .install import LIB_PREFIX, MANIFEST, expected_libs, matched_libs
+from .models import LibMeta, SkillFrontmatter, split_frontmatter
 
 _LEVELS: dict[str, int] = {"ok": 0, "warn": 0, "fail": 2}
 
@@ -54,11 +55,13 @@ def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set
     skills_root = repo_root / skills_dir
     manifest = skills_root / MANIFEST
     want = matched_libs(vendor_root, deps)
-    out: list[SelfCheck] = []
+    out: list[SelfCheck] = [_frontmatter_check(vendor_root)] if (vendor_root / "libs").is_dir() else []
 
-    # Nothing expected and nothing installed → a clean repo, not a problem.
+    # Nothing expected and nothing installed → a clean repo, not a problem (keep any frontmatter check).
     if not want and not manifest.exists():
-        return [SelfCheck(name="vendor:manifest", level="ok", detail="no knowledge installed (run `vendomat sync`)")]
+        return out + [
+            SelfCheck(name="vendor:manifest", level="ok", detail="no knowledge installed (run `vendomat sync`)")
+        ]
 
     missing = [lib for lib in want if not (skills_root / f"{LIB_PREFIX}{lib}" / "SKILL.md").is_file()]
     missing_detail = f"missing {[LIB_PREFIX + m for m in missing]} — run `vendomat sync`"
@@ -85,3 +88,29 @@ def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set
         )
 
     return out
+
+
+def _frontmatter_check(vendor_root: Path) -> SelfCheck:
+    """Validate that every authored entry's SKILL.md frontmatter + meta.toml are structurally sound.
+
+    Catches malformed *drafts* before they reach an agent (DESIGN §9: "Pydantic-validated frontmatter
+    so drafts can't ship malformed"). Structural only — a DRAFT entry with TODO prose still validates;
+    this flags genuinely broken frontmatter/meta, not unfinished curation. **Warn-only.**
+    """
+
+    libs_dir = vendor_root / "libs"
+    invalid: list[str] = []
+    for lib in expected_libs(vendor_root):
+        entry = libs_dir / lib
+        try:
+            front, _ = split_frontmatter((entry / "SKILL.md").read_text())
+            SkillFrontmatter.model_validate(front)
+            LibMeta.from_toml((entry / "meta.toml").read_text())
+        except (ValidationError, ValueError, OSError):
+            invalid.append(lib)
+
+    return SelfCheck(
+        name="vendor:frontmatter",
+        level="ok" if not invalid else "warn",
+        detail="all entries valid" if not invalid else f"malformed entries: {invalid} — fix before publishing",
+    )

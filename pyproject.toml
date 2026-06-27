@@ -11,9 +11,14 @@ authors = [
 ]
 
 # Lean base: typer (the CLI) + pydantic (normalized output / validated frontmatter). The dep
-# reader and manifest use stdlib tomllib — no extra runtime deps.
+# reader and manifest read TOML via stdlib tomllib. M3's `vendor add` drafter also *writes* entry
+# files, so it takes two small, well-established parsers: pyyaml (SKILL.md frontmatter) and tomli-w
+# (meta.toml). The core fence is "no LLM/agent runtime, no network" — ordinary libraries that make
+# the code simpler/more reliable are fine.
 dependencies = [
   "pydantic>=2.12",
+  "pyyaml>=6.0",
+  "tomli-w>=1.0",
   "typer>=0.12",
 ]
 
