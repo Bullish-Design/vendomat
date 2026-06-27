@@ -1,0 +1,14 @@
+# vendomat — shared external constraints (Face B, rollout slice 2)
+#
+# The unified version pins the personal *man-family libs reference, so they all pin the *same*
+# external versions (DESIGN §7.3). This is the backbone the knowledge layer hangs on: every skill
+# is "the <lib> <pin> skill", and that pin is the concrete trigger for review-on-bump (§7.5).
+#
+# Format: one pip-style `name==version` per line; comments with `#`. Each line MUST stay in lockstep
+# with the matching `vendor/libs/<lib>/meta.toml` `[lib].pin` — `vendomat doctor`'s `vendor:constraints`
+# check warns when they diverge. When you rewrite a skill against a new version, bump both together.
+#
+# NOTE: cross-repo coupling is real here — a breaking bump touches every consumer at once. Adopt
+# deliberately and keep the change visible via review-on-bump (`vendomat doctor`).
+
+typer==0.12.5

@@ -340,8 +340,11 @@ A wrong skill is worse than no skill. Defenses, in order of leverage:
   `uv.lock` / `pyproject.toml` / `repoman.lock`, intersect with `vendor/libs/`.
 - **Build `vendor-add <lib>`** — the agent-assisted draft task (notes + SKILL.md from docs/
   source/changelog) feeding human curation; emit devman-style frontmatter.
-- **Wire review-on-bump** — key a staleness flag to `constraints.txt` pins, surfaced via the
-  `.vendor-source` manifest in `repoman doctor` (mirrors devman's drift check).
+- ~~**Wire review-on-bump**~~ — **done (M4).** `vendor/constraints.txt` carries the unified pins;
+  `vendomat doctor`'s `vendor:staleness` check compares each `.vendor-source` recorded pin against
+  the consumer's resolved version (`uv.lock`) and warns on divergence, and `vendor:constraints`
+  keeps each `meta.toml` pin in lockstep with `constraints.txt`. Surfaced in **`vendomat doctor`**,
+  not `repoman doctor` (per IMPLEMENTATION_PLAN issue #2 — vendomat is not a repoman manager).
 
 **Scope:**
 - **Decide if/when broad (B) is warranted** — revisit once wheels + knowledge are in use and you
