@@ -13,7 +13,7 @@
     # Paths follow the repoman `repoman_dev_root` convention (~/Documents/Projects). On
     # another machine, override with `--override-input pyjutsu git+file:///path/to/Pyjutsu`.
     pyjutsu = {
-      url = "git+file:///home/andrew/Documents/Projects/Pyjutsu";
+      url = "git+file:///home/andrew/Documents/Projects/pyjutsu";
       flake = false;
     };
   };
