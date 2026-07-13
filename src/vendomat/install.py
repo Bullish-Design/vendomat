@@ -17,6 +17,7 @@ the real ``vendor_root`` / ``skills_dir`` / ``repo_root``.
 
 from __future__ import annotations
 
+import re
 import shutil
 import tomllib
 from importlib.metadata import PackageNotFoundError, version
@@ -26,6 +27,11 @@ from .deps import normalize
 
 MANIFEST = ".vendor-source"
 LIB_PREFIX = "dep-"
+
+# A constraints entry is useful to M4 only when it unambiguously pins one bare distribution to
+# one exact version. Deliberately do not accept extras, markers, ranges, URLs, or arbitrary
+# ``===`` requirements: those do not answer the review-on-bump question safely.
+_EXACT_CONSTRAINT_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*==\s*([^\s=;#]+)\s*$")
 
 
 def _libs_dir(vendor_root: Path) -> Path:
@@ -42,11 +48,17 @@ def expected_libs(vendor_root: Path) -> list[str]:
 
 
 def lib_pin(vendor_root: Path, lib: str) -> str:
-    """The version a lib's skill was written against (``[lib].pin`` in its ``meta.toml``).
+    """The version a lib's skill was written against.
 
-    Returns ``"unpinned"`` if the meta file or key is absent — the skill still installs; staleness
-    just cannot be judged for it.
+    An exact ``<lib>==<version>`` entry in the shared ``constraints.txt`` takes precedence over
+    the entry-local ``[lib].pin``. This keeps every installed manifest tied to the shared pin that
+    consumer libraries reference, while preserving metadata-only entries during the incremental
+    M2 → M4 rollout. Returns ``"unpinned"`` if neither source has a concrete pin.
     """
+
+    constraint = _constraint_pin(vendor_root, lib)
+    if constraint:
+        return constraint
 
     meta = _libs_dir(vendor_root) / lib / "meta.toml"
     if not meta.is_file():
@@ -54,6 +66,28 @@ def lib_pin(vendor_root: Path, lib: str) -> str:
     data = tomllib.loads(meta.read_text())
     pin = data.get("lib", {}).get("pin")
     return str(pin) if pin else "unpinned"
+
+
+def _constraint_pin(vendor_root: Path, lib: str) -> str | None:
+    """Return an exact pin for ``lib`` from ``vendor/constraints.txt``, if supplied.
+
+    Constraints intentionally use pip/uv syntax. Only an exact ``==`` pin is usable for a
+    review-on-bump comparison; ranges, editable requirements, and malformed lines are ignored.
+    """
+
+    constraints = vendor_root / "constraints.txt"
+    if not constraints.is_file():
+        return None
+    normalized_lib = normalize(lib)
+    for raw in constraints.read_text().splitlines():
+        line = raw.split("#", 1)[0]
+        match = _EXACT_CONSTRAINT_RE.fullmatch(line)
+        if not match:
+            continue
+        name, pin = match.groups()
+        if normalize(name) == normalized_lib:
+            return pin
+    return None
 
 
 def _vendomat_version() -> str:
@@ -99,3 +133,32 @@ def install_knowledge(vendor_root: Path, deps: set[str], skills_dir: str, repo_r
     )
     written.append(manifest)
     return written
+
+
+def parse_manifest_pins(text: str) -> dict[str, str]:
+    """Read the ``pins:`` block of a ``.vendor-source`` manifest back into ``{lib: pin}``.
+
+    Each pin line is ``  dep-<lib> @ <pin>`` (see :func:`install_knowledge`); the ``dep-`` prefix is
+    stripped so the key matches the ``vendor/libs/<lib>`` name. Lines without ``@`` or the prefix are
+    skipped. Returns ``{}`` when there is no ``pins:`` section. This is what M4's review-on-bump
+    compares against the consumer's resolved versions — the pin *the installed skill was written
+    against*, not whatever the current vendor tree now says.
+    """
+
+    pins: dict[str, str] = {}
+    in_block = False
+    for line in text.splitlines():
+        if line.rstrip() == "pins:":
+            in_block = True
+            continue
+        if not in_block:
+            continue
+        entry = line.strip()
+        if not entry.startswith(LIB_PREFIX) or " @ " not in entry:
+            continue
+        name, _, pin = entry.partition(" @ ")
+        lib = name[len(LIB_PREFIX) :].strip()
+        pin = pin.strip()
+        if lib and pin:
+            pins[lib] = pin
+    return pins

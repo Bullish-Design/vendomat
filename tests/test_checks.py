@@ -66,7 +66,7 @@ def test_vendor_checks_up_to_date(tmp_path):
 
     checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"})
     assert self_check_exit(checks) == 0
-    assert {c.name for c in checks} == {"vendor:frontmatter", "vendor:skills", "vendor:current"}
+    assert {c.name for c in checks} == {"vendor:frontmatter", "vendor:skills", "vendor:current", "vendor:pins"}
     assert all(c.level == "ok" for c in checks)
 
 
@@ -95,3 +95,60 @@ def test_vendor_checks_stale_manifest_warns(tmp_path):
     current = next(c for c in checks if c.name == "vendor:current")
     assert current.level == "warn"
     assert "stale" in current.detail
+
+
+# --- review-on-bump (M4 vendor:pins) ----------------------------------------------------------
+
+
+def test_pins_match_resolved_is_ok(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"}, {"typer": "0.12.5"})
+    pins = next(c for c in checks if c.name == "vendor:pins")
+    assert pins.level == "ok"
+
+
+def test_pins_diverged_resolved_warns_stale(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    # Consumer bumped typer past the pin the skill was written against.
+    checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"}, {"typer": "0.13.0"})
+    pins = next(c for c in checks if c.name == "vendor:pins")
+    assert pins.level == "warn"
+    assert "dep-typer" in pins.detail and "0.12.5→0.13.0" in pins.detail
+    assert self_check_exit(checks) == 0  # review-on-bump is warn-only
+
+
+def test_pins_compare_against_the_pin_recorded_at_install_time(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.11.0")
+    constraints = vendor / "constraints.txt"
+    constraints.write_text("typer==0.12.5\n")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    # A later vendor bump must not rewrite the historical pin in this consumer's manifest.
+    constraints.write_text("typer==0.13.0\n")
+    checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"}, {"typer": "0.13.0"})
+
+    pins = next(c for c in checks if c.name == "vendor:pins")
+    assert pins.level == "warn"
+    assert "0.12.5→0.13.0" in pins.detail
+
+
+def test_pins_unknown_resolved_stays_green(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    # No resolved version known (no uv.lock) → cannot judge, no false alarm.
+    checks = vendor_checks(repo, ".claude/skills", vendor, {"typer"}, {})
+    pins = next(c for c in checks if c.name == "vendor:pins")
+    assert pins.level == "ok"

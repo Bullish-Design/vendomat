@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vendomat.deps import normalize, read_deps
+from vendomat.deps import normalize, read_deps, read_resolved_versions
 
 
 def test_normalize_pep503():
@@ -91,3 +91,21 @@ def test_precedence_pyproject_wins_over_repoman(tmp_path):
 
 def test_no_source_files_returns_empty(tmp_path):
     assert read_deps(tmp_path) == set()
+
+
+# --- read_resolved_versions (M4 review-on-bump input) -----------------------------------------
+
+
+def test_resolved_versions_from_uv_lock_normalizes_names(tmp_path):
+    _write(
+        tmp_path,
+        "uv.lock",
+        '[[package]]\nname = "Typer"\nversion = "0.13.0"\n\n[[package]]\nname = "click"\nversion = "8.1.7"\n',
+    )
+    assert read_resolved_versions(tmp_path) == {"typer": "0.13.0", "click": "8.1.7"}
+
+
+def test_resolved_versions_no_uv_lock_is_empty(tmp_path):
+    # pyproject/repoman carry no exact resolved version → unknown, not an error.
+    _write(tmp_path, "pyproject.toml", '[project]\ndependencies = ["typer>=0.12"]\n')
+    assert read_resolved_versions(tmp_path) == {}

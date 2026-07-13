@@ -19,7 +19,7 @@ import typer
 
 from .add import EntryExistsError, gather, scaffold
 from .checks import format_self_check, self_check_exit, vendor_checks
-from .deps import read_deps
+from .deps import read_deps, read_resolved_versions
 from .install import LIB_PREFIX, install_knowledge
 
 app = typer.Typer(
@@ -146,7 +146,8 @@ def doctor(
     vroot = Path(vr) if vr else repo_root / f".{LIB_PREFIX}no-vendor-root"
 
     deps = read_deps(repo_root)
-    checks = vendor_checks(repo_root, skills_dir, vroot, deps)
+    resolved = read_resolved_versions(repo_root)
+    checks = vendor_checks(repo_root, skills_dir, vroot, deps, resolved)
 
     typer.echo("=== vendomat (self-check) ===")
     typer.echo(format_self_check(checks))

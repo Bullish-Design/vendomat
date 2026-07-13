@@ -111,3 +111,20 @@ def read_deps(repo_root: Path) -> set[str]:
         if path.is_file():
             return parser(path)
     return set()
+
+
+def read_resolved_versions(repo_root: Path) -> dict[str, str]:
+    """Concrete resolved versions per normalized dist name — the input to review-on-bump (M4).
+
+    Only ``uv.lock`` carries exact resolved versions (``[[package]]`` ``name`` + ``version``);
+    pyproject/repoman only pin ranges or manager floors, from which no single "installed" version
+    can be read. So this reads ``uv.lock`` when present and returns ``{}`` otherwise — meaning
+    "resolved versions unknown", which ``vendomat doctor`` treats as *cannot judge staleness*
+    (skills stay green) rather than a failure.
+    """
+
+    path = repo_root / "uv.lock"
+    if not path.is_file():
+        return {}
+    data = tomllib.loads(path.read_text())
+    return {normalize(p["name"]): str(p["version"]) for p in data.get("package", []) if "name" in p and "version" in p}

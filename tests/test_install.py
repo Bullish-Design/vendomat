@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vendomat.install import MANIFEST, expected_libs, install_knowledge, matched_libs
+from vendomat.install import (
+    MANIFEST,
+    expected_libs,
+    install_knowledge,
+    lib_pin,
+    matched_libs,
+    parse_manifest_pins,
+)
 
 
 def _seed_lib(vendor_root: Path, lib: str, pin: str = "1.2.3", skill: str = "# skill\n") -> None:
@@ -64,6 +71,37 @@ def test_manifest_records_pin(tmp_path):
     assert "dep-typer @ 0.12.5" in text
 
 
+def test_shared_constraint_is_the_manifest_pin(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    (vendor / "constraints.txt").write_text("typer==0.13.0\n")
+    repo = tmp_path / "repo"
+
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    assert lib_pin(vendor, "typer") == "0.13.0"
+    assert "dep-typer @ 0.13.0" in (repo / ".claude/skills" / MANIFEST).read_text()
+
+
+def test_metadata_pin_is_used_without_an_applicable_exact_constraint(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    (vendor / "constraints.txt").write_text(
+        "# Comments, ranges, markers, extras, and malformed exact requirements are ignored.\n"
+        "typer>=0.13\n"
+        "typer==0.13 ; python_version >= '3.13'\n"
+        "typer[all]==0.13\n"
+        "typer===0.13\n"
+        "other==1.0\n"
+    )
+    repo = tmp_path / "repo"
+
+    install_knowledge(vendor, {"typer"}, ".claude/skills", repo)
+
+    assert lib_pin(vendor, "typer") == "0.12.5"
+    assert "dep-typer @ 0.12.5" in (repo / ".claude/skills" / MANIFEST).read_text()
+
+
 def test_idempotent_rerun(tmp_path):
     vendor = tmp_path / "vendor"
     _seed_lib(vendor, "typer", pin="0.12.5")
@@ -79,3 +117,33 @@ def test_idempotent_rerun(tmp_path):
     assert first == second
     skills = list((repo / ".claude/skills").glob("dep-*/SKILL.md"))
     assert len(skills) == 1
+
+
+# --- parse_manifest_pins (M4 round-trip) ------------------------------------------------------
+
+
+def test_manifest_pins_round_trip(tmp_path):
+    vendor = tmp_path / "vendor"
+    _seed_lib(vendor, "typer", pin="0.12.5")
+    _seed_lib(vendor, "pydantic", pin="2.7.0")
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"typer", "pydantic"}, ".claude/skills", repo)
+
+    manifest = (repo / ".claude/skills" / MANIFEST).read_text()
+    assert parse_manifest_pins(manifest) == {"typer": "0.12.5", "pydantic": "2.7.0"}
+
+
+def test_manifest_pins_unpinned_lib(tmp_path):
+    vendor = tmp_path / "vendor"
+    d = vendor / "libs" / "bare"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("# skill\n")  # no meta.toml → pin is "unpinned"
+    repo = tmp_path / "repo"
+    install_knowledge(vendor, {"bare"}, ".claude/skills", repo)
+
+    manifest = (repo / ".claude/skills" / MANIFEST).read_text()
+    assert parse_manifest_pins(manifest) == {"bare": "unpinned"}
+
+
+def test_manifest_pins_no_block_is_empty():
+    assert parse_manifest_pins("vendomat version: 1.0\nskills:\n") == {}

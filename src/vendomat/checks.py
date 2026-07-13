@@ -17,7 +17,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from .install import LIB_PREFIX, MANIFEST, expected_libs, matched_libs
+from .deps import normalize
+from .install import LIB_PREFIX, MANIFEST, expected_libs, matched_libs, parse_manifest_pins
 from .models import LibMeta, SkillFrontmatter, split_frontmatter
 
 _LEVELS: dict[str, int] = {"ok": 0, "warn": 0, "fail": 2}
@@ -44,7 +45,13 @@ def format_self_check(checks: list[SelfCheck]) -> str:
     return "\n".join(f"{mark.get(c.level, '?')} {c.name}" + (f" — {c.detail}" if c.detail else "") for c in checks)
 
 
-def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set[str]) -> list[SelfCheck]:
+def vendor_checks(
+    repo_root: Path,
+    skills_dir: str,
+    vendor_root: Path,
+    deps: set[str],
+    resolved: dict[str, str] | None = None,
+) -> list[SelfCheck]:
     """Knowledge-layer drift checks for ``vendomat doctor`` (mirrors devman's ``devman_checks``).
 
     Are the skills the repo's deps *should* have installed actually present, and is the manifest at
@@ -86,8 +93,37 @@ def vendor_checks(repo_root: Path, skills_dir: str, vendor_root: Path, deps: set
                 detail="up to date" if fresh else "manifest stale — re-run `vendomat sync`",
             )
         )
+        out.append(_staleness_check(manifest.read_text(), resolved or {}))
 
     return out
+
+
+def _staleness_check(manifest_text: str, resolved: dict[str, str]) -> SelfCheck:
+    """Review-on-bump (M4): flag installed skills whose lib drifted off the pin they were written for.
+
+    For each ``dep-<lib>`` in the manifest's ``pins:`` block, compare the recorded pin against the
+    consumer's *resolved* version of that lib. A skill is **stale** when the two diverge — the lib
+    was bumped since the skill was authored, so the prose may no longer match. Warn-only (a stale
+    skill is a review prompt, not broken wiring).
+
+    Libs whose pin is ``unpinned`` or whose resolved version is unknown (no ``uv.lock``, or the lib
+    isn't in it) are *not judged* — staleness cannot be established, so the skill stays green rather
+    than crying wolf.
+    """
+
+    stale: list[str] = []
+    for lib, pin in parse_manifest_pins(manifest_text).items():
+        if pin == "unpinned":
+            continue
+        current = resolved.get(normalize(lib))
+        if current is not None and current != pin:
+            stale.append(f"{LIB_PREFIX}{lib} ({pin}→{current})")
+
+    return SelfCheck(
+        name="vendor:pins",
+        level="ok" if not stale else "warn",
+        detail="all skills match their pin" if not stale else f"stale, review skill vs bump: {', '.join(stale)}",
+    )
 
 
 def _frontmatter_check(vendor_root: Path) -> SelfCheck:

@@ -1,9 +1,9 @@
 # Curation metadata for the per-dependency knowledge entry.
 #
 # `version` is the range my personal libs target; `pin` is the concrete version the SKILL.md
-# below was written against. M2 records `pin` into the `.vendor-source` manifest at install time;
-# M4 compares it against the consumer's resolved version to flag a skill as stale (review-on-bump).
-# Keep `pin` updated in lockstep with any rewrite of SKILL.md / notes.md.
+# below was written against. `vendor/constraints.txt` is the shared authoritative pin used in
+# `.vendor-source` at install time; keep this fallback pin in lockstep with it and with any rewrite
+# of SKILL.md / notes.md.
 
 [lib]
 name = "typer"
