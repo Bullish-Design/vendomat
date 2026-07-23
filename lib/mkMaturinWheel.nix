@@ -31,6 +31,11 @@ pkgs.stdenv.mkDerivation {
     pkgs.rustc
     pkgs.rustPlatform.cargoSetupHook # consumes `cargoDeps`, wires cargo to the vendor dir
     python # fixes the abi3 interpreter / wheel tag
+    # A crate may pin a faster linker in its committed `.cargo/config.toml` (pyjutsu sets
+    # `-fuse-ld=mold` for the link-heavy jj-lib cdylib). That flag is applied to the release
+    # build here too, so `mold` must be on PATH in the sandbox or the link fails with
+    # `collect2: cannot find 'ld'`. Vend the linker the crates we build ask for.
+    pkgs.mold
   ];
 
   buildPhase = ''
