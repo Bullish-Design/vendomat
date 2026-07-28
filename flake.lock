@@ -39,11 +39,11 @@
     "pyjutsu": {
       "flake": false,
       "locked": {
-        "lastModified": 1784820612,
-        "narHash": "sha256-ufuQD+aLbTS12lrUygSetvaRYRy8HKK2WroPzb/AU08=",
+        "lastModified": 1785267685,
+        "narHash": "sha256-4dU16sV5yMVbWMO9PejjOvNzcJ8LTMcrFTdHku5ZExs=",
         "ref": "refs/heads/main",
-        "rev": "4746e49f7a8d1670156b7acb0cfe3cfd741856ff",
-        "revCount": 88,
+        "rev": "781a2aadf9cbff5c7aeddae29fd03ddaa5c8443a",
+        "revCount": 91,
         "type": "git",
         "url": "file:///home/andrew/Documents/Projects/pyjutsu"
       },

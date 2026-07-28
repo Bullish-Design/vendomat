@@ -19,3 +19,9 @@ __pycache__/
 # Testee run artifacts (the verify manager; testee.toml + nix/testee.nix are tracked)
 .testee/runs/
 .testee/last-run
+
+# Generated consumer source-grounding map (global clones live under ~/vendor)
+/.vendomat/
+
+# Scratch project artifacts — never track log files
+.scratch/projects/**/*.log
