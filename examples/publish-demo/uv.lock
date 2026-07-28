@@ -1,0 +1,5 @@
+version = 1
+
+[[package]]
+name = "acme-widget"
+version = "0.1.0"

@@ -1,0 +1,14 @@
+[package]
+name = "silverbullet"
+kind = "vendor"
+repository = "https://github.com/silverbulletmd/silverbullet"
+# Pin matches the nixpkgs `silverbullet` binary running on `server` (2.9.0).
+# Reference-only checkout for agent/notes grounding — NOT a Python dependency.
+# NOTE: SilverBullet is a Rust + TypeScript app, so `vendomat vendor sync` will
+# never select this entry (it gates on the consumer's Python deps). See
+# .scratch/projects/05-vendor-non-python-sources. The checkout at
+# ~/vendor/silverbullet was materialized out-of-band at this same rev.
+rev = "72bba941c86ba7752661027cbd572e6669df6d9e"
+
+[local]
+cache = "silverbullet"

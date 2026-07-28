@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typer.testing import CliRunner
 
-from vendomat.cli import app
+from vendomat.cli import _catalog_root, _global_source_root, app
 
 runner = CliRunner()
 
@@ -80,3 +80,113 @@ def test_add_respects_vendor_root_flag(tmp_path, monkeypatch):
     result = runner.invoke(app, ["add", "ghost-lib", "--vendor-root", str(target)])
     assert result.exit_code == 0
     assert (target / "libs" / "ghost-lib" / "SKILL.md").is_file()
+
+
+def test_materialize_rewrites_consumer_manifest_sources(tmp_path, monkeypatch):
+    (tmp_path / "vendomat.toml").write_text(
+        '[[replacement]]\nfiles = ["pyproject.toml"]\n'
+        'local = "path:vendor/widgets"\n'
+        'github = "git+https://github.com/acme/widgets.git@v1"\n'
+    )
+    (tmp_path / "pyproject.toml").write_text('source = "path:vendor/widgets"\n')
+    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
+
+    result = runner.invoke(app, ["materialize", "github"])
+
+    assert result.exit_code == 0
+    assert "updated 1 file" in result.stdout
+    assert "git+https://github.com/acme/widgets.git@v1" in (tmp_path / "pyproject.toml").read_text()
+
+
+def test_vendor_group_help_exposes_required_commands():
+    result = runner.invoke(app, ["vendor", "--help"])
+
+    assert result.exit_code == 0
+    assert "sync" in result.stdout
+    assert "status" in result.stdout
+    assert "doctor" in result.stdout
+
+
+def test_vendor_source_root_defaults_to_home_vendor(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("VENDOMAT_SOURCE_ROOT", raising=False)
+
+    assert _global_source_root(None) == tmp_path / "vendor"
+
+
+def test_vendor_catalog_root_reuses_nix_vendor_root_environment(tmp_path, monkeypatch):
+    vendor_root = tmp_path / "vendomat-store-source/vendor"
+    monkeypatch.setenv("VENDOMAT_VENDOR_ROOT", str(vendor_root))
+    monkeypatch.delenv("VENDOMAT_CATALOG_ROOT", raising=False)
+
+    assert _catalog_root(None) == vendor_root.parent
+
+
+def test_vendor_sync_help_exposes_global_source_root():
+    result = runner.invoke(app, ["vendor", "sync", "--help"])
+
+    assert result.exit_code == 0
+    assert "--source-root" in result.stdout
+    assert "~/vendor" in result.stdout
+
+
+def test_vendor_doctor_uses_shared_exit_contract_for_missing_project(tmp_path):
+    vendomat_root = tmp_path / "vendomat"
+    catalog = vendomat_root / "vendor/python"
+    catalog.mkdir(parents=True)
+    (catalog / "knappy.toml").write_text(
+        "[package]\n"
+        'name = "knappy"\n'
+        'kind = "project"\n'
+        'repository = "https://github.com/Bullish-Design/knappy"\n'
+        f'rev = "{"1" * 40}"\n\n'
+        "[local]\n"
+        'path = "../knappy"\n'
+    )
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "pyproject.toml").write_text('[project]\ndependencies = ["knappy"]\n')
+
+    result = runner.invoke(
+        app,
+        [
+            "vendor",
+            "doctor",
+            "--repo-root",
+            str(consumer),
+            "--vendomat-root",
+            str(vendomat_root),
+            "--source-root",
+            str(tmp_path / "global-vendor"),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "missing" in result.stdout
+
+
+def test_vendor_sync_malformed_catalog_is_infra_error(tmp_path):
+    vendomat_root = tmp_path / "vendomat"
+    catalog = vendomat_root / "vendor/python"
+    catalog.mkdir(parents=True)
+    (catalog / "broken.toml").write_text("not = [valid")
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    (consumer / "pyproject.toml").write_text('[project]\ndependencies = ["pydantic"]\n')
+
+    result = runner.invoke(
+        app,
+        [
+            "vendor",
+            "sync",
+            "--repo-root",
+            str(consumer),
+            "--vendomat-root",
+            str(vendomat_root),
+            "--source-root",
+            str(tmp_path / "global-vendor"),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "catalog" in result.stderr.lower()

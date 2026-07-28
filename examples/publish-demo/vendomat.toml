@@ -1,0 +1,4 @@
+[[replacement]]
+files = ["pyproject.toml"]
+local = 'acme-widget = { path = "vendor/acme-widget", editable = true }'
+github = 'acme-widget = { git = "https://github.com/acme/acme-widget", tag = "v0.1.0" }'

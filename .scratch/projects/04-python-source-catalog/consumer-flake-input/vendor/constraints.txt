@@ -1,0 +1,12 @@
+# vendomat — shared external constraints (M4).
+#
+# The unified pin floor the personal *man-family libs reference for their common external deps.
+# One documented place per external dependency (plan issue #6): a consuming repo can point uv at
+# this file (`uv pip install -c .../vendor/constraints.txt`) so every consumer resolves the same
+# floor the knowledge skills were written against.
+#
+# Each line here should stay in lockstep with the `pin` of the matching `vendor/libs/<lib>/meta.toml`
+# entry: the SKILL.md was written against that version, and `vendomat doctor` flags a skill stale
+# (review-on-bump) when a consumer's resolved version diverges from it.
+
+typer==0.12.5

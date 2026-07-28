@@ -1,0 +1,8 @@
+[project]
+name = "vendomat-publish-demo"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["acme-widget"]
+
+[tool.uv.sources]
+acme-widget = { path = "vendor/acme-widget", editable = true }

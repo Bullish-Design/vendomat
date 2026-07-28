@@ -1,0 +1,8 @@
+[package]
+name = "knappy"
+kind = "project"
+repository = "https://github.com/Bullish-Design/knappy"
+rev = "9fe266e30bd02cb4f453d5a9586c3c412e0b453f"
+
+[local]
+path = "../knappy"

@@ -1,6 +1,6 @@
 # vendomat — design: the vendor layer (artifacts + knowledge) for the `*man` family
 
-> Status: design draft (scope **C — narrow now, broad-ready**). This revision is grounded in
+> Status: implemented through M4 (scope **C — narrow now, broad-ready**). This revision is grounded in
 > the *actual* sibling repos on disk (`repoman`, `zelligate`, `gitman`/`Pyjutsu`), not just
 > vendomat's README. Where an earlier draft guessed, the guess is called out and corrected.
 >
@@ -45,10 +45,12 @@ composes the individual managers."*
 - **`repoman.lock` (TOML) is the manifest** (verified against `repoman/tests/consumer-example/
   repoman.lock`). Each entry is two fields — `package` (the dist name) + `source` — e.g.
   `[managers.git]` → `package = "gitman"`, `source = "path:…/gitman"`.
-  `modules/scripts/repoman-sync.sh` resolves `source` two ways, and the lock's own header
-  documents exactly these two forms:
+  `modules/scripts/repoman-sync.sh` resolves `source` through an open prefix vocabulary, and
+  the lock's own header documents these forms:
   - `source = "path:/local/checkout"` → `uv pip install --editable=<path>` (live local edits);
   - `source = "git+https://…@vX.Y.Z"` → uv resolves the pinned ref.
+  - `source = "wheel:<requirement>"` → the bare requirement is resolved from Vendomat's
+    `UV_FIND_LINKS` wheelhouse; RepoMan fails early with guidance if that environment is absent.
   - **That `path:` vs `git+@ref` switch is already a hybrid local/release model** at the uv
     layer. Native-dep "pseudo-entries" key off a manager — verified: `[managers.git-pyjutsu]`
     with `package = "pyjutsu"`, base = part before the first `-` — and install alongside it.
@@ -62,10 +64,11 @@ composes the individual managers."*
 ### 1.2 The gap vendomat fills (named in repoman itself)
 
 `repoman/CONCEPT.md` §6 + §8:
-- gitman depends on **pyjutsu**, a Rust/maturin/PyO3 native extension. To make it installable,
-  `modules/managers/gitman.nix` provisions a **full Rust toolchain + maturin into every
-  consumer devenv** that enables `git`, and pyjutsu is installed from a `path:`/`git+` source
-  — i.e. **compiled from scratch per repo**.
+- gitman depends on **pyjutsu**, a Rust/maturin/PyO3 native extension. The former path
+  provisioned Rust + maturin in every `git` consumer and compiled Pyjutsu from source. The
+  shipped path uses `wheel:pyjutsu>=0.8`, Vendomat's wheelhouse, and
+  `repoman.nativeBuild = false`, so a normal consumer installs the prebuilt wheel with no Cargo
+  build or Rust toolchain contribution.
 - §8, remaining gitman follow-up, verbatim: *"a fleet path (published pyjutsu wheel + `git+…`
   sources) so `path:` checkouts aren't required."*
 
@@ -317,33 +320,15 @@ A wrong skill is worse than no skill. Defenses, in order of leverage:
 | 6 | `vendor/` contents | **Knowledge first → + shared constraints → + selective source** | new — cheap certain value first; constraints as backbone; source scoped per-lib |
 | — | Scope | **C: narrow native-vendor now, broad-ready seams** | new — narrow closes the named gap; seams keep fleet reachable |
 
-## 9. Open items / next steps
+## 9. Current status and next steps
 
-**Face A (artifacts):**
-- ~~Confirm `repoman.lock` shape~~ — **done.** Verified two-field entries (`package` + `source`)
-  and the real `[managers.git-pyjutsu]` pseudo-entry in `repoman/tests/consumer-example/
-  repoman.lock`; the lock documents only `path:` and `git+…@ref` today, so `wheel:` is a new
-  third form (§1.1, §3.2).
-- **Land the `wheel:` resolver** in `repoman-sync.sh` (one `elif`) — coordinate as a small PR to
-  repoman, since the file lives there. Note its `target()` reads `source` only (not `package`),
-  so `wheel:pyjutsu>=0.8` → returns `pyjutsu>=0.8` for uv to resolve from `UV_FIND_LINKS`.
-- **abi3 / interpreter tag** still binds consumers to the wheel's `cp313-abi3` floor (README
-  constraint stands) — `UV_NO_BUILD_PACKAGE` turns a tag mismatch into a hard error, by design.
+**Delivered:** M0–M4 are implemented. The full RepoMan consumer fixture proves the wheel path:
+the consumer exports Vendomat's wheelhouse environment, resolves the `wheel:` source to
+`pyjutsu>=0.8`, installs the CPython-3.13 abi3 wheel, imports Pyjutsu, and contributes neither
+Rust nor maturin when `repoman.nativeBuild = false`. Face B delivers usage-gated sync, skill
+scaffolding, shared constraints, and review-on-bump warnings.
 
-**Face B (knowledge):**
-- ~~Verify repoman's skill-router reuse~~ — **done.** repoman generates a roster-driven
-  entrypoint skill (`skills.py`); manager skills install as flat siblings under
-  `<skills_dir>/<name>/SKILL.md` (`devman/install.py`) with a `.<tool>-source` drift manifest.
-  vendomat follows the same shape (`dep-<lib>/SKILL.md` + `.vendor-source`); per-dep skills are
-  discovered via SKILL.md frontmatter, not the generated router (§7.2).
-- **Build `vendor-sync`'s dep-reader** — parse the consuming repo's dependency set from
-  `uv.lock` / `pyproject.toml` / `repoman.lock`, intersect with `vendor/libs/`.
-- **Build `vendor-add <lib>`** — the agent-assisted draft task (notes + SKILL.md from docs/
-  source/changelog) feeding human curation; emit devman-style frontmatter.
-- **Wire review-on-bump** — key a staleness flag to `constraints.txt` pins, surfaced via the
-  `.vendor-source` manifest in `repoman doctor` (mirrors devman's drift check).
-
-**Scope:**
-- **Decide if/when broad (B) is warranted** — revisit once wheels + knowledge are in use and you
-  can see whether cross-repo auto-init is actually reached for, or whether per-repo
-  `path:`/`wheel:` + usage-gated skills were always enough.
+**Next:** keep the cross-repository proof repeatable; curate the next dependency skill only when
+there is a real knowledge need; and observe constraint-bump reviews in normal use. Extra artifact
+builders, fleet orchestration, and selective vendored source remain explicitly deferred until
+that evidence exists.

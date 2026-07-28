@@ -15,13 +15,16 @@ one `vendor/` data area:
 - **Face B — knowledge:** per-dependency notes + agent `SKILL.md`s installed into a repo,
   gated on the deps it actually uses ("devman, but per dependency").
 
-**Current state (verified):** Face A's *Nix half* already works — `nix build .#wheelhouse`
-builds the cp313-abi3 pyjutsu wheel into the store; vendomat's module sets `UV_FIND_LINKS` +
-`UV_NO_BUILD_PACKAGE`; gitman installs it with zero compile. What does **not** exist yet: the
-`wheel:` source kind in `repoman.lock`/`repoman-sync.sh` (so repoman-sync still
-editable-compiles the `git-pyjutsu` entry — the README "proven" status is the UV_FIND_LINKS
-path, not the lock path), the Rust-toolchain opt-out, and **all of Face B** (vendomat ships
-zero Python today — no `devenv.nix`, no `src/`, no tests, no `vendor/` data).
+**Implementation status (2026-07-16):** M0 through M4 are complete. Face A builds the
+CPython-3.13 abi3 Pyjutsu wheel, RepoMan resolves `wheel:pyjutsu>=0.8` to the bare uv
+requirement, and `repoman.nativeBuild = false` contributes neither Rust nor maturin. The full
+RepoMan consumer fixture has been verified with `UV_FIND_LINKS`, `UV_NO_BUILD_PACKAGE=pyjutsu`,
+wheel provenance, successful import, and no Cargo build during installation.
+
+Face B now ships the Vendomat Python CLI, usage-gated `vendor-sync`, dependency-skill
+scaffolding via `vendomat add`, shared `vendor/constraints.txt`, and warn-only review-on-bump
+checks in `vendomat doctor`. The milestone sections below are retained as the implementation
+record; deferred scope remains deferred.
 
 **Settled this session:** (1) `vendor/` lives as a **subdir of the vendomat repo** (one repo =
 one vendor layer); (2) Face B is a **Python Typer package** mirroring the `*man` CLI contract;

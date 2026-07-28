@@ -1,0 +1,8 @@
+[package]
+name = "pydantic"
+kind = "vendor"
+repository = "https://github.com/pydantic/pydantic"
+rev = "cf67d4b3193c3fe43ede18612ed62785eee11382"
+
+[local]
+cache = "pydantic"
