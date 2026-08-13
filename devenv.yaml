@@ -6,3 +6,12 @@ inputs:
   # and the flake's python313, which builds the Face A wheel + the vendomat CLI package).
   nixpkgs-python:
     url: github:cachix/nixpkgs-python
+  # shellij: durable Zellij workbenches. This repo does not import RepoMan's
+  # meta-module, so it imports shellij's devenv module directly — shellij/zellij/
+  # yazi packages, the guarded `shellij open` enterShell hook, and
+  # YAZI_CONFIG_HOME pointing at the packaged Yazi assets.
+  shellij:
+    url: path:/home/andrew/Documents/Projects/shellij
+
+imports:
+  - shellij/modules
