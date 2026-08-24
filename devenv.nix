@@ -47,4 +47,27 @@
   '';
 
   # See full reference at https://devenv.sh/reference/options/
+
+  # devman — the automation plane (CONCEPT.md §5). `base` alone: this repository
+  # ships no scheduled work and writes none of its own files.
+  devman = {
+    enable = true;
+    project = "vendomat";
+    groups = [ "base" ];
+  };
+
+  # https://devenv.sh/tasks/
+  #
+  # The two task names the `base` group calls (groups/base/README.md). devenv
+  # owns each implementation; Dagu owns the composition (§6). `uv run --group
+  # dev` rather than bare names: the venv bin is on the interactive shell's PATH
+  # but not on the task runner's PATH (STAGE_7_LOG.md, wave 2b); dev deps are a
+  # uv `[dependency-groups]`. `ruff check src` matches the repo's own scope.
+  tasks = {
+    "vendomat:lint".exec = "uv run --group dev ruff check src";
+    "vendomat:test".exec = "uv run --group dev pytest";
+
+    "base:check".after = [ "vendomat:lint" ];
+    "base:test".after = [ "vendomat:test" ];
+  };
 }
