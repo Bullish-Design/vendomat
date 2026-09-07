@@ -1,6 +1,6 @@
 [project]
 name = "vendomat"
-version = "0.2.1"
+version = "0.2.2"
 description = "The vendor layer for repoman's *man family: native-wheel artifacts (Face A) + per-dependency knowledge skills (Face B)."
 readme = "README.md"
 requires-python = ">=3.13"
