@@ -26,6 +26,7 @@ from .install import LIB_PREFIX, install_knowledge
 from .publish import PublishError, install_hook, pre_push, publish_preview, refresh_lock
 from .publish import materialize as materialize_files
 from .sources import SourceError, source_checks, source_status, sync_sources
+from .wheels import WheelError, publish_wheel
 
 app = typer.Typer(
     help="vendomat - the vendor layer for repoman's *man family (artifacts + knowledge).",
@@ -319,20 +320,47 @@ def refresh_lock_command(
 
 @app.command()
 def publish(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show the public manifest/lock diff without pushing."),
+    lib: str | None = typer.Argument(
+        None, help="Native library to publish (e.g. pyjutsu). Omit to preview the source rewrite."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report the upload without performing it."),
     repo_root: str | None = typer.Option(None, "--repo-root", help="Consumer repo root (defaults to $DEVENV_ROOT)."),
+    github_repo: str | None = typer.Option(
+        None, "--github-repo", help="owner/name of the release repository (defaults to Bullish-Design/<lib>)."
+    ),
 ) -> None:
-    """Preview Vendomat's publish-time GitHub-source and uv.lock transformation."""
+    """Publish a native library's store wheel, or preview the source rewrite.
 
-    if not dry_run:
-        typer.echo("vendomat publish: only --dry-run is supported; git push runs the publisher.", err=True)
-        raise typer.Exit(code=3)
+    With ``<lib>``: build ``.#<lib>-wheel`` and upload **that exact store file** to the
+    library's GitHub release, so a consumer's ``[tool.uv.sources]`` URL and the store
+    wheelhouse name the same bytes.
+
+    Without ``<lib>``: the pre-push publisher's preview (``--dry-run`` only), showing the
+    GitHub-source and ``uv.lock`` transformation for the current repo.
+    """
+
+    root = Path(repo_root or _repo_root())
+    if lib is None:
+        if not dry_run:
+            typer.echo("vendomat publish: only --dry-run is supported; git push runs the publisher.", err=True)
+            raise typer.Exit(code=3)
+        try:
+            diff = publish_preview(root)
+        except PublishError as exc:
+            typer.echo(f"vendomat publish: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        typer.echo(diff or "vendomat publish: no public manifest or lock changes.", nl=not diff.endswith("\n"))
+        return
+
     try:
-        diff = publish_preview(Path(repo_root or _repo_root()))
-    except PublishError as exc:
-        typer.echo(f"vendomat publish: {exc}", err=True)
-        raise typer.Exit(code=2) from exc
-    typer.echo(diff or "vendomat publish: no public manifest or lock changes.", nl=not diff.endswith("\n"))
+        report = publish_wheel(lib, root, repo=github_repo, dry_run=dry_run)
+    except WheelError as exc:
+        # A refused publication is a decision about the artifact, not a broken environment.
+        typer.echo(f"vendomat publish {lib}: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"=== vendomat publish {lib} ===")
+    for line in report:
+        typer.echo(line)
 
 
 @app.command("pre-push", hidden=True)

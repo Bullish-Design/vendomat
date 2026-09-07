@@ -53,6 +53,24 @@ in
       '';
     };
 
+    noBuild = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Forbid uv from building `vendor.libs` from source (`UV_NO_BUILD_PACKAGE`).
+
+        Off by default, and that inversion is deliberate. The store wheelhouse is an
+        **accelerator**, not the source of truth: the artifact of record is the release URL
+        a consumer declares in `[tool.uv.sources]`. When the store has no matching wheel,
+        uv must fall back to that URL. That is not a silent fallback — the URL is the
+        declaration.
+
+        The old default made a missing or mismatched store wheel a hard resolution failure,
+        which took down loci-core's devenv shell outright (gitman project 32, G3). Turn this
+        on only in a repo that has no declared URL to fall back to.
+      '';
+    };
+
     sharedCargo = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -92,8 +110,10 @@ in
     # --- Face A: vendored native wheels -------------------------------------------------------
     (lib.mkIf cfg.enable (lib.mkMerge [
       {
-        # uv treats the wheelhouse as an extra package source. `pyjutsu>=0.8` in a consumer's
-        # pyproject now resolves to the prebuilt cp313-abi3 wheel sitting here.
+        # uv treats the wheelhouse as an *additional* package source, ranked alongside the
+        # release URL a consumer declares. Both name the same bytes — the wheelhouse builds
+        # the manylinux artifact that `vendomat publish` uploads — so either route satisfies
+        # the same `uv.lock` hash, and a store miss costs a download, not a failure.
         env.UV_FIND_LINKS = "${wheelhouse}";
 
         tasks."vendor:status".exec = ''
@@ -103,9 +123,9 @@ in
         '';
       }
 
-      # Safety latch: forbid uv from building these from source. A missing/mismatched wheel
-      # then fails loudly instead of silently falling back to a from-scratch maturin compile.
-      (lib.mkIf (vendoredLibs != [ ]) {
+      # Opt-in latch, off by default. See `vendor.noBuild` for why the store must not be
+      # able to fail a resolution that the declared release URL can satisfy.
+      (lib.mkIf (cfg.noBuild && vendoredLibs != [ ]) {
         env.UV_NO_BUILD_PACKAGE = lib.concatStringsSep " " vendoredLibs;
       })
 

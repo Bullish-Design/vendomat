@@ -13,13 +13,82 @@ content-addressed wheel in the `/nix/store`, and consumers install the prebuilt 
 instead of building. The Nix store *is* the shared, build-once cache — no `~/.cache`
 wheelhouse to manage by hand.
 
+That wheel is the **published** artifact, not a second opinion about it. `mkMaturinWheel`
+stamps a manylinux platform tag and strips the store `RUNPATH`, and `vendomat publish <lib>`
+uploads that exact store file to the library's GitHub release. One build, one artifact, two
+indexes — the store and the release URL — which therefore cannot disagree.
+
+## What the wheelhouse is for
+
+**Read this before enabling Face A.** The wheelhouse (`vendor.enable`) is an *accelerator*,
+not a distribution channel:
+
+- **A native library with no published release yet.** Nothing to point a URL at.
+- **Local iteration ahead of a release.** Edit the lib, one `nix build`, every Nix consumer
+  sees it without cutting a tag. This is the one thing a release URL cannot do, and it is
+  why the store index earns its keep.
+
+For every other case the consumer declares the release URL in `[tool.uv.sources]` and needs
+no Nix, no vendomat, and no flake input. gitman project 35 settled that: a published,
+hashed wheel referenced by URL is what makes a tool adoptable in a repo that has never heard
+of Nix, and this repo does not replace it. **A repo that enables no face must not import the
+module at all** — it pays a flake input's evaluation and an `install-hook` probe per shell
+entry for no output.
+
+One rule keeps the two indexes honest: **an iteration build gets its own version**
+(`0.21.0.dev0+<rev>`), never the same version as a published release. One version, one
+artifact. `vendomat publish` enforces both halves — it refuses to upload an iteration wheel,
+and it refuses to give a published version a second set of bytes.
+
+## When the wheelhouse is the right answer, and when it is not
+
+**The store wheelhouse is for a native library with no published release yet,
+during local iteration. A published, relocated, hashed release asset is the
+shipping path.**
+
+Read this before wiring a consumer to `UV_FIND_LINKS`. Gitman project 35 (G3)
+recorded a real failure and removed the wheelhouse approach instead of repairing
+it, and the surrounding notes have been re-derived more than once since.
+
+The measured difference between the wheel this repo builds and the published one
+is exactly two things: `mkMaturinWheel` never passes `--compatibility`, so the
+wheel carries the bare `linux_x86_64` tag instead of `manylinux_2_39_x86_64`; and
+it keeps a `RUNPATH` into `/nix/store`. Applying pyjutsu's own
+`scripts/relocate_wheel.py` strips the `RUNPATH`, after which the extension needs
+only `libgcc_s`, `libm`, `libc` and the loader — all permitted by manylinux. A
+nix-built wheel, relocated, is a portable manylinux artifact. Nothing about Nix
+prevents it.
+
+So the defect was never "Nix cannot build a shippable wheel". It was that **two
+builds produced two different files carrying the same version number.** Every
+downstream symptom follows from that: which one wins, `[tool.uv.sources]` versus
+`UV_FIND_LINKS`, "the wheelhouse is bypassed", "the wheelhouse only works at the
+matching vendomat revision".
+
+Until `mkMaturinWheel` passes `--compatibility` and runs the relocate step in
+`postBuild`, keep these rules:
+
+- A consumer that wants a **shipping** pyjutsu names the release URL, as gitman's
+  own `[tool.uv.sources]` does and as `repoman.lock`'s `url:` source now does.
+  That works in CI, on a fresh machine, and in a repo that has never heard of Nix.
+- A consumer that wants to **iterate** ahead of a release may take
+  `UV_FIND_LINKS` at the store wheelhouse. That is the one thing a URL cannot
+  do — edit the library, one `nix build`, every Nix consumer sees it without
+  cutting a tag.
+- **An iteration build gets its own version** (`0.21.0.dev0+<rev>`), never the
+  same version as a published release. One version, one artifact — always.
+
+Do not import `vendomat/modules` in a repo that enables no face. It costs a flake
+input's evaluation and an `install-hook` probe on every shell entry and produces
+nothing. Six repos were doing exactly that (023-toolchain Phase 3.3).
+
 ## How it works
 
 ```
   Pyjutsu (git+file source)
         │  mkMaturinWheel  (cargo + maturin, ONCE, in the Nix sandbox)
         ▼
-  /nix/store/…-pyjutsu-0.10.1/pyjutsu-0.10.1-cp313-abi3-linux_x86_64.whl
+  /nix/store/…-pyjutsu-0.20.0/pyjutsu-0.20.0-cp313-abi3-manylinux_2_39_x86_64.whl
         │  symlinkJoin
         ▼
   packages.wheelhouse  ──► env.UV_FIND_LINKS in every consumer
@@ -75,6 +144,7 @@ vendor = {
   enable = true;
   libs   = [ "pyjutsu" ];   # install-only; never compiled here
   # self = "pyjutsu";       # set in a lib's OWN repo so it isn't vendored over its editable build
+  # noBuild = true;         # default false: let uv fall back to the declared release URL
   # sharedCargo = false;    # default true: sccache + shared CARGO_TARGET_DIR for repos that DO compile Rust
 };
 ```
@@ -84,9 +154,25 @@ set `repoman.nativeBuild = false`. RepoMan resolves the source to the bare requi
 to uv. In a direct consumer `pyproject.toml`, drop any `[tool.uv.sources]` path entry for the
 lib and depend on it by version (`pyjutsu>=0.8`). The module sets:
 
-- `UV_FIND_LINKS` → the store wheelhouse, so `uv sync` resolves the prebuilt wheel;
-- `UV_NO_BUILD_PACKAGE` → the vendored libs, so a missing/mismatched wheel **fails loudly**
-  instead of silently falling back to a from-source compile.
+- `UV_FIND_LINKS` → the store wheelhouse, so `uv sync` resolves the prebuilt wheel. Because
+  the store wheel and the release wheel are the same bytes, one `uv.lock` hash is valid
+  through either route, and a store miss costs a download rather than a failure.
+- `UV_NO_BUILD_PACKAGE` → **off by default** (`vendor.noBuild = true` to opt in). The store
+  must not be able to fail a resolution the declared release URL can satisfy. Setting it by
+  default is what took down loci-core's devenv shell (gitman project 32, G3). Falling back to
+  the URL is not a silent fallback — the URL is the declaration.
+
+## Publishing a wheel
+
+```sh
+vendomat publish pyjutsu --dry-run   # build .#pyjutsu-wheel, report the upload
+vendomat publish pyjutsu             # upload that exact store file to the release
+```
+
+The release tag is derived from the wheel's own version (`v0.20.0`), so the tag and the wheel
+name cannot disagree. The command refuses a wheel with a bare `linux_x86_64` tag, refuses an
+iteration version, and refuses to attach different bytes to a version that is already
+published.
 
 ## Local vendoring and GitHub publishing
 
