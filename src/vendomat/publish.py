@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -179,11 +180,46 @@ def refresh_lock(repo_root: Path) -> list[Path]:
     return [lock] if lock.read_text() != before else []
 
 
-def _published_commit(repo_root: Path, local_sha: str, remote_sha: str) -> str:
-    """Replay outgoing commits in a disposable worktree, materializing GitHub sources per commit."""
+def _rev_parse(repo_root: Path, ref: str) -> str | None:
+    """Return the commit a ref points at, or ``None`` when the ref does not exist."""
 
-    if remote_sha != "0" * 40:
-        _git(repo_root, "merge-base", "--is-ancestor", remote_sha, local_sha)
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.stdout.strip() or None
+
+
+def published_base_ref(remote: str, remote_ref: str) -> str:
+    """The ref that records the local commit last published to ``remote_ref``."""
+
+    branch = remote_ref.removeprefix("refs/heads/")
+    return f"refs/vendomat/published/{remote}/{branch}"
+
+
+def _is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _published_commit(repo_root: Path, local_sha: str, remote_sha: str, base: str | None) -> str:
+    """Replay outgoing commits in a disposable worktree, materializing GitHub sources per commit.
+
+    ``base`` is the local commit last published to this remote branch. The published counterpart
+    of that commit is ``remote_sha``, so replaying ``base..local_sha`` onto ``remote_sha`` gives
+    the published counterpart of ``local_sha``. Publication rewrites commits, so ``remote_sha``
+    is never part of the local history and cannot serve as the replay base itself.
+    """
+
     with tempfile.TemporaryDirectory(prefix="vendomat-publish-") as temp:
         worktree = Path(temp) / "checkout"
         _git(repo_root, "worktree", "add", "--detach", str(worktree), local_sha)
@@ -197,10 +233,10 @@ def _published_commit(repo_root: Path, local_sha: str, remote_sha: str) -> str:
                 f"{executable} refresh-lock --repo-root . && "
                 "git add -A && git commit --amend --no-edit --allow-empty"
             )
-            if remote_sha == "0" * 40:
+            if base is None:
                 _git(worktree, "rebase", "--root", f"--exec={command}")
             else:
-                _git(worktree, "rebase", "--onto", remote_sha, remote_sha, f"--exec={command}")
+                _git(worktree, "rebase", "--onto", remote_sha, base, f"--exec={command}")
             return _git(worktree, "rev-parse", "HEAD").strip()
         finally:
             _git(repo_root, "worktree", "remove", "--force", str(worktree))
@@ -212,6 +248,10 @@ def pre_push(repo_root: Path, remote: str, updates: str) -> None:
     Git has already selected the refs for the outer ``git push`` when this hook runs. We publish
     clean commits ourselves with ``--no-verify`` and intentionally fail the outer push so it
     cannot send the local-path commits afterwards. The developer's checkout is never modified.
+
+    Every ref is published in one ``git push`` so a later failure cannot leave part of the set
+    already sent. After that push succeeds, each branch's marker ref records the local commit
+    that was published, which keeps the next push's replay range correct.
     """
 
     if os.environ.get("VENDOMAT_BYPASS_PRE_PUSH") == "1":
@@ -219,15 +259,71 @@ def pre_push(repo_root: Path, remote: str, updates: str) -> None:
     lines = [line.split() for line in updates.splitlines() if line.strip()]
     if not lines:
         return
+    refspecs: list[str] = []
+    markers: list[tuple[str, str]] = []
     for fields in lines:
         if len(fields) != 4:
             raise PublishError("malformed pre-push input")
         local_ref, local_sha, remote_ref, remote_sha = fields
+        del local_ref
         if local_sha == "0" * 40 or remote_ref.startswith("refs/tags/"):
             raise PublishError("Vendomat publishes branches only; push tags separately with VENDOMAT_BYPASS_PRE_PUSH=1")
-        published = _published_commit(repo_root, local_sha, remote_sha)
-        _git(repo_root, "-c", "core.hooksPath=/dev/null", "push", remote, f"{published}:{remote_ref}")
+        marker = published_base_ref(remote, remote_ref)
+        base = _rev_parse(repo_root, marker)
+        if base is None and remote_sha != "0" * 40:
+            # A branch published by plain Git before any marker existed: its remote commit is a
+            # genuine ancestor of the local branch, so it is a valid replay base.
+            base = remote_sha
+        if base is not None and not _is_ancestor(repo_root, base, local_sha):
+            raise PublishError(
+                f"{remote_ref} diverged from the last publication: {base[:12]} is not an ancestor of "
+                f"{local_sha[:12]}, so the outgoing range cannot be computed. Rebase the branch onto "
+                f"{base[:12]}, or correct the marker with "
+                f"'git update-ref {marker} <commit>', then push again"
+            )
+        published = _published_commit(repo_root, local_sha, remote_sha, base)
+        if remote_sha != "0" * 40:
+            # Publication may amend already published commits, so the update is not always a
+            # fast-forward. The lease keeps that from overwriting an unexpected remote state.
+            refspecs.append(f"--force-with-lease={remote_ref}:{remote_sha}")
+        refspecs.append(f"{published}:{remote_ref}")
+        markers.append((marker, local_sha))
+    _git(repo_root, "-c", "core.hooksPath=/dev/null", "push", remote, *refspecs)
+    for marker, local_sha in markers:
+        _git(repo_root, "update-ref", marker, local_sha)
     raise PublishError("published GitHub-source commit(s); local vendor-source branch was left unchanged")
+
+
+def on_pre_push(remote: str, bookmarks: Sequence[str], repo_root: Path | None = None, **_: object) -> None:
+    """Pyjutsu ``pre-push`` hook entry point for pushes that cannot run a Git hook.
+
+    Pyjutsu hooks get no standard input, so this resolves both sides of each update itself:
+    the local bookmark and its remote-tracking ref. A successful publication raises, exactly as
+    the Git hook does, because the outer push must not send the local-path commits.
+    """
+
+    root = Path(repo_root) if repo_root is not None else Path(_git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+    updates = []
+    for bookmark in bookmarks:
+        local_sha = _rev_parse(root, f"refs/heads/{bookmark}")
+        if local_sha is None:
+            raise PublishError(f"pyjutsu pre-push names an unknown bookmark: {bookmark}")
+        remote_sha = _rev_parse(root, f"refs/remotes/{remote}/{bookmark}") or "0" * 40
+        updates.append(f"refs/heads/{bookmark} {local_sha} refs/heads/{bookmark} {remote_sha}")
+    try:
+        pre_push(root, remote, "\n".join(updates))
+    except PublishError as exc:
+        raise _hook_abort(str(exc)) from exc
+
+
+def _hook_abort(message: str) -> BaseException:
+    """Wrap a publication outcome in pyjutsu's abort type when pyjutsu is importable."""
+
+    try:
+        from pyjutsu.hooks import HookAbort  # ty: ignore[unresolved-import]
+    except ImportError:
+        return PublishError(message)
+    return HookAbort(message)
 
 
 def publish_preview(repo_root: Path) -> str:
