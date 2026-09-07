@@ -158,6 +158,23 @@ Git prints a nonzero status after the hook deliberately aborts the outer push; t
 `published GitHub-source commit(s)` message confirms the inner, clean push succeeded. Repositories
 with an existing pre-push hook are left untouched and must compose that hook explicitly.
 
+Each successful publication records the published local commit in
+`refs/vendomat/published/<remote>/<branch>`. The next push replays only the commits after that
+marker onto the published history, so publishing is repeatable. If the branch is rewritten or
+reset below the marker, Vendomat refuses the push and names the commit to rebase onto.
+
+A push that cannot fire a Git hook (for example `gitman push`, which pushes with `--no-verify`)
+can reach the same publisher through a pyjutsu hook. Add `<repo>/.pyjutsu-hooks.toml`:
+
+```toml
+[hooks.pre-push]
+python = ["vendomat.publish:on_pre_push"]
+```
+
+The entry point resolves both commits from the repository itself, because pyjutsu hooks get no
+standard input. A successful publication aborts the outer push, so the caller reports the push as
+blocked; the `published GitHub-source commit(s)` message confirms the inner push succeeded.
+
 For Python projects, the hook runs `uv lock` in the disposable worktree after replacing sources.
 `uv.lock` must already be committed. Vendomat rejects the push if regeneration adds, removes, or
 changes a resolved package version; review that graph change separately. Preview the exact public
