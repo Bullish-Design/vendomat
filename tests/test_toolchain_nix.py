@@ -129,7 +129,7 @@ def test_the_core_roster_builds_and_reports_its_provenance():
     manifest = json.loads((closure / "share" / "vendomat" / "toolchain.json").read_text())
     assert manifest["roster"] == "core"
     assert manifest["python"] == "3.13"
-    assert set(manifest["tools"]) == {"repoman", "copyroom"}
+    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman"}
     for tool in manifest["tools"].values():
         # Acceptance: two consumers with identical locks resolve to the SAME store paths,
         # which is only meaningful if the manifest names them.
@@ -144,7 +144,7 @@ def test_every_roster_command_resolves_into_the_nix_store():
     binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if not p.name.startswith("."))
     # `demo` is copyroom's second console script. It is a generic name and no part of the
     # manager contract; left in, it would be the roster's first collision.
-    assert binaries == ["copyroom", "repoman"]
+    assert binaries == ["copyroom", "docman", "gitman", "repoman"]
     for name in binaries:
         assert (Path(out) / "bin" / name).resolve().is_relative_to("/nix/store")
 
@@ -159,3 +159,32 @@ def test_the_closure_commands_run():
     )
     assert version.returncode == 0
     assert "copyroom" in version.stdout
+
+
+@needs_nix
+def test_gitman_pulls_no_rust_toolchain():
+    # CONCEPT 03 §6 phase 3, and the acceptance criterion: a `git` consumer does zero
+    # Cargo/Maturin work. The native compile happened once, when Vendomat built the
+    # pyjutsu wheel; gitman's package only installs it. A Rust toolchain reappearing in
+    # gitman's RUNTIME closure means someone made it build from source again.
+    out = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    closure = _nix("path-info", "-r", out).stdout
+    for forbidden in ("cargo", "rustc", "maturin", "-mold-"):
+        assert forbidden not in closure, f"{forbidden} is in gitman's runtime closure"
+
+
+@needs_nix
+def test_gitman_runs_and_imports_its_native_dependency():
+    # `gitman --version` imports pyjutsu, so this exercises the vended wheel, not only
+    # the fact that a file exists at bin/gitman.
+    out = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    result = subprocess.run([f"{out}/bin/gitman", "--version"], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert "gitman" in result.stdout
+
+
+def test_gitman_resolves_pyjutsu_to_the_vended_package():
+    # Never to an editable sibling checkout (CONCEPT 03 §3.3): the depMap override is the
+    # only route by which gitman's build can see pyjutsu at all.
+    text = (ROOT / "flake.nix").read_text()
+    assert "depMap = { pyjutsu = pyjutsu-package; };" in text

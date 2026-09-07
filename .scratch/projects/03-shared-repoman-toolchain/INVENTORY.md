@@ -20,10 +20,20 @@ policy left to express.
 
 ### Roster
 
-Six packages: `repoman`, `copyroom`, `testee`, `docman`, `gitman`, `templateer`.
+Five packages: `repoman`, `copyroom`, `docman`, `gitman`, `templateer`.
+
+**`testee` is deliberately out.** Its tools — pytest, ruff, ty — import the
+consumer's own code, so a shared `testee` cannot do its job. It stays a per-repo
+`pyproject.toml` dev dependency, installed by `uv sync` into the consumer venv.
+This keeps RepoMan's registry entry (`install="uv"`, project 12) correct and
+unchanged. Owner decision, 2026-09-07.
 
 `zelligate`, `mypi-agent` and `alliman` from CONCEPT §3.2 are out of scope. They
 are not in the machine venv today, so packaging them buys nothing yet.
+
+Consequence: CONCEPT §6 phase 2 reads "add `testee`, then `docman`". Only docman
+remains in it. `pytest-json-report` and `import-linter` no longer need Nix
+derivations — they stay uv-resolved dependencies of testee.
 
 ## Console scripts and interpreters
 
@@ -67,9 +77,11 @@ in Vendomat before its consumer can be built.
 | click | yes | templateer |
 | pyjutsu 0.21.1 | vendomat-built | gitman |
 
-Cost, ordered: sub-phase 1 (repoman, copyroom) needs zero new derivations.
-Sub-phase 2 needs two (testee); docman needs none. Sub-phase 3 needs only the
-vended pyjutsu. templateer is the heaviest and should go last.
+Cost, ordered: sub-phase 1 (repoman, copyroom) needs zero new derivations, and
+neither does docman in sub-phase 2. Sub-phase 3 needs only the vended pyjutsu.
+templateer is the heaviest and goes last: `minijinja` and `pydantic-ai-slim` are
+both missing. testee's two missing dependencies do not count — testee is not in
+the closure.
 
 ## Venv-path call sites
 
