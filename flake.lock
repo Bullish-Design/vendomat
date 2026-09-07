@@ -16,6 +16,38 @@
         "url": "file:///home/andrew/Documents/Projects/copyroom"
       }
     },
+    "docman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788800621,
+        "narHash": "sha256-mqRHVsQWTvOTeQSV/CF6pDneegb5/22dWINJSRYAjxY=",
+        "ref": "refs/heads/main",
+        "rev": "be02887bef46136a8d91ab9e95355b39061bf153",
+        "revCount": 19,
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/docman"
+      }
+    },
+    "gitman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788789918,
+        "narHash": "sha256-W/0dAXgmRuQ0eD4O9Gefn0lsQ7Bz43lrniI8jOefmM0=",
+        "ref": "refs/heads/main",
+        "rev": "a0df153b91c1ebed9347feda66b49cc1a4a08f68",
+        "revCount": 100,
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/gitman"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/gitman"
+      }
+    },
     "nixpkgs": {
       "inputs": {
         "nixpkgs-src": "nixpkgs-src"
@@ -86,6 +118,8 @@
     "root": {
       "inputs": {
         "copyroom": "copyroom",
+        "docman": "docman",
+        "gitman": "gitman",
         "nixpkgs": "nixpkgs",
         "pyjutsu": "pyjutsu",
         "repoman": "repoman"

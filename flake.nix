@@ -29,6 +29,14 @@
       url = "git+file:///home/andrew/Documents/Projects/copyroom";
       flake = false;
     };
+    docman = {
+      url = "git+file:///home/andrew/Documents/Projects/docman";
+      flake = false;
+    };
+    gitman = {
+      url = "git+file:///home/andrew/Documents/Projects/gitman";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -94,6 +102,33 @@
             # Tests run in the devenv (pytest), not at nix-build time.
             doCheck = false;
           };
+          # gitman's native dependency, as a PYTHON PACKAGE built from the wheel this flake
+          # already vends. The wheel is the artifact of record; this only installs it. That
+          # is what makes gitman's package a pure-Python build for every consumer: the Rust
+          # compile happened once, here, and no consumer repeats it.
+          pyjutsu-version = (builtins.fromTOML (builtins.readFile "${inputs.pyjutsu}/pyproject.toml")).project.version;
+          pyjutsu-package = pkgs.python313.pkgs.buildPythonPackage {
+            pname = "pyjutsu";
+            version = pyjutsu-version;
+            format = "other";
+            src = pyjutsu-wheel;
+            # The wheel is copied into dist/ under its OWN name and installed from there.
+            # A wheel cannot be handed over as `src` directly: the installer parses the
+            # file's basename for the distribution metadata, and a store path prefixes
+            # that name with a hash, which is not a valid wheel filename.
+            dontUnpack = true;
+            nativeBuildInputs = [ pkgs.python313.pkgs.pypaInstallHook ];
+            installPhase = ''
+              runHook preInstall
+              mkdir -p dist
+              cp ${pyjutsu-wheel}/*.whl dist/
+              pypaInstallPhase
+              runHook postInstall
+            '';
+            dependencies = [ pkgs.python313.pkgs.pydantic ];
+            doCheck = false;
+          };
+
           # Face D — the roster. Added one tool at a time (CONCEPT 03 §6): a tool is
           # supported only once its package builds, its command resolves to /nix/store,
           # and its doctor runs. Evaluating is not supporting.
@@ -109,11 +144,25 @@
             excludeScripts = [ "demo" ];
           };
 
+          docman-cli = mkPythonCli {
+            pname = "docman";
+            src = inputs.docman;
+          };
+          gitman-cli = mkPythonCli {
+            pname = "gitman";
+            src = inputs.gitman;
+            # Resolved to the vended wheel, never to an editable sibling checkout
+            # (CONCEPT 03 §3.3).
+            depMap = { pyjutsu = pyjutsu-package; };
+          };
+
           toolchain = mkToolchain {
             name = "core";
             tools = {
               repoman = repoman-cli;
               copyroom = copyroom-cli;
+              docman = docman-cli;
+              gitman = gitman-cli;
             };
           };
         in
@@ -123,6 +172,9 @@
           # Individual command packages, for `nix build` and for the build tests.
           repoman = repoman-cli;
           copyroom = copyroom-cli;
+          docman = docman-cli;
+          gitman = gitman-cli;
+          pyjutsu = pyjutsu-package;
           # The composed closure the devenv module puts on PATH.
           repoman-toolchain-core = toolchain;
 
