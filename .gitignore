@@ -2,6 +2,7 @@
 /.direnv
 result
 result-*
+devenv.local.yaml
 
 # Python build/test caches
 __pycache__/

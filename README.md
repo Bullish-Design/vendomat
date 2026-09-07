@@ -43,7 +43,7 @@ and it refuses to give a published version a second set of bytes.
 ## How it works
 
 ```
-  Pyjutsu (git+file source)
+  Pyjutsu (published git tag)
         │  mkMaturinWheel  (cargo + maturin, ONCE, in the Nix sandbox)
         ▼
   /nix/store/…-pyjutsu-0.20.0/pyjutsu-0.20.0-cp313-abi3-manylinux_2_39_x86_64.whl
@@ -79,9 +79,9 @@ nix build .#pyjutsu-wheel     # just one
 ls result/                    # the .whl(s)
 ```
 
-Add a new native lib: add it as a `flake = false` input (use `git+file://` so the lib's
-untracked `target/` is *not* copied into the store), then one `mkWheel { … }` + a line in
-the `wheelhouse` `symlinkJoin`.
+Add a new native lib as a `flake = false` input with a published `git+https://` tag. The git
+input copies tracked files only, so the lib's untracked `target/` is not copied into the store.
+Then add one `mkWheel { … }` entry and a line in the `wheelhouse` `symlinkJoin`.
 
 ## Consuming wheels (any devenv repo)
 
@@ -183,6 +183,28 @@ manifest and lock diff with `vendomat publish --dry-run`.
 See [`examples/publish-demo`](examples/publish-demo) for a self-contained Python/uv consumer and
 an offline proof script.
 
+## Local input iteration
+
+Committed flake inputs use published tags. To build against a sibling checkout, override the
+input for that command:
+
+```sh
+nix build --override-input pyjutsu git+file:///path/to/pyjutsu .#pyjutsu-wheel
+nix build --override-input repoman git+file:///path/to/repoman .#repoman
+```
+
+There is no `flake.local.nix`. Repeat the override for each local input that you are editing.
+The `git+file:` form still copies tracked files only and keeps untracked build output out of
+the store.
+
+For local shellij work, create an ignored `devenv.local.yaml` with the local shellij URL. A
+shell taken with that overlay active re-locks `devenv.lock` at the local path. Before committing,
+restore the fleet lock with:
+
+```sh
+mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml .
+```
+
 ## Constraints
 
 - **abi3 / interpreter tag.** Wheels are built against `python313` (pyjutsu is
@@ -191,9 +213,8 @@ an offline proof script.
   rather than a silent rebuild). Keep consumers on the matching interpreter floor.
 - **Git deps in `Cargo.lock`.** `importCargoLock` needs `outputHashes` for any git
   dependency. pyjutsu and tyo3 are crates.io-only today, so this is a non-issue for now.
-- **Per-machine paths.** Inputs point at local checkouts under `~/Documents/Projects`
-  (the repoman `repoman_dev_root` convention). Override on another machine with
-  `--override-input pyjutsu git+file:///path/to/Pyjutsu`.
+- **Published inputs.** Committed inputs use `git+https://` and `refs/tags/` pins. Use the
+  local override above for iteration.
 
 ## Status
 

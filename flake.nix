@@ -10,10 +10,11 @@
     # multi-GB `target/` (untracked) that a `path:` input would eagerly copy. Working-tree
     # edits to tracked files are still picked up (a dirty source just builds a fresh wheel).
     #
-    # Paths follow the repoman `repoman_dev_root` convention (~/Documents/Projects). On
-    # another machine, override with `--override-input pyjutsu git+file:///path/to/Pyjutsu`.
+    # Published tags keep the source tracked-files-only while making the flake portable.
+    # For local iteration, override this input with `--override-input pyjutsu
+    # git+file:///path/to/Pyjutsu`.
     pyjutsu = {
-      url = "git+file:///home/andrew/Documents/Projects/pyjutsu";
+      url = "git+https://github.com/Bullish-Design/Pyjutsu?ref=refs/tags/v0.21.1";
       flake = false;
     };
 
@@ -22,19 +23,19 @@
     # revision in store mode (CONCEPT 03 §8.2, decided 2026-09-07): `repoman.lock` gains
     # no `toolchain:` kind, and a consumer that still names a manager by `path:` fails.
     repoman = {
-      url = "git+file:///home/andrew/Documents/Projects/repoman";
+      url = "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.7.2";
       flake = false;
     };
     copyroom = {
-      url = "git+file:///home/andrew/Documents/Projects/copyroom";
+      url = "git+https://github.com/Bullish-Design/copyroom?ref=refs/tags/v0.7.4";
       flake = false;
     };
     docman = {
-      url = "git+file:///home/andrew/Documents/Projects/docman";
+      url = "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.0";
       flake = false;
     };
     gitman = {
-      url = "git+file:///home/andrew/Documents/Projects/gitman";
+      url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.6.1";
       flake = false;
     };
   };
