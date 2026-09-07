@@ -88,9 +88,35 @@ in
 
     # Face D — deliver the shared command closure. Namespaced under `vendor` rather than
     # `repoman` because Vendomat may not assume RepoMan's module is present; when it IS
-    # present, enabling this sets `repoman.cliProvider = "store"` below.
+    # present, store mode sets `repoman.cliProvider = "store"` below.
     toolchain = {
-      enable = lib.mkEnableOption "the shared RepoMan command closure from the Nix store";
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Deliver the shared RepoMan command closure. ON by default: importing Vendomat
+          IS the opt-in (CONCEPT 03 §6, phase 4).
+
+          Setting this false is the venv escape hatch — the consumer falls back to the
+          machine toolchain venv and `repoman-sync --machine`. It is documented as
+          short-lived. To develop a tool in its own repo, use `mode = "editable"`
+          instead; that is a supported mode, not an escape.
+        '';
+      };
+
+      mode = lib.mkOption {
+        type = lib.types.enum [ "store" "editable" ];
+        default = "store";
+        description = ''
+          Where the manager commands come from (CONCEPT 03 §3.1).
+
+          "store"    — the pinned Nix closure. The normal consumer path.
+          "editable" — nothing is delivered and RepoMan's provider is left alone, so the
+                       repo's own venv/checkout wins. This is what a TOOL AUTHOR wants:
+                       in gitman's own repo, `gitman` must run the working tree, not an
+                       older store build. First-class, never an error.
+        '';
+      };
 
       roster = lib.mkOption {
         type = lib.types.str;
@@ -183,7 +209,9 @@ in
     })
 
     # --- Face D: the shared command closure ---------------------------------------------------
-    (lib.mkIf tcfg.enable (lib.mkMerge [
+    # Editable mode delivers NOTHING and touches no provider: a tool's own repo keeps
+    # running its working tree. That is why the guard is on the mode as well as `enable`.
+    (lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [
       {
         # On PATH for the interactive shell. The env var below is what TASKS use: a task
         # must not depend on PATH state (repoman D1), and `command -v` would let an

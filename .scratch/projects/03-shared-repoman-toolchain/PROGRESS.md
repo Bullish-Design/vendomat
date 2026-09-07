@@ -37,6 +37,16 @@ classifier denied `git push`.
   both resolve into `/nix/store`, `demo` is gone, and the collision guard throws.
 - `testee verify --mode ci`: PASSED.
 
+### Sub-phase 4 — store mode is the default (vendomat)
+
+`vendor.toolchain.enable` defaults to true: importing Vendomat IS the opt-in.
+`vendor.toolchain.mode` is `"store"` or `"editable"`; editable delivers nothing and
+touches no provider, so a tool author's working tree always wins. `enable = false` is
+the venv escape hatch, documented as short-lived rather than as an equal alternative.
+
+Nothing changes for an existing consumer until it bumps its vendomat pin — every repo
+takes vendomat by published tag.
+
 ### Sub-phases 2 and 3 — docman and gitman (vendomat)
 
 - `docman` needed no new derivation, as the inventory predicted.
@@ -50,8 +60,9 @@ classifier denied `git push`.
 
 ## Next, in order
 
-1. **Sub-phase 4 — make store mode the default** when vendomat is imported, keeping
-   `mode = "editable"` first-class for tool authors and a documented venv escape hatch.
+1. **Set `mode = "editable"` in each tool's own repo** — repoman, copyroom, docman,
+   gitman. Each must bump its vendomat pin to a release carrying the `mode` option
+   FIRST; naming an option an older tag does not declare fails the eval.
 2. **Sub-phase 5 — Home Manager**, replacing the machine venv on the login shell.
 3. **A live devenv fixture.** The store path is proven by unit tests and by hand; an
    end-to-end consumer shell would prove the empty venv directly.
