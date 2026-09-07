@@ -54,7 +54,9 @@
           # consumer's venv. `modules/devenv.nix` puts this on PATH and runs `vendomat sync`.
           vendomat = pkgs.python313.pkgs.buildPythonApplication {
             pname = "vendomat";
-            version = "0.2.3";
+            # Read from pyproject.toml: a hand-written literal here drifted to 0.2.3 while
+            # the source was 0.3.1, so every installed pre-push hook named a wrong version.
+            version = (builtins.fromTOML (builtins.readFile ./pyproject.toml)).project.version;
             pyproject = true;
             # Flake source = git-tracked files only (excludes .jj/.gitman/.devenv/result).
             src = ./.;

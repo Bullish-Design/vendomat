@@ -97,10 +97,13 @@ def materialize(repo_root: Path, target: str) -> list[Path]:
     return changed
 
 
+HOOK_MARKER = "# Installed by vendomat; do not edit."
+
+
 def hook_script(executable: str) -> str:
     """The small tracked-by-Git hook trampoline installed into each consumer checkout."""
 
-    return "#!/bin/sh\n# Installed by vendomat; do not edit.\nexec " + shlex.quote(executable) + ' pre-push "$@"\n'
+    return "#!/bin/sh\n" + HOOK_MARKER + "\nexec " + shlex.quote(executable) + ' pre-push "$@"\n'
 
 
 def install_hook(repo_root: Path, executable: str | None = None) -> Path:
@@ -118,8 +121,13 @@ def install_hook(repo_root: Path, executable: str | None = None) -> Path:
     hook = hooks_dir / "pre-push"
     script = hook_script(executable or str(Path(sys.argv[0]).resolve()))
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    if hook.exists() and hook.read_text() != script:
-        raise PublishError(f"refusing to replace existing hook: {hook}")
+    # Refuse FOREIGN hooks only. Vendomat's own trampoline names an absolute interpreter path,
+    # so it goes stale on every version bump and would otherwise pin the repo to the version
+    # that first installed it. The marker line identifies our own script; refresh those.
+    if hook.exists():
+        existing = hook.read_text()
+        if existing != script and HOOK_MARKER not in existing:
+            raise PublishError(f"refusing to replace existing hook: {hook}")
     hook.write_text(script)
     hook.chmod(0o755)
     return hook
@@ -374,8 +382,11 @@ def publish_preview(repo_root: Path) -> str:
         try:
             materialize(worktree, "github")
             refresh_lock(worktree)
+            # Diff every file the manifest may rewrite, not a fixed pair. A consumer whose
+            # only replacements land in `repoman.lock` saw an empty preview before this.
+            paths = sorted({str(f) for r in read_manifest(worktree) for f in r.files} | {"uv.lock"})
             result = subprocess.run(
-                ["git", "diff", "--", "pyproject.toml", "uv.lock"],
+                ["git", "diff", "--", *paths],
                 cwd=worktree,
                 text=True,
                 capture_output=True,
