@@ -20,6 +20,9 @@ in
 , src
 , version ? null
 , builder ? "maturinWheel"
+  # Builder-specific extra arguments, forwarded verbatim (e.g. `compatibility`,
+  # `relocateScript` for `maturinWheel`). Keeps the dispatcher a single lookup.
+, args ? { }
 }:
 
 let
@@ -27,4 +30,4 @@ let
     "mkArtifact: unknown builder \"${builder}\" (known: ${lib.concatStringsSep ", " (builtins.attrNames builders)})");
 in
 # Pass `version` through only when given, so maturinWheel keeps parsing it from Cargo.toml.
-build ({ inherit pname src; } // lib.optionalAttrs (version != null) { inherit version; })
+build ({ inherit pname src; } // lib.optionalAttrs (version != null) { inherit version; } // args)

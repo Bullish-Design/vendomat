@@ -141,6 +141,12 @@ env.UV_FIND_LINKS      = "${wheelhouse}";              # store dir of vended whe
 env.UV_NO_BUILD_PACKAGE = "pyjutsu";                   # fail loudly, never compile from source
 ```
 
+> **Superseded.** `UV_NO_BUILD_PACKAGE` is now opt-in (`vendor.noBuild`, default false). A
+> missing store wheel must fall back to the release URL the consumer declares, because the
+> store wheel and the release wheel are the same bytes. Setting the latch by default turned a
+> store miss into a broken shell (gitman project 32, G3). See the README, "What the
+> wheelhouse is for".
+
 So a consumer's `repoman.lock` flips one field:
 
 ```toml
