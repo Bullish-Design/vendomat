@@ -26,14 +26,23 @@ dependencies = [
 # Verification is owned by the `testee` manager — the *man-family verify interface. It
 # brings ruff / ruff-format / ty / pytest into the venv and normalizes their output into
 # one report. Run `testee verify` (or the testee:* devenv tasks), not pytest/ruff directly.
-# vendomat is not repoman-managed, so testee is depended on directly (path to the sibling)
-# rather than installed by repoman-sync the way roster-managed repos get it.
+# vendomat is not repoman-managed, so testee is depended on directly rather than installed
+# by repoman-sync the way roster-managed repos get it.
 dev = [
   "testee",
 ]
 
 [tool.uv.sources]
-testee = { path = "../testee", editable = true }
+# A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
+# RELATIVE path resolves beside whatever directory the clone happens to sit in — a fresh
+# clone's `uv sync` then fails with "Distribution not found". Commit the portable shape.
+#
+# There is no local override for this line: uv refuses a `sources` table in uv.toml
+# ("`sources` is only applicable in the context of a project"). To verify against a testee
+# you are editing, overlay the run instead — no edit here, tree stays clean:
+#
+#     uv run --with-editable ../testee testee verify
+testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.3.0" }
 
 [project.scripts]
 vendomat = "vendomat.cli:main"
