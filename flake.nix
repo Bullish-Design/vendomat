@@ -54,7 +54,7 @@
           # consumer's venv. `modules/devenv.nix` puts this on PATH and runs `vendomat sync`.
           vendomat = pkgs.python313.pkgs.buildPythonApplication {
             pname = "vendomat";
-            version = "0.2.0";
+            version = "0.2.1";
             pyproject = true;
             # Flake source = git-tracked files only (excludes .jj/.gitman/.devenv/result).
             src = ./.;

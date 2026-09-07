@@ -40,48 +40,6 @@ One rule keeps the two indexes honest: **an iteration build gets its own version
 artifact. `vendomat publish` enforces both halves — it refuses to upload an iteration wheel,
 and it refuses to give a published version a second set of bytes.
 
-## When the wheelhouse is the right answer, and when it is not
-
-**The store wheelhouse is for a native library with no published release yet,
-during local iteration. A published, relocated, hashed release asset is the
-shipping path.**
-
-Read this before wiring a consumer to `UV_FIND_LINKS`. Gitman project 35 (G3)
-recorded a real failure and removed the wheelhouse approach instead of repairing
-it, and the surrounding notes have been re-derived more than once since.
-
-The measured difference between the wheel this repo builds and the published one
-is exactly two things: `mkMaturinWheel` never passes `--compatibility`, so the
-wheel carries the bare `linux_x86_64` tag instead of `manylinux_2_39_x86_64`; and
-it keeps a `RUNPATH` into `/nix/store`. Applying pyjutsu's own
-`scripts/relocate_wheel.py` strips the `RUNPATH`, after which the extension needs
-only `libgcc_s`, `libm`, `libc` and the loader — all permitted by manylinux. A
-nix-built wheel, relocated, is a portable manylinux artifact. Nothing about Nix
-prevents it.
-
-So the defect was never "Nix cannot build a shippable wheel". It was that **two
-builds produced two different files carrying the same version number.** Every
-downstream symptom follows from that: which one wins, `[tool.uv.sources]` versus
-`UV_FIND_LINKS`, "the wheelhouse is bypassed", "the wheelhouse only works at the
-matching vendomat revision".
-
-Until `mkMaturinWheel` passes `--compatibility` and runs the relocate step in
-`postBuild`, keep these rules:
-
-- A consumer that wants a **shipping** pyjutsu names the release URL, as gitman's
-  own `[tool.uv.sources]` does and as `repoman.lock`'s `url:` source now does.
-  That works in CI, on a fresh machine, and in a repo that has never heard of Nix.
-- A consumer that wants to **iterate** ahead of a release may take
-  `UV_FIND_LINKS` at the store wheelhouse. That is the one thing a URL cannot
-  do — edit the library, one `nix build`, every Nix consumer sees it without
-  cutting a tag.
-- **An iteration build gets its own version** (`0.21.0.dev0+<rev>`), never the
-  same version as a published release. One version, one artifact — always.
-
-Do not import `vendomat/modules` in a repo that enables no face. It costs a flake
-input's evaluation and an `install-hook` probe on every shell entry and produces
-nothing. Six repos were doing exactly that (023-toolchain Phase 3.3).
-
 ## How it works
 
 ```
