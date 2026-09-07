@@ -434,7 +434,7 @@ wheels = [
 
 [[package]]
 name = "testee"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "../testee" }
 dependencies = [
     { name = "import-linter" },
@@ -542,7 +542,7 @@ wheels = [
 
 [[package]]
 name = "vendomat"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
