@@ -188,3 +188,33 @@ def test_gitman_resolves_pyjutsu_to_the_vended_package():
     # only route by which gitman's build can see pyjutsu at all.
     text = (ROOT / "flake.nix").read_text()
     assert "depMap = { pyjutsu = pyjutsu-package; };" in text
+
+
+# ------------------------------------------------- sub-phase 4: store mode is the default
+
+
+def test_the_toolchain_is_on_by_default():
+    # CONCEPT 03 §6 phase 4: importing Vendomat IS the opt-in. Only reached once every
+    # roster tool has passed integration testing, which is why it lands last.
+    text = MODULE.read_text()
+    block = text.split("toolchain = {")[1].split("roster = lib.mkOption")[0]
+    assert "default = true;" in block
+    assert 'lib.types.enum [ "store" "editable" ]' in block
+    assert 'default = "store";' in block
+
+
+def test_editable_mode_delivers_nothing():
+    # A tool author must be able to run uncommitted changes (acceptance criterion). In
+    # gitman's own repo an older store build must not shadow the working tree, so
+    # editable mode contributes no package, no env, and no provider change at all.
+    text = MODULE.read_text()
+    assert '(lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [' in text
+
+
+def test_the_venv_escape_hatch_is_documented_as_short_lived():
+    # `enable = false` returns a consumer to the machine venv. It stays available during
+    # migration, but it must not read as an equal alternative to editable mode.
+    text = MODULE.read_text()
+    block = text.split("toolchain = {")[1].split("mode = lib.mkOption")[0]
+    assert "escape hatch" in block
+    assert "short-lived" in block
