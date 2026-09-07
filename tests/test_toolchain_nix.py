@@ -1,0 +1,161 @@
+"""Face D — the shared RepoMan command closure (CONCEPT 03).
+
+Two layers of guard:
+
+* grep-level checks on the nix sources, which are fast and run everywhere;
+* real `nix` invocations, which are the only way to prove the acceptance criteria
+  (a command resolves to /nix/store, the collision guard actually throws). Those are
+  marked ``nix`` and skip when the binary is absent.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+LIB = ROOT / "lib"
+MODULE = ROOT / "modules" / "devenv.nix"
+
+needs_nix = pytest.mark.skipif(shutil.which("nix") is None, reason="nix is not on PATH")
+
+
+def _nix(*args: str, expect_fail: bool = False) -> subprocess.CompletedProcess:
+    result = subprocess.run(
+        ["nix", *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+    if expect_fail:
+        assert result.returncode != 0, f"expected failure, got:\n{result.stdout}"
+    else:
+        assert result.returncode == 0, f"nix {' '.join(args)} failed:\n{result.stderr}"
+    return result
+
+
+# ------------------------------------------------------------------ source-level guards
+
+
+def test_mk_python_cli_reads_the_version_from_pyproject():
+    # A hand-written version literal in this flake drifted to 0.2.3 while the source said
+    # 0.3.1, and every installed pre-push hook then named a wrong version. Metadata is read.
+    text = (LIB / "mkPythonCli.nix").read_text()
+    assert "version = project.version;" in text
+
+
+def test_mk_python_cli_throws_on_an_unmapped_dependency():
+    # CONCEPT 03 §3.3: a nix build may not download unpinned packages. The alternative to
+    # an eval-time throw is a build that fails much later with a much worse message.
+    text = (LIB / "mkPythonCli.nix").read_text()
+    assert "has no entry in depMap" in text
+    assert "table.${name} or (throw" in text
+
+
+def test_mk_python_cli_does_not_run_first_party_tests_at_build_time():
+    # A first-party test failure must not be able to block every consumer's shell.
+    assert "doCheck = false;" in (LIB / "mkPythonCli.nix").read_text()
+
+
+def test_mk_toolchain_rejects_a_mixed_python_baseline():
+    # CONCEPT 03 §8.3: one interpreter for the whole closure.
+    text = (LIB / "mkToolchain.nix").read_text()
+    assert "mixes Python versions" in text
+
+
+def test_module_gives_tasks_an_absolute_bin_dir_not_a_path_lookup():
+    # CONCEPT 03 §4.1: the resolver uses an absolute known path, so an unrelated venv on
+    # PATH cannot shadow a selected shared tool.
+    text = MODULE.read_text()
+    assert 'env.REPOMAN_TOOLCHAIN_BIN = "${toolchain}/bin";' in text
+
+
+def test_module_sets_the_repoman_provider_only_when_repoman_is_present():
+    # A consumer may import vendomat without repoman; a definition for an undeclared
+    # option fails a strict full-config eval.
+    text = MODULE.read_text()
+    assert "lib.optionalAttrs (options ? repoman)" in text
+    assert 'repoman.cliProvider = "store";' in text
+
+
+def test_module_keeps_the_toolchain_off_the_shell_entry_path():
+    # gitman project 32 / G3: a broken `vendor-status` took loci-core's devenv shell down
+    # entirely. Toolchain provenance is a TASK the user runs, never an enterShell hook.
+    text = MODULE.read_text()
+    face_d = text.split("--- Face D: the shared command closure")[1].split("This is independent of Face A")[0]
+    # Comments may NAME enterShell (they explain why the hook is absent); only the
+    # executable lines matter here.
+    code = "\n".join(line for line in face_d.splitlines() if not line.lstrip().startswith("#"))
+    assert "enterShell" not in code
+    assert 'tasks."vendor:toolchain:status"' in face_d
+
+
+# ------------------------------------------------------------------------- real nix runs
+
+
+@needs_nix
+def test_the_collision_guard_actually_throws(tmp_path):
+    # CONCEPT 03 §3.2: the join must FAIL EVALUATION on a duplicate executable name rather
+    # than silently shadow one. Silent shadowing by PATH order is the defect being removed,
+    # so this guard is asserted against a real eval, not only against its source text.
+    expr = tmp_path / "collide.nix"
+    expr.write_text(
+        f"""
+        let
+          flake = builtins.getFlake (toString {ROOT});
+          pkgs = import flake.inputs.nixpkgs {{ system = "x86_64-linux"; }};
+          mk = import "${{flake.outPath}}/lib/mkToolchain.nix" {{ inherit pkgs; python = pkgs.python313; }};
+          tool = cmds: {{ version = "0"; passthru = {{ commands = cmds; pythonVersion = "3.13"; }}; }};
+        in
+        mk {{ name = "clash"; tools = {{ a = tool [ "x" "demo" ]; b = tool [ "y" "demo" ]; }}; }}
+        """
+    )
+    result = _nix("eval", "--impure", "-f", str(expr), expect_fail=True)
+    assert "duplicate command name(s)" in result.stderr
+    assert "demo <- a, b" in result.stderr
+
+
+@needs_nix
+def test_the_core_roster_builds_and_reports_its_provenance():
+    out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    closure = Path(out)
+    assert closure.is_relative_to("/nix/store")
+
+    manifest = json.loads((closure / "share" / "vendomat" / "toolchain.json").read_text())
+    assert manifest["roster"] == "core"
+    assert manifest["python"] == "3.13"
+    assert set(manifest["tools"]) == {"repoman", "copyroom"}
+    for tool in manifest["tools"].values():
+        # Acceptance: two consumers with identical locks resolve to the SAME store paths,
+        # which is only meaningful if the manifest names them.
+        assert tool["store"].startswith("/nix/store/")
+
+
+@needs_nix
+def test_every_roster_command_resolves_into_the_nix_store():
+    out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    # buildPythonApplication leaves `.<name>-wrapped` siblings; only the real commands
+    # are on PATH, so only they can collide.
+    binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if not p.name.startswith("."))
+    # `demo` is copyroom's second console script. It is a generic name and no part of the
+    # manager contract; left in, it would be the roster's first collision.
+    assert binaries == ["copyroom", "repoman"]
+    for name in binaries:
+        assert (Path(out) / "bin" / name).resolve().is_relative_to("/nix/store")
+
+
+@needs_nix
+def test_the_closure_commands_run():
+    # CONCEPT 03 §6 is explicit: do not mark a tool supported because its package
+    # evaluates. Execute it.
+    out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    version = subprocess.run(
+        [str(Path(out) / "bin" / "copyroom"), "--version"], capture_output=True, text=True, timeout=120
+    )
+    assert version.returncode == 0
+    assert "copyroom" in version.stdout

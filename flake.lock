@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "copyroom": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788643456,
+        "narHash": "sha256-un0lUJj51uHMtEcAvcM3UM6HJiXyNe9ZskA2QJAcOhY=",
+        "ref": "refs/heads/main",
+        "rev": "ae0650282fe786481cd452ed30e08c4ccc5ebd7f",
+        "revCount": 67,
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/copyroom"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/copyroom"
+      }
+    },
     "nixpkgs": {
       "inputs": {
         "nixpkgs-src": "nixpkgs-src"
@@ -52,10 +68,27 @@
         "url": "file:///home/andrew/Documents/Projects/pyjutsu"
       }
     },
+    "repoman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788808071,
+        "narHash": "sha256-4x5kOdVtXIXSbGOlZ6aVoSoHMZ45WlK7fo9THP7zPT0=",
+        "rev": "01f3c81c59b525925f6fd4bb90ea4bcff6649dcd",
+        "revCount": 141,
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/repoman"
+      },
+      "original": {
+        "type": "git",
+        "url": "file:///home/andrew/Documents/Projects/repoman"
+      }
+    },
     "root": {
       "inputs": {
+        "copyroom": "copyroom",
         "nixpkgs": "nixpkgs",
-        "pyjutsu": "pyjutsu"
+        "pyjutsu": "pyjutsu",
+        "repoman": "repoman"
       }
     }
   },

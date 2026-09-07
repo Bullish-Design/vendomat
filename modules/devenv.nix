@@ -17,7 +17,7 @@
 #
 # Then run `vendor-sync` (after deps resolve, e.g. after repoman-sync) to install the SKILL.md's
 # for the libraries this repo actually depends on.
-{ pkgs, lib, config, inputs, ... }:
+{ pkgs, lib, config, options, inputs, ... }:
 
 let
   cfg = config.vendor;
@@ -25,6 +25,12 @@ let
   system = pkgs.stdenv.system;
   wheelhouse = inputs.vendomat.packages.${system}.wheelhouse;
   vendomatCli = inputs.vendomat.packages.${system}.vendomat;
+
+  # Face D — the shared command closure. Selected by roster name so a consumer takes the
+  # commands it wants and no others (CONCEPT 03 §3.2: an irrelevant package in the join is
+  # one more chance of a command collision).
+  tcfg = config.vendor.toolchain;
+  toolchain = inputs.vendomat.packages.${system}."repoman-toolchain-${tcfg.roster}";
 
   # A repo never vendors itself: the lib's own source repo keeps editable `maturin develop`.
   # Expressed via `vendor.self` rather than read from config.env.PROJ — reading config.env
@@ -78,6 +84,23 @@ in
         For repos that still compile Rust (the source libs themselves): route builds through
         sccache and a single shared CARGO_TARGET_DIR, instead of a multi-GB target/ per clone.
       '';
+    };
+
+    # Face D — deliver the shared command closure. Namespaced under `vendor` rather than
+    # `repoman` because Vendomat may not assume RepoMan's module is present; when it IS
+    # present, enabling this sets `repoman.cliProvider = "store"` below.
+    toolchain = {
+      enable = lib.mkEnableOption "the shared RepoMan command closure from the Nix store";
+
+      roster = lib.mkOption {
+        type = lib.types.str;
+        default = "core";
+        description = ''
+          Which roster closure to take: `packages.repoman-toolchain-<roster>`. A roster is
+          added only once every tool in it builds, resolves to /nix/store, and passes its
+          own doctor (CONCEPT 03 §6).
+        '';
+      };
     };
 
     publish.enable = lib.mkOption {
@@ -158,6 +181,35 @@ in
       };
 
     })
+
+    # --- Face D: the shared command closure ---------------------------------------------------
+    (lib.mkIf tcfg.enable (lib.mkMerge [
+      {
+        # On PATH for the interactive shell. The env var below is what TASKS use: a task
+        # must not depend on PATH state (repoman D1), and `command -v` would let an
+        # unrelated venv shadow a selected shared tool (CONCEPT 03 §4.1).
+        packages = [ toolchain ];
+        env.REPOMAN_TOOLCHAIN_BIN = "${toolchain}/bin";
+        env.REPOMAN_TOOLCHAIN_MANIFEST = "${toolchain}/share/vendomat/toolchain.json";
+
+        # Answers "where did this command come from?" without a guess. Read-only, and NOT
+        # on the shell-entry path: a broken status check took loci-core's devenv down once
+        # (gitman project 32, G3), so this is a task the user runs, not an enterShell hook.
+        tasks."vendor:toolchain:status".exec = ''
+          echo "toolchain: ${toolchain}"
+          cat ${toolchain}/share/vendomat/toolchain.json
+          echo
+          ls -1 ${toolchain}/bin
+        '';
+      }
+
+      # Tell RepoMan to resolve manager commands from the closure. Guarded on the option
+      # EXISTING: a consumer may import vendomat without repoman, and a definition for an
+      # undeclared option fails a strict full-config eval.
+      (lib.optionalAttrs (options ? repoman) {
+        repoman.cliProvider = "store";
+      })
+    ]))
 
     # This is independent of Face A and Face B: a manifest is the explicit per-repository opt-in.
     # `install-hook` is a no-op failure when no manifest exists and refuses to overwrite another

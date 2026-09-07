@@ -16,6 +16,19 @@
       url = "git+file:///home/andrew/Documents/Projects/pyjutsu";
       flake = false;
     };
+
+    # Face D — the shared command closure. Each first-party CLI is a source input, built
+    # once as a Nix Python application. THIS LOCK IS AUTHORITATIVE for the toolchain
+    # revision in store mode (CONCEPT 03 §8.2, decided 2026-09-07): `repoman.lock` gains
+    # no `toolchain:` kind, and a consumer that still names a manager by `path:` fails.
+    repoman = {
+      url = "git+file:///home/andrew/Documents/Projects/repoman";
+      flake = false;
+    };
+    copyroom = {
+      url = "git+file:///home/andrew/Documents/Projects/copyroom";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -35,6 +48,15 @@
           inherit pkgs;
           python = pkgs.python313;
         };
+        # Face D: build one first-party CLI, and compose a roster of them.
+        mkPythonCli = import ./lib/mkPythonCli.nix {
+          inherit pkgs;
+          python = pkgs.python313;
+        };
+        mkToolchain = import ./lib/mkToolchain.nix {
+          inherit pkgs;
+          python = pkgs.python313;
+        };
       });
 
       # The built artifacts: one wheel per lib, plus a combined wheelhouse dir.
@@ -42,6 +64,8 @@
         let
           system = pkgs.stdenv.system;
           mkArtifact = self.lib.${system}.mkArtifact;
+          mkPythonCli = self.lib.${system}.mkPythonCli;
+          mkToolchain = self.lib.${system}.mkToolchain;
 
           pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
@@ -70,9 +94,37 @@
             # Tests run in the devenv (pytest), not at nix-build time.
             doCheck = false;
           };
+          # Face D — the roster. Added one tool at a time (CONCEPT 03 §6): a tool is
+          # supported only once its package builds, its command resolves to /nix/store,
+          # and its doctor runs. Evaluating is not supporting.
+          repoman-cli = mkPythonCli {
+            pname = "repoman";
+            src = inputs.repoman;
+          };
+          copyroom-cli = mkPythonCli {
+            pname = "copyroom";
+            src = inputs.copyroom;
+            # `demo` (copyroom's `demo:main`) is a generic name and no part of the manager
+            # contract. Left in, it would be the roster's first command collision.
+            excludeScripts = [ "demo" ];
+          };
+
+          toolchain = mkToolchain {
+            name = "core";
+            tools = {
+              repoman = repoman-cli;
+              copyroom = copyroom-cli;
+            };
+          };
         in
         {
           inherit pyjutsu-wheel vendomat;
+
+          # Individual command packages, for `nix build` and for the build tests.
+          repoman = repoman-cli;
+          copyroom = copyroom-cli;
+          # The composed closure the devenv module puts on PATH.
+          repoman-toolchain-core = toolchain;
 
           # A single directory of every vendored wheel — this is what UV_FIND_LINKS points at.
           wheelhouse = pkgs.symlinkJoin {
