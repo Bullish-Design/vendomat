@@ -20,13 +20,20 @@ policy left to express.
 
 ### Roster
 
-Five packages: `repoman`, `copyroom`, `docman`, `gitman`, `templateer`.
+Four packages: `repoman`, `copyroom`, `docman`, `gitman`. The roster is complete.
 
 **`testee` is deliberately out.** Its tools — pytest, ruff, ty — import the
 consumer's own code, so a shared `testee` cannot do its job. It stays a per-repo
 `pyproject.toml` dev dependency, installed by `uv sync` into the consumer venv.
 This keeps RepoMan's registry entry (`install="uv"`, project 12) correct and
 unchanged. Owner decision, 2026-09-07.
+
+**`templateer` is out too** (owner, 2026-09-07). It was the heaviest tool to
+materialize and the only one needing new derivations, and it is not a RepoMan
+manager: it has no key in the registry and no manager module. Treat it like
+testee — a per-repo `pyproject.toml` dependency where a repo actually uses it.
+
+That leaves the closure with exactly the four commands RepoMan's registry names.
 
 `zelligate`, `mypi-agent` and `alliman` from CONCEPT §3.2 are out of scope. They
 are not in the machine venv today, so packaging them buys nothing yet.
@@ -37,8 +44,9 @@ derivations — they stay uv-resolved dependencies of testee.
 
 ## Console scripts and interpreters
 
-Every tool already requires Python >= 3.13, except templateer (>= 3.12, which
-3.13 satisfies). The 3.13 baseline of CONCEPT §8.3 needs no negotiation.
+Every roster tool already requires Python >= 3.13. The 3.13 baseline of CONCEPT
+§8.3 needs no negotiation. (templateer, now out of scope, asks for >= 3.12, which
+3.13 satisfies anyway.)
 
 | tool | version | console script | entry point | backend |
 | --- | --- | --- | --- | --- |
@@ -70,18 +78,19 @@ in Vendomat before its consumer can be built.
 | pytest 9.0.3 | yes | testee |
 | ruff 0.15.20 | yes | testee |
 | ty 0.0.56 | yes | testee |
-| pytest-json-report | **MISSING** | testee |
-| import-linter | **MISSING** | testee |
-| minijinja | **MISSING** | templateer |
-| pydantic-ai-slim[openai] | **MISSING** | templateer |
+| pytest-json-report | **MISSING** | testee — out of the closure |
+| import-linter | **MISSING** | testee — out of the closure |
+| minijinja | **MISSING** | templateer — out of the closure |
+| pydantic-ai-slim[openai] | **MISSING** | templateer — out of the closure |
 | click | yes | templateer |
 | pyjutsu 0.21.1 | vendomat-built | gitman |
 
-Cost, ordered: sub-phase 1 (repoman, copyroom) needs zero new derivations, and
-neither does docman in sub-phase 2. Sub-phase 3 needs only the vended pyjutsu.
-templateer is the heaviest and goes last: `minijinja` and `pydantic-ai-slim` are
-both missing. testee's two missing dependencies do not count — testee is not in
-the closure.
+Cost, final: **the roster needs no new derivations at all.** repoman, copyroom
+and docman resolve entirely from nixpkgs; gitman adds only the pyjutsu wheel this
+flake already vends. Every `MISSING` row above belongs to testee or templateer,
+and both are out of the closure. CONCEPT §8.1 named package materialization as
+the principal cost of this project; scoping the roster to RepoMan's own managers
+removed it.
 
 ## Venv-path call sites
 

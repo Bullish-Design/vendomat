@@ -37,16 +37,6 @@ classifier denied `git push`.
   both resolve into `/nix/store`, `demo` is gone, and the collision guard throws.
 - `testee verify --mode ci`: PASSED.
 
-## Next, in order
-
-1. **Sub-phase 4 — make store mode the default** when vendomat is imported, keeping
-   `mode = "editable"` first-class for tool authors and a documented venv escape hatch.
-2. **templateer.** The last roster tool and the heaviest: `minijinja` and
-   `pydantic-ai-slim[openai]` are both missing from nixpkgs and need derivations.
-3. **Sub-phase 5 — Home Manager**, replacing the machine venv on the login shell.
-4. **A live devenv fixture.** The store path is proven by unit tests and by hand; an
-   end-to-end consumer shell would prove the empty venv directly.
-
 ### Sub-phases 2 and 3 — docman and gitman (vendomat)
 
 - `docman` needed no new derivation, as the inventory predicted.
@@ -58,8 +48,23 @@ classifier denied `git push`.
 - All four commands run and their doctors execute — `repoman managers`,
   `copyroom doctor`, `docman doctor`, `gitman status`. Evaluating is not supporting.
 
+## Next, in order
+
+1. **Sub-phase 4 — make store mode the default** when vendomat is imported, keeping
+   `mode = "editable"` first-class for tool authors and a documented venv escape hatch.
+2. **Sub-phase 5 — Home Manager**, replacing the machine venv on the login shell.
+3. **A live devenv fixture.** The store path is proven by unit tests and by hand; an
+   end-to-end consumer shell would prove the empty venv directly.
+
 ## Decided
 
 **testee is not in the closure** (owner, 2026-09-07). Its tools import the
 consumer's code, so it stays a per-repo `pyproject.toml` dev dependency and
-RepoMan's `install="uv"` registry entry stands. Sub-phase 2 is docman alone.
+RepoMan's `install="uv"` registry entry stands.
+
+**templateer is not in the closure either** (owner, 2026-09-07). It is not a
+RepoMan manager — no registry key, no manager module — and it was the only tool
+needing new Nix derivations. Same treatment as testee: a per-repo dependency.
+
+Together these close the roster at four commands, and the roster needs no
+package materialization work at all. That was CONCEPT §8.1's principal cost.
