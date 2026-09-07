@@ -19,7 +19,7 @@ inputs:
   vendomat:
     url: path:../../..
   repoman:
-    url: "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.7.4&dir=modules"
+    url: "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.7.5&dir=modules"
     flake: false
 
 imports:
