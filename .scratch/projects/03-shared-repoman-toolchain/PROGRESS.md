@@ -60,9 +60,13 @@ takes vendomat by published tag.
 
 ## Next, in order
 
-1. **Set `mode = "editable"` in each tool's own repo** — repoman, copyroom, docman,
-   gitman. Each must bump its vendomat pin to a release carrying the `mode` option
-   FIRST; naming an option an older tag does not declare fails the eval.
+1. **Editable mode, where it is actually needed.** repoman is done: it pins vendomat
+   v0.3.4 and sets `vendor.toolchain.mode = "editable"`, verified in a real shell
+   (provider stays `venv`, `repoman` resolves to the checkout). copyroom, docman and
+   gitman declare NO vendomat input today, so they need nothing. Add the line to each
+   only when it starts importing vendomat's module — and bump its pin to a release
+   carrying the `mode` option first, because naming an option an older tag does not
+   declare fails the eval.
 2. **Sub-phase 5 — Home Manager**, replacing the machine venv on the login shell.
 3. **A live devenv fixture.** The store path is proven by unit tests and by hand; an
    end-to-end consumer shell would prove the empty venv directly.
