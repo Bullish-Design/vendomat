@@ -117,7 +117,7 @@ def test_pre_push_publishes_github_sources_without_changing_local_checkout(tmp_p
     assert "git+https://github.com/acme/pyjutsu.git@v0.10.1" in published
 
 
-def _consumer_repo(tmp_path, monkeypatch):
+def _consumer_repo(tmp_path, monkeypatch, *, patch_argv=True):
     """A consumer repo whose first commit is already published GitHub-shape on origin."""
 
     remote = tmp_path / "remote.git"
@@ -144,7 +144,8 @@ def _consumer_repo(tmp_path, monkeypatch):
     fake_uv.write_text("#!/bin/sh\nexit 0\n")
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tools}:{os.environ['PATH']}")
-    monkeypatch.setattr("sys.argv", [executable])
+    if patch_argv:
+        monkeypatch.setattr("sys.argv", [executable])
     return repo, remote, source
 
 
@@ -202,7 +203,7 @@ def test_pre_push_reports_a_divergence_that_cannot_be_replayed(tmp_path, monkeyp
 def test_on_pre_push_resolves_both_shas_from_the_repository(tmp_path, monkeypatch):
     """The pyjutsu entry point needs no standard input; it reads the refs itself."""
 
-    repo, remote, source = _consumer_repo(tmp_path, monkeypatch)
+    repo, remote, source = _consumer_repo(tmp_path, monkeypatch, patch_argv=False)
     source.write_text('source = "path:vendor/pyjutsu"\n')
     _git(repo, "commit", "-am", "use local vendor")
 

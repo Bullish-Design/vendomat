@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -211,7 +212,39 @@ def _is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
     return result.returncode == 0
 
 
-def _published_commit(repo_root: Path, local_sha: str, remote_sha: str, base: str | None) -> str:
+def _vendomat_executable(executable: str | None = None) -> str:
+    """Resolve the Vendomat CLI used by commands run inside the disposable worktree."""
+
+    candidates: list[Path] = []
+    if executable is not None:
+        candidates.append(Path(executable).expanduser())
+
+    on_path = shutil.which("vendomat")
+    if on_path:
+        candidates.append(Path(on_path))
+
+    candidates.append(Path(sys.executable).resolve().parent / "vendomat")
+
+    argv0 = Path(sys.argv[0])
+    if argv0.name == "vendomat":
+        candidates.append(argv0)
+
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate.resolve())
+    raise PublishError(
+        "could not resolve the vendomat executable for publication; install the `vendomat` "
+        "command or pass its path with executable=..."
+    )
+
+
+def _published_commit(
+    repo_root: Path,
+    local_sha: str,
+    remote_sha: str,
+    base: str | None,
+    executable: str | None = None,
+) -> str:
     """Replay outgoing commits in a disposable worktree, materializing GitHub sources per commit.
 
     ``base`` is the local commit last published to this remote branch. The published counterpart
@@ -224,13 +257,13 @@ def _published_commit(repo_root: Path, local_sha: str, remote_sha: str, base: st
         worktree = Path(temp) / "checkout"
         _git(repo_root, "worktree", "add", "--detach", str(worktree), local_sha)
         try:
-            executable = shlex.quote(str(Path(sys.argv[0]).resolve()))
+            command_executable = shlex.quote(_vendomat_executable(executable))
             # A local-only source edit can disappear entirely after materialization. Keep an
             # empty commit in that case: it preserves the local branch's commit sequence and
             # gives the published ref a stable, transformed counterpart.
             command = (
-                f"{executable} materialize github --repo-root . && "
-                f"{executable} refresh-lock --repo-root . && "
+                f"{command_executable} materialize github --repo-root . && "
+                f"{command_executable} refresh-lock --repo-root . && "
                 "git add -A && git commit --amend --no-edit --allow-empty"
             )
             if base is None:
@@ -242,7 +275,7 @@ def _published_commit(repo_root: Path, local_sha: str, remote_sha: str, base: st
             _git(repo_root, "worktree", "remove", "--force", str(worktree))
 
 
-def pre_push(repo_root: Path, remote: str, updates: str) -> None:
+def pre_push(repo_root: Path, remote: str, updates: str, executable: str | None = None) -> None:
     """Publish rewritten temporary commits, then abort the original local-source push.
 
     Git has already selected the refs for the outer ``git push`` when this hook runs. We publish
@@ -281,7 +314,7 @@ def pre_push(repo_root: Path, remote: str, updates: str) -> None:
                 f"{base[:12]}, or correct the marker with "
                 f"'git update-ref {marker} <commit>', then push again"
             )
-        published = _published_commit(repo_root, local_sha, remote_sha, base)
+        published = _published_commit(repo_root, local_sha, remote_sha, base, executable)
         if remote_sha != "0" * 40:
             # Publication may amend already published commits, so the update is not always a
             # fast-forward. The lease keeps that from overwriting an unexpected remote state.
@@ -294,7 +327,13 @@ def pre_push(repo_root: Path, remote: str, updates: str) -> None:
     raise PublishError("published GitHub-source commit(s); local vendor-source branch was left unchanged")
 
 
-def on_pre_push(remote: str, bookmarks: Sequence[str], repo_root: Path | None = None, **_: object) -> None:
+def on_pre_push(
+    remote: str,
+    bookmarks: Sequence[str],
+    repo_root: Path | None = None,
+    executable: str | None = None,
+    **_: object,
+) -> None:
     """Pyjutsu ``pre-push`` hook entry point for pushes that cannot run a Git hook.
 
     Pyjutsu hooks get no standard input, so this resolves both sides of each update itself:
@@ -311,7 +350,7 @@ def on_pre_push(remote: str, bookmarks: Sequence[str], repo_root: Path | None = 
         remote_sha = _rev_parse(root, f"refs/remotes/{remote}/{bookmark}") or "0" * 40
         updates.append(f"refs/heads/{bookmark} {local_sha} refs/heads/{bookmark} {remote_sha}")
     try:
-        pre_push(root, remote, "\n".join(updates))
+        pre_push(root, remote, "\n".join(updates), executable=executable)
     except PublishError as exc:
         raise _hook_abort(str(exc)) from exc
 
