@@ -9,6 +9,7 @@ import pytest
 from vendomat.publish import (
     PublishError,
     hook_script,
+    install_hook,
     lock_version_changes,
     materialize,
     on_pre_push,
@@ -59,6 +60,27 @@ def test_hook_trampoline_preserves_git_arguments():
     assert hook_script("/nix/store/example/bin/vendomat") == (
         '#!/bin/sh\n# Installed by vendomat; do not edit.\nexec /nix/store/example/bin/vendomat pre-push "$@"\n'
     )
+
+
+def test_install_hook_refreshes_a_stale_vendomat_hook_but_refuses_a_foreign_one(tmp_path):
+    """Our own trampoline names an absolute path, so it must be refreshable across versions."""
+
+    repo = tmp_path / "consumer"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True)
+    _manifest(repo)
+
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_text(hook_script("/nix/store/old-vendomat-0.2.3/bin/vendomat"))
+
+    assert install_hook(repo, "/nix/store/new-vendomat-0.3.1/bin/vendomat") == hook
+    assert "new-vendomat-0.3.1" in hook.read_text()
+
+    hook.write_text("#!/bin/sh\necho mine\n")
+    with pytest.raises(PublishError, match="refusing to replace existing hook"):
+        install_hook(repo, "/nix/store/new-vendomat-0.3.1/bin/vendomat")
+    assert hook.read_text() == "#!/bin/sh\necho mine\n"
 
 
 def test_lock_version_changes_rejects_additions_removals_and_upgrades():
