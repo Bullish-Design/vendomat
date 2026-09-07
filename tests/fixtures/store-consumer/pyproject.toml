@@ -1,0 +1,8 @@
+# Deliberately bare. A Face D consumer declares zero first-party Python dependencies:
+# no repoman, no copyroom, no gitman. If a manager ever appears in this file, the
+# fixture has stopped testing what it was written for.
+[project]
+name = "store-consumer-fixture"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = []

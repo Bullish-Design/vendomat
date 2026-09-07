@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+#
+# End-to-end fixture for Face D (CONCEPT 03 §7): a real consumer devenv that takes its
+# manager commands from the shared Nix closure.
+#
+# vendomat is a RELATIVE path — the tree under test, and portable, because a relative
+# path names no machine. repoman comes from its published tag: the fixture must not
+# need a sibling checkout to run, and v0.7.3 is the first release carrying
+# `repoman.cliProvider`.
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  # Required by `languages.python.version`, which pins the 3.13 the closure is built at.
+  nixpkgs-python:
+    url: github:cachix/nixpkgs-python
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  vendomat:
+    url: path:../../..
+  repoman:
+    url: "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.7.4&dir=modules"
+    flake: false
+
+imports:
+  - vendomat/modules
+  - repoman
