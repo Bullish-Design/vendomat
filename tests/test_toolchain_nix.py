@@ -42,24 +42,11 @@ def _nix(*args: str, expect_fail: bool = False) -> subprocess.CompletedProcess:
 # ------------------------------------------------------------------ source-level guards
 
 
-def test_mk_python_cli_reads_the_version_from_pyproject():
-    # A hand-written version literal in this flake drifted to 0.2.3 while the source said
-    # 0.3.1, and every installed pre-push hook then named a wrong version. Metadata is read.
-    text = (LIB / "mkPythonCli.nix").read_text()
-    assert "version = project.version;" in text
-
-
-def test_mk_python_cli_throws_on_an_unmapped_dependency():
-    # CONCEPT 03 §3.3: a nix build may not download unpinned packages. The alternative to
-    # an eval-time throw is a build that fails much later with a much worse message.
-    text = (LIB / "mkPythonCli.nix").read_text()
-    assert "has no entry in depMap" in text
-    assert "table.${name} or (throw" in text
-
-
-def test_mk_python_cli_does_not_run_first_party_tests_at_build_time():
-    # A first-party test failure must not be able to block every consumer's shell.
-    assert "doCheck = false;" in (LIB / "mkPythonCli.nix").read_text()
+def test_uv2nix_constructor_is_used_for_the_roster():
+    text = (ROOT / "flake.nix").read_text()
+    assert "mkUv2nixCli" in text
+    assert "workspace.mkPyprojectOverlay" in text
+    assert "uvVersions = lockVersions;" in text
 
 
 def test_mk_toolchain_rejects_a_mixed_python_baseline():
@@ -184,13 +171,6 @@ def test_gitman_runs_and_imports_its_native_dependency():
     assert "gitman" in result.stdout
 
 
-def test_gitman_resolves_pyjutsu_to_the_vended_package():
-    # Never to an editable sibling checkout (CONCEPT 03 §3.3): the depMap override is the
-    # only route by which gitman's build can see pyjutsu at all.
-    text = (ROOT / "flake.nix").read_text()
-    assert "depMap = { pyjutsu = pyjutsu-package; };" in text
-
-
 # ------------------------------------------------- sub-phase 4: store mode is the default
 
 
@@ -236,8 +216,7 @@ def test_the_venv_escape_hatch_is_documented_as_short_lived():
 
 @needs_nix
 def test_templateer_uses_uv_lock_and_no_other_tool_does():
-    # The public templateer package must use the versions in its own uv.lock. The legacy
-    # hand-pinned package remains available for comparison during this prototype.
+    # The public templateer package must use the versions in its own uv.lock.
     out = _nix("build", ".#templateer", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     closure = _nix("path-info", "-r", out).stdout
     for package in (
@@ -253,11 +232,6 @@ def test_templateer_uses_uv_lock_and_no_other_tool_does():
         "pydantic-graph-2.23.0",
     ):
         assert package in closure
-
-    legacy = _nix("build", ".#templateer-hand-pinned", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
-    legacy_closure = _nix("path-info", "-r", legacy).stdout
-    assert "pydantic_ai_slim-2.40.0" in legacy_closure
-    assert "minijinja-2.24.0" in legacy_closure
 
     gitman = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     other = _nix("path-info", "-r", gitman).stdout

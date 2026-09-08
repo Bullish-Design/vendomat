@@ -82,18 +82,10 @@
           inherit pkgs;
           python = pkgs.python313;
         };
-        # Face D: build one first-party CLI, and compose a roster of them.
-        mkPythonCli = import ./lib/mkPythonCli.nix {
-          inherit pkgs;
-          python = pkgs.python313;
-        };
         mkToolchain = import ./lib/mkToolchain.nix {
           inherit pkgs;
           python = pkgs.python313;
         };
-        # For a dependency nixpkgs cannot supply: install the published PyPI wheel.
-        # Bound to a package SET by its caller, because every use is inside an overlay.
-        mkPypiWheel = py: import ./lib/mkPypiWheel.nix { inherit pkgs py; };
       });
 
       # The built artifacts: one wheel per lib, plus a combined wheelhouse dir.
@@ -101,29 +93,7 @@
         let
           system = pkgs.stdenv.system;
           mkArtifact = self.lib.${system}.mkArtifact;
-          mkPythonCli = self.lib.${system}.mkPythonCli;
           mkToolchain = self.lib.${system}.mkToolchain;
-
-          # templateer's dependency closure, for the parts nixpkgs cannot supply. Every
-          # entry states why; see the file header before assuming one is still needed.
-          #
-          # A SEPARATE interpreter, not a global override: the pydantic-ai 2.x line this
-          # needs would otherwise rebuild every other roster tool and every consumer of
-          # pkgs.python313 for no reason. The roster is a closure of independent
-          # applications, so one tool may sit on a different package set — what the
-          # closure joins on is command names, not a shared site-packages.
-          pythonTemplateer = pkgs.python313.override {
-            self = pythonTemplateer;
-            packageOverrides = import ./pkgs/templateer-deps.nix {
-              inherit pkgs;
-              mkPypiWheel = self.lib.${system}.mkPypiWheel;
-            };
-          };
-          mkTemplateerCli = import ./lib/mkPythonCli.nix {
-            inherit pkgs;
-            python = pythonTemplateer;
-          };
-
           pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
             src = inputs.pyjutsu;
@@ -181,42 +151,6 @@
           # Face D — the roster. Added one tool at a time (CONCEPT 03 §6): a tool is
           # supported only once its package builds, its command resolves to /nix/store,
           # and its doctor runs. Evaluating is not supporting.
-          repoman-cli = mkPythonCli {
-            pname = "repoman";
-            src = inputs.repoman;
-          };
-          copyroom-cli = mkPythonCli {
-            pname = "copyroom";
-            src = inputs.copyroom;
-            # `demo` (copyroom's `demo:main`) is a generic name and no part of the manager
-            # contract. Left in, it would be the roster's first command collision.
-            excludeScripts = [ "demo" ];
-          };
-
-          docman-cli = mkPythonCli {
-            pname = "docman";
-            src = inputs.docman;
-          };
-          gitman-cli = mkPythonCli {
-            pname = "gitman";
-            src = inputs.gitman;
-            # Resolved to the vended wheel, never to an editable sibling checkout
-            # (CONCEPT 03 §3.3).
-            depMap = { pyjutsu = pyjutsu-package; };
-          };
-
-          # The `[openai]` extra is folded into the pydantic-ai-slim entry itself:
-          # mkPythonCli resolves a PEP 508 head and drops the extra, so an extra's
-          # dependencies must be named by the derivation that stands for the head.
-          templateer-cli = mkTemplateerCli {
-            pname = "templateer";
-            src = inputs.templateer;
-            depMap = {
-              minijinja = pythonTemplateer.pkgs.minijinja;
-              pydantic-ai-slim = pythonTemplateer.pkgs.pydantic-ai-slim;
-            };
-          };
-
           mkUv2nixCli = { pname, src, excludeScripts ? [ ] }:
             let
               workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = src; };
@@ -274,15 +208,8 @@
           copyroom = copyroom-uv2nix-cli;
           docman = docman-uv2nix-cli;
           gitman = gitman-uv2nix-cli;
-          repoman-hand-pinned = repoman-cli;
-          copyroom-hand-pinned = copyroom-cli;
-          docman-hand-pinned = docman-cli;
-          gitman-hand-pinned = gitman-cli;
-            # Prototype decision: the public templateer package now exercises uv.lock.
-            # Keep the hand-pinned derivation available for an apples-to-apples build.
-            templateer = templateer-uv2nix-cli;
-            templateer-hand-pinned = templateer-cli;
-            templateer-uv2nix = templateer-uv2nix-cli;
+          templateer = templateer-uv2nix-cli;
+          templateer-uv2nix = templateer-uv2nix-cli;
           pyjutsu = pyjutsu-package;
           # The composed closure the devenv module puts on PATH.
           repoman-toolchain-core = toolchain;

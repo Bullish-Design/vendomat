@@ -87,9 +87,15 @@ templateer --version    # 0.4.1
 devenv shell testee verify --mode quick
 ```
 
-Testee passes ruff, ruff-format, ty, and pytest. The legacy `*-hand-pinned`
-packages remain exposed for comparison. The hand-pin dependency table and
-`mkPythonCli` path have not been deleted.
+Testee passes ruff, ruff-format, ty, and pytest.
+
+## Legacy cleanup — 2026-09-08
+
+Removed the legacy roster dependency path after the full live check passed.
+Deleted `pkgs/templateer-deps.nix`, `lib/mkPythonCli.nix`, and
+`lib/mkPypiWheel.nix`. Removed the nixpkgs dependency table and all
+`*-hand-pinned` package outputs. The pyjutsu wheel builders remain because
+vendomat still exports those artifacts independently.
 
 ## Lockfile guard and PATH cleanup — 2026-09-08
 

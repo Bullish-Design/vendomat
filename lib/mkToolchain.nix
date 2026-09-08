@@ -15,7 +15,7 @@ let
 in
 
 { name
-  # Attribute set of tool-name -> package built by mkPythonCli.
+  # Attribute set of tool-name -> package built by the roster builder.
 , tools
 }:
 
@@ -48,7 +48,7 @@ if collisions != [ ] then
   throw ''
     mkToolchain: roster "${name}" has duplicate command name(s):
     ${lib.concatMapStringsSep "\n" (c: "  ${c} <- ${lib.concatStringsSep ", " (providersOf c)}") collisions}
-    Exclude the command in the losing tool (mkPythonCli's `excludeScripts`), or drop a tool
+    Exclude the command in the losing tool, or drop a tool
     from the roster. Shadowing by PATH order is what this closure replaces.
   ''
 else if builtins.length pythons > 1 then
