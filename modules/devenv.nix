@@ -209,8 +209,8 @@ in
     })
 
     # --- Face D: the shared command closure ---------------------------------------------------
-    # Editable mode delivers NOTHING and touches no provider: a tool's own repo keeps
-    # running its working tree. That is why the guard is on the mode as well as `enable`.
+    # Editable mode delivers NO PACKAGE: a tool's own repo keeps running its working tree.
+    # That is why the guard is on the mode as well as `enable`.
     (lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [
       {
         # On PATH for the interactive shell. The env var below is what TASKS use: a task
@@ -238,6 +238,23 @@ in
         repoman.cliProvider = "store";
       })
     ]))
+
+    # Editable mode NAMES the venv provider rather than leaving the default. It used to
+    # leave it alone, which was correct while repoman.cliProvider defaulted to "venv".
+    # repoman 0.7.6 moved that default to "store" (devman 023-toolchain phase 5, step 3),
+    # so "alone" now means the closure — and a tagged `gitman` ahead of gitman's own
+    # checkout on PATH is exactly what editable mode exists to prevent. MEASURED: with
+    # the default flipped and this line absent, repoman's own devenv reported
+    # `cliProvider is "store" but REPOMAN_TOOLCHAIN_BIN is unset` and had no gitman.
+    #
+    # Guarded on the option EXISTING, for the same reason as the store branch above: a
+    # consumer may import vendomat without repoman, and a definition for an undeclared
+    # option fails a strict full-config eval.
+    (lib.mkIf (tcfg.enable && tcfg.mode == "editable") (
+      lib.optionalAttrs (options ? repoman) {
+        repoman.cliProvider = "venv";
+      }
+    ))
 
     # This is independent of Face A and Face B: a manifest is the explicit per-repository opt-in.
     # `install-hook` is a no-op failure when no manifest exists and refuses to overwrite another

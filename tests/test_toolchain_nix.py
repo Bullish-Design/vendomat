@@ -203,12 +203,25 @@ def test_the_toolchain_is_on_by_default():
     assert 'default = "store";' in block
 
 
-def test_editable_mode_delivers_nothing():
+def test_editable_mode_delivers_no_package():
     # A tool author must be able to run uncommitted changes (acceptance criterion). In
     # gitman's own repo an older store build must not shadow the working tree, so
-    # editable mode contributes no package, no env, and no provider change at all.
+    # editable mode contributes no package and no env.
     text = MODULE.read_text()
     assert '(lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [' in text
+
+
+def test_editable_mode_names_the_venv_provider():
+    # It used to leave repoman.cliProvider alone, which was correct while that option
+    # defaulted to "venv". repoman 0.7.6 moved the default to "store", so leaving it
+    # alone would put a tagged build ahead of the tool author's own checkout — the one
+    # thing editable mode exists to prevent. It must NAME the provider it wants.
+    text = MODULE.read_text()
+    assert '(lib.mkIf (tcfg.enable && tcfg.mode == "editable") (' in text
+    block = text.split('tcfg.mode == "editable"')[1]
+    assert 'repoman.cliProvider = "venv";' in block
+    # Same guard as the store branch: a consumer may import vendomat without repoman.
+    assert "options ? repoman" in block.split('repoman.cliProvider')[0]
 
 
 def test_the_venv_escape_hatch_is_documented_as_short_lived():
