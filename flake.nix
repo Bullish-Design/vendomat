@@ -44,15 +44,15 @@
       flake = false;
     };
     copyroom = {
-      url = "git+https://github.com/Bullish-Design/copyroom?ref=refs/tags/v0.7.4";
+      url = "git+https://github.com/Bullish-Design/copyroom?ref=refs/tags/v0.7.7";
       flake = false;
     };
     docman = {
-      url = "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.0";
+      url = "git+https://github.com/Bullish-Design/docman?ref=refs/tags/v0.2.1";
       flake = false;
     };
     gitman = {
-      url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.6.1";
+      url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.6.2";
       flake = false;
     };
     # templateer is on the roster because devman's changelog group calls
@@ -238,13 +238,44 @@
             };
           });
 
+          mkUv2nixCli = { pname, src, excludeScripts ? [ ] }:
+            let
+              workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = src; };
+              pythonSet = (pkgs.callPackage pyproject-nix.build.packages {
+                python = pkgs.python313;
+              }).overrideScope (pkgs.lib.composeManyExtensions [
+                pyproject-build-systems.overlays.default
+                (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
+              ]);
+              virtualEnv = pythonSet.mkVirtualEnv "${pname}-uv2nix" workspace.deps.default;
+              project = (builtins.fromTOML (builtins.readFile "${src}/pyproject.toml")).project;
+              commands = pkgs.lib.subtractLists excludeScripts (builtins.attrNames (project.scripts or { }));
+            in
+            virtualEnv.overrideAttrs (old: {
+              inherit pname;
+              version = project.version;
+              passthru = (old.passthru or { }) // {
+                inherit commands;
+                pythonVersion = pkgs.python313.pythonVersion;
+              };
+            });
+
+          repoman-uv2nix-cli = mkUv2nixCli { pname = "repoman"; src = inputs.repoman; };
+          copyroom-uv2nix-cli = mkUv2nixCli {
+            pname = "copyroom";
+            src = inputs.copyroom;
+            excludeScripts = [ "demo" ];
+          };
+          docman-uv2nix-cli = mkUv2nixCli { pname = "docman"; src = inputs.docman; };
+          gitman-uv2nix-cli = mkUv2nixCli { pname = "gitman"; src = inputs.gitman; };
+
           toolchain = mkToolchain {
             name = "core";
             tools = {
-              repoman = repoman-cli;
-              copyroom = copyroom-cli;
-              docman = docman-cli;
-              gitman = gitman-cli;
+              repoman = repoman-uv2nix-cli;
+              copyroom = copyroom-uv2nix-cli;
+              docman = docman-uv2nix-cli;
+              gitman = gitman-uv2nix-cli;
               templateer = templateer-uv2nix-cli;
             };
           };
@@ -253,10 +284,14 @@
           inherit pyjutsu-wheel vendomat;
 
           # Individual command packages, for `nix build` and for the build tests.
-          repoman = repoman-cli;
-          copyroom = copyroom-cli;
-          docman = docman-cli;
-          gitman = gitman-cli;
+          repoman = repoman-uv2nix-cli;
+          copyroom = copyroom-uv2nix-cli;
+          docman = docman-uv2nix-cli;
+          gitman = gitman-uv2nix-cli;
+          repoman-hand-pinned = repoman-cli;
+          copyroom-hand-pinned = copyroom-cli;
+          docman-hand-pinned = docman-cli;
+          gitman-hand-pinned = gitman-cli;
             # Prototype decision: the public templateer package now exercises uv.lock.
             # Keep the hand-pinned derivation available for an apples-to-apples build.
             templateer = templateer-uv2nix-cli;

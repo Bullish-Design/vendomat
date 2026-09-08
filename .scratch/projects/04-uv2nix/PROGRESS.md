@@ -58,3 +58,35 @@ until each tool completes the same build and runtime checks.
 
 The kickoff brief requested a 0.4.0 runtime while also requiring a 0.4.1 tag.
 This prototype follows the release tag and reports 0.4.1.
+
+## Remaining roster migration — 2026-09-08
+
+The shared `mkUv2nixCli` constructor now builds repoman, copyroom, docman, and
+gitman from each tool's own lockfile. All four use Python 3.13. The public
+roster packages and the composed toolchain use these uv2nix derivations.
+
+Published lockfile-backed inputs:
+
+- repoman v0.7.5 already contained its tracked lockfile.
+- copyroom v0.7.7 tracks its lockfile and aligns its runtime version constant.
+- docman v0.2.1 tracks its lockfile.
+- gitman v0.6.2 tracks its lockfile.
+
+The following builds and runtime checks passed:
+
+```text
+nix build .#repoman --no-link --print-out-paths
+nix build .#copyroom --no-link --print-out-paths
+nix build .#docman --no-link --print-out-paths
+nix build .#gitman --no-link --print-out-paths
+nix build .#repoman-toolchain-core --no-link --print-out-paths
+repoman --version       # 0.7.5
+copyroom --version      # 0.7.7
+gitman --version        # 0.6.2
+templateer --version    # 0.4.1
+devenv shell testee verify --mode quick
+```
+
+Testee passes ruff, ruff-format, ty, and pytest. The legacy `*-hand-pinned`
+packages remain exposed for comparison. The hand-pin dependency table and
+`mkPythonCli` path have not been deleted.

@@ -222,7 +222,7 @@ def test_editable_mode_names_the_venv_provider():
     block = text.split('tcfg.mode == "editable"')[1]
     assert 'repoman.cliProvider = "venv";' in block
     # Same guard as the store branch: a consumer may import vendomat without repoman.
-    assert "options ? repoman" in block.split('repoman.cliProvider')[0]
+    assert "options ? repoman" in block.split("repoman.cliProvider")[0]
 
 
 def test_the_venv_escape_hatch_is_documented_as_short_lived():
