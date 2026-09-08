@@ -141,10 +141,11 @@ def test_every_roster_command_resolves_into_the_nix_store():
     out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     # buildPythonApplication leaves `.<name>-wrapped` siblings; only the real commands
     # are on PATH, so only they can collide.
-    binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if not p.name.startswith("."))
+    expected = {"copyroom", "docman", "gitman", "repoman", "templateer"}
+    binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if p.name in expected)
     # `demo` is copyroom's second console script. It is a generic name and no part of the
     # manager contract; left in, it would be the roster's first collision.
-    assert binaries == ["copyroom", "docman", "gitman", "repoman", "templateer"]
+    assert set(binaries) == expected
     for name in binaries:
         assert (Path(out) / "bin" / name).resolve().is_relative_to("/nix/store")
 
@@ -234,19 +235,29 @@ def test_the_venv_escape_hatch_is_documented_as_short_lived():
 
 
 @needs_nix
-def test_templateer_takes_its_pinned_dependency_set_and_no_other_tool_does():
-    # templateer needs pydantic-ai 2.x; this nixpkgs carries 1.107.0, and `minijinja` not at
-    # all. Those pins live in an OVERLAY on a SEPARATE interpreter (pkgs/templateer-deps.nix)
-    # rather than a global override, so the rest of the roster is untouched by them.
-    #
-    # Both halves are asserted, because either alone would pass while the design was wrong:
-    # a global override would still give templateer its versions, and dropping the overlay
-    # would still leave the other four tools correct.
+def test_templateer_uses_uv_lock_and_no_other_tool_does():
+    # The public templateer package must use the versions in its own uv.lock. The legacy
+    # hand-pinned package remains available for comparison during this prototype.
     out = _nix("build", ".#templateer", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     closure = _nix("path-info", "-r", out).stdout
-    assert "pydantic_ai_slim-2.40.0" in closure
-    assert "minijinja-2.24.0" in closure
-    assert "pydantic_ai_slim-1." not in closure, "the nixpkgs pydantic-ai leaked into the closure"
+    for package in (
+        "click-8.4.2",
+        "genai-prices-0.1.1",
+        "httpcore2-2.9.1",
+        "httpx2-2.9.1",
+        "idna-3.18",
+        "jiter-0.16.0",
+        "minijinja-2.22.0",
+        "openai-2.53.0",
+        "pydantic-ai-slim-2.23.0",
+        "pydantic-graph-2.23.0",
+    ):
+        assert package in closure
+
+    legacy = _nix("build", ".#templateer-hand-pinned", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    legacy_closure = _nix("path-info", "-r", legacy).stdout
+    assert "pydantic_ai_slim-2.40.0" in legacy_closure
+    assert "minijinja-2.24.0" in legacy_closure
 
     gitman = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     other = _nix("path-info", "-r", gitman).stdout

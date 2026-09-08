@@ -5,6 +5,23 @@
     # Match the devenv stack the consuming repos use.
     nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
 
+    # uv2nix resolves each workspace from its own uv.lock. Keep all three inputs
+    # on this flake's nixpkgs and pyproject-nix revisions to avoid a split closure.
+    pyproject-nix = {
+      url = "github:nix-community/pyproject.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    uv2nix = {
+      url = "github:adisbladis/uv2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+    };
+    pyproject-build-systems = {
+      url = "github:pyproject-nix/build-system-pkgs";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.pyproject-nix.follows = "pyproject-nix";
+    };
+
     # Personal native libraries, as plain source trees (flake = false). git+file is used so
     # only git-tracked files are copied into the store — crucially this excludes Pyjutsu's
     # multi-GB `target/` (untracked) that a `path:` input would eagerly copy. Working-tree
@@ -43,12 +60,12 @@
     # tool still coming from the mutable shelf venv, so a login shell got four
     # commands from the store and this one from nowhere.
     templateer = {
-      url = "git+https://github.com/Bullish-Design/templateer_v2?ref=refs/tags/v0.4.0";
+      url = "git+https://github.com/Bullish-Design/templateer_v2?ref=refs/tags/v0.4.1";
       flake = false;
     };
   };
 
-  outputs = { self, nixpkgs, ... }@inputs:
+  outputs = { self, nixpkgs, pyproject-nix, uv2nix, pyproject-build-systems, ... }@inputs:
     let
       systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
@@ -106,6 +123,18 @@
             inherit pkgs;
             python = pythonTemplateer;
           };
+
+          templateerWorkspace = uv2nix.lib.workspace.loadWorkspace {
+            workspaceRoot = inputs.templateer;
+          };
+          templateerPythonSet = (pkgs.callPackage pyproject-nix.build.packages {
+            python = pkgs.python313;
+          }).overrideScope (pkgs.lib.composeManyExtensions [
+            pyproject-build-systems.overlays.default
+            (templateerWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
+          ]);
+          templateerUv2nix = templateerPythonSet.mkVirtualEnv "templateer-uv2nix" templateerWorkspace.deps.default;
+          templateerVersion = (builtins.fromTOML (builtins.readFile "${inputs.templateer}/pyproject.toml")).project.version;
 
           pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
@@ -200,6 +229,15 @@
             };
           };
 
+          templateer-uv2nix-cli = templateerUv2nix.overrideAttrs (old: {
+            pname = "templateer";
+            version = templateerVersion;
+            passthru = (old.passthru or { }) // {
+              commands = [ "templateer" ];
+              pythonVersion = pkgs.python313.pythonVersion;
+            };
+          });
+
           toolchain = mkToolchain {
             name = "core";
             tools = {
@@ -207,7 +245,7 @@
               copyroom = copyroom-cli;
               docman = docman-cli;
               gitman = gitman-cli;
-              templateer = templateer-cli;
+              templateer = templateer-uv2nix-cli;
             };
           };
         in
@@ -219,7 +257,11 @@
           copyroom = copyroom-cli;
           docman = docman-cli;
           gitman = gitman-cli;
-          templateer = templateer-cli;
+            # Prototype decision: the public templateer package now exercises uv.lock.
+            # Keep the hand-pinned derivation available for an apples-to-apples build.
+            templateer = templateer-uv2nix-cli;
+            templateer-hand-pinned = templateer-cli;
+            templateer-uv2nix = templateer-uv2nix-cli;
           pyjutsu = pyjutsu-package;
           # The composed closure the devenv module puts on PATH.
           repoman-toolchain-core = toolchain;
