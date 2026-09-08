@@ -90,3 +90,26 @@ devenv shell testee verify --mode quick
 Testee passes ruff, ruff-format, ty, and pytest. The legacy `*-hand-pinned`
 packages remain exposed for comparison. The hand-pin dependency table and
 `mkPythonCli` path have not been deleted.
+
+## Lockfile guard and PATH cleanup — 2026-09-08
+
+Added `test_uv2nix_closure_matches_each_tool_lockfile`. The guard evaluates
+the lock versions exposed by each uv2nix package and compares every matching
+runtime distribution in its Nix closure. The focused test and the full Testee
+quick suite pass.
+
+uv2nix virtual environments contain console scripts from their dependencies.
+The first composed closure exposed commands such as `httpx`, `python`, and
+`activate`, which failed the downstream PATH safety check. Each public package
+now exports only the project's declared console scripts. The rebuilt closure
+exports exactly `copyroom`, `docman`, `gitman`, `repoman`, and `templateer`.
+
+The local rebuilt closure is:
+
+```text
+/nix/store/z6ayz3iz2c3plgidf7kfslwnwrzc7yk2-repoman-toolchain-core
+```
+
+The nix-meta live check still reads the older deployed closure. The consuming
+system must update its vendomat input and run its normal system rebuild before
+that check can validate the new PATH and version set.

@@ -262,3 +262,20 @@ def test_templateer_uses_uv_lock_and_no_other_tool_does():
     gitman = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     other = _nix("path-info", "-r", gitman).stdout
     assert "minijinja" not in other, "the templateer overlay reached a tool that does not need it"
+
+
+@needs_nix
+@pytest.mark.parametrize("tool", ["repoman", "copyroom", "docman", "gitman", "templateer"])
+def test_uv2nix_closure_matches_each_tool_lockfile(tool: str):
+    # Check every lockfile package that appears in the runtime closure. Dev-only packages
+    # do not appear in the closure and are intentionally skipped by this boundary check.
+    versions = json.loads(_nix("eval", f".#{tool}.uvVersions", "--json").stdout)
+    out = _nix("build", f".#{tool}", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    closure = _nix("path-info", "-r", out).stdout.splitlines()
+    for name, version in versions.items():
+        variants = {name, name.replace("-", "_"), name.replace("_", "-")}
+        matching = [path for path in closure if any(f"-{variant}-" in path for variant in variants)]
+        if matching:
+            assert any(any(f"-{variant}-{version}" in path for variant in variants) for path in matching), (
+                f"{tool} resolved {name} outside uv.lock version {version}: {matching}"
+            )

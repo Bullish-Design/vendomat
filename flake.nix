@@ -124,18 +124,6 @@
             python = pythonTemplateer;
           };
 
-          templateerWorkspace = uv2nix.lib.workspace.loadWorkspace {
-            workspaceRoot = inputs.templateer;
-          };
-          templateerPythonSet = (pkgs.callPackage pyproject-nix.build.packages {
-            python = pkgs.python313;
-          }).overrideScope (pkgs.lib.composeManyExtensions [
-            pyproject-build-systems.overlays.default
-            (templateerWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
-          ]);
-          templateerUv2nix = templateerPythonSet.mkVirtualEnv "templateer-uv2nix" templateerWorkspace.deps.default;
-          templateerVersion = (builtins.fromTOML (builtins.readFile "${inputs.templateer}/pyproject.toml")).project.version;
-
           pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
             src = inputs.pyjutsu;
@@ -229,18 +217,10 @@
             };
           };
 
-          templateer-uv2nix-cli = templateerUv2nix.overrideAttrs (old: {
-            pname = "templateer";
-            version = templateerVersion;
-            passthru = (old.passthru or { }) // {
-              commands = [ "templateer" ];
-              pythonVersion = pkgs.python313.pythonVersion;
-            };
-          });
-
           mkUv2nixCli = { pname, src, excludeScripts ? [ ] }:
             let
               workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = src; };
+              lock = builtins.fromTOML (builtins.readFile "${src}/uv.lock");
               pythonSet = (pkgs.callPackage pyproject-nix.build.packages {
                 python = pkgs.python313;
               }).overrideScope (pkgs.lib.composeManyExtensions [
@@ -250,15 +230,20 @@
               virtualEnv = pythonSet.mkVirtualEnv "${pname}-uv2nix" workspace.deps.default;
               project = (builtins.fromTOML (builtins.readFile "${src}/pyproject.toml")).project;
               commands = pkgs.lib.subtractLists excludeScripts (builtins.attrNames (project.scripts or { }));
-            in
-            virtualEnv.overrideAttrs (old: {
-              inherit pname;
-              version = project.version;
-              passthru = (old.passthru or { }) // {
-                inherit commands;
+              lockVersions = pkgs.lib.listToAttrs (map (package: {
+                name = package.name;
+                value = package.version;
+              }) lock.package);
+              passthru = {
+                inherit commands lockVersions;
                 pythonVersion = pkgs.python313.pythonVersion;
+                uvVersions = lockVersions;
               };
-            });
+            in
+            pkgs.runCommand "${pname}-uv2nix" { inherit passthru; version = project.version; } ''
+              mkdir -p $out/bin
+              ${pkgs.lib.concatMapStringsSep "\n" (command: "ln -s ${virtualEnv}/bin/${command} $out/bin/${command}") commands}
+            '';
 
           repoman-uv2nix-cli = mkUv2nixCli { pname = "repoman"; src = inputs.repoman; };
           copyroom-uv2nix-cli = mkUv2nixCli {
@@ -268,6 +253,7 @@
           };
           docman-uv2nix-cli = mkUv2nixCli { pname = "docman"; src = inputs.docman; };
           gitman-uv2nix-cli = mkUv2nixCli { pname = "gitman"; src = inputs.gitman; };
+          templateer-uv2nix-cli = mkUv2nixCli { pname = "templateer"; src = inputs.templateer; };
 
           toolchain = mkToolchain {
             name = "core";
