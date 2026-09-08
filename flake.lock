@@ -128,7 +128,25 @@
         "gitman": "gitman",
         "nixpkgs": "nixpkgs",
         "pyjutsu": "pyjutsu",
-        "repoman": "repoman"
+        "repoman": "repoman",
+        "templateer": "templateer"
+      }
+    },
+    "templateer": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788750417,
+        "narHash": "sha256-YDB2ML1orEd3tq0j6BOZqkjiBnqb+oeG4RwlNPNUE8Y=",
+        "ref": "refs/tags/v0.4.0",
+        "rev": "08d5b0b3f9a9a3f40c36b35fa2ce936faefcf8c7",
+        "revCount": 43,
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
+      },
+      "original": {
+        "ref": "refs/tags/v0.4.0",
+        "type": "git",
+        "url": "https://github.com/Bullish-Design/templateer_v2"
       }
     }
   },

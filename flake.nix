@@ -38,6 +38,14 @@
       url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.6.1";
       flake = false;
     };
+    # templateer is on the roster because devman's changelog group calls
+    # `templateer generate` as a COMMAND, never as an import. It was the one roster
+    # tool still coming from the mutable shelf venv, so a login shell got four
+    # commands from the store and this one from nowhere.
+    templateer = {
+      url = "git+https://github.com/Bullish-Design/templateer_v2?ref=refs/tags/v0.4.0";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -66,6 +74,9 @@
           inherit pkgs;
           python = pkgs.python313;
         };
+        # For a dependency nixpkgs cannot supply: install the published PyPI wheel.
+        # Bound to a package SET by its caller, because every use is inside an overlay.
+        mkPypiWheel = py: import ./lib/mkPypiWheel.nix { inherit pkgs py; };
       });
 
       # The built artifacts: one wheel per lib, plus a combined wheelhouse dir.
@@ -75,6 +86,26 @@
           mkArtifact = self.lib.${system}.mkArtifact;
           mkPythonCli = self.lib.${system}.mkPythonCli;
           mkToolchain = self.lib.${system}.mkToolchain;
+
+          # templateer's dependency closure, for the parts nixpkgs cannot supply. Every
+          # entry states why; see the file header before assuming one is still needed.
+          #
+          # A SEPARATE interpreter, not a global override: the pydantic-ai 2.x line this
+          # needs would otherwise rebuild every other roster tool and every consumer of
+          # pkgs.python313 for no reason. The roster is a closure of independent
+          # applications, so one tool may sit on a different package set — what the
+          # closure joins on is command names, not a shared site-packages.
+          pythonTemplateer = pkgs.python313.override {
+            self = pythonTemplateer;
+            packageOverrides = import ./pkgs/templateer-deps.nix {
+              inherit pkgs;
+              mkPypiWheel = self.lib.${system}.mkPypiWheel;
+            };
+          };
+          mkTemplateerCli = import ./lib/mkPythonCli.nix {
+            inherit pkgs;
+            python = pythonTemplateer;
+          };
 
           pyjutsu-wheel = mkArtifact {
             pname = "pyjutsu";
@@ -157,6 +188,18 @@
             depMap = { pyjutsu = pyjutsu-package; };
           };
 
+          # The `[openai]` extra is folded into the pydantic-ai-slim entry itself:
+          # mkPythonCli resolves a PEP 508 head and drops the extra, so an extra's
+          # dependencies must be named by the derivation that stands for the head.
+          templateer-cli = mkTemplateerCli {
+            pname = "templateer";
+            src = inputs.templateer;
+            depMap = {
+              minijinja = pythonTemplateer.pkgs.minijinja;
+              pydantic-ai-slim = pythonTemplateer.pkgs.pydantic-ai-slim;
+            };
+          };
+
           toolchain = mkToolchain {
             name = "core";
             tools = {
@@ -164,6 +207,7 @@
               copyroom = copyroom-cli;
               docman = docman-cli;
               gitman = gitman-cli;
+              templateer = templateer-cli;
             };
           };
         in
@@ -175,6 +219,7 @@
           copyroom = copyroom-cli;
           docman = docman-cli;
           gitman = gitman-cli;
+          templateer = templateer-cli;
           pyjutsu = pyjutsu-package;
           # The composed closure the devenv module puts on PATH.
           repoman-toolchain-core = toolchain;

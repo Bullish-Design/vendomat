@@ -129,7 +129,7 @@ def test_the_core_roster_builds_and_reports_its_provenance():
     manifest = json.loads((closure / "share" / "vendomat" / "toolchain.json").read_text())
     assert manifest["roster"] == "core"
     assert manifest["python"] == "3.13"
-    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman"}
+    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman", "templateer"}
     for tool in manifest["tools"].values():
         # Acceptance: two consumers with identical locks resolve to the SAME store paths,
         # which is only meaningful if the manifest names them.
@@ -144,7 +144,7 @@ def test_every_roster_command_resolves_into_the_nix_store():
     binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if not p.name.startswith("."))
     # `demo` is copyroom's second console script. It is a generic name and no part of the
     # manager contract; left in, it would be the roster's first collision.
-    assert binaries == ["copyroom", "docman", "gitman", "repoman"]
+    assert binaries == ["copyroom", "docman", "gitman", "repoman", "templateer"]
     for name in binaries:
         assert (Path(out) / "bin" / name).resolve().is_relative_to("/nix/store")
 
@@ -218,3 +218,23 @@ def test_the_venv_escape_hatch_is_documented_as_short_lived():
     block = text.split("toolchain = {")[1].split("mode = lib.mkOption")[0]
     assert "escape hatch" in block
     assert "short-lived" in block
+
+
+@needs_nix
+def test_templateer_takes_its_pinned_dependency_set_and_no_other_tool_does():
+    # templateer needs pydantic-ai 2.x; this nixpkgs carries 1.107.0, and `minijinja` not at
+    # all. Those pins live in an OVERLAY on a SEPARATE interpreter (pkgs/templateer-deps.nix)
+    # rather than a global override, so the rest of the roster is untouched by them.
+    #
+    # Both halves are asserted, because either alone would pass while the design was wrong:
+    # a global override would still give templateer its versions, and dropping the overlay
+    # would still leave the other four tools correct.
+    out = _nix("build", ".#templateer", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    closure = _nix("path-info", "-r", out).stdout
+    assert "pydantic_ai_slim-2.40.0" in closure
+    assert "minijinja-2.24.0" in closure
+    assert "pydantic_ai_slim-1." not in closure, "the nixpkgs pydantic-ai leaked into the closure"
+
+    gitman = _nix("build", ".#gitman", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
+    other = _nix("path-info", "-r", gitman).stdout
+    assert "minijinja" not in other, "the templateer overlay reached a tool that does not need it"
