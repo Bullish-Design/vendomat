@@ -116,6 +116,6 @@ The local rebuilt closure is:
 /nix/store/z6ayz3iz2c3plgidf7kfslwnwrzc7yk2-repoman-toolchain-core
 ```
 
-The nix-meta live check still reads the older deployed closure. The consuming
-system must update its vendomat input and run its normal system rebuild before
-that check can validate the new PATH and version set.
+The consuming system has now updated its Vendomat input to `v0.3.9`. On 2026-09-09,
+`nix-meta/scripts/repoman-toolchain-test` passed all 14 checks against the active
+login shell, including the new PATH, command set, provenance, and version set.

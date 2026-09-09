@@ -1,7 +1,9 @@
-## Next, in order
+## Current state — 2026-09-09
 
-Nothing, once the rebuild is switched. See "Sub-phase 5" below for the one command
-left, which needs a sudo password this session could not supply.
+The Vendomat input in `nix-meta` is now declared and locked at `v0.3.9`, commit
+`511e70f`. `scripts/repoman-toolchain-test` passes all 14 checks against the active
+`server` login shell. It confirms the shared store path, five commands, provenance
+manifest, and version agreement. The earlier rebuild TODO is closed.
 
 ### Sub-phase 6 — templateer joins the roster
 
@@ -45,8 +47,8 @@ names, not a shared site-packages.
 must be named by the derivation that stands for the head. `openai` and `tiktoken` are
 therefore ordinary dependencies of that entry.
 
-The closure hash moved when templateer joined it, so nix-meta's vendomat input must be
-bumped before the new roster is what a login shell actually gets.
+The closure hash moved when templateer joined it. nix-meta now pins Vendomat `v0.3.9`,
+and the live check confirms that the new roster is active in the login shell.
 
 ### Sub-phase 5 — Home Manager (nix-meta)
 
@@ -65,13 +67,13 @@ whole design is one build shared everywhere, so the input keeps vendomat's own p
 Verified: nix-meta, vendomat's flake and the published tag all resolve to the same
 `repoman-toolchain-core` store path.
 
-`scripts/repoman-toolchain-test` is the live test, 13 checks against the real evaluated
+`scripts/repoman-toolchain-test` is the live test, 14 checks against the real evaluated
 configuration and the real file a login shell sources — not the source text that
 produced them. It was proven to FAIL when the venv line is restored (exit 1) and pass
 otherwise (exit 0).
 
-**Left to do:** `sudo nixos-rebuild switch --flake .#server`. The configuration builds
-and every check passes against the built generation; only the activation is pending.
+The active login shell now passes the live test, so no activation work remains in this
+thread.
 
 ### Sub-phase 1's fixture — done, and it earned its keep
 

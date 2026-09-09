@@ -7,22 +7,30 @@
 
 ## What this project is
 
-_One paragraph: what it does, who uses it, what it is not._
+Vendomat is the vendor layer for the `*man` family. It builds native Python wheels once in the
+Nix store, installs usage-gated dependency knowledge, and provides a shared `*man` command
+toolchain. It is not the composition framework, manifest owner, or workspace orchestrator; those
+roles belong to RepoMan, `repoman.lock`, and the surrounding fleet tools.
 
 ## Working here
 
 ```bash
-devenv shell                     # enter the pinned environment
-repoman-sync                     # verify toolchain + install agent skills
+devenv shell -- testee verify --mode quick
+VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick
+devenv shell -- nix build .#repoman-toolchain-core --no-link --print-out-paths
 ```
 
-_Add the build / test / lint commands, and the gate that must be green before a
-PR._
+Run the first command as the normal gate. Run the second command when a change affects the Nix
+module, toolchain, or consumer integration. A pull request needs a green Testee verification.
+The end-to-end test remains opt-in because it builds a real consumer shell.
 
 ## Where things live
 
-_The two or three directories a newcomer actually needs. Deeper detail belongs in
-`docs/`, not here._
+- `flake.nix`, `lib/`, and `modules/` define native artifacts and the shared command toolchain.
+- `src/vendomat/` and `vendor/` implement dependency knowledge and publishing.
+- `tests/` contains Python checks, Nix checks, and the real consumer fixture.
+
+Read `README.md` for consumer configuration and `docs/` for design and implementation records.
 
 ## The standing configuration
 

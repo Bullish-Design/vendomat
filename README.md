@@ -1,7 +1,7 @@
 # vendomat
 
-**Build your personal native (Rust/maturin/PyO3) libraries once; share the wheels across
-every repo via the Nix store.**
+**Vendor native artifacts, dependency knowledge, and the shared `*man` command toolchain
+across every repo through Nix.**
 
 Libraries like [pyjutsu](../pyjutsu) and [tyo3](../tyo3) compile a Rust extension with
 maturin. When a consumer (e.g. [gitman](../gitman)) depends on one via an editable
@@ -81,7 +81,7 @@ ls result/                    # the .whl(s)
 
 Add a new native lib as a `flake = false` input with a published `git+https://` tag. The git
 input copies tracked files only, so the lib's untracked `target/` is not copied into the store.
-Then add one `mkWheel { … }` entry and a line in the `wheelhouse` `symlinkJoin`.
+Then add one `mkArtifact { … }` entry and a line in the `wheelhouse` `symlinkJoin`.
 
 ## Consuming wheels (any devenv repo)
 
@@ -183,6 +183,29 @@ manifest and lock diff with `vendomat publish --dry-run`.
 See [`examples/publish-demo`](examples/publish-demo) for a self-contained Python/uv consumer and
 an offline proof script.
 
+## Sharing the RepoMan command toolchain
+
+Face D builds the first-party command line tools once from their own `uv.lock` files. The
+`repoman-toolchain-core` closure currently provides `repoman`, `copyroom`, `docman`, `gitman`,
+and `templateer`. `testee` remains a consumer-local development dependency because it must test
+the consumer's own Python environment.
+
+Importing Vendomat enables the store toolchain by default:
+
+```nix
+vendor.toolchain = {
+  enable = true;
+  mode = "store";   # use "editable" in a tool's own repository
+  roster = "core";
+};
+```
+
+Store mode puts the selected commands on `PATH`, exports `REPOMAN_TOOLCHAIN_BIN`, and writes a
+machine-readable provenance manifest. The Vendomat `flake.lock` is the toolchain source of
+truth. Editable mode delivers no store package and tells RepoMan to use the working tree's
+virtual environment. The module invokes selected commands through their absolute store paths,
+so an unrelated executable in a consumer virtual environment cannot shadow them.
+
 ## Local input iteration
 
 Committed flake inputs use published tags. To build against a sibling checkout, override the
@@ -218,17 +241,18 @@ mv devenv.local.yaml /tmp/ && devenv update && mv /tmp/devenv.local.yaml .
 
 ## Status
 
-M0–M4 are complete. Vendomat now has two working faces:
+M0–M4 and Face D are complete. Vendomat now has three working faces:
 
 - **Artifacts:** `mkArtifact` builds the CPython-3.13 abi3 Pyjutsu wheel; RepoMan's `wheel:`
   resolver installs it from Vendomat's wheelhouse with `repoman.nativeBuild = false`.
 - **Knowledge:** `vendomat sync`, `vendomat add`, and `vendomat doctor` install usage-gated
   dependency skills, track their source pins, and warn when a consumer's resolved dependency
   version needs review. `vendor/constraints.txt` is the shared exact-pin source.
+- **Toolchains:** `mkUv2nixCli` builds the five-command core closure from each tool's `uv.lock`;
+  `mkToolchain` rejects command collisions, records provenance, and enforces one Python baseline.
 
-The full RepoMan consumer fixture has been verified end to end: its devenv evaluation exports
-`UV_FIND_LINKS` and `UV_NO_BUILD_PACKAGE=pyjutsu`; `repoman-sync` installs
-`pyjutsu-0.10.1-cp313-abi3-linux_x86_64.whl`; the consumer imports Pyjutsu; and neither Cargo
-nor maturin is contributed by the consumer shell. Remaining work is operational: keep the
-cross-repository proof repeatable, curate additional dependency skills only where useful, and
-defer extra builders or vendored source until real usage justifies them.
+The local consumer fixture passes with `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick`.
+The full `nix-meta` server check also passes all 14 checks against the active login shell.
+Remaining work is operational: keep those proofs repeatable, curate dependency skills only when
+there is a real knowledge need, and defer extra builders, fleet orchestration, and vendored source
+until real usage justifies them.

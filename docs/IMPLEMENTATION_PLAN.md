@@ -1,11 +1,10 @@
-# vendomat implementation plan — the vendor layer (artifacts + knowledge) for the `*man` family
+# vendomat implementation plan — the vendor layer (artifacts + knowledge + toolchains) for the `*man` family
 
 ## Context
 
 `vendomat` is the **vendor layer** for repoman's `*man` family. The design
 (`docs/DESIGN.md`, scope **C — narrow now, broad-ready**) is written and verified against the
-real sibling repos; this plan turns it into a sequenced build. vendomat has two faces sharing
-one `vendor/` data area:
+real sibling repos; this plan turns it into a sequenced build. vendomat has three faces:
 
 - **Face A — artifacts:** build native deps (pyjutsu = Rust/maturin/PyO3) once into
   content-addressed wheels, so a consuming repo installs a prebuilt wheel instead of running
@@ -14,8 +13,10 @@ one `vendor/` data area:
   `path:` checkouts aren't required").
 - **Face B — knowledge:** per-dependency notes + agent `SKILL.md`s installed into a repo,
   gated on the deps it actually uses ("devman, but per dependency").
+- **Face D — toolchains:** shared, pinned Nix command closures for the first-party `*man` tools,
+  built from each tool's own `uv.lock`.
 
-**Implementation status (2026-07-16):** M0 through M4 are complete. Face A builds the
+**Implementation status (2026-09-09):** M0 through M4 and Face D are complete. Face A builds the
 CPython-3.13 abi3 Pyjutsu wheel, RepoMan resolves `wheel:pyjutsu>=0.8` to the bare uv
 requirement, and `repoman.nativeBuild = false` contributes neither Rust nor maturin. The full
 RepoMan consumer fixture has been verified with `UV_FIND_LINKS`, `UV_NO_BUILD_PACKAGE=pyjutsu`,
@@ -44,7 +45,7 @@ one vendor layer); (2) Face B is a **Python Typer package** mirroring the `*man`
    emits a clear error if any resolved target is a `wheel:` source while `UV_FIND_LINKS` is
    unset; `vendomat doctor` also checks it.
 
-2. **Drift surfacing belongs in `vendomat doctor`, not `repoman doctor`.** DESIGN §9 says
+2. **Drift surfacing belongs in `vendomat doctor`, not `repoman doctor`.** DESIGN §10 says
    review-on-bump is "surfaced via the `.vendor-source` manifest in `repoman doctor`." But by
    decision 5 / §1.1 boundaries vendomat is **not** a repoman manager and does not touch the
    router; `repoman doctor` only aggregates its own managers + devman. **Resolution:** vendomat
@@ -200,6 +201,22 @@ deferred; it is the lowest-value, highest-upkeep slice and gated on M2–M4 prov
 
 ---
 
+## Face D — shared `*man` command toolchain
+
+Face D is complete as of 2026-09-08. The `core` roster contains `repoman`, `copyroom`, `docman`,
+`gitman`, and `templateer`. `testee` remains a consumer-local dependency because it must test
+the consumer's source and environment.
+
+The `flake.lock` pins each source repository and its dependency graph. `mkUv2nixCli` builds each
+tool from its own `uv.lock` and exports only declared console scripts. `mkToolchain` rejects
+command collisions, enforces one Python baseline, and writes a provenance manifest. The devenv
+module exposes the closure through `REPOMAN_TOOLCHAIN_BIN`; store mode is the default, and
+editable mode selects the tool author's virtual environment without adding a store package.
+
+Verification is complete. The local end-to-end consumer fixture passes 137 tests. The live
+`nix-meta` server check passes all 14 checks against the active login shell and confirms that its
+Vendomat input resolves to the same `repoman-toolchain-core` store path.
+
 ## Sequencing & dependencies
 
 ```
@@ -241,4 +258,5 @@ M0 (bootstrap) ─► M2 (knowledge + vendor-sync) ─► M3 (vendor-add) ─►
 - No fleet/dev-root scan, clone-on-miss, or compose graph. Two cheap seams only: the **open
   `source`-kind vocabulary** (M1b) and **`VENDOMAT_DEV_ROOT`** indirection (already the flake's
   documented override convention; formalize the env lookup when first needed).
-- No vendored library `src/` (DESIGN rollout step 2), no extra builders beyond `maturinWheel`.
+- No vendored library `src/` (DESIGN rollout step 2), no extra artifact builders beyond
+  `maturinWheel`.

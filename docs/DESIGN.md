@@ -1,12 +1,12 @@
-# vendomat — design: the vendor layer (artifacts + knowledge) for the `*man` family
+# vendomat — design: the vendor layer (artifacts + knowledge + toolchains) for the `*man` family
 
-> Status: implemented through M4 (scope **C — narrow now, broad-ready**). This revision is grounded in
+> Status: M0–M4 and Face D are implemented (scope **C — narrow now, broad-ready**). This revision is grounded in
 > the *actual* sibling repos on disk (`repoman`, `zelligate`, `gitman`/`Pyjutsu`), not just
 > vendomat's README. Where an earlier draft guessed, the guess is called out and corrected.
 >
-> vendomat has **two faces**: *artifacts* (build native deps once into wheels, §3) and
-> *knowledge* (per-dependency notes + agent skills, §7). Both read from one dedicated `vendor/`
-> data repo.
+> vendomat has **three faces**: *artifacts* (build native deps once into wheels, §3),
+> *knowledge* (per-dependency notes + agent skills, §7), and *toolchains* (shared `*man` command
+> closures, §8). Artifacts and knowledge read from one dedicated `vendor/` data repo.
 
 ## 0. TL;DR
 
@@ -90,17 +90,19 @@ so a broader vendomat would **not** collide with it. Two conventions worth match
 
 ## 2. What vendomat is (scope C)
 
-vendomat is the **vendor layer** for the `*man` family, with two faces that share one `vendor/`
-data repo:
+vendomat is the **vendor layer** for the `*man` family, with three faces. Artifacts and knowledge
+share one `vendor/` data repo:
 
 - **Face A — artifacts:** build native deps (pyjutsu, …) once into content-addressed wheels so
   `repoman.lock` entries resolve to a prebuilt wheel instead of a per-repo `cargo` compile (§3).
 - **Face B — knowledge:** install per-dependency notes + agent skills into a repo, gated on the
   deps it actually uses — "devman, but per dependency" (§7).
+- **Face D — toolchains:** build the selected first-party `*man` command line tools once from
+  their own lockfiles, then expose the immutable command closure to devenv consumers (§8).
 
-**Now (narrow):** ship Face A (closes the named gap) and Face B's first slices (knowledge, then
-shared constraints). vendomat plugs into repoman's existing `source` resolution and skill
-router — it does **not** introduce a competing manifest, registry, or composition layer.
+**Now (narrow):** ship Face A, Face B's first slices, and Face D's core command closure. vendomat
+plugs into repoman's existing `source` resolution, skill router, and command-provider seam — it
+does **not** introduce a competing manifest, registry, or composition layer.
 
 **Broad-ready (later, only if usage demands):** the fleet/dev-root layer repoman deferred —
 cross-repo build-once + local-path composition. Not built now; kept reachable by two seams
@@ -314,7 +316,30 @@ A wrong skill is worse than no skill. Defenses, in order of leverage:
   `SKILL.md` from the lib's docs/source/changelog; you approve;
 - **usage-gating** so unused, drifting skills never reach an agent.
 
-## 8. Decisions — revised against the verified ecosystem
+## 8. Face D — shared `*man` command toolchain
+
+Face D builds the first-party command closure once in Nix. The current `core` roster contains
+`repoman`, `copyroom`, `docman`, `gitman`, and `templateer`. `testee` remains a consumer-local
+development dependency because it must run against the consumer's own source and dependency
+environment.
+
+The Vendomat `flake.lock` is authoritative for store mode. It pins each source repository and
+its dependency graph. `mkUv2nixCli` loads each tool's `uv.lock`, builds its virtual environment
+with uv2nix, and exports only the tool's declared console scripts. `mkToolchain` joins those
+packages, rejects duplicate command names, enforces one Python baseline, and writes
+`toolchain.json` with command and version provenance.
+
+The devenv module exposes the selected closure through `REPOMAN_TOOLCHAIN_BIN` and places it on
+`PATH`. RepoMan tasks use the absolute bin directory, so a consumer virtual environment cannot
+shadow a selected command. Store mode is the default when Vendomat is imported. Editable mode
+delivers no package and selects RepoMan's virtual-environment provider for tool-author repos.
+
+The current verification boundary is complete. The Nix package tests compare runtime closure
+versions with every tool's lockfile, execute the commands, reject collisions, and check the
+native Pyjutsu dependency. The real consumer fixture passes with 137 tests. The `nix-meta`
+server check passes all 14 checks against the active login shell.
+
+## 9. Decisions — revised against the verified ecosystem
 
 | # | Decision | Final | Why (changed from earlier draft?) |
 |---|---|---|---|
@@ -322,17 +347,18 @@ A wrong skill is worse than no skill. Defenses, in order of leverage:
 | 2 | Name→source | **Read `repoman.lock`'s `source`** field; no parallel registry | ✅ changed — `registry.py` is roster-only; source lives in the lock |
 | 3 | Release identity | **Committed git rev** (`git+…@rev` → store wheel); `--allow-dirty` escape hatch | ✔ confirmed — matches repoman.lock's existing pin style |
 | 4 | Dev-root | **`VENDOMAT_DEV_ROOT` env var**, default `~/Documents/Projects` | ✅ changed — repoman has no dev-root; env-var idiom matches zelligate |
-| 5 | Knowledge home | **vendomat's second face** (one "vendor layer": artifacts + knowledge) | new — matches the vendor identity; contributes skills to repoman's router, no collision |
+| 5 | Knowledge home | **vendomat's knowledge face** (one vendor layer for artifacts + knowledge) | new — matches the vendor identity; contributes skills to repoman's router, no collision |
 | 6 | `vendor/` contents | **Knowledge first → + shared constraints → + selective source** | new — cheap certain value first; constraints as backbone; source scoped per-lib |
 | — | Scope | **C: narrow native-vendor now, broad-ready seams** | new — narrow closes the named gap; seams keep fleet reachable |
 
-## 9. Current status and next steps
+## 10. Current status and next steps
 
-**Delivered:** M0–M4 are implemented. The full RepoMan consumer fixture proves the wheel path:
-the consumer exports Vendomat's wheelhouse environment, resolves the `wheel:` source to
-`pyjutsu>=0.8`, installs the CPython-3.13 abi3 wheel, imports Pyjutsu, and contributes neither
-Rust nor maturin when `repoman.nativeBuild = false`. Face B delivers usage-gated sync, skill
-scaffolding, shared constraints, and review-on-bump warnings.
+**Delivered:** M0–M4 and Face D are implemented. Face A builds the CPython-3.13 abi3 Pyjutsu
+wheel, Face B delivers usage-gated sync, skill scaffolding, shared constraints, and review-on-
+bump warnings, and Face D delivers the five-command uv2nix-backed core closure.
+
+**Verified:** Vendomat's local consumer fixture passes with 137 tests, and `nix-meta`'s live
+server check passes all 14 checks against the active login shell using the same store closure.
 
 **Next:** keep the cross-repository proof repeatable; curate the next dependency skill only when
 there is a real knowledge need; and observe constraint-bump reviews in normal use. Extra artifact
