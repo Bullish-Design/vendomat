@@ -69,12 +69,15 @@ def load_plane_packages(path: Path | None = None) -> PlanePackages:
     """Load the package closure selected by the installed Vendomat binary."""
 
     manifest_value = os.environ.get("VENDOMAT_DEVMAN_PLANE_MANIFEST")
-    if path is None and not manifest_value:
-        raise PlaneError(
-            "the immutable Devman package closure is not selected; "
-            "install the Vendomat plane package or pass explicit development overrides"
-        )
-    manifest = path or Path(manifest_value)
+    if path is None:
+        if not manifest_value:
+            raise PlaneError(
+                "the immutable Devman package closure is not selected; "
+                "install the Vendomat plane package or pass explicit development overrides"
+            )
+        manifest = Path(manifest_value)
+    else:
+        manifest = path
     return PlanePackages.from_file(manifest.expanduser().resolve())
 
 
