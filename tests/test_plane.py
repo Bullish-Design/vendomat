@@ -7,7 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from vendomat.plane import GenerationStore, PlaneError, RenderedBundle, manifest_project_name
+from vendomat.plane import (
+    GenerationStore,
+    PlaneError,
+    PlanePackages,
+    RenderedBundle,
+    load_plane_packages,
+    manifest_project_name,
+)
 from vendomat.plane import digest_bytes as plane_digest
 
 
@@ -160,3 +167,48 @@ def test_manifest_project_name_reads_only_the_portable_identity(tmp_path):
     manifest.write_text('schema = 1\nproject = "fixture"\ngroups = ["base"]\npolicy = "stable"\n')
 
     assert manifest_project_name(tmp_path) == "fixture"
+
+
+def test_package_closure_requires_known_paths_and_derives_toolchain_identity(tmp_path):
+    renderer = tmp_path / "devman-project"
+    runtime = tmp_path / "devman"
+    dagu = tmp_path / "dagu"
+    for path in (renderer, runtime, dagu):
+        path.write_text("binary")
+    toolchain = tmp_path / "toolchain"
+    (toolchain / "share/vendomat").mkdir(parents=True)
+    (toolchain / "share/vendomat/toolchain.json").write_text('{"roster":"core"}\n')
+    manifest = tmp_path / "plane.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "renderer": str(renderer),
+                "runtime": str(runtime),
+                "dagu": str(dagu),
+                "toolchain": str(toolchain),
+            }
+        )
+    )
+
+    packages = load_plane_packages(manifest)
+
+    assert isinstance(packages, PlanePackages)
+    assert packages.renderer == str(renderer)
+    assert packages.toolchain_digest == plane_digest(b'{"roster":"core"}\n')
+
+
+def test_package_closure_rejects_a_missing_renderer(tmp_path):
+    manifest = tmp_path / "plane.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "renderer": str(tmp_path / "missing"),
+                "runtime": str(tmp_path / "runtime"),
+                "dagu": str(tmp_path / "dagu"),
+                "toolchain": str(tmp_path / "toolchain"),
+            }
+        )
+    )
+
+    with pytest.raises(PlaneError, match="renderer"):
+        load_plane_packages(manifest)

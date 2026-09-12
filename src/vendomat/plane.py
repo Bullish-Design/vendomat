@@ -27,6 +27,57 @@ class PlaneError(Exception):
 
 
 @dataclass(frozen=True)
+class PlanePackages:
+    """Known store paths for one immutable Devman package closure."""
+
+    manifest: Path
+    renderer: str
+    runtime: str
+    dagu: str
+    toolchain: str
+    toolchain_digest: str
+
+    @classmethod
+    def from_file(cls, path: Path) -> PlanePackages:
+        try:
+            raw = json.loads(path.read_text())
+        except (OSError, ValueError) as exc:
+            raise PlaneError(f"cannot read Devman plane package manifest {path}: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise PlaneError(f"Devman plane package manifest is not an object: {path}")
+        values = {}
+        for field in ("renderer", "runtime", "dagu", "toolchain"):
+            value = raw.get(field)
+            if not isinstance(value, str) or not value:
+                raise PlaneError(f"Devman plane package manifest lacks '{field}': {path}")
+            values[field] = value
+        for field in ("renderer", "runtime", "dagu", "toolchain"):
+            if not Path(values[field]).is_file() and field != "toolchain":
+                raise PlaneError(f"Devman plane package path is missing for '{field}': {values[field]}")
+            if field == "toolchain" and not Path(values[field]).is_dir():
+                raise PlaneError(f"Devman plane package path is missing for '{field}': {values[field]}")
+        toolchain_digest = raw.get("toolchain_digest")
+        if toolchain_digest is None:
+            toolchain_digest = digest_file(Path(values["toolchain"]) / "share/vendomat/toolchain.json")
+        if not isinstance(toolchain_digest, str) or not toolchain_digest.startswith("sha256:"):
+            raise PlaneError(f"Devman plane package toolchain digest is invalid: {path}")
+        values["toolchain_digest"] = toolchain_digest
+        return cls(manifest=path, **values)
+
+
+def load_plane_packages(path: Path | None = None) -> PlanePackages:
+    """Load the package closure selected by the installed Vendomat binary."""
+
+    manifest = path or Path(os.environ.get("VENDOMAT_DEVMAN_PLANE_MANIFEST", ""))
+    if not str(manifest):
+        raise PlaneError(
+            "the immutable Devman package closure is not selected; "
+            "install the Vendomat plane package or pass explicit development overrides"
+        )
+    return PlanePackages.from_file(manifest.expanduser().resolve())
+
+
+@dataclass(frozen=True)
 class PlaneProject:
     """Machine-local inputs for one registered repository."""
 
@@ -530,8 +581,7 @@ def plan_or_update(
     """Inspect a fleet, render changed projects, then activate if requested."""
 
     generation = store.next_generation()
-    dagu_path = shutil.which(dagu) or dagu
-    dagu_identity = digest_file(Path(dagu_path)) if Path(dagu_path).is_file() else digest_bytes(dagu.encode())
+    dagu_identity = digest_file(Path(dagu)) if Path(dagu).is_file() else digest_bytes(dagu.encode())
     inspections = [
         inspect_project(
             project,
@@ -746,7 +796,7 @@ def _safe_link_target(relative: str, target: str) -> bool:
 
 
 def _validate_dags(root: Path, dagu: str) -> None:
-    binary = shutil.which(dagu) or dagu
+    binary = dagu
     workflow_files = sorted((root / "projects").glob("*/workflows/*.yaml"))
     if not workflow_files:
         return

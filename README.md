@@ -222,8 +222,11 @@ groups = ["base", "format", "release"]
 policy = "stable"
 ```
 
-The plane commands use the public Devman renderer. They do not run a
-repository task or edit a tracked repository file:
+The plane commands use one immutable package closure. Vendomat packages the
+Devman runtime, the public renderer, Dagu, and the shared toolchain from the
+locked inputs. The plan prints each store path and identity. It does not use
+PATH to select a renderer or Dagu binary. The commands do not run a repository
+task or edit a tracked repository file:
 
 ```sh
 vendomat plane plan devman --to v0.6.0
@@ -235,7 +238,8 @@ vendomat plane rollback --to 1
 
 For a first canary, pass the repositories explicitly. Repeat `--project-root`;
 the command reads each repository's manifest and builds one generation for the
-whole set:
+whole set. Use `--renderer`, `--dagu`, or `--toolchain-digest` only for an
+explicit development override:
 
 ```sh
 vendomat plane update devman --to v0.6.0 \
@@ -243,6 +247,13 @@ vendomat plane update devman --to v0.6.0 \
   --project-root /path/to/repoman \
   --project-root /path/to/vendomat \
   --policy-root /path/to/devman
+```
+
+Build the normal closure with:
+
+```sh
+nix build .#devman-plane --no-link
+nix path-info -r .#devman-plane
 ```
 
 `plan` validates a candidate without activation. `update` writes one immutable

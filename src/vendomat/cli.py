@@ -28,6 +28,7 @@ from .plane import (
     PlaneError,
     PlaneProject,
     discover_project,
+    load_plane_packages,
     manifest_project_name,
     plan_or_update,
     read_plane_config,
@@ -243,13 +244,34 @@ def _plane_operation(
         "VENDOMAT_PLANE_STATE",
         "~/.local/state/vendomat/devman",
     )
-    renderer_value = renderer or _plane_setting(None, config, "renderer", "VENDOMAT_DEVMAN_RENDERER", "devman")
-    dagu_value = dagu or _plane_setting(None, config, "dagu", "VENDOMAT_DAGU", "dagu")
-    toolchain_value = toolchain_digest or _plane_setting(None, config, "toolchain_digest", "VENDOMAT_TOOLCHAIN_DIGEST")
-    if toolchain_value is None:
-        toolchain_value = plane_digest_bytes(b"vendomat:toolchain:unconfigured")
+    explicit_override = any(value is not None for value in (renderer, dagu, toolchain_digest))
+    package = None
+    if not explicit_override:
+        package = load_plane_packages()
+        renderer_value = package.renderer
+        dagu_value = package.dagu
+        toolchain_value = package.toolchain_digest
+    else:
+        renderer_value = renderer or _plane_setting(None, config, "renderer", "VENDOMAT_DEVMAN_RENDERER")
+        dagu_value = dagu or _plane_setting(None, config, "dagu", "VENDOMAT_DAGU")
+        toolchain_value = toolchain_digest or _plane_setting(
+            None, config, "toolchain_digest", "VENDOMAT_TOOLCHAIN_DIGEST"
+        )
+        if toolchain_value is None:
+            toolchain_value = plane_digest_bytes(b"vendomat:toolchain:development-override")
+        renderer_value = renderer_value or "devman"
+        dagu_value = dagu_value or "dagu"
 
     store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
+    if package is not None:
+        typer.echo(f"package closure: {package.manifest}")
+        typer.echo(f"  renderer: {package.renderer}")
+        typer.echo(f"  runtime: {package.runtime}")
+        typer.echo(f"  dagu: {package.dagu}")
+        typer.echo(f"  toolchain: {package.toolchain}")
+        typer.echo(f"  toolchain_digest: {package.toolchain_digest}")
+    else:
+        typer.echo("package closure: development override")
     if operation == "update":
         with store.operation_lock():
             recovered = store.recover()
