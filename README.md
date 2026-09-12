@@ -263,8 +263,11 @@ machine can point its Dagu service and machine CLI at the active root:
 
 ```nix
 services.devman-dagu.registryDir = "$HOME/.local/state/vendomat/devman/active";
-services.devman-dagu.stateDir = "$HOME/.local/state/vendomat/devman/active";
+services.devman-dagu.stateDir = "$HOME/.local/state/devman";
 ```
+
+Point only `registryDir` at the active generation. Keep `stateDir` stable so
+project metadata and watcher state survive an active-generation swap.
 
 Keep the consumer shell hook on the compatibility registry until the cutover.
 The hook still uses `devman project apply`; it must not write into an immutable
