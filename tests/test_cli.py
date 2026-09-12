@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 from typer.testing import CliRunner
 
 from vendomat.cli import _catalog_root, _global_source_root, app
+from vendomat.plane import GenerationStore, RenderedBundle, digest_bytes
 
 runner = CliRunner()
 
@@ -19,6 +22,48 @@ def test_no_args_shows_help():
     # no_args_is_help=True → Typer prints usage instead of erroring on a bare invocation.
     result = runner.invoke(app, [])
     assert "Usage" in result.stdout
+
+
+def test_plane_show_states_its_projection_mode(tmp_path):
+    """§7, project 038: Vendomat only ever produces plane projections, and it
+    says so explicitly rather than leaving the mode implicit."""
+    generation: dict[str, object] = {
+        "generation": 1,
+        "devman_runtime": "test",
+        "renderer_digest": digest_bytes(b"renderer"),
+        "policy_digest": digest_bytes(b"policy"),
+        "dagu_digest": digest_bytes(b"dagu"),
+        "toolchain_digest": digest_bytes(b"toolchain"),
+        "contract_schema": 1,
+    }
+    record: dict[str, object] = {
+        "project": "fixture",
+        "manifest_digest": digest_bytes(b"manifest"),
+        "policy_digest": generation["policy_digest"],
+        "plane_generation": 1,
+        "renderer_digest": generation["renderer_digest"],
+        "source_digest": digest_bytes(b"steps: []\n"),
+        "overlay_digest": None,
+        "contract_schema": 1,
+    }
+    bundle = RenderedBundle(
+        project="fixture",
+        generation=generation,
+        record=record,
+        files={
+            "projects/fixture/workflows/check.yaml": b"steps: []\n",
+            "projects/fixture/projection.json": (json.dumps(record) + "\n").encode(),
+        },
+        links={"dags/fixture.check.yaml": "../projects/fixture/workflows/check.yaml"},
+        sources={},
+    )
+    state_dir = tmp_path / "plane"
+    GenerationStore(state_dir).build([bundle], dagu="true", activate=True)
+
+    result = runner.invoke(app, ["plane", "show", "devman", "--state-dir", str(state_dir)])
+
+    assert result.exit_code == 0
+    assert "projection mode: plane" in result.output
 
 
 def test_doctor_clean_repo_exits_zero(tmp_path, monkeypatch):

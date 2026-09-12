@@ -463,6 +463,11 @@ def plane_show(
         typer.echo(f"vendomat plane show: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
+    # Vendomat only ever produces plane projections (§7, project 038) — the
+    # compatibility shell-entry projection is a Devman-side, non-Vendomat
+    # path. Printed anyway, so `vendomat plane show` and `devman doctor` state
+    # the same fact in the same word instead of leaving it implicit.
+    typer.echo("projection mode: plane")
     typer.echo(f"active registry: {store.active}")
     typer.echo(f"active generation: {generation.get('generation')}")
     for field in (
