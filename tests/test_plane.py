@@ -212,3 +212,10 @@ def test_package_closure_rejects_a_missing_renderer(tmp_path):
 
     with pytest.raises(PlaneError, match="renderer"):
         load_plane_packages(manifest)
+
+
+def test_package_closure_requires_a_selected_manifest(monkeypatch):
+    monkeypatch.delenv("VENDOMAT_DEVMAN_PLANE_MANIFEST", raising=False)
+
+    with pytest.raises(PlaneError, match="package closure is not selected"):
+        load_plane_packages()
