@@ -166,7 +166,9 @@ class PlaneBuild:
         """Return whether one project failed during this operation."""
 
         statuses = (result.get("status") for result in self.results)
-        return any(status not in ("successful render", "unchanged project") for status in statuses)
+        return any(
+            status not in ("successful render", "unchanged project", "retained old projection") for status in statuses
+        )
 
 
 def digest_bytes(value: bytes) -> str:
@@ -597,17 +599,20 @@ def plan_or_update(
     dagu_identity = digest_file(Path(dagu)) if Path(dagu).is_file() else digest_bytes(dagu.encode())
     inspections: list[InspectedProject] = []
     failures: list[dict[str, object]] = []
+    retained: list[dict[str, object]] = []
     for project in projects:
         try:
-            inspections.append(
-                inspect_project(
-                    project,
-                    generation=generation,
-                    renderer=renderer,
-                    runtime=runtime,
-                    dagu_digest=dagu_identity,
-                    toolchain_digest=toolchain_digest,
-                )
+            inspection = inspect_project(
+                project,
+                generation=generation,
+                renderer=renderer,
+                runtime=runtime,
+                dagu_digest=dagu_identity,
+                toolchain_digest=toolchain_digest,
+            )
+            inspections.append(inspection)
+            retained.append(
+                _project_result(project, operation, "retained old projection", inspection.generation, retained=True)
             )
         except PlaneError as exc:
             failures.append(_project_failure(project, operation, exc))
@@ -618,7 +623,7 @@ def plan_or_update(
             changed=(),
             noop=False,
             activated=False,
-            results=tuple(failures),
+            results=tuple(retained + failures),
         )
     _validate_inspection_set(inspections)
     target_generation = inspections[0].generation
