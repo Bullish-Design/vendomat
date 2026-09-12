@@ -206,6 +206,55 @@ truth. Editable mode delivers no store package and tells RepoMan to use the work
 virtual environment. The module invokes selected commands through their absolute store paths,
 so an unrelated executable in a consumer virtual environment cannot shadow them.
 
+## Machine Devman plane
+
+Vendomat also owns the machine-level Devman generation lifecycle. Devman owns
+the manifest contract, policy resolution, and renderer. RepoMan owns migration
+of one repository. Vendomat owns staging, Dagu validation, activation, retained
+generations, and rollback.
+
+Each participating repository carries `.devman/project.toml`:
+
+```toml
+schema = 1
+project = "devman"
+groups = ["base", "format", "release"]
+policy = "stable"
+```
+
+The plane commands use the public Devman renderer. They do not run a
+repository task or edit a tracked repository file:
+
+```sh
+vendomat plane plan devman --to v0.6.0
+vendomat plane update devman --to v0.6.0
+vendomat plane show devman
+vendomat plane recover devman
+vendomat plane rollback --to 1
+```
+
+For a first canary, pass the repositories explicitly. Repeat `--project-root`;
+the command reads each repository's manifest and builds one generation for the
+whole set:
+
+```sh
+vendomat plane update devman --to v0.6.0 \
+  --project-root /path/to/devman \
+  --project-root /path/to/repoman \
+  --project-root /path/to/vendomat \
+  --policy-root /path/to/devman
+```
+
+`plan` validates a candidate without activation. `update` writes one immutable
+generation and swaps the `active` pointer only after every generated workflow
+passes `dagu validate`. Failed renders keep the old pointer. A later update is
+a no-op when the manifest, policy, renderer, and source identities match. The
+`show` command reports the active identities and project records. `recover`
+preserves abandoned staging or activation files for inspection. The
+machine-local state defaults to `~/.local/state/vendomat/devman`; set
+`VENDOMAT_DEVMAN_POLICY_ROOT` or use `~/.config/vendomat/plane.toml` for the
+central policy checkout.
+
 ## Local input iteration
 
 Committed flake inputs use published tags. To build against a sibling checkout, override the
