@@ -18,8 +18,17 @@ import shutil
 import subprocess
 import tempfile
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+FaultHook = Callable[[str], None]
+"""A test seam that a caller can raise from at a named generation boundary.
+
+Production callers never pass one. Tests pass a hook that raises for one
+boundary name and returns for every other, to prove the plane fails closed at
+that exact point and that ``recover()`` repairs what the failure left behind.
+"""
 
 
 class PlaneError(Exception):
@@ -302,6 +311,7 @@ class GenerationStore:
         *,
         dagu: str,
         activate: bool,
+        fault: FaultHook | None = None,
     ) -> PlaneBuild:
         """Stage, validate, and optionally activate one generation."""
 
@@ -346,6 +356,9 @@ class GenerationStore:
                     link.parent.mkdir(parents=True, exist_ok=True)
                     link.symlink_to(target)
 
+            if fault is not None:
+                fault("staging-complete")
+
             final = self.generations / str(generation_number)
             if activate and final.exists():
                 raise PlaneError(f"generation {generation_number} already exists and is immutable")
@@ -363,7 +376,7 @@ class GenerationStore:
             cleanup_staging = False
             activated = False
             if activate:
-                self._activate_number(generation_number)
+                self._activate_number(generation_number, fault=fault)
                 activated = True
             return PlaneBuild(
                 generation=generation,
@@ -439,19 +452,25 @@ class GenerationStore:
         _validate_bundle(bundle)
         return bundle
 
-    def rollback(self, generation: int) -> None:
+    def rollback(self, generation: int, *, fault: FaultHook | None = None) -> None:
         self._prepare()
         target = self.generations / str(generation)
         if not target.is_dir() or not (target / "generation.json").is_file():
             raise PlaneError(f"generation {generation} does not exist")
-        self._activate_number(generation)
+        if fault is not None:
+            fault("rollback")
+        self._activate_number(generation, fault=fault)
 
-    def _activate_number(self, generation: int) -> None:
+    def _activate_number(self, generation: int, *, fault: FaultHook | None = None) -> None:
         if self.active.exists() and not self.active.is_symlink():
             raise PlaneError(f"active pointer exists and is not a symlink: {self.active}")
         temporary = self.root / f".active-{generation}.new"
         temporary.unlink(missing_ok=True)
         temporary.symlink_to(Path("generations") / str(generation))
+        if fault is not None:
+            fault("after-temp-pointer")
+        if fault is not None:
+            fault("before-activate")
         os.replace(temporary, self.active)
 
     def _project_matches_active(self, bundle: RenderedBundle) -> bool:
@@ -496,9 +515,12 @@ def render_project(
     runtime: str,
     dagu_digest: str,
     toolchain_digest: str,
+    fault: FaultHook | None = None,
 ) -> RenderedBundle:
     """Call Devman's public renderer boundary for one project."""
 
+    if fault is not None:
+        fault(f"project-render:{project.name}")
     with tempfile.TemporaryDirectory(prefix="vendomat-render-") as temporary:
         output = Path(temporary) / "projection.json"
         command = [
@@ -592,9 +614,12 @@ def plan_or_update(
     toolchain_digest: str,
     activate: bool,
     operation: str = "update",
+    fault: FaultHook | None = None,
 ) -> PlaneBuild:
     """Inspect a fleet, render changed projects, then activate if requested."""
 
+    if fault is not None:
+        fault("renderer-start")
     generation = store.next_generation()
     dagu_identity = digest_file(Path(dagu)) if Path(dagu).is_file() else digest_bytes(dagu.encode())
     inspections: list[InspectedProject] = []
@@ -672,6 +697,7 @@ def plan_or_update(
                     runtime=runtime,
                     dagu_digest=dagu_identity,
                     toolchain_digest=toolchain_digest,
+                    fault=fault,
                 )
             )
             results.append(_project_result(project, operation, "successful render", inspection.generation))
@@ -686,7 +712,7 @@ def plan_or_update(
             activated=False,
             results=tuple(results + failures),
         )
-    built = store.build(bundles, dagu=dagu, activate=activate)
+    built = store.build(bundles, dagu=dagu, activate=activate, fault=fault)
     return PlaneBuild(
         generation=built.generation,
         projects=built.projects,
@@ -767,6 +793,49 @@ def discover_project(
     if not root.is_dir():
         raise PlaneError(f"registered project '{name}' is not a directory: {root}")
     return PlaneProject(name, root, policy_root.expanduser().resolve(), overlay_root.expanduser().resolve())
+
+
+def resolve_projects(
+    specs: list[tuple[str, Path | None]],
+    *,
+    devman_state: Path,
+    policy_root: Path,
+    overlay_root: Path,
+) -> tuple[list[PlaneProject], list[dict[str, object]]]:
+    """Resolve every requested project so one missing repository does not hide the rest.
+
+    A caller that resolves projects with a bare list comprehension loses the
+    result for every project after the first missing one raises. This keeps
+    resolution fail-closed but structured: a missing repository becomes a
+    project-level result, and every other requested project still resolves.
+    """
+
+    projects: list[PlaneProject] = []
+    failures: list[dict[str, object]] = []
+    for name, root_override in specs:
+        try:
+            projects.append(
+                discover_project(
+                    name,
+                    devman_state=devman_state,
+                    policy_root=policy_root,
+                    overlay_root=overlay_root,
+                    root_override=root_override,
+                )
+            )
+        except PlaneError as exc:
+            failures.append(
+                {
+                    "project": name,
+                    "path": str(root_override) if root_override is not None else "",
+                    "operation": "discover",
+                    "status": "unreadable project",
+                    "identity": None,
+                    "retained_old_projection": True,
+                    "error": str(exc),
+                }
+            )
+    return projects, failures
 
 
 def manifest_project_name(root: Path) -> str:

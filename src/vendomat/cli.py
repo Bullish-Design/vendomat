@@ -32,6 +32,7 @@ from .plane import (
     manifest_project_name,
     plan_or_update,
     read_plane_config,
+    resolve_projects,
 )
 from .plane import (
     digest_bytes as plane_digest_bytes,
@@ -193,16 +194,12 @@ def _plane_operation(
         names = project_names or [manifest_project_name(Path(root)) for root in project_roots]
         if len(set(names)) != len(names):
             raise PlaneError("explicit project roots must have unique manifest identities")
-        projects = [
-            discover_project(
-                name,
-                devman_state=Path(state_value or "~/.local/state/devman"),
-                policy_root=Path(policy_value),
-                overlay_root=Path(overlay_value or "~/.config/devman"),
-                root_override=Path(root),
-            )
-            for name, root in zip(names, project_roots, strict=True)
-        ]
+        projects, failures = resolve_projects(
+            list(zip(names, (Path(root) for root in project_roots), strict=True)),
+            devman_state=Path(state_value or "~/.local/state/devman"),
+            policy_root=Path(policy_value),
+            overlay_root=Path(overlay_value or "~/.config/devman"),
+        )
     elif project_names:
         policy_value = policy_root or _plane_setting(None, config, "policy_root", "VENDOMAT_DEVMAN_POLICY_ROOT")
         if not policy_value:
@@ -217,26 +214,43 @@ def _plane_operation(
         state_value = devman_state or _plane_setting(
             None, config, "devman_state", "VENDOMAT_DEVMAN_STATE", "~/.local/state/devman"
         )
-        projects = [
-            discover_project(
-                name,
-                devman_state=Path(state_value or "~/.local/state/devman"),
-                policy_root=Path(policy_value),
-                overlay_root=Path(overlay_value or "~/.config/devman"),
-            )
-            for name in project_names
-        ]
+        projects, failures = resolve_projects(
+            [(name, None) for name in project_names],
+            devman_state=Path(state_value or "~/.local/state/devman"),
+            policy_root=Path(policy_value),
+            overlay_root=Path(overlay_value or "~/.config/devman"),
+        )
     else:
-        projects = [
-            _plane_project(
-                product,
-                config=config,
-                project_root=None,
-                policy_root=policy_root,
-                overlay_root=overlay_root,
-                devman_state=devman_state,
-            )
-        ]
+        try:
+            projects = [
+                _plane_project(
+                    product,
+                    config=config,
+                    project_root=None,
+                    policy_root=policy_root,
+                    overlay_root=overlay_root,
+                    devman_state=devman_state,
+                )
+            ]
+            failures = []
+        except PlaneError as exc:
+            projects = []
+            failures = [
+                {
+                    "project": product,
+                    "path": "",
+                    "operation": "discover",
+                    "status": "unreadable project",
+                    "identity": None,
+                    "retained_old_projection": True,
+                    "error": str(exc),
+                }
+            ]
+    if failures:
+        for item in failures:
+            typer.echo(f"  {item['project']}: {item['status']} ({item['path']})")
+            typer.echo(f"    {item['error']}", err=True)
+        raise PlaneError(f"{operation} did not activate a generation; repair the failed project(s) and retry")
     state_value = state_dir or _plane_setting(
         None,
         config,
