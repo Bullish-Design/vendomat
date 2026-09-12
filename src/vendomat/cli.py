@@ -251,18 +251,29 @@ def _plane_operation(
 
     store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
     if operation == "update":
-        recovered = store.recover()
-        for path in recovered:
-            typer.echo(f"recovered interrupted staging: {path}")
-    result = plan_or_update(
-        projects,
-        store=store,
-        renderer=renderer_value or "devman",
-        runtime=target,
-        dagu=dagu_value or "dagu",
-        toolchain_digest=toolchain_value,
-        activate=operation == "update",
-    )
+        with store.operation_lock():
+            recovered = store.recover()
+            for path in recovered:
+                typer.echo(f"recovered interrupted staging: {path}")
+            result = plan_or_update(
+                projects,
+                store=store,
+                renderer=renderer_value or "devman",
+                runtime=target,
+                dagu=dagu_value or "dagu",
+                toolchain_digest=toolchain_value,
+                activate=True,
+            )
+    else:
+        result = plan_or_update(
+            projects,
+            store=store,
+            renderer=renderer_value or "devman",
+            runtime=target,
+            dagu=dagu_value or "dagu",
+            toolchain_digest=toolchain_value,
+            activate=False,
+        )
     verb = "planned" if operation == "plan" else "activated"
     if result.noop:
         typer.echo(
@@ -370,7 +381,8 @@ def plane_rollback(
             "~/.local/state/vendomat/devman",
         )
         store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
-        store.rollback(target)
+        with store.operation_lock():
+            store.rollback(target)
     except PlaneError as exc:
         typer.echo(f"vendomat plane rollback: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -403,6 +415,7 @@ def plane_show(
         typer.echo(f"vendomat plane show: {exc}", err=True)
         raise typer.Exit(code=2) from exc
 
+    typer.echo(f"active registry: {store.active}")
     typer.echo(f"active generation: {generation.get('generation')}")
     for field in (
         "devman_runtime",
@@ -441,7 +454,8 @@ def plane_recover(
             "~/.local/state/vendomat/devman",
         )
         store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
-        recovered = store.recover()
+        with store.operation_lock():
+            recovered = store.recover()
     except PlaneError as exc:
         typer.echo(f"vendomat plane recover: {exc}", err=True)
         raise typer.Exit(code=2) from exc

@@ -247,13 +247,28 @@ vendomat plane update devman --to v0.6.0 \
 
 `plan` validates a candidate without activation. `update` writes one immutable
 generation and swaps the `active` pointer only after every generated workflow
-passes `dagu validate`. Failed renders keep the old pointer. A later update is
-a no-op when the manifest, policy, renderer, and source identities match. The
-`show` command reports the active identities and project records. `recover`
-preserves abandoned staging or activation files for inspection. The
-machine-local state defaults to `~/.local/state/vendomat/devman`; set
-`VENDOMAT_DEVMAN_POLICY_ROOT` or use `~/.config/vendomat/plane.toml` for the
-central policy checkout.
+passes `dagu validate`. Failed renders keep the old pointer. An update first
+inspects project identities. It renders changed projects and copies unchanged
+valid projections into the new generation. A later update is a no-op when all
+identities match. The `show` command reports the active registry path,
+identities, and project records. `recover` preserves abandoned staging or
+activation files for inspection. The machine-local state defaults to
+`~/.local/state/vendomat/devman`; set `VENDOMAT_DEVMAN_POLICY_ROOT` or use
+`~/.config/vendomat/plane.toml` for the central policy checkout.
+
+The active generation is a complete Devman registry root. It contains
+`projects/`, `dags/`, and `generation.json` under the stable `active` symlink.
+The old compatibility registry remains separate during migration. A canary
+machine can point its Dagu service and machine CLI at the active root:
+
+```nix
+services.devman-dagu.registryDir = "$HOME/.local/state/vendomat/devman/active";
+services.devman-dagu.stateDir = "$HOME/.local/state/vendomat/devman/active";
+```
+
+Keep the consumer shell hook on the compatibility registry until the cutover.
+The hook still uses `devman project apply`; it must not write into an immutable
+active generation.
 
 ## Local input iteration
 

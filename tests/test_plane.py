@@ -58,6 +58,7 @@ def test_update_activates_one_immutable_generation_and_rolls_back(tmp_path):
     assert first.activated
     assert second.activated
     assert store.current_generation() == 2
+    assert store.active.resolve() == store.generations / "2"
     assert (store.generations / "1").is_dir()
     assert (store.generations / "2").is_dir()
     assert store.read_generation()["generation"] == 2
@@ -102,6 +103,27 @@ def test_unchanged_inputs_are_a_noop(tmp_path):
     assert result.noop
     assert store.current_generation() == 1
     assert not (store.generations / "2").exists()
+
+
+def test_copying_an_unchanged_project_updates_only_generation_identity(tmp_path):
+    store = GenerationStore(tmp_path / "plane")
+    original = _bundle(1)
+    store.build([original], dagu="true", activate=True)
+    target = _generation(2)
+
+    copied = store.copy_active_bundle("fixture", target)
+
+    assert copied.generation == target
+    assert copied.files["projects/fixture/workflows/check.yaml"] == b"steps: []\n"
+    assert copied.record["plane_generation"] == 2
+    assert copied.links == original.links
+
+
+def test_operation_lock_has_one_machine_state_file(tmp_path):
+    store = GenerationStore(tmp_path / "plane")
+
+    with store.operation_lock():
+        assert (store.root / ".lock").is_file()
 
 
 def test_recover_moves_interrupted_staging_without_touching_active(tmp_path):

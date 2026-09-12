@@ -9,6 +9,8 @@ generation.
 from __future__ import annotations
 
 import base64
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -67,6 +69,33 @@ class RenderedBundle:
 
 
 @dataclass(frozen=True)
+class InspectedProject:
+    """The identity-only result from Devman's public inspection boundary."""
+
+    project: str
+    generation: dict[str, object]
+    record: dict[str, object]
+    sources: dict[str, str]
+
+    @classmethod
+    def from_json(cls, text: str) -> InspectedProject:
+        try:
+            raw = json.loads(text)
+            if raw.get("schema") != 1:
+                raise PlaneError(f"unsupported Devman projection inspection schema: {raw.get('schema')!r}")
+            inspection = cls(
+                project=raw["project"],
+                generation=raw["generation"],
+                record=raw["record"],
+                sources=dict(raw.get("sources", {})),
+            )
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise PlaneError(f"invalid Devman projection inspection: {exc}") from exc
+        _validate_inspection(inspection)
+        return inspection
+
+
+@dataclass(frozen=True)
 class PlaneBuild:
     """The result of one rendered and validated generation build."""
 
@@ -114,6 +143,19 @@ class GenerationStore:
 
     def _prepare(self) -> None:
         self.generations.mkdir(parents=True, exist_ok=True)
+
+    @contextlib.contextmanager
+    def operation_lock(self):
+        """Serialize update, activation, rollback, and recovery operations."""
+
+        self.root.mkdir(parents=True, exist_ok=True)
+        path = self.root / ".lock"
+        with path.open("a+") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def next_generation(self) -> int:
         if not self.generations.is_dir():
@@ -270,6 +312,68 @@ class GenerationStore:
                 shutil.rmtree(staging, ignore_errors=True)
             raise
 
+    def generation_inputs_match_active(self, generation: dict[str, object]) -> bool:
+        """Return whether the active generation has the same non-number inputs."""
+
+        return self._generation_inputs_match_active(generation)
+
+    def project_record_matches_active(self, project: str, record: dict[str, object]) -> bool:
+        """Return whether an inspected record matches the active projection."""
+
+        current = self.current_path()
+        if current is None:
+            return False
+        return self._record_matches_active(current, project, record)
+
+    def copy_active_bundle(self, project: str, generation: dict[str, object]) -> RenderedBundle:
+        """Copy one valid active project into a new generation identity."""
+
+        current = self.current_path()
+        if current is None:
+            raise PlaneError(f"cannot copy project '{project}': no active generation")
+        project_root = _safe_child(current, f"projects/{project}")
+        if not project_root.is_dir():
+            raise PlaneError(f"cannot copy project '{project}': active generation has no project")
+        generation_number = _generation_number(generation)
+        files: dict[str, bytes] = {}
+        record: dict[str, object] | None = None
+        for source in sorted(project_root.rglob("*")):
+            if not source.is_file():
+                continue
+            relative = source.relative_to(current).as_posix()
+            body = source.read_bytes()
+            if relative == f"projects/{project}/projection.json":
+                try:
+                    raw_record = json.loads(body)
+                except (ValueError, UnicodeDecodeError) as exc:
+                    raise PlaneError(f"cannot copy project '{project}': invalid projection record") from exc
+                if not isinstance(raw_record, dict):
+                    raise PlaneError(f"cannot copy project '{project}': projection record is not an object")
+                record = dict(raw_record)
+                record["plane_generation"] = generation_number
+                body = (json.dumps(record, sort_keys=True, indent=2) + "\n").encode()
+            elif relative == f"projects/{project}/metadata.json":
+                body = _update_metadata_generation(body, generation_number)
+            files[relative] = body
+        if record is None:
+            raise PlaneError(f"cannot copy project '{project}': active generation has no projection record")
+        links: dict[str, str] = {}
+        dag_root = current / "dags"
+        for link in sorted(dag_root.glob(f"{project}.*.yaml")):
+            if not link.is_symlink():
+                raise PlaneError(f"active Dagu entry is not a symlink: {link}")
+            links[link.relative_to(current).as_posix()] = os.readlink(link)
+        bundle = RenderedBundle(
+            project=project,
+            generation=generation,
+            record=record,
+            files=files,
+            links=links,
+            sources={},
+        )
+        _validate_bundle(bundle)
+        return bundle
+
     def rollback(self, generation: int) -> None:
         self._prepare()
         target = self.generations / str(generation)
@@ -289,7 +393,11 @@ class GenerationStore:
         current = self.current_path()
         if current is None:
             return False
-        record_path = current / f"projects/{bundle.project}/projection.json"
+        return self._record_matches_active(current, bundle.project, bundle.record)
+
+    @staticmethod
+    def _record_matches_active(current: Path, project: str, record: dict[str, object]) -> bool:
+        record_path = current / f"projects/{project}/projection.json"
         try:
             old = json.loads(record_path.read_text())
         except (OSError, ValueError):
@@ -302,7 +410,7 @@ class GenerationStore:
             "source_digest",
             "overlay_digest",
         )
-        return all(old.get(field) == bundle.record.get(field) for field in fields)
+        return all(old.get(field) == record.get(field) for field in fields)
 
     def _generation_inputs_match_active(self, generation: dict[str, object]) -> bool:
         current = self.current_path()
@@ -362,6 +470,53 @@ def render_project(
         return bundle
 
 
+def inspect_project(
+    project: PlaneProject,
+    *,
+    generation: int,
+    renderer: str,
+    runtime: str,
+    dagu_digest: str,
+    toolchain_digest: str,
+) -> InspectedProject:
+    """Call Devman's identity-only inspection boundary for one project."""
+
+    with tempfile.TemporaryDirectory(prefix="vendomat-inspect-") as temporary:
+        output = Path(temporary) / "inspection.json"
+        command = [
+            renderer,
+            "project",
+            "inspect",
+            "--root",
+            str(project.root),
+            "--policy-root",
+            str(project.policy_root),
+            "--overlay-root",
+            str(project.overlay_root),
+            "--generation",
+            str(generation),
+            "--devman-runtime",
+            runtime,
+            "--dagu-digest",
+            dagu_digest,
+            "--toolchain-digest",
+            toolchain_digest,
+            "--output",
+            str(output),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise PlaneError(f"Devman could not inspect project '{project.name}'" + (f":\n{detail}" if detail else ""))
+        try:
+            inspection = InspectedProject.from_json(output.read_text())
+        except OSError as exc:
+            raise PlaneError(f"Devman produced no projection inspection for '{project.name}'") from exc
+        if inspection.project != project.name:
+            raise PlaneError(f"Devman inspected '{inspection.project}' for requested project '{project.name}'")
+        return inspection
+
+
 def plan_or_update(
     projects: list[PlaneProject],
     *,
@@ -372,13 +527,13 @@ def plan_or_update(
     toolchain_digest: str,
     activate: bool,
 ) -> PlaneBuild:
-    """Render a fleet once, then let the store decide no-op or activation."""
+    """Inspect a fleet, render changed projects, then activate if requested."""
 
     generation = store.next_generation()
     dagu_path = shutil.which(dagu) or dagu
     dagu_identity = digest_file(Path(dagu_path)) if Path(dagu_path).is_file() else digest_bytes(dagu.encode())
-    bundles = [
-        render_project(
+    inspections = [
+        inspect_project(
             project,
             generation=generation,
             renderer=renderer,
@@ -388,6 +543,40 @@ def plan_or_update(
         )
         for project in projects
     ]
+    _validate_inspection_set(inspections)
+    target_generation = inspections[0].generation
+    generation_inputs_match = store.generation_inputs_match_active(target_generation)
+    if (
+        activate
+        and generation_inputs_match
+        and all(store.project_record_matches_active(item.project, item.record) for item in inspections)
+    ):
+        return PlaneBuild(
+            generation=target_generation,
+            projects=tuple(item.project for item in inspections),
+            changed=(),
+            noop=True,
+            activated=False,
+        )
+
+    bundles: list[RenderedBundle] = []
+    for project, inspection in zip(projects, inspections, strict=True):
+        can_copy = generation_inputs_match and store.project_record_matches_active(
+            inspection.project, inspection.record
+        )
+        if can_copy:
+            bundles.append(store.copy_active_bundle(inspection.project, target_generation))
+            continue
+        bundles.append(
+            render_project(
+                project,
+                generation=generation,
+                renderer=renderer,
+                runtime=runtime,
+                dagu_digest=dagu_identity,
+                toolchain_digest=toolchain_digest,
+            )
+        )
     return store.build(bundles, dagu=dagu, activate=activate)
 
 
@@ -427,6 +616,52 @@ def manifest_project_name(root: Path) -> str:
     if not isinstance(name, str) or not name:
         raise PlaneError(f"project identity is missing from {path}")
     return name
+
+
+def _validate_inspection(inspection: InspectedProject) -> None:
+    if not isinstance(inspection.project, str) or not inspection.project:
+        raise PlaneError("projection inspection has no project name")
+    if not isinstance(inspection.generation, dict):
+        raise PlaneError("projection inspection has no generation object")
+    if not isinstance(inspection.record, dict):
+        raise PlaneError("projection inspection has no record object")
+    if inspection.record.get("project") != inspection.project:
+        raise PlaneError(f"projection inspection record names a different project: {inspection.project}")
+    if inspection.record.get("plane_generation") != inspection.generation.get("generation"):
+        raise PlaneError(f"projection inspection has a different generation: {inspection.project}")
+    _generation_number(inspection.generation)
+    for field in ("renderer_digest", "policy_digest", "dagu_digest", "toolchain_digest"):
+        value = inspection.generation.get(field)
+        if not isinstance(value, str) or not value.startswith("sha256:"):
+            raise PlaneError(f"generation field {field} is not a digest")
+
+
+def _validate_inspection_set(inspections: list[InspectedProject]) -> None:
+    if not inspections:
+        raise PlaneError("cannot inspect a plane generation with no projects")
+    first = inspections[0].generation
+    projects: set[str] = set()
+    for inspection in inspections:
+        _validate_inspection(inspection)
+        if inspection.generation != first:
+            raise PlaneError("projects in one plane inspection returned different generation identities")
+        if inspection.project in projects:
+            raise PlaneError(f"duplicate project identity in one plane inspection: {inspection.project}")
+        projects.add(inspection.project)
+
+
+def _update_metadata_generation(body: bytes, generation: int) -> bytes:
+    """Move the compatibility metadata marker with a copied projection."""
+
+    try:
+        raw = json.loads(body)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise PlaneError("active project metadata is not valid JSON") from exc
+    if not isinstance(raw, dict) or "plan" not in raw:
+        return body
+    raw = dict(raw)
+    raw["plan"] = f"plane:{generation}"
+    return (json.dumps(raw, sort_keys=True, indent=2) + "\n").encode()
 
 
 def _validate_bundle(bundle: RenderedBundle) -> None:
