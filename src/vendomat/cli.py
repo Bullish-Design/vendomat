@@ -285,6 +285,7 @@ def _plane_operation(
                 dagu=dagu_value or "dagu",
                 toolchain_digest=toolchain_value,
                 activate=True,
+                operation=operation,
             )
     else:
         result = plan_or_update(
@@ -295,8 +296,19 @@ def _plane_operation(
             dagu=dagu_value or "dagu",
             toolchain_digest=toolchain_value,
             activate=False,
+            operation=operation,
         )
     verb = "planned" if operation == "plan" else "activated"
+    for item in result.results:
+        status = item.get("status", "unknown")
+        line = f"  {item.get('project')}: {status} ({item.get('path')})"
+        if item.get("retained_old_projection"):
+            line += "; retained old projection"
+        typer.echo(line)
+        if error := item.get("error"):
+            typer.echo(f"    {error}", err=True)
+    if result.failed:
+        raise PlaneError(f"{operation} did not activate a generation; repair the failed project(s) and retry")
     if result.noop:
         typer.echo(
             f"vendomat plane {operation} {product}: no-op; generation {store.current_generation()} remains active"

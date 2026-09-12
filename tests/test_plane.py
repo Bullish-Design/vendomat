@@ -9,9 +9,12 @@ import pytest
 
 from vendomat.plane import (
     GenerationStore,
+    PlaneBuild,
     PlaneError,
     PlanePackages,
+    PlaneProject,
     RenderedBundle,
+    _project_failure,
     load_plane_packages,
     manifest_project_name,
 )
@@ -219,3 +222,20 @@ def test_package_closure_requires_a_selected_manifest(monkeypatch):
 
     with pytest.raises(PlaneError, match="package closure is not selected"):
         load_plane_packages()
+
+
+def test_project_failure_result_retains_identity_and_blocks_activation(tmp_path):
+    project = PlaneProject("broken", tmp_path / "broken", tmp_path, tmp_path)
+    result = _project_failure(
+        project,
+        "update",
+        PlaneError("cannot read project identity from .devman/project.toml"),
+        {"generation": 3},
+    )
+    build = PlaneBuild({"generation": 3}, ("broken",), (), False, False, (result,))
+
+    assert result["project"] == "broken"
+    assert result["operation"] == "update"
+    assert result["status"] == "missing manifest"
+    assert result["retained_old_projection"] is True
+    assert build.failed

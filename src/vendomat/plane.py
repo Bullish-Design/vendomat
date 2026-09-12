@@ -159,6 +159,14 @@ class PlaneBuild:
     changed: tuple[str, ...]
     noop: bool
     activated: bool
+    results: tuple[dict[str, object], ...] = ()
+
+    @property
+    def failed(self) -> bool:
+        """Return whether one project failed during this operation."""
+
+        statuses = (result.get("status") for result in self.results)
+        return any(status not in ("successful render", "unchanged project") for status in statuses)
 
 
 def digest_bytes(value: bytes) -> str:
@@ -581,22 +589,37 @@ def plan_or_update(
     dagu: str,
     toolchain_digest: str,
     activate: bool,
+    operation: str = "update",
 ) -> PlaneBuild:
     """Inspect a fleet, render changed projects, then activate if requested."""
 
     generation = store.next_generation()
     dagu_identity = digest_file(Path(dagu)) if Path(dagu).is_file() else digest_bytes(dagu.encode())
-    inspections = [
-        inspect_project(
-            project,
-            generation=generation,
-            renderer=renderer,
-            runtime=runtime,
-            dagu_digest=dagu_identity,
-            toolchain_digest=toolchain_digest,
+    inspections: list[InspectedProject] = []
+    failures: list[dict[str, object]] = []
+    for project in projects:
+        try:
+            inspections.append(
+                inspect_project(
+                    project,
+                    generation=generation,
+                    renderer=renderer,
+                    runtime=runtime,
+                    dagu_digest=dagu_identity,
+                    toolchain_digest=toolchain_digest,
+                )
+            )
+        except PlaneError as exc:
+            failures.append(_project_failure(project, operation, exc))
+    if failures:
+        return PlaneBuild(
+            generation={"generation": generation},
+            projects=tuple(project.name for project in projects),
+            changed=(),
+            noop=False,
+            activated=False,
+            results=tuple(failures),
         )
-        for project in projects
-    ]
     _validate_inspection_set(inspections)
     target_generation = inspections[0].generation
     generation_inputs_match = store.generation_inputs_match_active(target_generation)
@@ -611,27 +634,110 @@ def plan_or_update(
             changed=(),
             noop=True,
             activated=False,
+            results=tuple(
+                _project_result(
+                    project,
+                    operation,
+                    "unchanged project",
+                    inspection.generation,
+                    retained=True,
+                )
+                for project, inspection in zip(projects, inspections, strict=True)
+            ),
         )
 
     bundles: list[RenderedBundle] = []
+    results: list[dict[str, object]] = []
     for project, inspection in zip(projects, inspections, strict=True):
         can_copy = generation_inputs_match and store.project_record_matches_active(
             inspection.project, inspection.record
         )
         if can_copy:
             bundles.append(store.copy_active_bundle(inspection.project, target_generation))
-            continue
-        bundles.append(
-            render_project(
-                project,
-                generation=generation,
-                renderer=renderer,
-                runtime=runtime,
-                dagu_digest=dagu_identity,
-                toolchain_digest=toolchain_digest,
+            results.append(
+                _project_result(project, operation, "unchanged project", inspection.generation, retained=True)
             )
+            continue
+        try:
+            bundles.append(
+                render_project(
+                    project,
+                    generation=generation,
+                    renderer=renderer,
+                    runtime=runtime,
+                    dagu_digest=dagu_identity,
+                    toolchain_digest=toolchain_digest,
+                )
+            )
+            results.append(_project_result(project, operation, "successful render", inspection.generation))
+        except PlaneError as exc:
+            failures.append(_project_failure(project, operation, exc, inspection.generation))
+    if failures:
+        return PlaneBuild(
+            generation=target_generation,
+            projects=tuple(project.name for project in projects),
+            changed=tuple(item.project for item in inspections),
+            noop=False,
+            activated=False,
+            results=tuple(results + failures),
         )
-    return store.build(bundles, dagu=dagu, activate=activate)
+    built = store.build(bundles, dagu=dagu, activate=activate)
+    return PlaneBuild(
+        generation=built.generation,
+        projects=built.projects,
+        changed=built.changed,
+        noop=built.noop,
+        activated=built.activated,
+        results=tuple(results),
+    )
+
+
+def _project_result(
+    project: PlaneProject,
+    operation: str,
+    status: str,
+    identity: dict[str, object] | None,
+    *,
+    retained: bool = False,
+) -> dict[str, object]:
+    """Build the stable result record for one project operation."""
+
+    return {
+        "project": project.name,
+        "path": str(project.root),
+        "operation": operation,
+        "status": status,
+        "identity": identity,
+        "retained_old_projection": retained,
+    }
+
+
+def _project_failure(
+    project: PlaneProject,
+    operation: str,
+    error: PlaneError,
+    identity: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Build a fail-closed result without hiding the renderer error."""
+
+    detail = str(error)
+    lowered = detail.lower()
+    if "not a directory" in lowered or "cannot resolve registered project" in lowered:
+        status = "unreadable project"
+    elif "project identity" in lowered or ".devman/project.toml" in lowered:
+        status = "missing manifest"
+    elif "policy" in lowered:
+        status = "invalid policy"
+    elif "workflow" in lowered or "dagu rejected" in lowered:
+        status = "invalid workflow"
+    elif isinstance(error.__cause__, PermissionError) or "permission" in lowered:
+        status = "permission failure"
+    else:
+        status = "failed render"
+    return {
+        **_project_result(project, operation, status, identity, retained=True),
+        "error": detail,
+    }
 
 
 def discover_project(
