@@ -753,12 +753,18 @@ def _project_failure(
 
     detail = str(error)
     lowered = detail.lower()
-    if "not a directory" in lowered or "cannot resolve registered project" in lowered:
-        status = "unreadable project"
-    elif "project identity" in lowered or ".devman/project.toml" in lowered:
+    # "policy" is checked before the generic "not a directory" phrase below:
+    # a missing policy group root ("group root is not a directory: ...")
+    # would otherwise match that phrase first and be reported as an
+    # unreadable PROJECT when the project itself is fine — measured against
+    # a real invalid --policy-root canary (project 038, §8), which is why
+    # this order is not alphabetical or by first-added.
+    if "project identity" in lowered or ".devman/project.toml" in lowered:
         status = "missing manifest"
     elif "policy" in lowered:
         status = "invalid policy"
+    elif "not a directory" in lowered or "cannot resolve registered project" in lowered:
+        status = "unreadable project"
     elif "workflow" in lowered or "dagu rejected" in lowered:
         status = "invalid workflow"
     elif isinstance(error.__cause__, PermissionError) or "permission" in lowered:

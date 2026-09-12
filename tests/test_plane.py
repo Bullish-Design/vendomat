@@ -315,6 +315,12 @@ def test_project_failure_result_retains_identity_and_blocks_activation(tmp_path)
         ("cannot resolve registered project 'x': /nope/metadata.json", "unreadable project"),
         (".devman/project.toml is unreadable for project 'x'", "missing manifest"),
         ("Devman rejected policy 'stable': unknown group", "invalid policy"),
+        (
+            "Devman could not inspect project 'x':\n"
+            "devman: cannot resolve policy 'stable'\n"
+            "  group root is not a directory: /policy/groups",
+            "invalid policy",
+        ),
         ("Dagu rejected staged workflow projects/x/workflows/check.yaml", "invalid workflow"),
         ("Devman could not render project 'x':\nsomething else entirely", "failed render"),
     ],
