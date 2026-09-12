@@ -269,6 +269,9 @@ services.devman-dagu.stateDir = "$HOME/.local/state/devman";
 Point only `registryDir` at the active generation. Keep `stateDir` stable so
 project metadata and watcher state survive an active-generation swap.
 
+The Devman module watches the active pointer and reloads Dagu after active runs
+end. The stable Dagu home keeps run history across that restart.
+
 Keep the consumer shell hook on the compatibility registry until the cutover.
 The hook still uses `devman project apply`; it must not write into an immutable
 active generation.
