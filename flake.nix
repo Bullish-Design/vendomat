@@ -63,6 +63,12 @@
       url = "git+https://github.com/Bullish-Design/templateer_v2?ref=refs/tags/v0.4.1";
       flake = false;
     };
+    # The machine plane consumes the canonical Devman packages. This input is
+    # pinned in this flake lock, so plane updates do not use a working-tree or PATH binary.
+    devman = {
+      url = "git+https://github.com/Bullish-Design/devman?ref=refs/tags/v0.5.2&rev=8e7c3be6c8c02e7438cf3bb0b7be086b0e98ee12";
+      flake = true;
+    };
   };
 
   outputs = { self, nixpkgs, pyproject-nix, uv2nix, pyproject-build-systems, ... }@inputs:
@@ -103,7 +109,7 @@
           # Face B: the vendomat CLI, delivered to a consumer repo as a package on PATH
           # (DESIGN issue #3 — the zelligate-provisions-zellij pattern), never via the
           # consumer's venv. `modules/devenv.nix` puts this on PATH and runs `vendomat sync`.
-          vendomat = pkgs.python313.pkgs.buildPythonApplication {
+          vendomatUnwrapped = pkgs.python313.pkgs.buildPythonApplication {
             pname = "vendomat";
             # Read from pyproject.toml: a hand-written literal here drifted to 0.2.3 while
             # the source was 0.3.1, so every installed pre-push hook named a wrong version.
@@ -199,9 +205,40 @@
               templateer = templateer-uv2nix-cli;
             };
           };
+          devman-dagu = pkgs.callPackage "${inputs.devman}/nix/dagu.nix" { };
+          devman-runtime = pkgs.callPackage "${inputs.devman}/nix/devman-cli.nix" {
+            dagu = devman-dagu;
+          };
+          devman-renderer = pkgs.callPackage "${inputs.devman}/nix/renderer.nix" {
+            dagu = devman-dagu;
+          };
+          plane-manifest = pkgs.writeText "devman-plane.json" (builtins.toJSON {
+            renderer = "${devman-renderer}/bin/devman-project";
+            runtime = "${devman-runtime}/bin/devman";
+            dagu = "${devman-dagu}/bin/dagu";
+            toolchain = "${toolchain}";
+          });
+          devman-plane = pkgs.symlinkJoin {
+            name = "devman-plane";
+            paths = [ devman-runtime devman-renderer devman-dagu toolchain ];
+            postBuild = ''
+              mkdir -p $out/share/vendomat
+              cp ${plane-manifest} $out/share/vendomat/devman-plane.json
+            '';
+            passthru = {
+              inherit devman-runtime devman-renderer devman-dagu toolchain plane-manifest;
+            };
+          };
+          vendomat = pkgs.runCommand "vendomat-${vendomatUnwrapped.version}" {
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+          } ''
+            mkdir -p $out/bin
+            makeWrapper ${vendomatUnwrapped}/bin/vendomat $out/bin/vendomat \
+              --set VENDOMAT_DEVMAN_PLANE_MANIFEST ${devman-plane}/share/vendomat/devman-plane.json
+          '';
         in
         {
-          inherit pyjutsu-wheel vendomat;
+          inherit pyjutsu-wheel vendomat devman-plane;
 
           # Individual command packages, for `nix build` and for the build tests.
           repoman = repoman-uv2nix-cli;
