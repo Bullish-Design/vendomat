@@ -1,4 +1,0 @@
-schema = 1
-project = "vendomat"
-groups = ["base"]
-policy = "stable"
