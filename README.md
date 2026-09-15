@@ -206,6 +206,87 @@ truth. Editable mode delivers no store package and tells RepoMan to use the work
 virtual environment. The module invokes selected commands through their absolute store paths,
 so an unrelated executable in a consumer virtual environment cannot shadow them.
 
+## Machine Devman plane
+
+Vendomat also owns the machine-level Devman generation lifecycle. Devman owns
+the manifest contract, policy resolution, and renderer. RepoMan owns migration
+of one repository. Vendomat owns staging, Dagu validation, activation, retained
+generations, and rollback.
+
+Each participating repository carries `.devman/project.toml`:
+
+```toml
+schema = 1
+project = "devman"
+groups = ["base", "format", "release"]
+policy = "stable"
+```
+
+The plane commands use one immutable package closure. Vendomat packages the
+Devman runtime, the public renderer, Dagu, and the shared toolchain from the
+locked inputs. The plan prints each store path and identity. It does not use
+PATH to select a renderer or Dagu binary. The commands do not run a repository
+task or edit a tracked repository file:
+
+```sh
+vendomat plane plan devman --to v0.6.0
+vendomat plane update devman --to v0.6.0
+vendomat plane show devman
+vendomat plane recover devman
+vendomat plane rollback --to 1
+```
+
+For a first canary, pass the repositories explicitly. Repeat `--project-root`;
+the command reads each repository's manifest and builds one generation for the
+whole set. Use `--renderer`, `--dagu`, or `--toolchain-digest` only for an
+explicit development override:
+
+```sh
+vendomat plane update devman --to v0.6.0 \
+  --project-root /path/to/devman \
+  --project-root /path/to/repoman \
+  --project-root /path/to/vendomat \
+  --policy-root /path/to/devman
+```
+
+Build the normal closure with:
+
+```sh
+nix build .#devman-plane --no-link
+nix path-info -r .#devman-plane
+```
+
+`plan` validates a candidate without activation. `update` writes one immutable
+generation and swaps the `active` pointer only after every generated workflow
+passes `dagu validate`. Failed renders keep the old pointer. An update first
+inspects project identities. It renders changed projects and copies unchanged
+valid projections into the new generation. A later update is a no-op when all
+identities match. The `show` command reports the active registry path,
+identities, and project records. `recover` preserves abandoned staging or
+activation files for inspection. The machine-local state defaults to
+`~/.local/state/vendomat/devman`; set `VENDOMAT_DEVMAN_POLICY_ROOT` or use
+`~/.config/vendomat/plane.toml` for the central policy checkout.
+
+The active generation is a complete Devman registry root. It contains
+`projects/`, `dags/`, and `generation.json` under the stable `active` symlink.
+The old compatibility registry remains separate during migration. A canary
+machine can point its Dagu service and machine CLI at the active root:
+
+```nix
+services.devman-dagu.registryDir = "$HOME/.local/state/vendomat/devman/active";
+services.devman-dagu.stateDir = "$HOME/.local/state/devman";
+```
+
+Point only `registryDir` at the active generation. Keep `stateDir` stable so
+project metadata and watcher state survive an active-generation swap.
+
+The Devman module watches the active pointer and reloads Dagu after active runs
+end. The stable Dagu home keeps run history across that restart.
+
+Keep the consumer shell hook on the compatibility registry until the cutover.
+The hook still uses `devman project apply`; it must not write into an immutable
+active generation.
+
 ## Local input iteration
 
 Committed flake inputs use published tags. To build against a sibling checkout, override the
