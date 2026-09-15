@@ -66,6 +66,23 @@ def test_plane_show_states_its_projection_mode(tmp_path):
     assert "projection mode: plane" in result.output
 
 
+def test_plane_update_exposes_prune_and_retention():
+    # Project 039: removing a project is explicit (`--prune`), and old generations are
+    # retained with a bound so a rollback stays possible.
+    result = runner.invoke(app, ["plane", "update", "--help"])
+
+    assert result.exit_code == 0
+    assert "--prune" in result.stdout
+    assert "--keep" in result.stdout
+
+
+def test_plane_plan_exposes_prune_without_retention():
+    result = runner.invoke(app, ["plane", "plan", "--help"])
+
+    assert result.exit_code == 0
+    assert "--prune" in result.stdout
+
+
 def test_doctor_clean_repo_exits_zero(tmp_path, monkeypatch):
     # An empty repo has no knowledge installed → nothing to flag → exit 0.
     monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))

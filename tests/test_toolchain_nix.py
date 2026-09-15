@@ -189,7 +189,7 @@ def test_editable_mode_delivers_no_package():
     # gitman's own repo an older store build must not shadow the working tree, so
     # editable mode contributes no package and no env.
     text = MODULE.read_text()
-    assert '(lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [' in text
+    assert '(lib.mkIf (toolchainEnable && toolchainMode == "store") (lib.mkMerge [' in text
 
 
 def test_editable_mode_names_the_venv_provider():
@@ -198,11 +198,30 @@ def test_editable_mode_names_the_venv_provider():
     # alone would put a tagged build ahead of the tool author's own checkout — the one
     # thing editable mode exists to prevent. It must NAME the provider it wants.
     text = MODULE.read_text()
-    assert '(lib.mkIf (tcfg.enable && tcfg.mode == "editable") (' in text
-    block = text.split('tcfg.mode == "editable"')[1]
+    assert '(lib.mkIf (toolchainEnable && toolchainMode == "editable") (' in text
+    block = text.split('toolchainMode == "editable"')[2]
     assert 'repoman.cliProvider = "venv";' in block
     # Same guard as the store branch: a consumer may import vendomat without repoman.
     assert "options ? repoman" in block.split("repoman.cliProvider")[0]
+
+
+def test_module_resolves_settings_from_the_repository_manifest():
+    # Project 039: the machine-delivered module reads `vendomat.toml` from the
+    # repository root and falls back to the compatibility option, then the default.
+    text = MODULE.read_text()
+    assert "builtins.fromTOML (builtins.readFile repoManifestPath)" in text
+    assert '"${config.devenv.root}/vendomat.toml"' in text
+    assert 'fromManifest "toolchain.mode" config.vendor.toolchain.mode' in text
+    assert 'fromManifest "knowledge.enable" config.knowledge.enable' in text
+
+
+def test_module_resolves_the_store_paths_from_the_machine_manifest():
+    # The central overlay imports this module by absolute path, so it has no
+    # `inputs.vendomat`. The machine manifest names the same store paths.
+    text = MODULE.read_text()
+    assert '"/run/current-system/sw/share/vendomat/machine.json"' in text
+    assert "inputs.vendomat.packages.${system}.wheelhouse" in text
+    assert 'inputs.vendomat.packages.${system}."repoman-toolchain-${toolchainRoster}"' in text
 
 
 def test_the_venv_escape_hatch_is_documented_as_short_lived():

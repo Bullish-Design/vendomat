@@ -1,41 +1,130 @@
-# vendomat devenv module — point a repo's uv at the prebuilt wheelhouse so its native
-# dependencies install as ready-made wheels instead of being recompiled per repo.
+# vendomat devenv module — point a repo's uv at the prebuilt wheelhouse, deliver the
+# shared command toolchain, and install usage-gated dependency knowledge.
 #
-# In a consuming devenv.yaml:
+# TWO DELIVERY SHAPES, ONE FILE (project 039).
 #
-#   inputs:
-#     vendomat:
-#       url: git+file:///home/andrew/Documents/Projects/vendomat
-#   imports:
-#     - vendomat/modules
+#   * Machine delivery (the target): the machine's NixOS module installs this file at
+#     `/run/current-system/sw/share/vendomat/consumer-module.nix` and the central
+#     overlay imports it. The consumer repository declares no vendomat flake input.
+#     The store paths come from `machine.json`, which the same package installs
+#     beside this file.
+#   * Input delivery (the compatibility fallback): a repository still imports
+#     `vendomat/modules` through its own devenv.yaml input. Kept for one release.
 #
-# and in devenv.nix:
+# REPOSITORY-SCOPED SETTINGS COME FROM `vendomat.toml`.
 #
-#   vendor.enable    = true;            # Face A — vendored native wheels
-#   vendor.libs      = [ "pyjutsu" ];   # install-only; never build these from source
-#   knowledge.enable = true;            # Face B — per-dependency knowledge skills, usage-gated
+# The module reads `${config.devenv.root}/vendomat.toml` with `builtins.fromTOML`.
+# An absent file means every default. The option declarations below stay for one
+# release as a compatibility fallback: the fallback keeps the migration reversible
+# without making the compatibility option part of the new interface.
 #
-# Then run `vendor-sync` (after deps resolve, e.g. after repoman-sync) to install the SKILL.md's
-# for the libraries this repo actually depends on.
+#   [vendor]              Face A — vendored native wheels
+#   enable = true
+#   libs = [ "pyjutsu" ]  install-only; never build these from source
+#   self = "pyjutsu"      the lib this repo IS; excluded from `libs`
+#   noBuild = false       forbid uv from building `libs` from source
+#   sharedCargo = true    sccache + one shared CARGO_TARGET_DIR
+#
+#   [vendor.publish]
+#   enable = true         install the pre-push publisher when vendomat.toml exists
+#
+#   [toolchain]           Face D — the shared command closure
+#   enable = true
+#   mode = "store"        "store" or "editable"
+#   roster = "core"
+#
+#   [knowledge]           Face B — per-dependency knowledge skills
+#   enable = false
+#   skillsDir = ".claude/skills"
 { pkgs, lib, config, options, inputs, ... }:
 
 let
-  cfg = config.vendor;
-  kcfg = config.knowledge;
+  # --- the machine closure -------------------------------------------------
+  # The NixOS module installs this JSON manifest beside this file. It names the
+  # wheelhouse, the CLI, the toolchain closure, and the vendor knowledge tree, so
+  # this module resolves the same store paths the machine pins. It reads no flake
+  # input.
+  machineManifestPath = "/run/current-system/sw/share/vendomat/machine.json";
+  machine =
+    if builtins.pathExists machineManifestPath then
+      builtins.fromJSON (builtins.readFile machineManifestPath)
+    else
+      null;
+  hasInput = inputs ? vendomat;
+
+  # --- the repository manifest ---------------------------------------------
+  repoManifestPath = "${config.devenv.root}/vendomat.toml";
+  repoManifest =
+    if builtins.pathExists repoManifestPath then
+      builtins.fromTOML (builtins.readFile repoManifestPath)
+    else
+      { };
+
+  # Read one dotted path from the manifest, falling back when it is absent. TOML
+  # has no null, so a present key always supplies the value.
+  lookup = attrs: path:
+    lib.foldl'
+      (current: part: if builtins.isAttrs current && current ? ${part} then current.${part} else null)
+      attrs
+      (lib.splitString "." path);
+  fromManifest = path: fallback:
+    let value = lookup repoManifest path; in
+    if value == null then fallback else value;
+
+  # The resolved settings: the manifest wins, the compatibility option is next,
+  # the option default is last.
+  vendorEnable = fromManifest "vendor.enable" config.vendor.enable;
+  vendorLibs = fromManifest "vendor.libs" config.vendor.libs;
+  vendorSelf = fromManifest "vendor.self" config.vendor.self;
+  vendorNoBuild = fromManifest "vendor.noBuild" config.vendor.noBuild;
+  vendorSharedCargo = fromManifest "vendor.sharedCargo" config.vendor.sharedCargo;
+  publishEnable = fromManifest "vendor.publish.enable" config.vendor.publish.enable;
+  toolchainEnable = fromManifest "toolchain.enable" config.vendor.toolchain.enable;
+  toolchainMode = fromManifest "toolchain.mode" config.vendor.toolchain.mode;
+  toolchainRoster = fromManifest "toolchain.roster" config.vendor.toolchain.roster;
+  knowledgeEnable = fromManifest "knowledge.enable" config.knowledge.enable;
+  knowledgeSkillsDir = fromManifest "knowledge.skillsDir" config.knowledge.skillsDir;
+
+  # A repo never vendors itself: the lib's own source repo keeps editable
+  # `maturin develop`. Expressed via `vendor.self` rather than read from
+  # config.env.PROJ — reading config.env here would self-recurse, since this
+  # module also *defines* env entries.
+  vendoredLibs = lib.filter (l: l != vendorSelf) vendorLibs;
+
+  # --- the store paths -----------------------------------------------------
+  # Machine delivery and input delivery name the same artifacts. The machine
+  # manifest wins; the flake input is the compatibility fallback.
   system = pkgs.stdenv.system;
-  wheelhouse = inputs.vendomat.packages.${system}.wheelhouse;
-  vendomatCli = inputs.vendomat.packages.${system}.vendomat;
+  machineValue = key:
+    if machine != null then machine.${key}
+    else throw ("vendomat consumer module: machine manifest " + machineManifestPath + " lacks the '" + key + "' field");
 
-  # Face D — the shared command closure. Selected by roster name so a consumer takes the
-  # commands it wants and no others (CONCEPT 03 §3.2: an irrelevant package in the join is
-  # one more chance of a command collision).
-  tcfg = config.vendor.toolchain;
-  toolchain = inputs.vendomat.packages.${system}."repoman-toolchain-${tcfg.roster}";
+  wheelhouse =
+    if machine != null then machineValue "wheelhouse"
+    else if hasInput then inputs.vendomat.packages.${system}.wheelhouse
+    else throw noClosure;
 
-  # A repo never vendors itself: the lib's own source repo keeps editable `maturin develop`.
-  # Expressed via `vendor.self` rather than read from config.env.PROJ — reading config.env
-  # here would self-recurse, since this module also *defines* env entries.
-  vendoredLibs = lib.filter (l: l != cfg.self) cfg.libs;
+  vendomatCli =
+    if machine != null then machineValue "cli"
+    else if hasInput then inputs.vendomat.packages.${system}.vendomat
+    else throw noClosure;
+
+  vendorRoot =
+    if machine != null then machineValue "vendor_root"
+    else if hasInput then "${inputs.vendomat}"
+    else throw noClosure;
+
+  toolchain =
+    if machine != null then machineValue "toolchain"
+    else if hasInput then inputs.vendomat.packages.${system}."repoman-toolchain-${toolchainRoster}"
+    else throw noClosure;
+
+  noClosure = ''
+    vendomat consumer module: no machine closure and no vendomat flake input.
+    The machine must install /run/current-system/sw/share/vendomat/machine.json
+    (nix-meta imports vendomat's nixosModules.default), or the repository must
+    still declare a vendomat input.
+  '';
 in
 {
   options.vendor = {
@@ -86,9 +175,9 @@ in
       '';
     };
 
-    # Face D — deliver the shared command closure. Namespaced under `vendor` rather than
-    # `repoman` because Vendomat may not assume RepoMan's module is present; when it IS
-    # present, store mode sets `repoman.cliProvider = "store"` below.
+    # Face D — deliver the shared command closure. Namespaced under `vendor` rather
+    # than `repoman` because Vendomat may not assume RepoMan's module is present;
+    # when it IS present, store mode sets `repoman.cliProvider = "store"` below.
     toolchain = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -156,8 +245,27 @@ in
   };
 
   config = lib.mkMerge [
+    # A manifest typo must fail loudly. `toolchain.mode` misses an invalid value
+    # silently otherwise, because the two `mkIf` branches below would both be false.
+    {
+      assertions = [
+        {
+          assertion = toolchainMode == "store" || toolchainMode == "editable";
+          message = "vendomat: toolchain.mode must be \"store\" or \"editable\", got ${builtins.toJSON toolchainMode}.";
+        }
+        {
+          assertion = builtins.isList vendorLibs && builtins.all builtins.isString vendorLibs;
+          message = "vendomat: vendor.libs must be a list of library names.";
+        }
+        {
+          assertion = builtins.isString toolchainRoster && toolchainRoster != "";
+          message = "vendomat: toolchain.roster must be a non-empty string.";
+        }
+      ];
+    }
+
     # --- Face A: vendored native wheels -------------------------------------------------------
-    (lib.mkIf cfg.enable (lib.mkMerge [
+    (lib.mkIf vendorEnable (lib.mkMerge [
       {
         # uv treats the wheelhouse as an *additional* package source, ranked alongside the
         # release URL a consumer declares. Both name the same bytes — the wheelhouse builds
@@ -174,11 +282,11 @@ in
 
       # Opt-in latch, off by default. See `vendor.noBuild` for why the store must not be
       # able to fail a resolution that the declared release URL can satisfy.
-      (lib.mkIf (cfg.noBuild && vendoredLibs != [ ]) {
+      (lib.mkIf (vendorNoBuild && vendoredLibs != [ ]) {
         env.UV_NO_BUILD_PACKAGE = lib.concatStringsSep " " vendoredLibs;
       })
 
-      (lib.mkIf cfg.sharedCargo {
+      (lib.mkIf vendorSharedCargo {
         packages = [ pkgs.sccache ];
         enterShell = ''
           export RUSTC_WRAPPER="${pkgs.sccache}/bin/sccache"
@@ -189,19 +297,20 @@ in
     ]))
 
     # --- Face B: per-dependency knowledge -----------------------------------------------------
-    (lib.mkIf kcfg.enable {
-      # The CLI rides on PATH (Nix-built package), never the consumer's venv (DESIGN issue #3).
+    (lib.mkIf knowledgeEnable {
+      # The CLI is a Nix-built package, never the consumer's venv (DESIGN issue #3).
+      # In machine delivery it is a store path; in input delivery it is the input's package.
       packages = [ vendomatCli ];
 
-      # The knowledge tree is the flake source already in the store — not bundled into the wheel.
-      env.VENDOMAT_VENDOR_ROOT = "${inputs.vendomat}/vendor";
+      # The knowledge tree is the vendomat source already in the store — not bundled into the wheel.
+      env.VENDOMAT_VENDOR_ROOT = "${vendorRoot}/vendor";
 
       # Opt-in install. Run it after the consumer's deps resolve (so uv.lock/pyproject is readable)
       # — e.g. after `repoman-sync`. Mirrors repoman-sync's resolve-then-install ordering.
       scripts.vendor-sync = {
         description = "Install per-dependency knowledge skills for the deps this repo uses (vendomat sync).";
         exec = ''
-          export REPOMAN_SKILLS_DIR="''${REPOMAN_SKILLS_DIR:-${kcfg.skillsDir}}"
+          export REPOMAN_SKILLS_DIR="''${REPOMAN_SKILLS_DIR:-${knowledgeSkillsDir}}"
           exec ${vendomatCli}/bin/vendomat sync
         '';
       };
@@ -211,7 +320,7 @@ in
     # --- Face D: the shared command closure ---------------------------------------------------
     # Editable mode delivers NO PACKAGE: a tool's own repo keeps running its working tree.
     # That is why the guard is on the mode as well as `enable`.
-    (lib.mkIf (tcfg.enable && tcfg.mode == "store") (lib.mkMerge [
+    (lib.mkIf (toolchainEnable && toolchainMode == "store") (lib.mkMerge [
       {
         # On PATH for the interactive shell. The env var below is what TASKS use: a task
         # must not depend on PATH state (repoman D1), and `command -v` would let an
@@ -250,7 +359,7 @@ in
     # Guarded on the option EXISTING, for the same reason as the store branch above: a
     # consumer may import vendomat without repoman, and a definition for an undeclared
     # option fails a strict full-config eval.
-    (lib.mkIf (tcfg.enable && tcfg.mode == "editable") (
+    (lib.mkIf (toolchainEnable && toolchainMode == "editable") (
       lib.optionalAttrs (options ? repoman) {
         repoman.cliProvider = "venv";
       }
@@ -259,7 +368,7 @@ in
     # This is independent of Face A and Face B: a manifest is the explicit per-repository opt-in.
     # `install-hook` is a no-op failure when no manifest exists and refuses to overwrite another
     # hook, which keeps importing the module safe for every devenv consumer.
-    (lib.mkIf cfg.publish.enable {
+    (lib.mkIf publishEnable {
       packages = [ vendomatCli ];
       enterShell = ''
         if [ -f vendomat.toml ]; then

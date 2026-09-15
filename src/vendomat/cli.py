@@ -27,6 +27,7 @@ from .plane import (
     GenerationStore,
     PlaneError,
     PlaneProject,
+    classify_projects,
     discover_project,
     load_plane_packages,
     manifest_project_name,
@@ -147,6 +148,20 @@ def _plane_project(
     )
 
 
+def _discover_failure(name: str, error: str) -> dict[str, object]:
+    """Build the fail-closed result for a project that could not be resolved."""
+
+    return {
+        "project": name,
+        "path": "",
+        "operation": "discover",
+        "status": "unreadable project",
+        "identity": None,
+        "retained_old_projection": True,
+        "error": error,
+    }
+
+
 def _plane_operation(
     operation: str,
     product: str,
@@ -154,6 +169,8 @@ def _plane_operation(
     *,
     project_names: list[str],
     project_roots: list[str],
+    prune: list[str],
+    keep: int,
     policy_root: str | None,
     overlay_root: str | None,
     state_dir: str | None,
@@ -165,62 +182,50 @@ def _plane_operation(
     if product != "devman":
         raise PlaneError(f"unsupported plane product: {product}")
     config = read_plane_config()
+
+    overlay_value = overlay_root or _plane_setting(
+        None, config, "overlay_root", "VENDOMAT_DEVMAN_OVERLAY_ROOT", "~/.config/devman"
+    )
+    devman_state_value = devman_state or _plane_setting(
+        None, config, "devman_state", "VENDOMAT_DEVMAN_STATE", "~/.local/state/devman"
+    )
+    state_value = state_dir or _plane_setting(
+        None, config, "state_dir", "VENDOMAT_PLANE_STATE", "~/.local/state/vendomat/devman"
+    )
+    store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
+    devman_state_path = Path(devman_state_value or "~/.local/state/devman")
+    overlay_path = Path(overlay_value or "~/.config/devman")
+
+    # The policy root: the flag wins, then the config, then a named project that
+    # carries `groups/`, then the current directory.
+    policy_value = policy_root or _plane_setting(None, config, "policy_root", "VENDOMAT_DEVMAN_POLICY_ROOT")
+    if policy_value is None:
+        for root_value in project_roots:
+            if (Path(root_value).expanduser() / "groups").is_dir():
+                policy_value = root_value
+                break
+    if policy_value is None and (Path.cwd() / "groups").is_dir():
+        policy_value = str(Path.cwd())
+
+    # The active generation is the default declaration (project 039). A project
+    # that the active generation carries is carried forward unless `--prune` names
+    # it, and an explicit selection ADDS to that set rather than replacing it. The
+    # old interface dropped any project omitted from argv with no message.
+    active = store.active_project_names()
+    declared: list[tuple[str, Path | None]] = []
     if project_roots:
-        policy_value = policy_root or _plane_setting(None, config, "policy_root", "VENDOMAT_DEVMAN_POLICY_ROOT")
-        if policy_value is None:
-            for root_value in project_roots:
-                if (Path(root_value).expanduser() / "groups").is_dir():
-                    policy_value = root_value
-                    break
-        if not policy_value and (Path.cwd() / "groups").is_dir():
-            policy_value = str(Path.cwd())
-        if not policy_value:
-            raise PlaneError(
-                "a Devman policy root is required for explicit project roots; "
-                "pass --policy-root or include the Devman repository"
-            )
         if project_names and len(project_names) != len(project_roots):
             raise PlaneError("--project and --project-root must have the same number of values")
-        overlay_value = overlay_root or _plane_setting(
-            None,
-            config,
-            "overlay_root",
-            "VENDOMAT_DEVMAN_OVERLAY_ROOT",
-            "~/.config/devman",
-        )
-        state_value = devman_state or _plane_setting(
-            None, config, "devman_state", "VENDOMAT_DEVMAN_STATE", "~/.local/state/devman"
-        )
         names = project_names or [manifest_project_name(Path(root)) for root in project_roots]
         if len(set(names)) != len(names):
             raise PlaneError("explicit project roots must have unique manifest identities")
-        projects, failures = resolve_projects(
-            list(zip(names, (Path(root) for root in project_roots), strict=True)),
-            devman_state=Path(state_value or "~/.local/state/devman"),
-            policy_root=Path(policy_value),
-            overlay_root=Path(overlay_value or "~/.config/devman"),
-        )
+        declared = list(zip(names, (Path(root) for root in project_roots), strict=True))
     elif project_names:
-        policy_value = policy_root or _plane_setting(None, config, "policy_root", "VENDOMAT_DEVMAN_POLICY_ROOT")
-        if not policy_value:
-            raise PlaneError("--policy-root is required when --project is used")
-        overlay_value = overlay_root or _plane_setting(
-            None,
-            config,
-            "overlay_root",
-            "VENDOMAT_DEVMAN_OVERLAY_ROOT",
-            "~/.config/devman",
-        )
-        state_value = devman_state or _plane_setting(
-            None, config, "devman_state", "VENDOMAT_DEVMAN_STATE", "~/.local/state/devman"
-        )
-        projects, failures = resolve_projects(
-            [(name, None) for name in project_names],
-            devman_state=Path(state_value or "~/.local/state/devman"),
-            policy_root=Path(policy_value),
-            overlay_root=Path(overlay_value or "~/.config/devman"),
-        )
-    else:
+        declared = [(name, None) for name in project_names]
+
+    if not declared and not active:
+        # First run: no explicit selection and no active generation to seed from.
+        # Fall back to the product project, which resolves its own policy root.
         try:
             projects = [
                 _plane_project(
@@ -232,32 +237,44 @@ def _plane_operation(
                     devman_state=devman_state,
                 )
             ]
-            failures = []
+            failures: list[dict[str, object]] = []
         except PlaneError as exc:
             projects = []
-            failures = [
-                {
-                    "project": product,
-                    "path": "",
-                    "operation": "discover",
-                    "status": "unreadable project",
-                    "identity": None,
-                    "retained_old_projection": True,
-                    "error": str(exc),
-                }
-            ]
+            failures = [_discover_failure(product, str(exc))]
+    else:
+        if not policy_value:
+            raise PlaneError("a Devman policy root is required; pass --policy-root or include the Devman repository")
+        classification = classify_projects([name for name, _ in declared], active, prune)
+        if classification.unmanaged:
+            typer.echo(
+                f"carried forward {len(classification.unmanaged)} active project(s) not named on the command line: "
+                + ", ".join(classification.unmanaged)
+            )
+        if classification.pruned:
+            typer.echo(f"pruned {len(classification.pruned)} project(s): " + ", ".join(classification.pruned))
+        if classification.ignored:
+            typer.echo(
+                "prune ignored for name(s) absent from the active generation: " + ", ".join(classification.ignored)
+            )
+        roots = {name: root for name, root in declared}
+        effective = [(name, roots.get(name)) for name in classification.effective]
+        if not effective:
+            raise PlaneError(
+                "no projects to build: the active generation is empty and no --project or --project-root was given"
+            )
+        projects, failures = resolve_projects(
+            effective,
+            devman_state=devman_state_path,
+            policy_root=Path(policy_value),
+            overlay_root=overlay_path,
+        )
+
     if failures:
         for item in failures:
             typer.echo(f"  {item['project']}: {item['status']} ({item['path']})")
             typer.echo(f"    {item['error']}", err=True)
         raise PlaneError(f"{operation} did not activate a generation; repair the failed project(s) and retry")
-    state_value = state_dir or _plane_setting(
-        None,
-        config,
-        "state_dir",
-        "VENDOMAT_PLANE_STATE",
-        "~/.local/state/vendomat/devman",
-    )
+
     explicit_override = any(value is not None for value in (renderer, dagu, toolchain_digest))
     package = None
     if not explicit_override:
@@ -276,7 +293,6 @@ def _plane_operation(
         renderer_value = renderer_value or "devman"
         dagu_value = dagu_value or "dagu"
 
-    store = GenerationStore(Path(state_value or "~/.local/state/vendomat/devman"))
     if package is not None:
         typer.echo(f"package closure: {package.manifest}")
         typer.echo(f"  renderer: {package.renderer}")
@@ -301,6 +317,9 @@ def _plane_operation(
                 activate=True,
                 operation=operation,
             )
+            if not result.failed:
+                for number in store.retain(keep):
+                    typer.echo(f"removed old generation: {number}")
     else:
         result = plan_or_update(
             projects,
@@ -342,6 +361,7 @@ def plane_plan(
     target: str = typer.Option(..., "--to", help="target runtime identity"),
     project_names: list[str] = typer.Option([], "--project", help="registered project to include (repeatable)"),  # noqa: B008
     project_roots: list[str] = typer.Option([], "--project-root", help="explicit project root (repeatable)"),  # noqa: B008
+    prune: list[str] = typer.Option([], "--prune", help="drop a project from the next generation (repeatable)"),  # noqa: B008
     policy_root: str | None = typer.Option(None, "--policy-root"),
     overlay_root: str | None = typer.Option(None, "--overlay-root"),
     state_dir: str | None = typer.Option(None, "--state-dir"),
@@ -359,6 +379,8 @@ def plane_plan(
             target,
             project_names=project_names,
             project_roots=project_roots,
+            prune=prune,
+            keep=2,
             policy_root=policy_root,
             overlay_root=overlay_root,
             state_dir=state_dir,
@@ -378,6 +400,8 @@ def plane_update(
     target: str = typer.Option(..., "--to", help="target runtime identity"),
     project_names: list[str] = typer.Option([], "--project", help="registered project to include (repeatable)"),  # noqa: B008
     project_roots: list[str] = typer.Option([], "--project-root", help="explicit project root (repeatable)"),  # noqa: B008
+    prune: list[str] = typer.Option([], "--prune", help="drop a project from the next generation (repeatable)"),  # noqa: B008
+    keep: int = typer.Option(2, "--keep", help="generations to retain; active and its predecessor always stay"),
     policy_root: str | None = typer.Option(None, "--policy-root"),
     overlay_root: str | None = typer.Option(None, "--overlay-root"),
     state_dir: str | None = typer.Option(None, "--state-dir"),
@@ -395,6 +419,8 @@ def plane_update(
             target,
             project_names=project_names,
             project_roots=project_roots,
+            prune=prune,
+            keep=keep,
             policy_root=policy_root,
             overlay_root=overlay_root,
             state_dir=state_dir,

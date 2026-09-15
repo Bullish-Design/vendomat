@@ -15,6 +15,7 @@ from vendomat.plane import (
     PlaneProject,
     RenderedBundle,
     _project_failure,
+    classify_projects,
     load_plane_packages,
     manifest_project_name,
     plan_or_update,
@@ -201,6 +202,87 @@ def test_operation_lock_has_one_machine_state_file(tmp_path):
 
     with store.operation_lock():
         assert (store.root / ".lock").is_file()
+
+
+def test_the_active_project_set_seeds_the_next_generation(tmp_path):
+    # Project 039: a project carried by the active generation is the default
+    # declaration for the next one. The argv interface had no such seed, so a project
+    # omitted from argv vanished from generation N+1 with no message.
+    store = GenerationStore(tmp_path / "plane")
+    store.build([_bundle(1)], dagu="true", activate=True)
+
+    assert store.active_project_names() == ["fixture"]
+    assert GenerationStore(tmp_path / "empty").active_project_names() == []
+
+
+def test_retain_keeps_the_newest_generations(tmp_path):
+    store = GenerationStore(tmp_path / "plane")
+    for number in (1, 2, 3):
+        store.build([_bundle(number, f"steps: {number}\n".encode())], dagu="true", activate=True)
+
+    removed = store.retain(2)
+
+    assert removed == [1]
+    assert not (store.generations / "1").exists()
+    assert (store.generations / "2").is_dir()
+    assert (store.generations / "3").is_dir()
+
+
+def test_retain_always_keeps_the_active_generation_and_its_predecessor(tmp_path):
+    # A rollback must stay possible even when `keep` is small. After a rollback the
+    # active generation is not the newest, so protecting only `keep` newest would
+    # delete the generation the active one rolls back onto.
+    store = GenerationStore(tmp_path / "plane")
+    for number in (1, 2, 3):
+        store.build([_bundle(number, f"steps: {number}\n".encode())], dagu="true", activate=True)
+    store.rollback(2)
+
+    removed = store.retain(1)
+
+    assert removed == []
+    assert (store.generations / "1").is_dir()
+    assert (store.generations / "2").is_dir()
+    assert (store.generations / "3").is_dir()
+
+
+def test_retain_refuses_a_keep_that_cannot_roll_back(tmp_path):
+    store = GenerationStore(tmp_path / "plane")
+
+    with pytest.raises(PlaneError, match="retention"):
+        store.retain(0)
+
+
+def test_classify_carries_forward_an_omitted_active_project():
+    # The property the argv interface lacked: a project the active generation
+    # carries and the command line omits is surfaced, and it stays in the build.
+    classification = classify_projects(declared=["alpha"], active=["alpha", "beta"], prune=[])
+
+    assert classification.carried == ("alpha",)
+    assert classification.unmanaged == ("beta",)
+    assert "beta" in classification.effective
+
+
+def test_classify_marks_a_declared_project_that_is_not_active_as_new():
+    classification = classify_projects(declared=["gamma"], active=["alpha"], prune=[])
+
+    assert classification.new == ("gamma",)
+    assert classification.unmanaged == ("alpha",)
+
+
+def test_classify_prunes_only_an_explicitly_named_project():
+    classification = classify_projects(declared=[], active=["alpha", "beta"], prune=["beta"])
+
+    assert classification.pruned == ("beta",)
+    assert classification.unmanaged == ("alpha",)
+    assert "beta" not in classification.effective
+    assert "alpha" in classification.effective
+
+
+def test_classify_reports_a_prune_name_that_is_not_active():
+    classification = classify_projects(declared=[], active=["alpha"], prune=["missing"])
+
+    assert classification.ignored == ("missing",)
+    assert classification.pruned == ()
 
 
 def test_recover_moves_interrupted_staging_without_touching_active(tmp_path):

@@ -229,16 +229,48 @@
               inherit devman-runtime devman-renderer devman-dagu toolchain plane-manifest;
             };
           };
+          # A single directory of every vendored wheel — this is what UV_FIND_LINKS points at.
+          wheelhouse = pkgs.symlinkJoin {
+            name = "vendomat-wheelhouse";
+            paths = [ pyjutsu-wheel ];
+          };
+
+          # The knowledge tree, as a store path that does not name the flake source
+          # directory. Interpolating `${./.}` as a machine-manifest value made a flake
+          # path input invalid during a consumer's evaluation; a dedicated derivation
+          # is a normal build input.
+          vendorTree = pkgs.runCommand "vendomat-vendor" { } ''
+            mkdir -p $out
+            cp -r ${./vendor} $out/vendor
+          '';
+
+          # The machine closure the consumer module reads (project 039). The NixOS module
+          # installs this package and exposes `/share/vendomat`, so a consumer repository
+          # resolves the same store paths without a vendomat flake input.
+          #
+          # `cli` names the stable machine path, not this store path: that removes the
+          # self-reference and matches devman's machine-owned link module.
+          machineManifest = pkgs.writeText "vendomat-machine.json" (builtins.toJSON {
+            wheelhouse = "${wheelhouse}";
+            cli = "/run/current-system/sw/bin/vendomat";
+            toolchain = "${toolchain}";
+            vendor_root = "${vendorTree}";
+          });
           vendomat = pkgs.runCommand "vendomat-${vendomatUnwrapped.version}" {
             nativeBuildInputs = [ pkgs.makeWrapper ];
+            # Name the machine closure in the derivation environment. Installing this
+            # package then retains the wheelhouse and the toolchain it points at.
+            inherit wheelhouse toolchain vendorTree;
           } ''
-            mkdir -p $out/bin
+            mkdir -p $out/bin $out/share/vendomat
             makeWrapper ${vendomatUnwrapped}/bin/vendomat $out/bin/vendomat \
               --set VENDOMAT_DEVMAN_PLANE_MANIFEST ${devman-plane}/share/vendomat/devman-plane.json
+            install -Dm644 ${./modules/devenv.nix} $out/share/vendomat/consumer-module.nix
+            install -Dm644 ${machineManifest} $out/share/vendomat/machine.json
           '';
         in
         {
-          inherit pyjutsu-wheel vendomat devman-plane;
+          inherit pyjutsu-wheel wheelhouse vendomat devman-plane;
 
           # Individual command packages, for `nix build` and for the build tests.
           repoman = repoman-uv2nix-cli;
@@ -251,12 +283,6 @@
           # The composed closure the devenv module puts on PATH.
           repoman-toolchain-core = toolchain;
 
-          # A single directory of every vendored wheel — this is what UV_FIND_LINKS points at.
-          wheelhouse = pkgs.symlinkJoin {
-            name = "vendomat-wheelhouse";
-            paths = [ pyjutsu-wheel ];
-          };
-
           default = self.packages.${system}.wheelhouse;
         });
 
@@ -264,5 +290,48 @@
       # path-wise via `imports: [ vendomat/modules ]` (devenv resolves that to
       # modules/devenv.nix); this output is kept for flake-level discoverability.
       devenvModules.default = import ./modules/devenv.nix;
+
+      # The machine interface (project 039). nix-meta imports this module, installs the
+      # `vendomat` package, and exposes `/share/vendomat`, so every repository on the
+      # machine reaches the consumer module through the central overlay. One pin replaces
+      # a vendomat flake input in every consumer.
+      nixosModules.default = { config, lib, pkgs, ... }:
+        let
+          cfg = config.vendomat;
+          system = pkgs.stdenv.hostPlatform.system;
+        in
+        {
+          options.vendomat.installConsumerModule = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            description = ''
+              Install the vendomat consumer devenv module at
+              `/run/current-system/sw/share/vendomat/consumer-module.nix`, put the
+              `vendomat` command on the system PATH, and expose the module's store paths
+              through the machine manifest beside it.
+
+              `environment.pathsToLink` is REQUIRED. NixOS links selected `share`
+              subtrees, not all of `/share`. Devman's first switch shipped its binary
+              without the module path and a consumer could not import it (038 Stage 18
+              follow-up).
+            '';
+          };
+
+          config = lib.mkIf cfg.installConsumerModule {
+            environment.systemPackages = [ self.packages.${system}.vendomat ];
+            environment.pathsToLink = [ "/share/vendomat" ];
+          };
+        };
+
+      # Phase-1 proof for the consumer module: it imports, its defaults resolve, and a
+      # repository with no `vendomat.toml` still evaluates.
+      checks = forAllSystems (pkgs: {
+        vendomat-consumer-module = import ./nix/consumer-module-check.nix {
+          inherit pkgs;
+          lib = pkgs.lib;
+          vendomatModule = import ./modules/devenv.nix;
+          vendomatPackage = self.packages.${pkgs.stdenv.system}.vendomat;
+        };
+      });
     };
 }

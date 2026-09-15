@@ -283,6 +283,45 @@ class GenerationStore:
             records.append(raw)
         return records
 
+    def active_project_names(self) -> list[str]:
+        """Return the project names carried by the active generation, in stable order.
+
+        This is the seed for the next generation: a project in the active generation
+        and absent from the command line is carried forward, never dropped.
+        """
+
+        current = self.current_path()
+        if current is None:
+            return []
+        projects = current / "projects"
+        if not projects.is_dir():
+            return []
+        return sorted(path.name for path in projects.iterdir() if path.is_dir())
+
+    def retain(self, keep: int) -> list[int]:
+        """Remove old generations, keeping `keep` of the newest plus the rollback pair.
+
+        The active generation and its immediate predecessor are always kept, so a
+        rollback stays possible even when `keep` is small. Returns the removed
+        generation numbers in ascending order.
+        """
+
+        if isinstance(keep, bool) or not isinstance(keep, int) or keep < 1:
+            raise PlaneError(f"generation retention must keep at least one generation: {keep!r}")
+        if not self.generations.is_dir():
+            return []
+        numbers = sorted(int(path.name) for path in self.generations.iterdir() if path.name.isdigit() and path.is_dir())
+        active = self.current_generation()
+        protected = {active, active - 1} if active is not None else set()
+        keep_numbers = set(numbers[-keep:]) | protected
+        removed: list[int] = []
+        for number in numbers:
+            if number in keep_numbers:
+                continue
+            shutil.rmtree(self.generations / str(number))
+            removed.append(number)
+        return removed
+
     def recover(self) -> list[Path]:
         """Move abandoned staging directories aside without deleting them."""
 
@@ -842,6 +881,52 @@ def resolve_projects(
                 }
             )
     return projects, failures
+
+
+@dataclass(frozen=True)
+class ProjectClassification:
+    """How one build's project set relates to the active generation (project 039).
+
+    The three-way classification is fleetman's `plan_sync` shape, applied to plane
+    generations. `unmanaged` is the property the old argv interface lacked: a project
+    that the active generation carries and the command line omits is surfaced and
+    carried forward, never dropped silently.
+    """
+
+    carried: tuple[str, ...]
+    new: tuple[str, ...]
+    unmanaged: tuple[str, ...]
+    pruned: tuple[str, ...]
+    ignored: tuple[str, ...]
+
+    @property
+    def effective(self) -> tuple[str, ...]:
+        """The declared set, without pruned names, plus every carried project."""
+
+        return (
+            tuple(name for name in self.new)
+            + tuple(name for name in self.unmanaged)
+            + tuple(name for name in self.carried)
+        )
+
+
+def classify_projects(
+    declared: list[str],
+    active: list[str],
+    prune: list[str],
+) -> ProjectClassification:
+    """Classify the declared set against the active generation. Pure and ordered."""
+
+    declared_set = set(declared)
+    active_set = set(active)
+    prune_set = set(prune)
+    return ProjectClassification(
+        carried=tuple(name for name in active if name in declared_set and name not in prune_set),
+        new=tuple(name for name in declared if name not in active_set and name not in prune_set),
+        unmanaged=tuple(name for name in active if name not in declared_set and name not in prune_set),
+        pruned=tuple(name for name in active if name in prune_set),
+        ignored=tuple(sorted(prune_set - active_set)),
+    )
 
 
 def manifest_project_name(root: Path) -> str:

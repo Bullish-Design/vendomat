@@ -66,9 +66,64 @@ shared again.
 ```
 flake.nix              inputs (nixpkgs + each native lib) and outputs:
                          lib.mkMaturinWheel · packages.<lib>-wheel · packages.wheelhouse
-                         · devenvModules.default
+                         · devenvModules.default · nixosModules.default
 lib/mkMaturinWheel.nix  source crate → wheel derivation (importCargoLock + maturin build)
-modules/devenv.nix      the devenv module consumers import
+modules/devenv.nix      the devenv module consumers import (also installed as
+                         share/vendomat/consumer-module.nix for machine delivery)
+nix/consumer-module-check.nix  phase-1 flake check for the consumer module
+```
+
+## Machine delivery of the consumer module
+
+A repository no longer needs a vendomat flake input. The machine delivers the same
+module, and one pin in `nix-meta` replaces a pin in every consumer:
+
+```nix
+# nix-meta
+imports = [ inputs.vendomat.nixosModules.default ];
+```
+
+The NixOS module installs the `vendomat` package and exposes `/share/vendomat`.
+`environment.pathsToLink` is required, because NixOS links selected `share`
+subtrees, not all of `/share`. The package installs three files:
+
+```
+/run/current-system/sw/share/vendomat/consumer-module.nix
+/run/current-system/sw/share/vendomat/machine.json
+/run/current-system/sw/bin/vendomat
+```
+
+`machine.json` names the wheelhouse, the CLI, the toolchain closure, and the
+vendor knowledge tree. The module reads it instead of a flake input. When the
+machine manifest is absent, the module falls back to a `vendomat` flake input.
+
+The central overlay imports the module for every repository:
+
+```nix
+# ~/.config/devman/projects/<project>/devenv.local.nix
+imports = [
+  /run/current-system/sw/share/devman/link-module.nix
+  /run/current-system/sw/share/vendomat/consumer-module.nix
+];
+```
+
+The module reads repository-scoped settings from `vendomat.toml` at the
+repository root. An absent file means every default. The option declarations stay
+for one release as a compatibility fallback, so a migration is reversible.
+
+```toml
+[vendor]                # Face A
+enable = true
+libs = [ "pyjutsu" ]
+
+[vendor.publish]
+enable = true
+
+[toolchain]             # Face D
+mode = "editable"       # a tool's own repository
+
+[knowledge]             # Face B
+enable = true
 ```
 
 ## Producing wheels
@@ -235,6 +290,12 @@ vendomat plane show devman
 vendomat plane recover devman
 vendomat plane rollback --to 1
 ```
+
+The active generation is the default project set. A project that the active
+generation carries is carried forward, even when `--project` names only some of
+the set. Remove a project with an explicit `--prune <name>`. `--keep N` bounds
+retention after an update; the active generation and its predecessor always stay,
+so a rollback remains possible.
 
 For a first canary, pass the repositories explicitly. Repeat `--project-root`;
 the command reads each repository's manifest and builds one generation for the
