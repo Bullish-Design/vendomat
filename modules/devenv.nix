@@ -47,7 +47,14 @@ let
   machineManifestPath = "/run/current-system/sw/share/vendomat/machine.json";
   machine =
     if builtins.pathExists machineManifestPath then
-      builtins.fromJSON (builtins.readFile machineManifestPath)
+      # `readFile` of a real store path attaches that path as the string's context.
+      # `fromJSON` then tries to re-attribute that single context entry to every
+      # embedded store-path-shaped substring it finds — cli/toolchain/vendor_root/
+      # wheelhouse each name a DIFFERENT derivation than machine.json's own, so it
+      # refuses with "is not allowed to refer to a store path". Discard the context
+      # first: the parsed values are consumed as plain path strings below (some are
+      # not store paths at all, e.g. `cli`), never as derivations needing context.
+      builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile machineManifestPath))
     else
       null;
   hasInput = inputs ? vendomat;
@@ -108,6 +115,17 @@ let
     if machine != null then machineValue "cli"
     else if hasInput then inputs.vendomat.packages.${system}.vendomat
     else throw noClosure;
+
+  # `vendomatCli` means two different shapes: input delivery names a PACKAGE (its
+  # `bin/vendomat` is the executable, and `packages = [ vendomatCli ]` puts it on
+  # PATH); machine delivery names the EXECUTABLE ITSELF, `/run/current-system/sw/
+  # bin/vendomat` — a stable machine path chosen so machine.json need not embed a
+  # self-reference to the vendomat package it ships beside (flake.nix). That path
+  # is not a store path, so it fails `types.package`'s check and must not go in
+  # `packages` — it is already on every shell's PATH via the NixOS module's
+  # `environment.systemPackages`. `vendomatBin` normalizes both shapes to the one
+  # thing every call site actually wants: the executable to run.
+  vendomatBin = if machine != null then vendomatCli else "${vendomatCli}/bin/vendomat";
 
   vendorRoot =
     if machine != null then machineValue "vendor_root"
@@ -298,9 +316,11 @@ in
 
     # --- Face B: per-dependency knowledge -----------------------------------------------------
     (lib.mkIf knowledgeEnable {
-      # The CLI is a Nix-built package, never the consumer's venv (DESIGN issue #3).
-      # In machine delivery it is a store path; in input delivery it is the input's package.
-      packages = [ vendomatCli ];
+      # The CLI is a Nix-built package, never the consumer's venv (DESIGN issue #3). Input
+      # delivery needs the package added to PATH; machine delivery already has it on every
+      # shell's PATH via the NixOS module, and `vendomatCli` there is not a package at all
+      # (see `vendomatBin`'s comment) — adding it here would fail `types.package`.
+      packages = lib.optional (machine == null) vendomatCli;
 
       # The knowledge tree is the vendomat source already in the store — not bundled into the wheel.
       env.VENDOMAT_VENDOR_ROOT = "${vendorRoot}/vendor";
@@ -311,7 +331,7 @@ in
         description = "Install per-dependency knowledge skills for the deps this repo uses (vendomat sync).";
         exec = ''
           export REPOMAN_SKILLS_DIR="''${REPOMAN_SKILLS_DIR:-${knowledgeSkillsDir}}"
-          exec ${vendomatCli}/bin/vendomat sync
+          exec ${vendomatBin} sync
         '';
       };
 
@@ -369,10 +389,10 @@ in
     # `install-hook` is a no-op failure when no manifest exists and refuses to overwrite another
     # hook, which keeps importing the module safe for every devenv consumer.
     (lib.mkIf publishEnable {
-      packages = [ vendomatCli ];
+      packages = lib.optional (machine == null) vendomatCli;
       enterShell = ''
         if [ -f vendomat.toml ]; then
-          ${vendomatCli}/bin/vendomat install-hook
+          ${vendomatBin} install-hook
         fi
       '';
     })
