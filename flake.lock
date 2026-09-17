@@ -126,16 +126,16 @@
     "pyjutsu": {
       "flake": false,
       "locked": {
-        "lastModified": 1788789606,
-        "narHash": "sha256-6812Epm//3hIahYINRTsMLXTMYd6JrZG9T5Ucz0dxJg=",
-        "ref": "refs/tags/v0.21.1",
-        "rev": "90ba9a5e65e353992369025c1507342cd39f009b",
-        "revCount": 157,
+        "lastModified": 1789662262,
+        "narHash": "sha256-6lT0IJt0A7YSVV32w6nI6Vf/L1mzQ5Ufx7BSHPr/k4o=",
+        "ref": "refs/tags/v0.22.0",
+        "rev": "1a2a913e9505571bee7262072ef9a503101082c1",
+        "revCount": 163,
         "type": "git",
         "url": "https://github.com/Bullish-Design/Pyjutsu"
       },
       "original": {
-        "ref": "refs/tags/v0.21.1",
+        "ref": "refs/tags/v0.22.0",
         "type": "git",
         "url": "https://github.com/Bullish-Design/Pyjutsu"
       }
