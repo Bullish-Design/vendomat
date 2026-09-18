@@ -52,7 +52,7 @@
       flake = false;
     };
     gitman = {
-      url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.6.2";
+      url = "git+https://github.com/Bullish-Design/gitman?ref=refs/tags/v0.9.1";
       flake = false;
     };
     # templateer is on the roster because devman's changelog group calls

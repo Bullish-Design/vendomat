@@ -57,16 +57,16 @@
     "gitman": {
       "flake": false,
       "locked": {
-        "lastModified": 1788890211,
-        "narHash": "sha256-WFqLJbDGv3jGkjonXSQQkjuL4XYZd5vqNhD0tFSCh2s=",
-        "ref": "refs/tags/v0.6.2",
-        "rev": "9babc9a202547a0cfd6957e47b22205b85e0895f",
-        "revCount": 106,
+        "lastModified": 1789697351,
+        "narHash": "sha256-ZkNQq4xjdpCULwkyJnx8WWO7w7BDZzWm/ovp3wfZnsc=",
+        "ref": "refs/tags/v0.9.1",
+        "rev": "251c7a3eff6f1bf4ea938d7b581d573c0fc500f1",
+        "revCount": 162,
         "type": "git",
         "url": "https://github.com/Bullish-Design/gitman"
       },
       "original": {
-        "ref": "refs/tags/v0.6.2",
+        "ref": "refs/tags/v0.9.1",
         "type": "git",
         "url": "https://github.com/Bullish-Design/gitman"
       }
