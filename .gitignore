@@ -17,9 +17,8 @@ __pycache__/
 # Claude Code local-only settings (skills under .claude/skills/ are tracked)
 .claude/settings.local.json
 
-# Testee run artifacts (the verify manager; testee.toml + nix/testee.nix are tracked)
-.testee/runs/
-.testee/last-run
+# Testee verification artifacts (the verify manager; testee.toml + nix/testee.nix are tracked)
+.testee/
 
 # Generated consumer source-grounding map (global clones live under ~/vendor)
 /.vendomat/
