@@ -11,7 +11,7 @@
 # files and the worktree changes, and excludes ignored state.
 #
 # repoman comes from its published tag: the fixture must not need a sibling checkout
-# to run, and v0.7.5 is the first release carrying `repoman.cliProvider`.
+# to run, and the shared command closure is delivered by Vendomat.
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling

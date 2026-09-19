@@ -54,15 +54,12 @@ MANAGERS = ("repoman", "copyroom", "gitman", "docman", "testee", "pyjutsu")
 @needs_e2e
 def test_the_consumer_resolves_its_commands_from_the_nix_store():
     result = _in_shell(
-        'echo "PROVIDER=$REPOMAN_CLI_PROVIDER"; '
         'echo "BIN=$REPOMAN_TOOLCHAIN_BIN"; '
         'echo "REPOMAN=$(command -v repoman)"; '
         'echo "COPYROOM=$(command -v copyroom)"'
     )
     assert result.returncode == 0, result.stderr
     out = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line and not line.startswith(" "))
-    # Vendomat's module set repoman's provider; the two layers agree.
-    assert out["PROVIDER"] == "store"
     assert out["BIN"].startswith("/nix/store/")
     for command in ("REPOMAN", "COPYROOM"):
         assert out[command].startswith("/nix/store/"), f"{command} resolved to {out[command]}"

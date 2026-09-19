@@ -62,12 +62,10 @@ def test_module_gives_tasks_an_absolute_bin_dir_not_a_path_lookup():
     assert 'env.REPOMAN_TOOLCHAIN_BIN = "${toolchain}/bin";' in text
 
 
-def test_module_sets_the_repoman_provider_only_when_repoman_is_present():
-    # A consumer may import vendomat without repoman; a definition for an undeclared
-    # option fails a strict full-config eval.
+def test_module_does_not_set_a_repoman_provider_option():
+    # RepoMan owns its provider surface; Vendomat only exports the store closure.
     text = MODULE.read_text()
-    assert "lib.optionalAttrs (options ? repoman)" in text
-    assert 'repoman.cliProvider = "store";' in text
+    assert "repoman.cliProvider" not in text
 
 
 def test_module_keeps_the_toolchain_off_the_shell_entry_path():
@@ -192,17 +190,12 @@ def test_editable_mode_delivers_no_package():
     assert '(lib.mkIf (toolchainEnable && toolchainMode == "store") (lib.mkMerge [' in text
 
 
-def test_editable_mode_names_the_venv_provider():
-    # It used to leave repoman.cliProvider alone, which was correct while that option
-    # defaulted to "venv". repoman 0.7.6 moved the default to "store", so leaving it
-    # alone would put a tagged build ahead of the tool author's own checkout — the one
-    # thing editable mode exists to prevent. It must NAME the provider it wants.
+def test_editable_mode_does_not_deliver_a_repo_provider():
+    # Editable mode is for tool development. It contributes no closure and does not
+    # write options owned by RepoMan.
     text = MODULE.read_text()
-    assert '(lib.mkIf (toolchainEnable && toolchainMode == "editable") (' in text
-    block = text.split('toolchainMode == "editable"')[2]
-    assert 'repoman.cliProvider = "venv";' in block
-    # Same guard as the store branch: a consumer may import vendomat without repoman.
-    assert "options ? repoman" in block.split("repoman.cliProvider")[0]
+    assert '(lib.mkIf (toolchainEnable && toolchainMode == "editable") (' not in text
+    assert "repoman.cliProvider" not in text
 
 
 def test_module_resolves_settings_from_the_repository_manifest():
@@ -224,13 +217,11 @@ def test_module_resolves_the_store_paths_from_the_machine_manifest():
     assert 'inputs.vendomat.packages.${system}."repoman-toolchain-${toolchainRoster}"' in text
 
 
-def test_the_venv_escape_hatch_is_documented_as_short_lived():
-    # `enable = false` returns a consumer to the machine venv. It stays available during
-    # migration, but it must not read as an equal alternative to editable mode.
+def test_disabling_the_toolchain_is_documented_as_omitting_the_closure():
+    # `enable = false` omits the shared closure; it does not select a second provider.
     text = MODULE.read_text()
     block = text.split("toolchain = {")[1].split("mode = lib.mkOption")[0]
-    assert "escape hatch" in block
-    assert "short-lived" in block
+    assert "omits the shared command closure" in block
 
 
 @needs_nix

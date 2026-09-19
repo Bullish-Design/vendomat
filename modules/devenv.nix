@@ -36,7 +36,7 @@
 #   [knowledge]           Face B — per-dependency knowledge skills
 #   enable = false
 #   skillsDir = ".claude/skills"
-{ pkgs, lib, config, options, inputs, ... }:
+{ pkgs, lib, config, inputs, ... }:
 
 let
   # --- the machine closure -------------------------------------------------
@@ -195,7 +195,7 @@ in
 
     # Face D — deliver the shared command closure. Namespaced under `vendor` rather
     # than `repoman` because Vendomat may not assume RepoMan's module is present;
-    # when it IS present, store mode sets `repoman.cliProvider = "store"` below.
+    # when it IS present, store mode exports REPOMAN_TOOLCHAIN_BIN for RepoMan.
     toolchain = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -204,10 +204,8 @@ in
           Deliver the shared RepoMan command closure. ON by default: importing Vendomat
           IS the opt-in (CONCEPT 03 §6, phase 4).
 
-          Setting this false is the venv escape hatch — the consumer falls back to the
-          machine toolchain venv and `repoman-sync --machine`. It is documented as
-          short-lived. To develop a tool in its own repo, use `mode = "editable"`
-          instead; that is a supported mode, not an escape.
+          Setting this false omits the shared command closure. To develop a tool in its
+          own repo, use `mode = "editable"` instead; that is a supported mode.
         '';
       };
 
@@ -360,30 +358,7 @@ in
         '';
       }
 
-      # Tell RepoMan to resolve manager commands from the closure. Guarded on the option
-      # EXISTING: a consumer may import vendomat without repoman, and a definition for an
-      # undeclared option fails a strict full-config eval.
-      (lib.optionalAttrs (options ? repoman) {
-        repoman.cliProvider = "store";
-      })
     ]))
-
-    # Editable mode NAMES the venv provider rather than leaving the default. It used to
-    # leave it alone, which was correct while repoman.cliProvider defaulted to "venv".
-    # repoman 0.7.6 moved that default to "store" (devman 023-toolchain phase 5, step 3),
-    # so "alone" now means the closure — and a tagged `gitman` ahead of gitman's own
-    # checkout on PATH is exactly what editable mode exists to prevent. MEASURED: with
-    # the default flipped and this line absent, repoman's own devenv reported
-    # `cliProvider is "store" but REPOMAN_TOOLCHAIN_BIN is unset` and had no gitman.
-    #
-    # Guarded on the option EXISTING, for the same reason as the store branch above: a
-    # consumer may import vendomat without repoman, and a definition for an undeclared
-    # option fails a strict full-config eval.
-    (lib.mkIf (toolchainEnable && toolchainMode == "editable") (
-      lib.optionalAttrs (options ? repoman) {
-        repoman.cliProvider = "venv";
-      }
-    ))
 
     # This is independent of Face A and Face B: a manifest is the explicit per-repository opt-in.
     # `install-hook` is a no-op failure when no manifest exists and refuses to overwrite another
