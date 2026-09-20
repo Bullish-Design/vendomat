@@ -8,7 +8,6 @@
 
 {
   repoman.enable = true;
-  repoman.managers = [ "copy" ];
 
   # Face D. `enable` already defaults to true once vendomat is imported (sub-phase 4);
   # stated here because a fixture should not rely on a default it exists to verify.

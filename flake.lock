@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "agentman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789928595,
+        "narHash": "sha256-YsCtWqZFFJLLEXbANi8oUx4JDKYIkRVg0dNqKNxEQ7A=",
+        "ref": "refs/tags/v0.0.2",
+        "rev": "4870686dbddf26653d9e9db13bc1babcf73271a6",
+        "revCount": 54,
+        "type": "git",
+        "url": "ssh://git@github.com/Bullish-Design/agentman.git"
+      },
+      "original": {
+        "ref": "refs/tags/v0.0.2",
+        "type": "git",
+        "url": "ssh://git@github.com/Bullish-Design/agentman.git"
+      }
+    },
     "copyroom": {
       "flake": false,
       "locked": {
@@ -203,6 +220,7 @@
     },
     "root": {
       "inputs": {
+        "agentman": "agentman",
         "copyroom": "copyroom",
         "devman": "devman",
         "docman": "docman",

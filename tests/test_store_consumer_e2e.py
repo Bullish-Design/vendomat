@@ -36,7 +36,7 @@ needs_e2e = pytest.mark.skipif(
 def _in_shell(script: str) -> subprocess.CompletedProcess:
     """Run `script` inside the fixture's devenv shell."""
     return subprocess.run(
-        ["devenv", "shell", "--", "bash", "-c", script],
+        ["devenv", "shell", "--clean", "--", "bash", "-c", script],
         cwd=FIXTURE,
         capture_output=True,
         text=True,
@@ -48,7 +48,7 @@ def _venv() -> Path:
     return FIXTURE / ".devenv" / "state" / "venv"
 
 
-MANAGERS = ("repoman", "copyroom", "gitman", "docman", "testee", "pyjutsu")
+MANAGERS = ("repoman", "copyroom", "gitman", "docman", "agentman", "testee", "pyjutsu")
 
 
 @needs_e2e
@@ -56,12 +56,13 @@ def test_the_consumer_resolves_its_commands_from_the_nix_store():
     result = _in_shell(
         'echo "BIN=$REPOMAN_TOOLCHAIN_BIN"; '
         'echo "REPOMAN=$(command -v repoman)"; '
-        'echo "COPYROOM=$(command -v copyroom)"'
+        'echo "COPYROOM=$(command -v copyroom)"; '
+        'echo "AGENTMAN=$(command -v agentman)"'
     )
     assert result.returncode == 0, result.stderr
     out = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line and not line.startswith(" "))
     assert out["BIN"].startswith("/nix/store/")
-    for command in ("REPOMAN", "COPYROOM"):
+    for command in ("REPOMAN", "COPYROOM", "AGENTMAN"):
         assert out[command].startswith("/nix/store/"), f"{command} resolved to {out[command]}"
 
 

@@ -63,6 +63,13 @@
       url = "git+https://github.com/Bullish-Design/templateer_v2?ref=refs/tags/v0.4.1";
       flake = false;
     };
+    # Agentman is pinned to its published release tag, matching every other
+    # roster entry. v0.0.2 carries the Gate B daemon boundaries and the machine
+    # database schema bootstrap.
+    agentman = {
+      url = "git+ssh://git@github.com/Bullish-Design/agentman.git?ref=refs/tags/v0.0.2";
+      flake = false;
+    };
     # The machine plane consumes the canonical Devman packages. This input is
     # pinned in this flake lock, so plane updates do not use a working-tree or PATH binary.
     devman = {
@@ -194,6 +201,7 @@
           docman-uv2nix-cli = mkUv2nixCli { pname = "docman"; src = inputs.docman; };
           gitman-uv2nix-cli = mkUv2nixCli { pname = "gitman"; src = inputs.gitman; };
           templateer-uv2nix-cli = mkUv2nixCli { pname = "templateer"; src = inputs.templateer; };
+          agentman-uv2nix-cli = mkUv2nixCli { pname = "agentman"; src = inputs.agentman; };
 
           toolchain = mkToolchain {
             name = "core";
@@ -203,6 +211,7 @@
               docman = docman-uv2nix-cli;
               gitman = gitman-uv2nix-cli;
               templateer = templateer-uv2nix-cli;
+              agentman = agentman-uv2nix-cli;
             };
           };
           devman-dagu = pkgs.callPackage "${inputs.devman}/nix/dagu.nix" { };
@@ -278,6 +287,7 @@
           docman = docman-uv2nix-cli;
           gitman = gitman-uv2nix-cli;
           templateer = templateer-uv2nix-cli;
+          agentman = agentman-uv2nix-cli;
           templateer-uv2nix = templateer-uv2nix-cli;
           pyjutsu = pyjutsu-package;
           # The composed closure the devenv module puts on PATH.
