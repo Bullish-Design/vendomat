@@ -54,6 +54,9 @@ def test_every_first_party_input_is_pinned_to_a_tag():
         locked = node.get("locked", {})
         if locked.get("type") != "git":
             continue  # github: inputs (nixpkgs) pin a rev directly
+        if name == "agentman":
+            assert locked.get("rev") == "a35859e4d32964ce6cf2c05a4093e0b5b2e67c17"
+            continue  # Gate B is pinned to its published commit until the next release tag.
         ref = locked.get("ref", "")
         assert ref.startswith("refs/tags/"), f"input {name!r} is pinned to {ref!r}, not a release tag"
         assert locked.get("rev"), f"input {name!r} has no locked rev"
@@ -64,6 +67,6 @@ def test_the_roster_inputs_match_the_packages_they_build():
     # without its own input, it would silently build from whatever else is in scope.
     flake = (ROOT / "flake.nix").read_text()
     lock = json.loads((ROOT / "flake.lock").read_text())
-    for tool in ("repoman", "copyroom", "docman", "gitman"):
+    for tool in ("repoman", "copyroom", "docman", "gitman", "agentman"):
         assert tool in lock["nodes"], f"roster tool {tool!r} has no locked input"
         assert f"src = inputs.{tool};" in flake, f"roster tool {tool!r} does not build from its input"

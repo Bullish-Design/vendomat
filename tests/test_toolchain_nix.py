@@ -114,7 +114,7 @@ def test_the_core_roster_builds_and_reports_its_provenance():
     manifest = json.loads((closure / "share" / "vendomat" / "toolchain.json").read_text())
     assert manifest["roster"] == "core"
     assert manifest["python"] == "3.13"
-    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman", "templateer"}
+    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman", "templateer", "agentman"}
     for tool in manifest["tools"].values():
         # Acceptance: two consumers with identical locks resolve to the SAME store paths,
         # which is only meaningful if the manifest names them.
@@ -126,7 +126,7 @@ def test_every_roster_command_resolves_into_the_nix_store():
     out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     # buildPythonApplication leaves `.<name>-wrapped` siblings; only the real commands
     # are on PATH, so only they can collide.
-    expected = {"copyroom", "docman", "gitman", "repoman", "templateer"}
+    expected = {"copyroom", "docman", "gitman", "repoman", "templateer", "agentman"}
     binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if p.name in expected)
     # `demo` is copyroom's second console script. It is a generic name and no part of the
     # manager contract; left in, it would be the roster's first collision.
@@ -249,7 +249,7 @@ def test_templateer_uses_uv_lock_and_no_other_tool_does():
 
 
 @needs_nix
-@pytest.mark.parametrize("tool", ["repoman", "copyroom", "docman", "gitman", "templateer"])
+@pytest.mark.parametrize("tool", ["repoman", "copyroom", "docman", "gitman", "templateer", "agentman"])
 def test_uv2nix_closure_matches_each_tool_lockfile(tool: str):
     # Check every lockfile package that appears in the runtime closure. Dev-only packages
     # do not appear in the closure and are intentionally skipped by this boundary check.
@@ -257,6 +257,10 @@ def test_uv2nix_closure_matches_each_tool_lockfile(tool: str):
     out = _nix("build", f".#{tool}", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     closure = _nix("path-info", "-r", out).stdout.splitlines()
     for name, version in versions.items():
+        if tool == "agentman" and name == "tzdata":
+            # tzdata is Windows-only in agentman's uv lock but is also supplied by
+            # the Nix Python runtime on Linux; the runtime copy is not uv2nix output.
+            continue
         variants = {name, name.replace("-", "_"), name.replace("_", "-")}
         matching = [path for path in closure if any(f"-{variant}-" in path for variant in variants)]
         if matching:
