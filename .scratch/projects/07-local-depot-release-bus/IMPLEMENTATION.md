@@ -1,6 +1,6 @@
 # Implementation guide: the local depot and the release bus
 
-**Status:** PLANNED — ready to execute. No step has been run.
+**Status:** IN PROGRESS — Phase A execution started on 2026-09-29.
 **Filed:** 2026-09-28
 **Area:** machine layout (`nix-meta`), `devman` workflows, every repo's `gitman.toml`
 **Host:** `server` (Dell Precision 5820, Xeon W-2125, 128 GB RAM)
@@ -178,56 +178,44 @@ Depot layout:
 
 ## 5. The dependency graph
 
-Derived by grepping each `flake.nix` for `Bullish-Design/*`. **31 edges, 5 levels,
-`nix-meta` is the sink.** Phase D must derive this programmatically, not copy it.
+Measured on 2026-09-29. Strip Nix comments before reading flake.nix. The
+current graph has **24 repos and 28 edges**. Phase D must derive the edges from
+the flakes. Do not copy an old hand-written edge list.
 
-```
-loci.nvim    -> loci-core
-nix-nvim     -> loci.nvim
-nix-terminal -> devman, nixbuild, nix-nvim, repoman, zelligate
-pytuin       -> atuout
-vendomat     -> agentman, copyroom, devman, docman, gitman, Pyjutsu,
-                repoman, templateer_v2
-nix-meta     -> argentic, atuout, devman, inferference, nixos-core, nix-paseo,
-                nix-secrets, nix-terminal, pytuin, repoman, shellij,
-                silverbullet-server, structured-agents-v2, vendomat, zelligate
-```
+The current DAG roster is:
 
-Levels:
+    agentman  argentic  atuout  copyroom  devman  docman  fornix  gitman
+    inferference  loci-core  loci.nvim  nixbuild  nix-meta  nix-nvim  nix-paseo
+    nix-secrets  nix-terminal  nixos-core  pyjutsu  pytuin  repoman
+    silverbullet-server  templateer_v2  vendomat
 
-```
-L0  agentman copyroom devman docman gitman Pyjutsu repoman templateer_v2
-    loci-core nixbuild zelligate atuout argentic inferference nixos-core
-    nix-paseo nix-secrets silverbullet-server structured-agents-v2 shellij
-L1  vendomat (8 deps)      loci.nvim        pytuin
-L2  nix-nvim
-L3  nix-terminal (5 deps)
-L4  nix-meta (16 deps)  <- sink
-```
+Fornix is consumed at nix-meta/flake.nix:167 as
+path:/home/andrew/Documents/Projects/fornix/nix/fornix-host. Its consumed
+flake is a subdirectory; the repo has no root flake.nix.
 
-Highest fan-out: **devman and repoman, 3 direct dependents each.**
+The earlier 2026-09-28 inventory was wrong. Shellij and
+structured-agents-v2 are commented out in nix-meta. Zelligate is
+commented out in both nix-meta and nix-terminal. Nixvim appears only in a
+retirement comment. Nix-meta has 13 direct Bullish-Design edges.
+Nix-terminal has 4.
 
-Longest chain: `loci-core -> loci.nvim -> nix-nvim -> nix-terminal -> nix-meta`.
+**Every repo in the 24-repo graph is inside nix-meta's transitive closure.**
+That is why decision 3 in section 0 applies to all of them.
 
-Reference chain, done by hand on 2026-09-28 and usable as the Phase D answer key:
-`agentman v0.0.2 -> vendomat v0.4.4 -> nix-meta 93fadde`.
-
-**Every repo in the DAG is inside `nix-meta`'s transitive closure. Zero
-exceptions.** That is why decision 3 in section 0 applies to all of them.
+Reference chain, done by hand on 2026-09-28 and usable as the Phase D answer
+key: agentman v0.0.2 -> vendomat v0.4.4 -> nix-meta 93fadde.
 
 ### Two simplifications that remove the hard parts
 
-1. **The bus recurses through the hook.** When the bus lands `vendomat` and pushes
-   it to `/srv/git/vendomat.git`, that push fires vendomat's own `post-receive`,
+1. **The bus recurses through the hook.** When the bus lands vendomat and pushes
+   it to /srv/git/vendomat.git, that push fires vendomat's own post-receive,
    which enqueues vendomat's dependents. You need a one-hop "who depends on X"
    lookup, **not a topological sort**. Correct order emerges from hook plus a
    concurrency-1 queue.
-2. **The bump is idempotent.** `devman` reaches `nix-meta` by three paths, so
-   `nix-meta` gets enqueued three times. If the pin already reads the target
+2. **The bump is idempotent.** Devman reaches nix-meta by three paths, so
+   nix-meta gets enqueued three times. If the pin already reads the target
    version, exit 0 and do nothing. Diamonds resolve themselves with no scheduler
    logic.
-
----
 
 ## PHASE 0 — restic (no downtime, no risk, do first)
 
@@ -262,60 +250,72 @@ restore has actually been performed.
 **This is the highest-value work on the list and it blocks Phase D.** The bus
 must never propagate a change that has not passed a gate.
 
-**Scope is smaller than it looks.** All 26 DAG repos already carry a
-`gitman.toml`. Almost every one is a single line:
+**Measured scope (2026-09-29).** The DAG has 24 repos. All 24 already carry a
+gitman.toml. Eleven files have an inert top-level verify; move those keys
+under [publish]. Eleven repos already have a working gate. Fornix has no
+gate. The owner chose to keep the nix-secrets omission for Phase A.
 
-```toml
-trunk = "main"
-```
+The DAG repos are:
 
-So the work is **adding a `verify` key to 24 existing files**, not creating them.
-`gitman` (`["pytest","-q"]`) and `repoman`
-(`["devenv","shell","testee","verify","--mode","ci"]`) are already done.
+    agentman  argentic  atuout  copyroom  devman  docman  fornix  gitman
+    inferference  loci-core  loci.nvim  nixbuild  nix-meta  nix-nvim  nix-paseo
+    nix-secrets  nix-terminal  nixos-core  pyjutsu  pytuin  repoman
+    silverbullet-server  templateer_v2  vendomat
 
-The 26 DAG repos, from section 5:
+Pyjutsu is lowercase on disk; the flake input uses Pyjutsu.
+Nix-meta, nix-terminal, nixos-core, and silverbullet-server have no
+devenv.nix, so they take the Nix gate below.
 
-```
-agentman  argentic  atuout  copyroom  devman  docman  gitman  inferference
-loci-core  loci.nvim  nixbuild  nix-meta  nix-nvim  nix-paseo  nix-secrets
-nix-terminal  nixos-core  pyjutsu  pytuin  repoman  shellij
-silverbullet-server  structured-agents-v2  templateer_v2  vendomat  zelligate
-```
+**Nix-secrets decision (2026-09-29).** Keep its gate omitted for Phase A.
+Inspection showed that its module declares SOPS settings and that decryption
+happens at activation. nix flake check --no-build evaluates the flake and
+does not decrypt secrets/. The omission is a scope decision, not a safety
+limit. Revisit it before Phase D.
 
-Note `pyjutsu` is lowercase on disk; the flake input names it `Pyjutsu`.
-`nix-meta`, `nix-terminal`, `nixos-core`, and `silverbullet-server` have no
-`devenv.nix`, so they take the Nix gate below, not the testee one.
+**Fornix gate.** Use the Testee gate below. The flake consumed by nix-meta
+is nix/fornix-host. Consider a second gate for that subdirectory. Phase A
+does not add it.
 
-Python repos (`agentman`, `copyroom`, `devman`, `docman`, `templateer_v2`,
-`vendomat`, `Pyjutsu`, `atuout`, `pytuin`, ...):
+Python repos (agentman, copyroom, devman, docman, fornix,
+templateer_v2, vendomat, pyjutsu, atuout, pytuin, ...):
 
-```toml
-verify = ["devenv", "shell", "testee", "verify", "--mode", "ci"]
-verify_timeout = 1800
-```
+    verify = ["devenv", "shell", "testee", "verify", "--mode", "ci"]
+    verify_timeout = 1800
 
-Nix repos (`nixos-core`, `nix-terminal`, `nix-nvim`, `nixbuild`, `nix-paseo`):
+Nix repos (nixos-core, nix-terminal, nix-nvim, nixbuild, nix-paseo):
 
-```toml
-verify = ["nix", "flake", "check", "--no-build"]
-verify_timeout = 1800
-```
+    verify = ["nix", "flake", "check", "--no-build"]
+    verify_timeout = 1800
 
-`nix-meta` — the gate is evaluation of the real machine, which is the check that
-was run by hand before landing `93fadde`:
+Nix-meta — the gate is evaluation of the real machine, which is the check that
+was run by hand before landing 93fadde:
 
-```toml
-verify = ["bash", "-c", "nix flake check --no-build && nix eval --raw .#nixosConfigurations.server.config.system.build.toplevel.drvPath > /dev/null"]
-verify_timeout = 3600
-```
+    verify = ["bash", "-c", "nix flake check --no-build && nix eval --raw .#nixosConfigurations.server.config.system.build.toplevel.drvPath > /dev/null"]
+    verify_timeout = 3600
 
-**Also in this phase:** land and push the **28 repos with dirty or unpushed work**.
+**Also in this phase:** land and push the 28 repos with dirty or unpushed work.
 That list is the gate for Phase B and for the Phase E migration.
 
-**Gate:** every DAG repo has a `gitman.toml`, and `gitman status` is CANONICAL
-with zero dirty trees across all 72.
+**Gate:** every DAG repo has a gitman.toml; every DAG repo except the
+intentional nix-secrets omission has a working publish.verify; gitman
+status is CANONICAL with zero dirty trees across all 71 Gitman-managed repos.
 
----
+### Phase A gate evidence
+
+The Phase A config lanes proved their gate values with Gitman's config loader.
+The gates were installed, not exercised. The lanes used gitman land and gitman
+push. Neither command runs verify. Phase A did not run gitman publish.
+
+Argentic's recorded failure is in
+argentic/.scratch/projects/017-argentic-ci-gate-failures/issue.md.
+Vendomat's failure is in
+.scratch/projects/08-vendomat-ci-gate-failures/issue.md.
+Loci Core's failure is in
+loci-core/.scratch/projects/001-loci-core-ci-gate-failures/issue.md.
+
+No artifact exists on disk for shellij, templateer_v2, or
+structured-agents-v2. Their reported failures are unconfirmed. Do not call
+these gates green.
 
 ## PHASE B — the depot, initially on the 512 GB NVMe
 
