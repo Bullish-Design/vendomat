@@ -1,6 +1,6 @@
 # Vendomat: a NixOS and devenv development system
 
-> Architecture concept, 2026-10-03. This describes a new system for personal NixOS machines.
+> Architecture decision, 2026-10-03. This describes a new system for personal NixOS machines.
 
 ## The idea
 
@@ -28,6 +28,26 @@ Other applications remain welcome. NixOS or devenv installs, configures, and inv
 
 The system targets one person's NixOS machines. It does not need a public package registry or support for machines without Nix.
 This is a new architecture. The existing vendomat implementation does not define its feature set.
+
+## Decision and scope
+
+The first layer builds, checks, caches, and consumes software across the owner's NixOS machines.
+Its stable interfaces are Nix package outputs, devenv tasks, and ordinary commands.
+
+A later capability layer may combine those commands into human-facing workflows such as Review or Debug.
+It may expose one action through several interfaces and supply context to that action at runtime.
+This layer builds on the package path below. It does not replace package pins, Nix builds, or cache delivery.
+
+Start with one complete action implemented as a command and called from two interfaces.
+Add a general manifest, resolver, or generator only when several working actions reveal a repeated need
+that Nix and devenv configuration cannot express clearly.
+Until then, each repository's Nix and devenv files remain the source of truth.
+
+This keeps package sharing useful without the capability layer. The first action may need two small,
+hand-written interface adapters. That duplication is acceptable while the shared contract is still unknown.
+
+The [project concept](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/CONCEPT.md) expands this decision.
+The [implementation guide](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/IMPLEMENTATION_GUIDE.md) orders its proofs.
 
 ## What each part owns
 
@@ -93,7 +113,7 @@ Vendomat itself is a repository that exposes:
 - a NixOS module for cache clients and the cache host;
 - small Nix functions for package patterns that recur;
 - small scripts for build reports, cache publication, and diagnostics;
-- examples that show how a library, application, and consumer use those interfaces.
+- examples that show how a library, Nix application, and consumer use those interfaces.
 
 Vendomat does not keep a second list of every repository or package version.
 Each consumer names and pins the packages it uses. Each package repository owns its build recipe.
@@ -129,8 +149,8 @@ After a successful build, an explicit task uploads the selected store output:
 
 ```text
 devenv tasks run cache:push
-    → reject uncommitted source changes
     → identify the source revision available from the source remote
+    → reject source content that differs from that revision
     → run required checks and build the selected output
     → push that store path to Attic
     → report the package revision, store path, and cache destination
@@ -197,6 +217,43 @@ vendomat = {
 
 The final module should stay small enough that a user can inspect the actual Nix build and cache command.
 
+## Optional capability layer
+
+This layer gives a shared name to an operation that a person can invoke from several places.
+It does not introduce a second package system. The terms have distinct meanings:
+
+| Term | Meaning |
+| --- | --- |
+| Nix package | A build output that another NixOS machine can select and obtain. |
+| Capability component | A small command, context provider, or interface adapter. Nix or devenv supplies its tools. |
+| Workflow | A human-facing composition of components, such as Review or Debug. |
+| Action | A named operation with typed input and output, such as `code.review`. |
+| Context bundle | Typed runtime information an action requests, with its source and freshness recorded. |
+| Surface | A CLI, Atuin skill, Neovim command, or other interface that invokes an action. |
+
+An action has one implementation path. Its command accepts a defined input and returns a defined result.
+A surface translates user input into that command and displays the result. It does not repeat the action logic.
+Context providers assemble current files, diffs, history, or notes when the action runs.
+Generated summaries identify the facts and source snapshot that produced them.
+
+The first proof is `code.review`:
+
+```text
+Neovim command ─┐
+                ├─→ code.review command → structured findings
+Atuin skill ────┘           ↑
+                     runtime context
+```
+
+Build the review command as a Nix package when it is reusable. Declare its tools and local tasks
+through devenv. Write thin Neovim and Atuin adapters that call the same command.
+Check that both adapters receive the same findings for the same input.
+
+This proof needs no `vendomat.yaml`, global action registry, or generated keymap system.
+If several actions repeat the same contract and adapter configuration, consider one small schema.
+Generate native configuration from that schema only after the repeated shape is clear.
+Generated files must stay inspectable and pass the native Nix, devenv, or application checks.
+
 ## Local context and interaction
 
 The development system also helps a person and their agents find project information.
@@ -210,9 +267,11 @@ tree snapshot it read, so a caller can detect stale output. It replaces generate
 Atuin records shell history and supports AI skills and agent sessions when enabled.
 Its skills call the same CLI tools and devenv tasks that a person uses. Captured command output is
 optional and local, so it is useful context rather than the system's authoritative record.
+An Atuin adapter for an action calls its command and passes only the context that action needs.
 
 Neovim stays thin. It starts tasks and shows their results through terminal buffers, quickfix lists,
 and small Lua commands. It does not own build, cache, or context logic.
+A Neovim adapter for an action maps editor input to the same command used by other surfaces.
 
 ## Mutable state and parallel work
 
@@ -236,7 +295,8 @@ publication. Stronger process isolation can use NixOS tools when a concrete work
 5. Keep a package revision in the consumer's lock file, not in a global registry.
 6. Keep mutable state outside the Nix store.
 7. Make publication explicit and report exactly what it published.
-8. Let every interface call the same task or package output.
+8. Let every interface call the same task or action command.
+9. Add a capability declaration only after a working action shows what it must express.
 
 These rules allow scripts and other applications. They require NixOS or devenv to provide and
 configure those applications. A script earns a place in Vendomat when several repositories need
@@ -247,6 +307,8 @@ the same behavior or when one action has failure rules that a task definition ca
 The first system does not need automatic watchers, a fleet scheduler, a dedicated context service,
 a sandbox manager, a graph database, embeddings, or prompt optimization. It also does not need a
 public package index. Those features can be added behind the existing package and task interfaces.
+A general capability manifest, dependency resolver, template compiler, and interface generator also wait
+for evidence from working actions. The first `code.review` proof uses ordinary files and commands.
 
 ## A complete example
 
