@@ -3,8 +3,8 @@
 # End-to-end fixture for Face D (CONCEPT 03 §7): a real consumer devenv that takes its
 # manager commands from the shared Nix closure.
 #
-# Vendomat is pinned to the published Gate B commit, so this consumer exercises the
-# machine-installable closure rather than the current checkout's devenv state.
+# Vendomat is pinned to the Agentman-capable source commit, so this consumer
+# exercises the machine-installable closure rather than the checkout's devenv state.
 #
 # repoman comes from its published tag: the fixture must not need a sibling checkout
 # to run, and the shared command closure is delivered by Vendomat.
@@ -18,7 +18,7 @@ inputs:
       nixpkgs:
         follows: nixpkgs
   vendomat:
-    url: "git+ssh://git@github.com/Bullish-Design/vendomat.git?rev=fd49ef55e571ff2471c6776a82507f95c70efd4a"
+    url: "git+ssh://git@github.com/Bullish-Design/vendomat.git?rev=bd26fea8a2124bb4b1bbd8721418d831b4c2bf13"
   repoman:
     url: "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.9.1&dir=modules"
     flake: false
