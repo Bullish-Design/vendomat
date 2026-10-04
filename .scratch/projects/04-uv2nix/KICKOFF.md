@@ -86,14 +86,14 @@ at `.gitignore:12` in templateer_v2/copyroom/docman and `.gitignore:16` in gitma
 So unblocking templateer is: un-ignore `uv.lock`, commit it, cut a tag, bump the
 vendomat input.
 
-**Check first whether `.gitignore` is template-managed.** These repos carry the
-`my-ai` copyroom layer (`copyroom layer list`). If the template owns `.gitignore`,
-edit the template — otherwise the next `copyroom update` reverts all four.
+**Check first whether `.gitignore` is template-managed.** Run `copyroom layer list`
+to identify its owner. If a template owns `.gitignore`, edit that template so the
+next `copyroom update` keeps the change.
 
 ## Do this
 
-1. Confirm whether `.gitignore` is managed by the `my-ai` layer. Fix at the right
-   level.
+1. Confirm whether a CopyRoom layer manages `.gitignore`. Make the change in that
+   layer's owner.
 2. In `templateer_v2`: un-ignore `uv.lock`, commit it, cut a tag (0.4.1).
 3. In vendomat: add the uv2nix inputs and build templateer's interpreter from
    `uv.lock` instead of `pkgs/templateer-deps.nix`. Put it behind a flag or a
