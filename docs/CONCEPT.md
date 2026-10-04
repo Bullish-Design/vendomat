@@ -1,336 +1,154 @@
-# Vendomat: a NixOS and devenv development system
+# Vendomat: one source store for personal NixOS machines
 
-> Architecture decision, 2026-10-03. This describes a new system for personal NixOS machines.
+> Architecture decision, 2026-10-04. This describes a greenfield system for one owner's NixOS machines.
 
-## The idea
+## Purpose
 
-Vendomat makes a collection of personal repositories work together as one development system.
-NixOS configures each machine. Each repository declares its own development environment and build outputs.
-Vendomat supplies shared Nix modules, devenv tasks, and small commands that connect those parts.
-
-The main workflow is:
+Vendomat keeps one durable local store of the available source code for software the owner uses.
+One build host builds selected packages from that store and publishes Nix outputs to Attic.
+Other NixOS machines select package revisions in their locks and obtain outputs from Attic.
 
 ```text
-edit a repository
-    ↓
-devenv provides its tools and tasks
-    ↓
-Nix builds a package from pinned source
-    ↓
-Vendomat pushes the store output to a cache on the tailnet
-    ↓
-another NixOS machine selects that package and downloads the output
+NixOS and project locks → one source store → build host → Attic → NixOS consumers
 ```
 
-Vendomat is an orchestration layer, not a required background service or a second package manager.
-Its interface is mostly Nix configuration and devenv tasks. Small scripts implement actions that configuration cannot perform alone.
-Other applications remain welcome. NixOS or devenv installs, configures, and invokes them.
+The source store retains source inputs. Attic distributes built outputs.
+A successful cache download does not show that source was retained.
+The source store, build host, and Attic may run on the same NixOS machine.
+Consumers may hold temporary Nix copies, but they do not run separate vendor stores.
 
-The system targets one person's NixOS machines. It does not need a public package registry or support for machines without Nix.
-This is a new architecture. The existing vendomat implementation does not define its feature set.
+The first scope is Nix-managed software selected by the owner's machine and project locks.
+Vendomat records source it cannot obtain. Binary-only software, unavailable source, and software
+installed outside Nix remain visible gaps. Later work may cover other installation methods.
 
-## Decision and scope
+The existing Vendomat implementation does not define the rewrite's interfaces.
+The [project concept](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/CONCEPT.md) gives the detailed contract.
+The [implementation guide](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/IMPLEMENTATION_GUIDE.md) orders the proofs.
 
-The first layer builds, checks, caches, and consumes software across the owner's NixOS machines.
-Its stable interfaces are Nix package outputs, devenv tasks, and ordinary commands.
-
-A later capability layer may combine those commands into human-facing workflows such as Review or Debug.
-It may expose one action through several interfaces and supply context to that action at runtime.
-This layer builds on the package path below. It does not replace package pins, Nix builds, or cache delivery.
-
-Start with one complete action implemented as a command and called from two interfaces.
-Add a general manifest, resolver, or generator only when several working actions reveal a repeated need
-that Nix and devenv configuration cannot express clearly.
-Until then, each repository's Nix and devenv files remain the source of truth.
-
-This keeps package sharing useful without the capability layer. The first action may need two small,
-hand-written interface adapters. That duplication is acceptable while the shared contract is still unknown.
-
-The [project concept](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/CONCEPT.md) expands this decision.
-The [implementation guide](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/IMPLEMENTATION_GUIDE.md) orders its proofs.
-
-## What each part owns
+## Ownership
 
 | Part | Responsibility |
 | --- | --- |
-| NixOS | Machine packages, Nix settings, services, tailnet access, cache client or server, and durable service state. |
-| Nix | Package recipes, pinned inputs, build outputs, and store paths. |
-| devenv | Repository tools, local services, tasks, checks, and reusable development configuration. |
-| Vendomat | Shared modules and commands for common package, cache, and project workflows. |
-| Git/Jujutsu | Source code, package revisions, and human-authored project history. |
-| Atuin | Command recall, captured interactions, and reusable AI skills. |
-| Neovim | Editing and a thin interface to repository commands. |
-| Files/SQLite | Mutable local context when a repository needs it. |
+| NixOS | Configure the source host, build host, Attic, tailnet access, Nix clients, storage, and backups. |
+| Source repositories | Own source history and package recipes. Publish immutable revisions for the source store to acquire. |
+| Consumer flakes | Select packages and their effective input graph in a reviewed `flake.lock`. |
+| Nix | Evaluate recipes, build derivations, and identify source and output store paths. |
+| Source store | Retain exact available source snapshots after local Nix garbage collection. |
+| Attic | Serve signed Nix outputs. The consumer must reach the rest of each runtime closure. |
+| devenv | Provide optional repository tools and local tasks. |
+| Vendomat | Capture source, report coverage, and coordinate checked builds and publication when native commands leave repeated work. |
 
-NixOS declares what a machine can provide. A repository declares what it needs and what it builds.
-Vendomat connects the declarations. A task performs an action only when the user or another caller requests it.
+No Vendomat daemon, global version registry, package manager, or general NixOS module is required.
+Each consumer lock selects its package revisions. The source inventory records retained bytes;
+it does not select versions.
 
-## Three configuration levels
+## The source store
 
-### 1. Machine configuration
+The source host keeps immutable source snapshots in persistent, backed-up storage outside the
+garbage-collected Nix store. It can use Git mirrors for repositories and verified files for archives.
+Start with existing Git, file, and HTTP interfaces that Nix can fetch. A custom source protocol
+or database needs a concrete failure that ordinary files cannot solve.
 
-The NixOS configuration declares each machine's role. A workstation needs development tools and cache access.
-A cache host also runs the cache service. A build host may accept remote Nix builds later.
+For each captured source, record its original locator, exact revision or declared hash, content
+hash, local location, and capture status. Connect it to the machine or project lock that selected it.
+Record missing source and the reason it is missing. A branch, tag, or mutable URL alone is not
+an immutable source identity.
 
-Vendomat supplies a small NixOS module for common settings. It can configure the cache endpoint,
-trusted signing key, required tools, and host role. It can import the cache service's own NixOS module.
-It should expose existing NixOS options where possible instead of copying their full interfaces.
+A flake archive captures a flake and its flake inputs. It does not establish that every upstream
+archive used by package derivations is present. Installed output closures usually omit build-time
+sources. Vendomat must inspect the evaluated build graph and test the selected recipes against
+retained inputs. It must report source that it cannot identify or fetch.
 
-Tailnet routing limits access to the cache endpoint. The cache signs outputs, and NixOS trusts its public key.
-Write access needs separate credentials. NixOS supplies credentials at runtime, outside the Nix store.
-Tailnet policy and private credentials remain explicit inputs to the machine configuration.
+Retain source needed by active locks. Keep old revisions for a stated recovery period.
+Local Nix garbage collection must not delete the only copy. Test backup and restore before
+calling the source store durable. Capture succeeds only when the source hash matches its identity
+and a build can use the retained copy.
 
-### 2. Repository configuration
+The source store exposes read-only, tailnet-reachable references when consumers need source to
+evaluate flakes. A consumer must not need an upstream source repository for a revision that the
+source store claims to supply. Write access belongs to the source host's capture operation.
+NixOS configures storage, access, and backup paths. Secrets stay outside Nix store objects and
+tracked configuration files.
 
-Every repository owns its source, build recipe, and development environment:
+## Build and publish
 
-```text
-my-library/
-├── flake.nix        # package outputs for Nix consumers
-├── flake.lock       # package input revisions
-├── devenv.nix       # tools, local services, and tasks
-├── devenv.yaml      # devenv inputs and shared imports
-├── devenv.lock      # development input revisions
-├── nix/             # package recipes when they need their own files
-└── src/
-```
+A producer exposes a Nix package output and meaningful checks. Its recipe remains usable with
+direct Nix commands. Local working-tree builds remain development experiments.
 
-The flake is the stable consumption interface for a shareable package. Its outputs may include
-`packages`, `apps`, `checks`, or NixOS modules. A small project can keep its recipe in `flake.nix`.
+For publication, the build host selects an immutable source snapshot retained in the source
+store. It checks and builds from that snapshot. The report records the source identity, effective
+input graph, system, derivation, output path, and check result. The build must not silently fetch
+a different source from an upstream location.
 
-devenv provides the working environment. A repository imports only the Vendomat features it uses.
-It can define its own tasks without asking Vendomat to understand the project's language or layout.
+The consumer's top-level `flake.lock` defines its effective input graph. A consumer can override
+a producer's inputs and request a different derivation. For a standalone application, compare
+the host's and consumer's evaluated output paths before claiming Attic can serve it. Build a
+library that uses the consumer's package set from that consumer's locked graph.
 
-The package recipe has one source of truth. A devenv task calls the Nix build for that recipe.
-It does not recreate the recipe in shell code. The development lock can select tools independently
-from the package lock. A consumer's `flake.lock` selects the package revision it will use.
+After checks pass, the build host uploads the selected output to Attic. It must also make the
+needed closure available through Attic or other caches that the consumer can reach. An upload
+failure returns failure and never advances a consumer lock. Publication confirms that Attic
+serves the expected path.
 
-### 3. Shared Vendomat configuration
+Attic signs served outputs. Its signature shows that a trusted cache key accepted those bytes.
+It does not prove that an independent build would produce them. A push token therefore grants
+real trust over executable code. Give publishers narrow credentials. Back up Attic state and
+stored objects together, and keep signing state on the cache host.
 
-Vendomat itself is a repository that exposes:
+## Consume
 
-- a reusable devenv module with common tasks and tools;
-- a NixOS module for cache clients and the cache host;
-- small Nix functions for package patterns that recur;
-- small scripts for build reports, cache publication, and diagnostics;
-- examples that show how a library, Nix application, and consumer use those interfaces.
-
-Vendomat does not keep a second list of every repository or package version.
-Each consumer names and pins the packages it uses. Each package repository owns its build recipe.
-
-## Building and sharing a package
-
-### Build
-
-A project exposes a Nix package output. `nix build .#default` is the direct build interface.
-The Vendomat task calls that same build and reports the resulting store path.
-
-```text
-devenv tasks run package:build
-    → nix build the selected flake output
-    → report its store path and source revision
-```
-
-The task supplies a consistent command name. Nix supplies the build graph and store output.
-The task should not hide a second compiler path or write a package into a mutable shared directory.
-Local builds may use working tree edits. Shared use also needs a committed source revision that
-consumers can fetch. Publish that revision to its source remote before pushing its build output.
-
-Vendomat can provide reusable recipes for recurring cases, such as a Rust program or Python package.
-Projects can also use plain Nixpkgs functions or their own recipe. Reuse follows actual duplication.
-
-### Cache
-
-A cache host runs Attic on a NixOS machine and exposes it only through the tailnet.
-NixOS configures its service, storage, endpoint, and signing key. Client machines declare the
-cache URL and trusted public key through `nix.settings`.
-
-After a successful build, an explicit task uploads the selected store output:
+A consumer selects a producer revision and package output in its flake configuration.
+It reviews and commits its top-level lock, including transitive inputs. The source store supplies
+source needed for evaluation. Attic supplies bytes when the exact requested store path exists.
+The consumer can build locally only when it can obtain the needed sources and build dependencies.
 
 ```text
-devenv tasks run cache:push
-    → identify the source revision available from the source remote
-    → reject source content that differs from that revision
-    → run required checks and build the selected output
-    → push that store path to Attic
-    → report the package revision, store path, and cache destination
+consumer lock → exact source and effective inputs → requested output path
+source store → source needed to evaluate or rebuild
+Attic → trusted bytes for the requested output path
 ```
 
-The first version uses an explicit push. A later automation may call the same task.
-The cache keeps build outputs available to other machines according to its retention policy.
-Local Nix garbage collection and cache retention are separate policies.
+Changing the source store or Attic must not silently change a consumer's selected revision.
+Different architectures require distinct outputs. Cache and source retention use separate rules.
+Keep a previous NixOS generation for rollback when source or cache access fails.
 
-The cache stores Nix outputs. It is not a source repository, version catalog, Python package index,
-or backup of mutable working state. A project that needs another distribution format can add one
-without changing the Nix package path.
-For example, a Python project that installs through `uv` needs a wheel source that `uv` understands.
-An Attic cache alone cannot fill that role. Nix consumers use the Nix package output directly.
+## Declarative and operational boundary
 
-### Consume
+NixOS declares machine services, endpoints, Nix settings, and storage paths.
+Flakes declare recipes and selected inputs. devenv can declare a local task.
+Source capture, hash checks, builds, cache creation, token issuance, upload, lock updates,
+activation, backup, and restore are operations. A declaration does not prove their success.
 
-A consumer pins a package repository as a Nix flake input and selects one of its outputs.
-That consumer can be a NixOS configuration or another development repository.
+Start with direct Nix, Git, and Attic commands. Add a Vendomat command when it removes repeated,
+error-prone work in source capture or checked publication. A repository may call that command
+from devenv. A shared module requires repeated settings in real repositories or machines.
 
-```text
-consumer's flake.lock → exact source revision and package recipe
-consumer's package reference → selected output
-tailnet cache → built bytes for the resulting store path
-```
+## First complete proof
 
-The flake input identifies *what* to build. The cache supplies *already built bytes* for that result.
-The cache does not choose a package version. If the cache lacks an output, Nix can build it from
-source when the source and build dependencies are available. If neither path works, the build fails.
-Different machine architectures may need different outputs. The cache serves each output by its own store path.
+Use one real producer, one source and build host, Attic, and a second NixOS consumer.
 
-This gives every NixOS machine the same way to consume a personal application or library.
-A machine can install a command, run an application, or include a library in another Nix package.
-It does not need a sibling checkout of the package repository.
+1. Commit the producer recipe and source. Select its revision in a consumer lock.
+2. Capture the exact producer source and required available build sources in the source store.
+3. Record their identities and report any source that remains unavailable.
+4. Block upstream source endpoints. Check and build on the host from retained sources.
+5. Compare the host's output path with the consumer's requested output path.
+6. Upload to Attic. Confirm a second machine substitutes the path and its needed closure.
+7. Restore source storage from backup and repeat source verification.
+8. Disable Attic and observe the stated local-build or clear-failure policy.
 
-## Repository task interface
+This proof establishes source retention. A full offline rebuild also needs build tools and other
+inputs. Claim that stronger result only after testing without upstream services and external caches.
 
-Vendomat provides a small default task surface:
+## Deferred work
 
-| Task | Result |
-| --- | --- |
-| `package:build` | Build one declared Nix output and report its path. |
-| `package:check` | Run the repository's declared Nix checks. |
-| `cache:push` | Upload the selected output after a successful build. |
-| `cache:status` | Show the selected cache and whether it can serve the output. |
-| `context:update` | Refresh local derived context, when enabled. |
-
-A repository can add `test`, `lint`, or language-specific tasks. It can also replace a default task.
-The package name and cache target are repository settings in `devenv.nix`, not a separate manifest.
-
-Each shared task has a stated working directory, input, output, and exit status.
-Tasks avoid hidden shell-entry requirements so humans, Atuin, Neovim, and agents can call them directly.
-Required checks must pass before `cache:push` uploads an output. A failed upload does not change a consumer's pin.
-
-For example, a library can declare its package and enable shared tasks:
-
-```nix
-# Illustrative Vendomat module interface, not final option syntax.
-vendomat = {
-  package = "default";
-  cache = "personal";
-};
-```
-
-The final module should stay small enough that a user can inspect the actual Nix build and cache command.
-
-## Optional capability layer
-
-This layer gives a shared name to an operation that a person can invoke from several places.
-It does not introduce a second package system. The terms have distinct meanings:
-
-| Term | Meaning |
-| --- | --- |
-| Nix package | A build output that another NixOS machine can select and obtain. |
-| Capability component | A small command, context provider, or interface adapter. Nix or devenv supplies its tools. |
-| Workflow | A human-facing composition of components, such as Review or Debug. |
-| Action | A named operation with typed input and output, such as `code.review`. |
-| Context bundle | Typed runtime information an action requests, with its source and freshness recorded. |
-| Surface | A CLI, Atuin skill, Neovim command, or other interface that invokes an action. |
-
-An action has one implementation path. Its command accepts a defined input and returns a defined result.
-A surface translates user input into that command and displays the result. It does not repeat the action logic.
-Context providers assemble current files, diffs, history, or notes when the action runs.
-Generated summaries identify the facts and source snapshot that produced them.
-
-The first proof is `code.review`:
-
-```text
-Neovim command ─┐
-                ├─→ code.review command → structured findings
-Atuin skill ────┘           ↑
-                     runtime context
-```
-
-Build the review command as a Nix package when it is reusable. Declare its tools and local tasks
-through devenv. Write thin Neovim and Atuin adapters that call the same command.
-Check that both adapters receive the same findings for the same input.
-
-This proof needs no `vendomat.yaml`, global action registry, or generated keymap system.
-If several actions repeat the same contract and adapter configuration, consider one small schema.
-Generate native configuration from that schema only after the repeated shape is clear.
-Generated files must stay inspectable and pass the native Nix, devenv, or application checks.
-
-## Local context and interaction
-
-The development system also helps a person and their agents find project information.
-It does not require a context server or graph database.
-
-Human-authored notes live in Markdown under Git. Generated indexes and summaries live in an ignored
-project directory or a user state directory. A `context:update` task can combine source search,
-Git/Jujutsu history, notes, and small extraction tools. It records which source revision or working
-tree snapshot it read, so a caller can detect stale output. It replaces generated files atomically.
-
-Atuin records shell history and supports AI skills and agent sessions when enabled.
-Its skills call the same CLI tools and devenv tasks that a person uses. Captured command output is
-optional and local, so it is useful context rather than the system's authoritative record.
-An Atuin adapter for an action calls its command and passes only the context that action needs.
-
-Neovim stays thin. It starts tasks and shows their results through terminal buffers, quickfix lists,
-and small Lua commands. It does not own build, cache, or context logic.
-A Neovim adapter for an action maps editor input to the same command used by other surfaces.
-
-## Mutable state and parallel work
-
-Nix defines programs and immutable build outputs. Runtime state stays in normal writable directories.
-NixOS owns service state. A repository owns its ignored local state. Vendomat uses a user state
-directory only for data shared across repositories, with a stable repository identifier in each path.
-
-Small state starts as files. SQLite is available when several queries or updates need structured data.
-The owner of a state directory defines its permissions, cleanup rule, and backup need.
-
-Parallel agents use separate Jujutsu workspaces. Each agent gets a working directory and its own
-project-local state path. Workspaces share repository history, so agents coordinate changes before
-publication. Stronger process isolation can use NixOS tools when a concrete workflow needs it.
-
-## Rules that keep the system simple
-
-1. Put machine behavior in NixOS configuration.
-2. Put shareable build outputs in Nix package recipes.
-3. Put repository tools and actions in devenv.
-4. Use Vendomat only for behavior repeated across repositories.
-5. Keep a package revision in the consumer's lock file, not in a global registry.
-6. Keep mutable state outside the Nix store.
-7. Make publication explicit and report exactly what it published.
-8. Let every interface call the same task or action command.
-9. Add a capability declaration only after a working action shows what it must express.
-
-These rules allow scripts and other applications. They require NixOS or devenv to provide and
-configure those applications. A script earns a place in Vendomat when several repositories need
-the same behavior or when one action has failure rules that a task definition cannot express clearly.
-
-## What this concept leaves for later
-
-The first system does not need automatic watchers, a fleet scheduler, a dedicated context service,
-a sandbox manager, a graph database, embeddings, or prompt optimization. It also does not need a
-public package index. Those features can be added behind the existing package and task interfaces.
-A general capability manifest, dependency resolver, template compiler, and interface generator also wait
-for evidence from working actions. The first `code.review` proof uses ordinary files and commands.
-
-## A complete example
-
-Suppose `project-a` is a personal application and `project-b` uses it on another NixOS machine.
-
-1. `project-a` declares `packages.x86_64-linux.default` in its flake.
-2. Its devenv configuration imports Vendomat's tasks and selects the `default` package.
-3. The developer commits and publishes the source revision to its Git remote.
-4. The developer runs `devenv tasks run package:check` and `devenv tasks run cache:push`.
-5. The push task builds the flake output and uploads its store path to the tailnet cache.
-6. `project-b` pins `project-a` in its flake lock and selects that package output.
-7. Nix downloads the signed output from the cache when that exact output is available.
-
-Changing `project-a` does not silently change `project-b`. Updating `project-b`'s flake lock selects
-the new revision. A cache hit saves build time but does not change that selection.
-
-This is the intended shape of Vendomat: declarative machines and packages, repository-owned devenv
-workflows, and a small shared layer that makes building and sharing personal software routine.
+The package path does not need action schemas, context bundles, editor adapters, Atuin skills,
+automatic watchers, or a fleet scheduler. A useful command can later be installed as a Nix
+package and invoked from Neovim or Atuin. Those integrations do not define Vendomat's contract.
 
 ## Technical basis
 
-- [Nix flakes and outputs](https://nix.dev/concepts/flakes.html)
-- [devenv tasks](https://devenv.sh/tasks/) and [devenv polyrepo composition](https://devenv.sh/guides/polyrepo/)
-- [Attic cache use](https://docs.attic.rs/user-guide/) and [Attic on NixOS](https://docs.attic.rs/admin-guide/deployment/nixos.html)
-- [Nix garbage collection](https://nix.dev/manual/nix/2.35/command-ref/nix-store/gc.html)
+- [Nix flakes and locks](https://nix.dev/manual/nix/2.35/command-ref/new-cli/nix3-flake.html)
+- [Archiving flake inputs](https://nix.dev/manual/nix/2.35/command-ref/new-cli/nix3-flake-archive.html)
+- [Source and binary closures](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query)
+- [Garbage collection roots](https://nix.dev/manual/nix/2.35/package-management/garbage-collector-roots)
+- [Attic on NixOS](https://docs.attic.rs/admin-guide/deployment/nixos.html) and [Attic client](https://docs.attic.rs/reference/attic-cli.html)

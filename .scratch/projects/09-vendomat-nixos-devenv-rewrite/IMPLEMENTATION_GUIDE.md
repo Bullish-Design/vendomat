@@ -1,197 +1,171 @@
-# Project 09: step-by-step implementation guide
+# Project 09: implementation guide
 
 **Status:** Planned. No rewrite implementation has started.
 **Architecture:** [Project concept](CONCEPT.md) and [repository decision](../../../docs/CONCEPT.md).
 
-This guide orders the work. Complete each proof before adding the next layer.
-The old Vendomat interfaces are not compatibility requirements.
+This guide proves one durable source store, builds from that store, and Attic delivery.
+Complete each proof before expanding coverage. The old Vendomat interfaces are not requirements.
 
 ## Working rules
 
 - Use Gitman for version control and Testee for repository verification, as `AGENTS.md` requires.
-- Keep every package build available through a direct Nix command.
-- Keep one owner for each package revision, build recipe, and cache setting.
-- Put runtime secrets and mutable state outside the Nix store.
-- Record the selected source revision, system, store path, and cache result for every publication proof.
-- Prefer a small real producer repository over a demonstration that only builds `hello`.
+- Keep the selected package build available through a direct Nix command.
+- Use the consumer's effective lock when proving the output that consumer requests.
+- Keep retained source and Attic state in backed-up storage outside the local Nix garbage collector.
+- Keep credentials out of tracked files and Nix store objects.
+- Record source identity, system, derivation, output path, checks, and cache result for each publication.
+- Report source that cannot be obtained. Do not turn an unknown source into an implicit success.
 
-The core proof uses one cache host, one producer, and a second NixOS machine as consumer.
-Choose a producer whose output the second machine can actually use.
-Start with one system architecture. Add another architecture when a real consumer requires it.
+Use one real producer, one source and build host, Attic, and a second NixOS consumer.
+The source host, builder, and Attic may share one machine. Start with one architecture.
 
-## Phase 0: record the starting point
+## Phase 0: fix the proof boundary
 
-1. Record the selected cache host, consumer machine, source remote, and producer repository.
-2. Record each machine's architecture and Nix version.
-3. Locate the cache host's writable storage, backup destination, and tailnet name.
-4. Run the repository's current Testee gate. Record any pre-existing failures.
-5. Create an isolated Gitman lane for the rewrite. Keep old outputs available during the proof.
+1. Name the source and build host, Attic endpoint, producer, consumer, and source remote.
+2. Record both machines' architectures and Nix versions.
+3. Choose the first NixOS configuration whose source coverage will later be audited.
+4. Locate durable source and Attic storage, backup destinations, and tailnet names.
+5. State whether a consumer builds locally or fails when Attic is unavailable.
+6. Run the current Testee gate and record pre-existing failures.
+7. Create an isolated Gitman lane. Keep existing outputs available during the proof.
 
-**Deliverable:** A short environment record in this project directory.
+**Deliverable:** A short environment and failure-policy record.
 
-**Gate:** Every machine and repository in the proof has a named owner and reachable source remote.
+**Gate:** The consumer can reach the source host and source remote. Storage and backup owners are named.
 
-## Phase 1: prove a direct Nix package
+## Phase 1: prove the selected Nix package
 
-1. Give the producer one installable `packages.<system>.default` output.
-2. Keep its package recipe in `flake.nix` or a file imported by `flake.nix`.
-3. Pin its build inputs in `flake.lock`.
-4. Add at least one meaningful Nix check for the output.
-5. Build the output with `nix build .#default` and record its store path.
-6. Run the check without Vendomat. Confirm that a failing check returns failure.
-7. Install or run the output locally. Confirm that it performs its intended job.
+1. Give the producer one useful `packages.<system>.default` output and a meaningful check.
+2. Commit its recipe, source, and `flake.lock`. Publish an immutable revision to its remote.
+3. Select that revision as a consumer flake input. Review the consumer's full lock graph.
+4. Build and check the selected revision without Vendomat. Run the output locally.
+5. Record the producer and consumer derivation and output paths.
+6. Resolve any input override that makes the two paths differ. For a composable library, use
+   the consumer's locked graph as the build graph.
 
-Use the project's own build tools inside the Nix recipe. Do not copy build commands
-into a Vendomat task yet. A package can use Rust, Python, shell, or another language.
+The producer's working tree remains useful for development. It is not the publication input.
 
-**Deliverable:** A real producer flake and a recorded direct-build result.
+**Deliverable:** A useful direct Nix build and a reviewed consumer lock.
 
-**Gate:** The Nix package is useful and builds without any new Vendomat code.
+**Gate:** The consumer and build host request the same derivation and output path.
 
-## Phase 2: bring up the tailnet cache
+## Phase 2: prove durable source capture
 
-1. Add Attic's NixOS module to the cache host configuration.
-2. Declare Attic's service, writable storage, and retention policy in NixOS.
-3. Put the cache behind a tailnet-only HTTPS endpoint with a stable name.
-4. Create the signing key and upload credentials through the machine's secret mechanism.
-5. Keep private key material and tokens out of tracked Nix files and the Nix store.
-6. Configure the client NixOS machine with the cache URL and trusted public key.
-7. Verify that the client can read the cache and cannot upload with read-only access.
-8. Define how Attic state and signing keys are backed up and restored.
+1. Create persistent, backed-up source storage on the one source host.
+2. Capture the producer's exact Git revision. Keep a ref or other retention mechanism that
+   prevents a mirror from pruning that revision.
+3. Capture available flake inputs and source archives required by the selected build.
+4. Record original locators, revisions or declared hashes, content hashes, local locations,
+   selecting lock, and capture results. Give missing sources explicit reasons.
+5. Expose the retained producer revision through a read-only tailnet source reference.
+6. Make the builder and consumer use that reference for the proof.
+7. Block upstream source endpoints. Check and build the selected output again.
+8. Compare its derivation and output paths with the paths from Phase 1.
+9. Run local Nix garbage collection, then verify that the source store still holds the inputs.
+10. Restore source storage and identity records from backup. Verify hashes and repeat the build.
 
-Use NixOS settings for the cache client. Avoid relying on a manual `attic use` step
-that changes each user's Nix configuration outside the machine declaration.
+`nix flake archive` covers flake inputs, not every source fetched by package recipes.
+Inspect the evaluated build graph. An external binary cache may supply build tools during this
+proof, but the report must name that dependency. Do not call this a full offline rebuild.
 
-**Deliverable:** Cache host and client NixOS declarations, plus a private credential procedure.
+**Deliverable:** Retained source, a source inventory, and a restore procedure.
 
-**Gate:** The client reaches the signed cache over the tailnet. Write access requires separate credentials.
+**Gate:** With upstream source endpoints blocked, the retained inputs produce the expected output
+path. Garbage collection and backup restore do not remove the only usable source copy.
 
-## Phase 3: prove direct cache publication and substitution
+## Phase 3: prove direct Attic publication and substitution
 
-1. Publish the producer's committed source revision to its source remote.
-2. Build and check that revision on the producer machine.
-3. Upload its exact store path with the Attic client.
-4. Pin the producer as a flake input on the consumer machine.
-5. Select its package output in the consumer's NixOS or project configuration.
-6. Build or activate the consumer configuration with the local output absent.
-7. Inspect Nix's result and logs. Confirm that the requested output came from Attic.
-8. Disable the private cache for one test. Confirm the expected local build or clear failure.
-9. Restore the cache setting after the test.
+1. Add Attic's NixOS module to the cache host. Declare service storage and its tailnet endpoint.
+2. Choose a read policy. The default is unauthenticated reads on the restricted tailnet endpoint.
+3. Create a scoped push token. Keep Attic signing state and tokens outside tracked Nix files.
+4. Configure the consumer's NixOS `nix.settings` with the endpoint and trusted public key.
+5. Upload the checked output with the Attic client. Confirm the needed runtime closure is
+   available through Attic or other caches configured on the consumer.
+6. Remove the selected output from the consumer's local store. Build or activate its configuration.
+7. Inspect Nix's transfer log and confirm that Attic supplied the requested output path.
+8. Test that read-only access cannot push. Record token expiry and replacement steps.
+9. Restore Attic state and objects from backup. Confirm that the existing client key still works.
+10. Disable Attic and observe the fallback or clear failure stated in Phase 0.
 
-The source remote supplies the recipe. Attic supplies its built output.
-Check that changing the cache does not change the consumer's selected source revision.
+Attic creates and manages cache signing keys. Back up the state that preserves those keys.
+Attic signatures establish cache trust, not independent reproduction from source.
 
-**Deliverable:** A cross-machine proof with source revision, output path, and cache evidence.
+**Deliverable:** A signed, cross-machine cache proof and a restore procedure.
 
-**Gate:** The second machine consumes the pinned package without a sibling checkout.
+**Gate:** The second machine substitutes the exact path selected in Phase 1. A cache outage
+does not change its source pin. Attic restore preserves the client trust relationship.
 
-## Phase 4: add Vendomat's small shared interface
+## Phase 4: audit a machine's source coverage
 
-1. Export a reusable devenv module from Vendomat.
-2. Let the producer select one flake output and one cache target in `devenv.nix`.
-3. Implement `package:build` as a call to the selected Nix output.
-4. Implement `package:check` as a call to the producer's declared Nix checks.
-5. Implement `cache:push` as check, build, upload, and result reporting.
-6. Implement `cache:status` as a read-only report of target and output availability.
-7. Add a small NixOS module only for cache settings repeated on several machines.
-8. Keep direct Nix and Attic commands documented beside their Vendomat task names.
+1. Evaluate the selected NixOS configuration from Phase 0 and enumerate its package build graph.
+2. Connect each selected source input to an immutable local copy or a specific gap reason.
+3. Include flake trees, archives, patches, and other source objects used by those builds.
+4. Classify binary-only and unavailable-source inputs. Record source from non-Nix installers
+   separately until an integration can identify and retain it.
+5. Build selected outputs from retained source where possible. Send checked outputs to Attic.
+6. Block upstream source endpoints and rerun the source-dependent build checks.
+7. Review the inventory after a consumer lock update and capture newly selected source before
+   publication.
 
-The push task rejects source content that differs from the published revision.
-It reports that revision and uploads the store path returned by the selected build.
-It does not advance any consumer lock or claim that a cache upload is a package release.
+Start with the first producer and expand by actual build graph. Avoid a generic Nix parser.
+Do not claim complete coverage while unknown inputs remain without a recorded reason.
 
-Define task inputs and outputs before implementing the scripts. At minimum, reports include
-the package output name, source revision, system, store path, cache target, and status.
-Use consistent exit statuses for success, rejected publication, configuration failure, and invalid use.
+**Deliverable:** A machine coverage report with retained sources, unavailable sources, and
+unresolved sources shown separately.
 
-**Deliverable:** A documented devenv task module and minimal helper commands.
+**Gate:** Every source input identified for the selected configuration has a verified local copy
+or a specific unavailable-source reason. No build silently fetches upstream source during the proof.
 
-**Gate:** Direct `nix build .#default` and `package:build` select the same output.
-`cache:push` cannot report success after a failed check or upload.
+## Phase 5: add only the Vendomat code the proofs need
 
-## Phase 5: test reuse without a framework
+1. Repeat source capture and publication for a second real producer.
+2. Record the exact repeated commands and failure cases from both producers.
+3. Implement the smallest command that verifies source identity and reports coverage.
+4. Add checked build and Attic upload to that command only if repetition causes real errors.
+5. Keep direct Nix and Attic commands usable. Let devenv call the command if a producer wants
+   a local task name.
+6. Add shared NixOS or devenv modules only for settings repeated on real hosts or repositories.
+7. Test a hash mismatch, a missing source, a failed check, and a failed upload.
 
-1. Apply the shared task module to a second real producer repository.
-2. Keep each producer's recipe and dependency pins in its own flake.
-3. Check that the module adds only the selected tools and tasks.
-4. Confirm that a task runs directly, without shell-entry side effects.
-5. Record any duplicated package recipe logic across the two producers.
-6. Extract a Nix helper only for logic that both producers actually share.
-7. Add a second architecture build only if a selected consumer uses that architecture.
+The command report includes the selecting lock, source identities, system, derivation,
+output path, checks, cache target, and result. It never edits a consumer lock.
 
-This phase tests whether Vendomat's options describe a real repeated pattern.
-Do not add a global repository catalog, version registry, or language-wide builder collection.
+**Deliverable:** Minimal source and publication code justified by observed repetition.
 
-**Deliverable:** Two producers using one small Vendomat module.
+**Gate:** Direct and Vendomat paths select the same inputs and output. Failures cannot report
+publication success. If native commands remain clear, stop without adding a shared module.
 
-**Gate:** Both producers keep direct Nix builds and independent source pins.
+## Phase 6: cut over
 
-## Phase 6: prove one cross-interface action
-
-This phase starts after the package foundation works. It is a separate acceptance proof.
-
-1. Implement one `code.review` command with a documented input and output format.
-2. Make the command accept an explicit target and source snapshot identity.
-3. Return structured findings with a format version and source references.
-4. Build the command as a Nix package if another repository must consume it.
-5. Add an Atuin skill that calls the command and presents its result.
-6. Add a Neovim command that calls the same executable and presents its result.
-7. Run both adapters against the same target and snapshot.
-8. Compare their structured command results before display formatting.
-9. Make context extraction record its inputs and replace derived output atomically.
-
-The adapters may differ in display. They may not implement separate review logic.
-No general action dispatcher, `vendomat.yaml`, keymap generator, or context server is needed.
-
-**Deliverable:** One command, two thin adapters, one result contract, and an end-to-end proof.
-
-**Gate:** Both surfaces receive the same structured findings for the same input.
-
-## Phase 7: decide whether to add declarations
-
-1. Use the first action in normal work.
-2. Add a second action only when it solves a real task.
-3. Compare their input, output, context, and adapter code.
-4. List repeated declarations that Nix or devenv cannot express clearly.
-5. If a repeated shape exists, specify the smallest schema that removes it.
-6. Generate one native artifact from that schema and validate it with its owner tool.
-7. Keep package pins and build recipes outside any new action schema.
-
-If the repeated shape does not exist, keep the working commands and adapters.
-This is a decision gate, not a requirement to build a manifest parser.
-
-**Deliverable:** A recorded decision with examples of the actual duplication.
-
-## Phase 8: cut over the repository
-
-1. Replace Vendomat's public Nix and devenv exports with the proven small interfaces.
-2. Remove old Python code, module options, tests, and documentation that no longer describe Vendomat.
-3. Update `README.md`, `AGENTS.md`, and the repository concept to name the new interfaces.
-4. Add tests for task failure paths, source pins, cache publication reports, and NixOS settings.
-5. Run the normal Testee gate and the real two-machine package proof again.
-6. Check that no consumer still imports an interface slated for removal.
+1. Replace public Vendomat interfaces with the proven source and publication contract.
+2. Remove old code, options, tests, and documentation that no longer describe Vendomat.
+3. Update `README.md` and `AGENTS.md` after the new interfaces work.
+4. Add tests for source identity, coverage reports, failure paths, and machine settings.
+5. Run the normal Testee gate and the real two-machine proof again.
+6. Confirm that active consumers no longer import interfaces slated for removal.
 7. Land and push the completed Gitman lanes.
 
-There is no compatibility requirement for the old vendomat library.
-Cut over only after the new build and cache path works end to end.
+The old library has no compatibility requirement. Cut over only after source retention,
+Attic delivery, and the machine coverage audit pass.
 
-**Deliverable:** A repository whose code and public documentation match the new concept.
+**Deliverable:** A repository whose public code and documentation match the new architecture.
 
-## Final acceptance checklist
+## Final acceptance
 
-- One producer builds through direct Nix and through the Vendomat task.
-- Required checks block publication on failure.
-- A clean, remote-reachable source revision identifies each published output.
-- Attic serves a signed output to a second NixOS machine over the tailnet.
-- The consumer lock, not the cache, selects the producer revision.
-- Cache absence has a tested fallback or a clear failure.
-- The cache signing key and upload token stay out of the Nix store.
-- `code.review` has one command and two adapters with matching structured results.
-- The old implementation and documentation are removed after the new path passes.
+- One central source store retains verified source despite local Nix garbage collection.
+- A restored copy supplies the same selected source and build.
+- The inventory reports source coverage and specific gaps for a selected NixOS configuration.
+- A build with upstream source endpoints blocked uses retained sources.
+- Checks block publication on failure.
+- Builder and consumer evaluate the same derivation and output path.
+- Attic serves that path and its needed closure to a second NixOS machine.
+- Cache and source outages follow the recorded failure policy without changing a consumer lock.
+- The old implementation is removed after the new path passes.
 
 ## Upstream references
 
-- [Nix flakes](https://nix.dev/concepts/flakes.html)
-- [devenv tasks](https://devenv.sh/tasks/)
-- [Attic on NixOS](https://docs.attic.rs/admin-guide/deployment/nixos.html) and [cache use](https://docs.attic.rs/user-guide/)
-- [Nix garbage collection](https://nix.dev/manual/nix/2.35/command-ref/nix-store/gc.html)
+- [Nix flakes and locks](https://nix.dev/manual/nix/2.35/command-ref/new-cli/nix3-flake.html)
+- [Archiving flake inputs](https://nix.dev/manual/nix/2.35/command-ref/new-cli/nix3-flake-archive.html)
+- [Source and binary closures](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query)
+- [Garbage collection roots](https://nix.dev/manual/nix/2.35/package-management/garbage-collector-roots)
+- [Attic on NixOS](https://docs.attic.rs/admin-guide/deployment/nixos.html) and [Attic client](https://docs.attic.rs/reference/attic-cli.html)
