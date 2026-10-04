@@ -64,10 +64,16 @@
       flake = false;
     };
     # Agentman is pinned to its published release tag, matching every other
-    # roster entry. v0.0.2 carries the Gate B daemon boundaries and the machine
-    # database schema bootstrap.
+    # roster entry. v0.0.3 carries the Project 003 contract and package fixes.
     agentman = {
-      url = "git+ssh://git@github.com/Bullish-Design/agentman.git?ref=refs/tags/v0.0.2";
+      url = "git+ssh://git@github.com/Bullish-Design/agentman.git?ref=refs/tags/v0.0.3";
+      flake = false;
+    };
+    # agentman's private provider contract is separately source-pinned so its
+    # uv2nix package overlay can use this immutable Nix input instead of doing a
+    # nested Git fetch from the package lock during a system build.
+    agentman-inferference = {
+      url = "git+ssh://git@github.com/Bullish-Design/inferference.git?ref=refs/tags/v0.3.0";
       flake = false;
     };
     # The machine plane consumes the canonical Devman packages. This input is
@@ -164,16 +170,18 @@
           # Face D — the roster. Added one tool at a time (CONCEPT 03 §6): a tool is
           # supported only once its package builds, its command resolves to /nix/store,
           # and its doctor runs. Evaluating is not supporting.
-          mkUv2nixCli = { pname, src, excludeScripts ? [ ] }:
+          mkUv2nixCli = { pname, src, excludeScripts ? [ ], overlays ? [ ] }:
             let
               workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = src; };
               lock = builtins.fromTOML (builtins.readFile "${src}/uv.lock");
               pythonSet = (pkgs.callPackage pyproject-nix.build.packages {
                 python = pkgs.python313;
-              }).overrideScope (pkgs.lib.composeManyExtensions [
-                pyproject-build-systems.overlays.default
-                (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
-              ]);
+              }).overrideScope (pkgs.lib.composeManyExtensions (
+                [
+                  pyproject-build-systems.overlays.default
+                  (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
+                ] ++ overlays
+              ));
               virtualEnv = pythonSet.mkVirtualEnv "${pname}-uv2nix" workspace.deps.default;
               project = (builtins.fromTOML (builtins.readFile "${src}/pyproject.toml")).project;
               commands = pkgs.lib.subtractLists excludeScripts (builtins.attrNames (project.scripts or { }));
@@ -201,7 +209,17 @@
           docman-uv2nix-cli = mkUv2nixCli { pname = "docman"; src = inputs.docman; };
           gitman-uv2nix-cli = mkUv2nixCli { pname = "gitman"; src = inputs.gitman; };
           templateer-uv2nix-cli = mkUv2nixCli { pname = "templateer"; src = inputs.templateer; };
-          agentman-uv2nix-cli = mkUv2nixCli { pname = "agentman"; src = inputs.agentman; };
+          agentman-uv2nix-cli = mkUv2nixCli {
+            pname = "agentman";
+            src = inputs.agentman;
+            overlays = [
+              (_final: prev: {
+                inferference = prev.inferference.overrideAttrs (_: {
+                  src = inputs.agentman-inferference;
+                });
+              })
+            ];
+          };
 
           toolchain = mkToolchain {
             name = "core";
