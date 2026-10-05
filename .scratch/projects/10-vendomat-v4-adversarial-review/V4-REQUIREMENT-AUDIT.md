@@ -77,14 +77,14 @@ The audit treats native documentation as boundary evidence. It does not treat un
 
 | Baseline ID | Disposition | Reason and verification judgment |
 | --- | --- | --- |
-| V4-SRC-001 | Clarify | Discovery can report unresolved candidates; it cannot promise a complete source map. |
+| V4-SRC-001 | Clarify | Discovery covers candidates from both named graphs and can report unresolved source mappings; it cannot promise a complete source map. |
 | V4-SRC-002 | Keep | Deleting a read view distinguishes durable retained bytes from derived state. |
 | V4-SRC-003 | Keep | The first-proof listed dependency directly tests accepted automatic capture. |
 | V4-SRC-004 | Keep | Native identity and consumer selection give a minimum useful record. |
 | V4-SRC-005 | Keep | Archive algorithm and representation prevent false raw-versus-unpacked hash comparisons. |
 | V4-SRC-006 | Keep | Retention and correspondence are independent observed fields. |
 | V4-SRC-007 | Keep | A patched package is a necessary false-exact-source counterexample. |
-| V4-SRC-008 | Keep | A source gap must not alter an otherwise valid artifact result. |
+| V4-SRC-008 | Clarify | An uncaptured source is a coverage gap; client reachability is a separate lookup result under new `V4-SRC-025`. |
 | V4-SRC-009 | Keep | Corrupt retained bytes test correspondence failure without changing the native lock. |
 | V4-SRC-010 | Keep | A bad fixed-output input fails native build validation; inspection status is separate. |
 | V4-SRC-011 | Keep | Readable file plus provenance meets the first inspection need. |
@@ -95,8 +95,8 @@ The audit treats native documentation as boundary evidence. It does not treat un
 | V4-SRC-016 | Keep | Evaluation during source-host outage tests no remote mount dependency. |
 | V4-SRC-017 | Keep | Startup during source-host outage tests application independence. |
 | V4-SRC-018 | Move | Remote read is conditional on offering it; the central host shape is not yet required. |
-| V4-SRC-019 | Keep | The consumer owns the capture list; `Q-CAPTURE-GRAPH` still defines its native target. |
-| V4-SRC-020 | Keep | Capture each listed obtainable selection; P3 must prove resolution and identity. |
+| V4-SRC-019 | Clarify | The consumer owns the capture list and names each entry's accepted graph; P3 must prove native resolution. |
+| V4-SRC-020 | Keep | Capture each listed obtainable selection in its named graph; P3 must prove resolution and identity. |
 | V4-SRC-021 | Keep | A list-only edit must not change native dependency selection. |
 | V4-SRC-022 | Keep | An unlisted source remains discoverable without automatic capture. |
 | V4-SRC-023 | Keep | A stale list entry is a policy gap, not an update command. |
@@ -245,6 +245,7 @@ These IDs are new. They do not replace any baseline ID. Their rows are present i
 | V4-SEL-009 | Vendomat freezes or rejects host-delivered and local-path inputs outside the consumer lock; inject drift. |
 | V4-CHK-016 | Vendomat blocks publication when an enabled module omits its default required-check declaration; classify missing-required. |
 | V4-SRC-024 | Source store records immutable bytes for captured local source; change the working tree after capture. |
+| V4-SRC-025 | Source store reports unavailable when a disconnected client has no local view, without marking retained source lost; deny network and inspect both statuses. |
 | V4-CACHE-015 | Vendomat compares checked NAR hash with Attic-only cold substitution; record closure-member metadata. |
 | V4-EVD-011 | Vendomat reports failed-required, missing-required, and nonrequired-gap outcomes separately. |
 | V4-REC-013 | Vendomat reports each recovery domain separately in the P7 fixture. |
@@ -252,8 +253,8 @@ These IDs are new. They do not replace any baseline ID. Their rows are present i
 | V4-MACH-015 | Vendomat keeps application cache proof separate from a full machine-generation claim. |
 | V4-PROOF-009 | Consumer runs an end-to-end pinned Machines fixture with plan, transfer, system/user outcome, and recovery status. |
 
-## Open choices and technical gates
+## Accepted choices and technical gates
 
-`Q-CAPTURE-GRAPH`, `Q-PROOF-GATE`, and `Q-OFFLINE-SOURCE` await the owner's answers. They are not new requirement IDs. `P-CURRENT-CONSUMERS` and `P-NAR-IDENTITY` are prototype gates, not commands or options. The revised [specification](./V4-SPEC.md) keeps these distinct from accepted D-CHECK-OWNER, D-CHECK-GAP, D-CAPTURE, D-NAMES, and D-APP-SCOPE.
+`D-CAPTURE-GRAPH` accepts both named direct-dependency graphs. `D-PROOF-GATE` separates P1–P6 application proof from P7 machine proof. `D-OFFLINE-SOURCE` permits unavailable disconnected lookup without an initial replica. `P-CAPTURE-LIST`, `P-CURRENT-CONSUMERS`, and `P-NAR-IDENTITY` remain prototype gates, not commands or options. The revised [specification](./V4-SPEC.md) keeps accepted policy distinct from unproved native behavior.
 
-**Consistency result:** 172 baseline IDs have one disposition each. Two duplicate IDs are retired without reuse. Eleven new IDs close missing observable contracts. P1–P6 prove application, inspection, and distribution. P7 proves machine claims. Conditional application IDs stay outside initial V4.
+**Consistency result:** 172 baseline IDs have one disposition each. Two duplicate IDs are retired without reuse. Twelve new IDs close missing observable contracts. P1–P6 prove application, inspection, and distribution. P7 proves machine claims. Conditional application IDs stay outside initial V4.

@@ -6,7 +6,7 @@
 
 ## Verdict and simpler comparison
 
-The smallest credible V4 keeps native module declarations and locks as the only selection authority. It adds two narrow facilities: verified source retention for inspection and checked publication evidence for selected Nix outputs. This is a coherent goal. The current documents still overclaim what a path identifies, what the first Neovim proof covers, and what the present devenv pin can run.
+The smallest credible V4 keeps native module declarations and locks as the only selection authority. It adds two narrow facilities: verified source retention for inspection and checked publication evidence for selected Nix outputs. This is a coherent goal. The baseline documents overclaim what a path identifies, what the first Neovim proof covers, and what the present devenv pin can run.
 
 A native-only trial can compose modules with devenv, build with Nix, push a closure with Attic, and deploy with Machines. A short task and a human checklist could record checks and source links. Vendomat earns its extra state only if a repeat fixture shows that native commands alone fail to give durable source correspondence, an exact check-to-output binding, or an auditable Attic-only closure claim. The review keeps the proposed source store and publication helper because those are V4 goals. It does not assume a daemon, registry, mirror for every dependency, or second deployment controller.
 
@@ -14,7 +14,7 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 | --- | --- | --- | --- |
 | Module composition | Reuse commands and settings; devenv, NixOS, Home Manager, and the module repository own their targets. | Import a focused native contribution with documented inputs, defaults, and checks. Native files and locks retain selection. | A missing input or conflicting option fails the requested target. A local consumer can evaluate and run without Vendomat or Attic. Test whether a plain import is enough before adding a wrapper. |
 | Neovim application | Prove one shared command and editor interface; Neovim owns editor loading. | One command package, plugin contribution, and optional dedicated output. The consumer owns editor settings. | Test command identity and configuration isolation. It proves the application path, not system activation. Keep editor wiring in its module. |
-| Source inspection | Read the selected source later; repositories, locks, and package metadata own source facts. | Retained bytes, identity, correspondence, and a readable view. Back up bytes and records; rebuild views. | A source outage reports a gap. Project evaluation and local execution continue. Test whether existing Git archives plus a small manifest meet the need before adding indexes or a service. |
+| Source inspection | Read the selected source later; repositories, locks, and package metadata own source facts. | Retained bytes, identity, correspondence, and a readable view. Back up bytes and records; rebuild views. | Missing retained source reports a coverage gap; a disconnected client with no local view gets an unavailable lookup result. Project evaluation and local execution continue. Test whether existing Git archives plus a small manifest meet the need before adding indexes or a service. |
 | Check and publication evidence | Know which checks passed for which output; native check tools and Nix own execution and builds. | A frozen selection, effective required set, result references, output path and NAR hash, and an Attic verification result. Back up the receipt. | Failed or missing required checks block success. An absent nonrequired check remains a visible gap. A local run does not depend on publication. Do not add a second test runner. |
 | Attic delivery | Reuse built outputs across machines; Attic and Nix own cache paths and trust. | Push the selected output closure and prove each path is available from Attic alone. Attic owns objects and signing state. | A partial push remains partial. Public-cache fallback and local builds follow Nix policy. Vendomat needs no cache protocol. |
 | Machine operation | Review and apply system and user configuration; Machines, NixOS, and Home Manager own plans and activation. | Link checked paths and evidence to the native plan. Native targets retain generations and status. | A stale plan uses native rejection. Direct copy is not an Attic hit. No Vendomat apply or rollback path is needed. |
@@ -61,7 +61,7 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 
 **Failure scenario and consequence:** A project and editor fixture can pass while a NixOS service fails to activate, Home Manager changes user files, or a Machines plan becomes stale. P1–P6 prove the application and cache path. They cannot certify the promised machine path. [Machines](https://devenv.sh/machines/), [NixOS](https://nixos.org/manual/nixos/stable/), and [Home Manager activation](https://nix-community.github.io/home-manager/internals/activation.html) assign different operations to those targets.
 
-**Correction:** State the Neovim proof's limit. Require a distinct P7 machine fixture with a real service, user activation, plan, transfer trace, and recovery observation before making machine-readiness claims. Whether P7 joins the first release gate remains an owner question. **Evidence:** P7 must run on the pinned Machines version, including a Home Manager failure after system success.
+**Correction:** State the Neovim proof's limit. Under `D-PROOF-GATE`, P1–P6 may finish before a distinct P7 machine fixture. Require a real service, user activation, plan, transfer trace, and recovery observation before making machine-readiness claims. **Evidence:** P7 must run on the pinned Machines version, including a Home Manager failure after system success.
 
 ### High — F06: Attic's upstream filter and default priority can defeat the claimed cache path
 
@@ -77,7 +77,7 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 
 **Failure scenario and consequence:** A direct devenv input can be a module repository. A directly selected Neovim package can instead come from `nixpkgs`, while its source is outside the runtime closure. A list entry may resolve against one graph and miss the source the owner meant to inspect. Nix distinguishes derivation and output closures; neither is a complete source map. [Nix closure queries](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query) document that boundary.
 
-**Correction:** Keep the accepted consumer-maintained list. Leave its graph and syntax open until the owner answers and P3 proves native resolution. Record the graph and selected identity per entry. Unmatched entries report gaps without changing locks. **Evidence:** Test selected, unlisted, stale, and patched dependencies in the first-proof consumer.
+**Correction:** Keep the accepted consumer-maintained list. Under `D-CAPTURE-GRAPH`, each entry names either the direct native-input graph or the direct package-dependency graph of a selected output. P3 must prove native resolution for both; syntax remains proposed. Record the graph and selected identity per entry. Unmatched entries report gaps without changing locks. **Evidence:** Test selected and unlisted entries in both graphs, plus stale and patched dependencies in the first-proof consumer. An unsupported graph fails P3.
 
 ### Medium — F08: Local independence is tested only with an already realized output
 
@@ -109,7 +109,7 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 
 **Failure scenario and consequence:** Git mirrors, archives, Nix paths, unpacked read views, indexes, and remote mounts can each become another copy to protect. A retained Nix source path without a root or backup disappears under garbage collection. The documents already distinguish retained objects from derived views, but a private-network host is described as the normal first shape before an offline-read need is established.
 
-**Correction:** Start with one durable object plus a small identity record per selected source. Rebuild read views; add indexes and local replicas only for demonstrated queries. Keep local execution independent of the host. Whether disconnected source reads are a first-phase need awaits the owner. **Evidence:** Delete a derived view, restore the retained object and record, then read it from the intended client.
+**Correction:** Start with one durable object plus a small identity record per selected source. Rebuild read views; add indexes and local replicas only for demonstrated queries. Under `D-OFFLINE-SOURCE`, disconnected lookup may report unavailable and initial V4 needs no local replica. Keep local execution independent of the host. **Evidence:** Delete a derived view, restore the retained object and record, then read it from the intended client. Deny the client path and verify an unavailable result without a false lost-source claim.
 
 ### Medium — F12: The later application specifies a staging method before proving the adapter
 
@@ -135,13 +135,15 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 - [Bubblewrap makes process namespaces and mounts](https://github.com/containers/bubblewrap/blob/main/README.md). [NixOS](https://nixos.org/manual/nixos/stable/) builds and activates system generations.
 - [Machines](https://devenv.sh/machines/) owns plans, transfer, activation, status, and native rollback. The pinned-version fixture still must prove the exact behavior V4 uses.
 
-## Open decisions and proof gates
+## Accepted decisions and proof gates
 
-**Owner decisions requested early:** `Q-CAPTURE-GRAPH` defines the direct-dependency graph; `Q-PROOF-GATE` decides whether P7 joins the first release gate; `Q-OFFLINE-SOURCE` decides whether the laptop needs a source replica. The revised documents keep these open until answered.
+**Owner decisions received:** `D-CAPTURE-GRAPH` includes both named direct-dependency graphs. `D-PROOF-GATE` separates the first application proof from P7 machine proof. `D-OFFLINE-SOURCE` permits unavailable lookup from disconnected clients without an initial local replica. None of these decisions fixes unproved command syntax or native graph resolution.
+
+No initial-V4 owner decision remains open in this review. Queue, state-retention, and sandbox policy choices belong to the conditional later application.
 
 **Prototype-dependent:** P0 pinned Machines transition and consumer migration; P1 editor packaging; P2 native delivery and overrides; P3 source mapping and capture-list representation; P4 effective checks and frozen bytes; P5 Attic-only closure and fallback; P7 transfer and separate activation; the later application adapter and sandbox. Online documentation is evidence of upstream behavior, not a fixture on this repository's selected versions.
 
-**Resolved in revised text:** output path versus content hash; three check outcomes; Neovim proof boundary; Attic filter and priority; native Machines ownership; driver-specific recovery; later-application staging as an example; and a required migration inventory. The accepted owner decisions remain unchanged.
+**Resolved in revised text:** output path versus content hash; three check outcomes; Neovim proof boundary; Attic filter and priority; native Machines ownership; driver-specific recovery; later-application staging as an example; a required migration inventory; both named capture graphs; separate P7 proof; and disconnected source lookup semantics. The accepted owner decisions remain unchanged.
 
 ## Cross-document traceability and consistency
 
@@ -150,12 +152,12 @@ A native-only trial can compose modules with devenv, build with Nix, push a clos
 | Native selection and local use | §§2–3, 8–9, 14 | §§2–4 | `V4-OWN-001–013`, `V4-SEL-001–009`; new fresh-local and host-input gates close F03/F08. |
 | Focused modules and Neovim proof | §§4–8, 21–22 | §§3, 10 | `V4-MOD-001–014`, `V4-PROOF-001–006`; workstation declaration does not claim activation. |
 | Three check outcomes | §§14, 20 | §§6, 8 | `V4-CHK-004–016`, `V4-EVD-011`; failed and missing required checks block, documented nonrequired gaps do not. |
-| Listed source capture | §§11–12, 19 | §§5, 10 | `V4-SRC-001–024`; accepted listed capture remains, while `Q-CAPTURE-GRAPH` and remote-read scope remain open. |
+| Listed source capture | §§11–12, 19 | §§5, 10 | `V4-SRC-001–025`; both named graphs are accepted, P3 proves resolution, and disconnected lookup may report unavailable. |
 | Exact Attic publication | §§13–15, 21 | §§4, 6, 8 | `V4-SEL-006–009`, `V4-CACHE-001–015`; NAR identity and Attic-only closure need P4/P5 fixtures. |
 | Native Machines and separate recovery | §§7, 10, 19, 21–22 | §§7–8, 10 | `V4-MACH-001–015`, `V4-REC-001–013`, `V4-PROOF-009`; P7 is required for machine claims. |
 | Later Jujutsu application | §23 | §9 | `V4-APP-001–031` remain conditional; staging, queue, and sandbox details remain later proofs. |
 | Later upgrades and helpers | §§16–18, 22 | §8 | `V4-UPG-001–009`, `V4-OPT-001–004`; P8 or offer conditions keep them outside the first application proof. |
 
-The requirement audit gives one disposition to each of 172 baseline IDs. The revised requirement file retains all 172 IDs and adds 11 distinct IDs. `V4-PROOF-007–008` remain visible as retired duplicates of `V4-REC-001–002`. All three revised documents preserve D-APP-SCOPE, D-NAMES, D-CHECK-OWNER, D-CHECK-GAP, and D-CAPTURE. The source project's hashes still match [the baseline](./BASELINE.md). No V4 product code or implementation guide changed.
+The requirement audit gives one disposition to each of 172 baseline IDs. The revised requirement file retains all 172 IDs and adds 12 distinct IDs. `V4-PROOF-007–008` remain visible as retired duplicates of `V4-REC-001–002`. All three revised documents preserve D-APP-SCOPE, D-NAMES, D-CHECK-OWNER, D-CHECK-GAP, D-CAPTURE, D-CAPTURE-GRAPH, D-PROOF-GATE, and D-OFFLINE-SOURCE. The source project's hashes still match [the baseline](./BASELINE.md). No V4 product code or implementation guide changed.
 
-**Guide verdict:** The revised documents can support a separate, evidence-first implementation-guide session. That session must start with P0 and preserve the open owner choices. It cannot present P2, P5, or P7 command syntax and behavior as proven before their fixtures run. This review does not write that guide.
+**Guide verdict:** The revised documents can support a separate, evidence-first implementation-guide session. That session must start with P0 and preserve the accepted owner decisions. It cannot present P2, P3, P5, or P7 command syntax and behavior as proven before their fixtures run. This review does not write that guide.

@@ -1,12 +1,12 @@
 # Vendomat V4 testable requirements
 
-**Status:** Adversarial revision for owner review, 2026-10-04. Open decisions and prototype facts remain explicit.  
+**Status:** Adversarial revision for owner review, 2026-10-04. Prototype-dependent facts remain explicit.  
 **Authority:** [V4 concept](./CONCEPT-V4.md). [V4 specification](./V4-SPEC.md) states the system contract.  
 **Rule:** An ID is stable. Add new IDs; do not reuse or renumber old IDs.
 
-`M` requirements gate the stated V4 phase or apply whenever that V4 feature is offered. `C` requirements apply only to the later Jujutsu–btrfs–bubblewrap module. Retired IDs remain visible but impose no gate. The owner accepted that scope as **D-APP-SCOPE** on 2026-10-04. The owner accepted semantics-first naming as **D-NAMES**. The owner also accepted **D-CHECK-OWNER**, **D-CHECK-GAP**, and **D-CAPTURE** on 2026-10-04. New option and command names remain proposed.
+`M` requirements gate the stated V4 phase or apply whenever that V4 feature is offered. `C` requirements apply only to the later Jujutsu–btrfs–bubblewrap module. Retired IDs remain visible but impose no gate. The owner accepted **D-APP-SCOPE**, **D-NAMES**, **D-CHECK-OWNER**, **D-CHECK-GAP**, **D-CAPTURE**, **D-CAPTURE-GRAPH**, **D-PROOF-GATE**, and **D-OFFLINE-SOURCE** on 2026-10-04. New option and command names remain proposed.
 
-Each verification method describes an observable result for a later fixture. It does not assert that V4 already implements the behavior. Phase labels follow V4 §22. P1–P6 prove the Neovim application path; P7 separately proves Machines. `Q-PROOF-GATE` decides whether P7 joins the first release gate. P8 covers one reviewed upgrade. P9–P10 require a separate measured need. The conditional application has no V4 phase gate.
+Each verification method describes an observable result for a later fixture. It does not assert that V4 already implements the behavior. Phase labels follow V4 §22. P1–P6 can complete the Neovim application proof before the separate P7 Machines fixture. P7 gates machine-readiness claims. P8 covers one reviewed upgrade. P9–P10 require a separate measured need. The conditional application has no V4 phase gate.
 
 ## Mandatory V4 requirements
 
@@ -83,14 +83,14 @@ The delivery gates rely on current [devenv imports](https://devenv.sh/composing-
 
 | ID | Phase | Required behavior | Owner | Source | Verification method |
 | --- | --- | --- | --- | --- | --- |
-| V4-SRC-001 | P3 | Discovery lists selected modules and supported candidate direct dependency sources without requiring capture. | Source store | V4 §§11–12 | Inventory a consumer with capture disabled; inspect listed and unresolved selections. |
+| V4-SRC-001 | P3 | Discovery lists selected modules and candidate sources from both named direct-dependency graphs without requiring capture. | Source store | D-CAPTURE-GRAPH; V4 §§11–12 | Inventory one direct native input and one direct package dependency of a selected output with capture disabled; inspect candidates and unresolved selections. |
 | V4-SRC-002 | P3 | Capture retains selected owned module source outside disposable read views. | Source store | V4 §§11–12 | Delete read view; restore it from retained object and verify bytes. |
-| V4-SRC-003 | P3 | Capture retains the first-proof consumer's listed third-party direct dependency. | Source store | D-CAPTURE; V4 §§12, 21 | Run capture stage; verify listed dependency's native revision or archive hash. |
+| V4-SRC-003 | P3 | Capture retains the first-proof consumer's listed third-party direct dependency. | Source store | D-CAPTURE; D-CAPTURE-GRAPH; V4 §§12, 21 | Run capture stage; verify the listed dependency's named graph and native revision or archive hash. |
 | V4-SRC-004 | P3 | Each capture record names native source identity and its consumer selection. | Source store | V4 §11 | Inspect captured module and dependency records against locks. |
 | V4-SRC-005 | P3 | An archive hash names its algorithm and hashed representation. | Source store | V4 §11 | Capture a compressed archive; verify recorded hash against those exact bytes. |
 | V4-SRC-006 | P3 | Capture status and correspondence level appear as separate fields. | Source store | V4 §11 | Retain an upstream-only reference; observe `retained` with non-exact correspondence. |
 | V4-SRC-007 | P3 | Packaging patches and known transformations appear beside selected source. | Source store | V4 §11 | Use a patched package; inspect source and patch references together. |
-| V4-SRC-008 | P3 | An unavailable inspection source reports a gap without blocking a valid artifact check. | Vendomat | V4 §§11, 14, 20 | Make inspection source unavailable; pass artifact checks and inspect separate outcomes. |
+| V4-SRC-008 | P3 | A selected source without a retained inspection object reports a coverage gap without blocking a valid artifact check. | Vendomat | V4 §§11, 14, 20 | Leave one selected source uncaptured; pass artifact checks and inspect separate outcomes. |
 | V4-SRC-009 | P3 | A mismatched inspection object cannot receive an exact-correspondence claim. | Source store | V4 §§11, 20 | Corrupt retained bytes; query correspondence and failure evidence. |
 | V4-SRC-010 | P4 | A required build-source identity mismatch fails build validation. | Nix build/check | V4 §§14, 20 | Supply wrong fixed-output bytes; observe native validation failure and no publication success. |
 | V4-SRC-011 | P3 | Read access returns a readable tree with provenance for the selected revision. | Source store | V4 §11 | Query from project context; open file and inspect locator, revision, and relationship. |
@@ -101,14 +101,15 @@ The delivery gates rely on current [devenv imports](https://devenv.sh/composing-
 | V4-SRC-016 | P3 | Project evaluation succeeds when the remote inspection tree is unmounted. | Consumer | V4 §11 | Unmount or deny source-store network path; evaluate accepted project. |
 | V4-SRC-017 | P3 | Application startup succeeds when the remote inspection tree is unmounted. | Native application | V4 §11 | Unmount or deny source-store network path; start accepted application. |
 | V4-SRC-018 | When remote read is offered | A remote client can read selected source and provenance without write access. | Source store | V4 §11 | Query from second host; read file and record; attempt write and verify denial. |
-| V4-SRC-019 | P3 | A consumer can list selected direct dependencies for automatic source capture. | Consumer | D-CAPTURE; V4 §12 | Declare one selected direct dependency; inspect effective capture policy. |
-| V4-SRC-020 | P3 | The capture stage automatically retains each listed selected direct dependency it can obtain. | Source store | D-CAPTURE; V4 §12 | List two available direct dependencies; run stage; verify both retained identities. |
+| V4-SRC-019 | P3 | A consumer can list selected direct dependencies for automatic source capture and name each entry's native-input or selected-output package-dependency graph. | Consumer | D-CAPTURE; D-CAPTURE-GRAPH; V4 §12 | Declare one selected dependency in each graph; inspect the named graph and selected identity in effective capture policy. |
+| V4-SRC-020 | P3 | The capture stage automatically retains each obtainable listed dependency resolved in its named graph. | Source store | D-CAPTURE; D-CAPTURE-GRAPH; V4 §12 | List one obtainable selection in each graph; run stage; verify both retained identities. |
 | V4-SRC-021 | P3 | A capture-list entry cannot select or change a dependency revision. | Vendomat | D-CAPTURE; V4 §§3, 12 | Change list entry without native lock change; verify selected revision remains native. |
-| V4-SRC-022 | P3 | Unlisted direct dependencies remain discoverable without automatic capture. | Source store | D-CAPTURE; V4 §12 | Inventory one unlisted direct dependency; verify discovery record and absent capture. |
-| V4-SRC-023 | P3 | An entry that does not match a selected direct dependency reports a policy gap. | Vendomat | D-CAPTURE; V4 §12 | Add stale entry; inspect diagnostic and unchanged native selection. |
+| V4-SRC-022 | P3 | Unlisted direct dependencies in either named graph remain discoverable without automatic capture. | Source store | D-CAPTURE; D-CAPTURE-GRAPH; V4 §12 | Inventory one unlisted dependency in each graph; verify discovery records and absent captures. |
+| V4-SRC-023 | P3 | An entry that does not match a selected dependency in its named graph reports a policy gap. | Vendomat | D-CAPTURE; D-CAPTURE-GRAPH; V4 §12 | Add a stale entry and one with the wrong graph; inspect diagnostics and unchanged native selections. |
 | V4-SRC-024 | P3 | Capture of a selected local source records an immutable byte identity for the retained snapshot. | Source store | V4 §§9, 11–12 | Change local files after capture; verify the retained source and record still identify the captured bytes. |
+| V4-SRC-025 | P3 | When no local view serves a disconnected lookup, source lookup reports unavailable from that client without marking retained source lost. | Source store | D-OFFLINE-SOURCE; V4 §11 | Deny a client's path to the source store with no local view; inspect the unavailable result on the client and the retained record on the source host. |
 
-Nix distinguishes an output's runtime closure from a derivation's build inputs. The inventory fixture must preserve this distinction. The owner must choose the graph named by direct-dependency capture policy (`Q-CAPTURE-GRAPH`). [Nix store query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query).
+Nix distinguishes an output's runtime closure from a derivation's build inputs. The inventory fixture must preserve this distinction. `D-CAPTURE-GRAPH` sets the two policy categories; P3 must prove their native representation and source mapping on pinned versions. [Nix store query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query).
 
 ### Attic and cold consumption
 
@@ -269,7 +270,7 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | V4 §8, repository delivery | V4-OWN-001–002, V4-MOD-011–014, V4-PROOF-003 |
 | V4 §9, daily development | V4-OWN-003–004, V4-OWN-013, V4-SEL-001–002 |
 | V4 §10, Machines | V4-MACH-001–015, V4-OWN-011–012, V4-REC-007, V4-REC-013, V4-PROOF-009 |
-| V4 §§11–12, inspection and coverage | V4-SRC-001–024, V4-REC-001, V4-REC-008 |
+| V4 §§11–12, inspection and coverage | V4-SRC-001–025, V4-REC-001, V4-REC-008 |
 | V4 §13, Attic and fallback | V4-CACHE-001–015, V4-REC-002 |
 | V4 §14, exact checked publication | V4-SEL-003–009, V4-CHK-001–016, V4-CACHE-001–009, V4-CACHE-015 |
 | V4 §15, evidence | V4-OWN-007, V4-CHK-014, V4-EVD-001–011, V4-CACHE-014–015, V4-REC-010–011 |
@@ -281,7 +282,7 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | V4 §21, first application proof | V4-PROOF-001–006 plus P1–P6 requirement groups and V4-REC-001–002; V4-PROOF-007–008 retain retired IDs; V4-PROOF-009 separately proves P7 machine claims |
 | V4 §22, sequence | Phase column in every mandatory requirement; P9–P10 require measured need |
 | V4 §23, boundaries | V4-OWN-001–011, V4-SRC-015, V4-MACH-012; excluded abstractions are not requirements to implement |
-| V4 §24, invariants | V4-OWN-001–013, V4-MOD-001–014, V4-SEL-001–009, V4-SRC-001–024, V4-CHK-001–016, V4-CACHE-001–015, V4-EVD-001–011, V4-MACH-001–015, V4-UPG-008, V4-REC-001–013 |
+| V4 §24, invariants | V4-OWN-001–013, V4-MOD-001–014, V4-SEL-001–009, V4-SRC-001–025, V4-CHK-001–016, V4-CACHE-001–015, V4-EVD-001–011, V4-MACH-001–015, V4-UPG-008, V4-REC-001–013 |
 | V4 §25, technical proof | V4-MOD-008–014, V4-SRC-004–010, V4-MACH-001, V4-MACH-008, V4-CACHE-003–004, V4-CACHE-015, V4-REC-006; see open experiments below |
 | V4 §26, references | Primary documentation cited next to relevant groups and in V4-SPEC.md |
 | D-APP-SCOPE, accepted 2026-10-04 | V4-APP-001–031 are conditional later-module requirements |
@@ -289,19 +290,22 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | D-CHECK-OWNER, accepted 2026-10-04 | V4-CHK-008–011, V4-CHK-013–014 |
 | D-CHECK-GAP, accepted 2026-10-04 | V4-CHK-005, V4-CHK-012, V4-CHK-015 |
 | D-CAPTURE, accepted 2026-10-04 | V4-SRC-003, V4-SRC-019–023 |
+| D-CAPTURE-GRAPH, accepted 2026-10-04 | V4-SRC-001, V4-SRC-019–023; P3 proves both native graph resolutions |
+| D-PROOF-GATE, accepted 2026-10-04 | V4-PROOF-001–006 can finish before V4-PROOF-009; P7 gates V4-MACH-001–015 claims |
+| D-OFFLINE-SOURCE, accepted 2026-10-04 | V4-SRC-016–018, V4-SRC-025; no initial local replica |
 | Current consumer migration | V4-OWN-012, V4-MACH-001, V4-SEL-009 |
 | Nix output byte identity | V4-SEL-006–007, V4-CACHE-015 |
 | Owner's Jujutsu–btrfs–bubblewrap case | V4-APP-001–031 |
 
-## Open questions, assumptions, and experiments
+## Accepted decisions, open questions, assumptions, and experiments
 
 | ID | Status | Decision or proof needed | Affected IDs |
 | --- | --- | --- | --- |
 | P-CHECK-COVERAGE | P4 experiment | Prove how existing checks and module documentation expose coverage gaps without a new test language. | V4-CHK-005, V4-CHK-015 |
 | P-CAPTURE-LIST | P3 experiment | Prove a reviewable capture-list representation that refers to selected native dependencies without duplicating locks. | V4-SRC-019–023 |
-| Q-CAPTURE-GRAPH | Owner decision | Choose the native graph used by direct-dependency capture entries. | V4-SRC-001, V4-SRC-019–023 |
-| Q-PROOF-GATE | Owner decision | Decide whether P7 joins the first V4 release gate; P7 still gates machine claims. | V4-PROOF-001–009, V4-MACH-001–015 |
-| Q-OFFLINE-SOURCE | Owner decision | Decide whether disconnected reads of retained source need a first-phase replica. | V4-SRC-016–018 |
+| D-CAPTURE-GRAPH | Accepted owner decision | Include both direct native inputs and direct package dependencies of selected outputs; each entry names its graph. P3 proves resolution. | V4-SRC-001, V4-SRC-019–023 |
+| D-PROOF-GATE | Accepted owner decision | Let P1–P6 finish the application proof before separate P7; require P7 for machine claims. | V4-PROOF-001–009, V4-MACH-001–015 |
+| D-OFFLINE-SOURCE | Accepted owner decision | Let disconnected lookup report unavailable; keep local applications running; require no initial replica. | V4-SRC-016–018, V4-SRC-025 |
 | P-CURRENT-CONSUMERS | P0 experiment | Inventory and test machine-delivered, input-delivered, and local overlay consumers on the new pin. | V4-OWN-012, V4-MACH-001, V4-SEL-009 |
 | P-NAR-IDENTITY | P4–P5 experiment | Compare checked output bytes and Attic-served bytes using NAR metadata. | V4-SEL-006–007, V4-CACHE-015 |
 | Q-QUEUE | Later module | Decide queue durability, order, count owner, and restart policy. | V4-APP-020–024 |
@@ -322,4 +326,4 @@ Assumptions for initial fixtures: the owner supplies one desktop publisher, one 
 
 ## Readiness for a later implementation guide
 
-These requirements can structure a separate evidence-first implementation-guide session. The owner policy choices for check ownership, nonrequired gaps, initial listed capture, and later application scope remain accepted. `Q-CAPTURE-GRAPH`, `Q-PROOF-GATE`, and `Q-OFFLINE-SOURCE` remain open until the owner answers. That session must start with P0 and the named proof gates. It must not fix unproved export syntax, coverage metadata, capture-list representation, source-mapping rules, Attic verification commands, Machines transfer behavior, or application queue internals before their fixtures pass. The later application case does not delay the Neovim P1–P6 application proof.
+These requirements can structure a separate evidence-first implementation-guide session. The owner policy choices for check ownership, nonrequired gaps, initial listed capture, both named capture graphs, separate P7 proof, disconnected source reads, and later application scope remain accepted. That session must start with P0 and the named proof gates. It must not fix unproved export syntax, coverage metadata, capture-list representation, source-mapping rules, Attic verification commands, Machines transfer behavior, or application queue internals before their fixtures pass. The later application case does not delay the Neovim P1–P6 application proof.

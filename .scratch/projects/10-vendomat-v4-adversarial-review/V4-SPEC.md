@@ -1,6 +1,6 @@
 # Vendomat V4 system specification
 
-**Status:** Adversarial revision for owner review, 2026-10-04. Open decisions and pinned-version facts stay marked.  
+**Status:** Adversarial revision for owner review, 2026-10-04. Prototype-dependent facts stay marked.  
 **Authority:** [CONCEPT-V4.md](./CONCEPT-V4.md) defines V4. This specification makes its contracts testable.  
 **Scope:** Specification only. Examples and names marked **proposed** are not implemented interfaces.
 
@@ -11,7 +11,7 @@
 1. A reusable module exports focused native contributions. devenv composes projects and exposes Machines. NixOS and Home Manager own their own configuration and activation.
 2. Consumer declarations and native locks select dependencies. Vendomat has no dependency resolver, second lock, general runtime, action registry, or deployment engine.
 3. Source inspection and checked Attic publication are Vendomat's two core capabilities. Source availability, source correspondence, build checks, cache availability, acceptance, and activation remain distinct facts.
-4. The first application proof is the Neovim review application, shared command, project consumer, workstation declaration, desktop publisher, and cold laptop. A separate P7 fixture proves machine activation. `Q-PROOF-GATE` decides whether P7 joins the first release gate.
+4. The first application proof is the Neovim review application, shared command, project consumer, workstation declaration, desktop publisher, and cold laptop. P1–P6 may finish before the separate P7 Machines fixture. P7 gates machine-readiness claims.
 5. Local module use does not need a Vendomat service or Attic. The first publication path requires an immutable selection.
 6. Machine deployment uses one pinned and tested devenv Machines implementation. A native plan selects the outputs to apply.
 7. Vendomat initially deletes neither inspection source nor Attic objects automatically. Each other state class has its own retention and restore result.
@@ -35,7 +35,11 @@ V4 §25 leaves the flake export convention, plain repository input contract, pro
 
 **D-CAPTURE, accepted 2026-10-04:** Initial automatic capture covers owned modules and direct dependencies on a consumer-maintained capture list. The first-proof consumer lists its identifiable third-party dependency.
 
-**Open owner choices:** `Q-CAPTURE-GRAPH` defines the native graph used by “direct dependency.” `Q-PROOF-GATE` sets the first release gate. `Q-OFFLINE-SOURCE` sets disconnected source-read scope. No unanswered choice is a binding interface.
+**D-CAPTURE-GRAPH, accepted 2026-10-04:** A capture-list entry names either a direct native input or a direct package dependency of a selected output, and names that graph. P3 must prove native resolution for both categories.
+
+**D-PROOF-GATE, accepted 2026-10-04:** The P1–P6 application proof may finish before the separate P7 Machines fixture. P7 is required before machine-readiness claims.
+
+**D-OFFLINE-SOURCE, accepted 2026-10-04:** Disconnected source lookup may report unavailable. Local applications keep running, and initial V4 requires no local source replica.
 
 ## 2. System boundary and authoritative state
 
@@ -144,15 +148,15 @@ The selection is frozen before checks. Publication aborts if evaluation, locks, 
 
 ## 5. Source inspection
 
-The source store supports discovery, capture, and indexing as separate operations. It retains selected owned modules by default. A consumer-maintained list identifies direct dependencies for initial automatic capture. The list is capture policy, not a dependency declaration or lock. Each entry must resolve against the consumer's selected native dependency in the declared graph before capture. Whether that graph includes direct native inputs, selected package dependencies, or both remains `Q-CAPTURE-GRAPH`. An unmatched entry reports a policy gap; it cannot cause Vendomat to choose a version.
+The source store supports discovery, capture, and indexing as separate operations. It retains selected owned modules by default. A consumer-maintained list identifies direct dependencies for initial automatic capture. The list is capture policy, not a dependency declaration or lock. Each entry names the direct native-input graph or the direct package-dependency graph of a selected output. It must resolve against the consumer's selected native dependency in that graph before capture. An unmatched entry reports a policy gap; it cannot cause Vendomat to choose a version. P3 must prove how the pinned native tools expose and resolve both graphs. Failure to resolve either graph fails the P3 capture-policy proof; it does not silently narrow the accepted scope.
 
-The first-proof consumer lists one identifiable third-party dependency. Other selected dependencies remain discoverable and can be captured on request or under an explicit hold. The optional cross-repository consumer inventory remains separate. The exact capture-policy option or file name remains proposed. D-CAPTURE; V4 §§11–12, 21.
+The first-proof consumer lists at least one selected entry from each graph, including its identifiable third-party inspection dependency. Other selected dependencies remain discoverable and can be captured on request or under an explicit hold. The optional cross-repository consumer inventory remains separate. The exact capture-policy option or file name remains proposed. D-CAPTURE; D-CAPTURE-GRAPH; V4 §§11–12, 21.
 
 Each capture record identifies the locator, ecosystem, native revision or archive hash, hash algorithm and hashed representation, selected consumer context, retained object, capture result, packaging patches or transformations, and known gaps. It labels correspondence as exact selected source, selected source with packaging changes, upstream reference, or unresolved. Capture status separately labels retained, identified but uncaptured, unavailable, or unidentified. A retained upstream checkout is not automatically the installed source. [Nix store closure query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query), V4 §11.
 
-The store gives people and agents a read-only tree and provenance record. An explicit source override changes native inputs; reading an inspection tree does not. A missing inspection source reports a gap but does not invalidate a valid artifact check. A mismatched inspection copy loses its correspondence claim. A source mismatch in a required build input fails build validation. Source retention is durable outside ordinary local Nix garbage collection. V4 §§11, 14, 20.
+The store gives people and agents a read-only tree and provenance record. An explicit source override changes native inputs; reading an inspection tree does not. A selected source with no retained inspection object reports a coverage gap but does not invalidate a valid artifact check. A failed lookup from a disconnected client with no local view reports unavailable without changing the retained object's status. A mismatched inspection copy loses its correspondence claim. A source mismatch in a required build input fails build validation. Source retention is durable outside ordinary local Nix garbage collection. V4 §§11, 14, 20.
 
-The first durable store may reside on the build host and offer read access over the private network. `Q-OFFLINE-SOURCE` decides whether initial V4 also needs a local source replica for disconnected reads. Project evaluation and application startup cannot depend on a mounted remote inspection tree. V4 §11.
+The first durable store may reside on the build host and offer read access over the private network. Under `D-OFFLINE-SOURCE`, lookup from a disconnected client may report unavailable from that client; it must not describe a reachability failure as lost retained bytes. Initial V4 needs no local source replica. Project evaluation and application startup cannot depend on a mounted remote inspection tree. V4 §11.
 
 Runtime and derivation graphs support different inventory questions. A runtime closure lists referenced output paths; it does not list every build input or prove a complete source map. [Nix store closure query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query).
 
@@ -300,9 +304,9 @@ An application fixture must run two different commits and two instances of one c
 | D-CHECK-OWNER | Enabled modules supply default required checks; consumers may add gates. | Accepted owner decision, 2026-10-04. |
 | D-CHECK-GAP | A missing relevant check outside the required set remains a visible gap and does not block publication. | Accepted owner decision, 2026-10-04. |
 | D-CAPTURE | Initial automatic dependency capture follows a consumer-maintained direct-dependency list and the first-proof fixture. | Accepted owner decision, 2026-10-04. |
-| Q-CAPTURE-GRAPH | Which selected native graph defines direct dependencies for the capture list? | Owner answer; then P3 resolution fixture. |
-| Q-PROOF-GATE | Does P7 Machines join the first V4 release gate? | Owner answer; P7 proof remains required for machine claims. |
-| Q-OFFLINE-SOURCE | Must disconnected clients read retained source in initial V4? | Owner answer; local application execution never depends on the source store. |
+| D-CAPTURE-GRAPH | List entries name the direct native-input or selected-output package-dependency graph. | Accepted owner decision; P3 must prove both native resolution paths. |
+| D-PROOF-GATE | P1–P6 may finish before separate P7; P7 gates machine claims. | Accepted owner decision; P7 still needs a pinned fixture. |
+| D-OFFLINE-SOURCE | Disconnected source lookup may report unavailable; local applications keep running. | Accepted owner decision; no initial local replica requirement. |
 | P-CURRENT-CONSUMERS | Which current consumer paths survive, migrate, or retire under a Machines-capable pin? | P0 inventory and before/after consumer fixture. |
 | P-NAR-IDENTITY | How do checked output bytes and Attic-served bytes compare on pinned Nix and Attic? | P4/P5 NAR-hash and isolated substitution fixture. |
 | P-CHECK-COVERAGE | How does a module expose expected check coverage without a new test language? | P4 fixture using existing check declarations and module documentation. |

@@ -70,6 +70,9 @@ Accepted owner decisions for this review remain fixed.
 `D-CHECK-OWNER` assigns default required checks to enabled modules and permits consumer-added gates.
 `D-CHECK-GAP` makes a missing nonrequired relevant check visible without blocking publication by itself.
 `D-CAPTURE` starts automatic capture with owned modules and listed direct dependencies, including the first-proof fixture.
+`D-CAPTURE-GRAPH` includes direct native inputs and direct package dependencies of selected outputs; each capture-list entry names its graph.
+`D-PROOF-GATE` lets the P1–P6 application proof finish before a separate P7 Machines fixture. P7 gates machine-readiness claims.
+`D-OFFLINE-SOURCE` permits source lookup to report unavailable when the client cannot reach retained source. Local applications keep running; initial V4 needs no local source replica.
 
 This is a new interface design, but current consumers exist.
 Before replacement, inventory their delivery paths and either preserve, migrate, or explicitly retire each path.
@@ -447,6 +450,7 @@ Report correspondence separately from whether bytes are present.
 Capture status distinguishes retained, identified but not captured, unavailable, and unidentified source.
 A record may be retained yet still have only approximate correspondence.
 The inspection interface must show both facts.
+Client lookup access is a separate fact. A network outage does not change the retained source's capture status.
 
 Prefer the selected revision over the latest upstream revision.
 When a patched package differs from upstream, expose the patch information beside the source.
@@ -459,8 +463,8 @@ A lookup should identify the project or machine context, dependency, revision, a
 The interface should expose provenance without requiring a special editor or agent runtime.
 
 The first durable store may live on the build host and expose inspection access over the private network.
-Whether disconnected clients require retained local source reads is an open owner choice, `Q-OFFLINE-SOURCE`.
-Clients may keep local read views when that need is established.
+Under `D-OFFLINE-SOURCE`, lookup may report retained source unavailable from a disconnected client. That result does not mean the retained bytes are lost.
+Initial V4 does not require a local source replica. Clients may keep local read views when a later need is established.
 Ordinary application startup and project evaluation must not require a mounted remote inspection tree.
 
 Unpacked trees and convenience checkouts can be derived from retained objects.
@@ -494,9 +498,9 @@ The default policy is:
 5. Expand indexing only when real searches demonstrate its value.
 
 The consumer-maintained list is capture policy, not a dependency declaration or lock.
+Under `D-CAPTURE-GRAPH`, each entry names either a direct native input or a direct package dependency of a selected output, and names that graph.
 Each entry must resolve to a selected native dependency before capture.
-The meaning of direct dependency across native inputs and selected packages remains `Q-CAPTURE-GRAPH` until the owner decides it.
-The P3 fixture must record the graph used, resolve listed entries, and report stale entries as gaps.
+The P3 fixture must prove how the pinned tools expose both graphs, resolve listed entries, and report stale entries as gaps. It must not silently narrow the accepted scope if either graph cannot be resolved.
 
 | Coverage scope | Main value | Main cost |
 | --- | --- | --- |
@@ -850,7 +854,8 @@ A cache restore need not demonstrate complete source retention.
 | Missing module input | Explain the native input requirement; do not invent a resolution |
 | Conflicting options or bindings | Identify the conflict and require an explicit configuration choice |
 | Unsupported requested target | Fail that requested composition and name the unsupported contribution |
-| Inspection source unavailable | Report the gap; valid build and publication work may continue |
+| Selected source lacks a retained inspection object | Report the coverage gap; valid build and publication work may continue |
+| Client cannot reach retained source or a local view | Report lookup unavailable from that client; keep the retained source status and local application use separate |
 | Inspection identity mismatch | Reject that inspection claim and preserve the failure evidence |
 | Required build source mismatch | Fail the build's validation and stop publication |
 | Relevant checks absent | Report check coverage explicitly |
@@ -880,7 +885,7 @@ The fixture includes:
 - An application module that composes those parts.
 - A project consumer and a workstation declaration; P7 tests machine activation.
 - An ordinary module export and a flake-backed export for delivery tests.
-- One identifiable third-party dependency for inspection.
+- One identifiable direct native input and one direct package dependency of a selected output for the P3 capture-list proof. One is the first-proof third-party inspection dependency.
 - A desktop publication host, Attic, and a cold laptop consumer.
 
 The proof succeeds when:
@@ -904,7 +909,7 @@ It must demonstrate a useful application, rather than only a successful cache up
 P1 through P6 prove the application, inspection, and distribution path.
 They do not prove NixOS service activation, Home Manager recovery, or Machines transfer.
 A separate P7 machine fixture is required before making those claims.
-Whether P7 joins the first V4 release gate remains `Q-PROOF-GATE` for the owner.
+Under `D-PROOF-GATE`, P1–P6 may finish the first application proof before P7. Machine-readiness claims wait for the separate P7 fixture.
 
 ## 22. Implementation sequence
 
