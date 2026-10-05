@@ -28,6 +28,12 @@ V4 §25 leaves the flake export convention, plain repository input contract, pro
 
 **D-NAMES, accepted 2026-10-04:** This session specifies behavior first. All new names remain proposed. The concept says a special filesystem and general application runtime are not initially required (V4 §§19, 21, 23).
 
+**D-CHECK-OWNER, accepted 2026-10-04:** Each enabled module supplies default required checks. A consumer may add required checks for its composition.
+
+**D-CHECK-GAP, accepted 2026-10-04:** A missing relevant check outside the declared required set remains a visible coverage gap. It does not block publication by itself.
+
+**D-CAPTURE, accepted 2026-10-04:** Initial automatic capture covers owned modules and direct dependencies on a consumer-maintained capture list. The first-proof consumer lists its identifiable third-party dependency.
+
 ## 2. System boundary and authoritative state
 
 | Fact or state | Authority | Vendomat role |
@@ -133,7 +139,9 @@ The selection is frozen before checks. Publication aborts if evaluation, locks, 
 
 ## 5. Source inspection
 
-The source store supports discovery, capture, and indexing as separate operations. It defaults to retaining owned modules and important direct dependencies. It discovers broader dependency and machine source without promising to capture everything. It captures deeper source on request or under an explicit hold. It may regenerate indexes and read views. V4 §§11–12.
+The source store supports discovery, capture, and indexing as separate operations. It retains selected owned modules by default. A consumer-maintained list identifies direct dependencies for initial automatic capture. The list is capture policy, not a dependency declaration or lock. Each entry must resolve against the consumer's selected native inputs before capture. An unmatched entry reports a policy gap; it cannot cause Vendomat to choose a version.
+
+The first-proof consumer lists one identifiable third-party dependency. Other selected dependencies remain discoverable and can be captured on request or under an explicit hold. The optional cross-repository consumer inventory remains separate. The exact capture-policy option or file name remains proposed. D-CAPTURE; V4 §§11–12, 21.
 
 Each capture record identifies the locator, ecosystem, native revision or archive hash, hash algorithm and hashed representation, selected consumer context, retained object, capture result, packaging patches or transformations, and known gaps. It labels correspondence as exact selected source, selected source with packaging changes, upstream reference, or unresolved. Capture status separately labels retained, identified but uncaptured, unavailable, or unidentified. A retained upstream checkout is not automatically the installed source. [Nix store closure query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query), V4 §11.
 
@@ -160,7 +168,9 @@ evaluate selected output
   → retain receipt
 ```
 
-Missing relevant checks appear as a coverage gap. A failed required check or build blocks a success receipt and publication success. A failed upload leaves the local output usable. A partial closure upload records partial progress and can retry against the same selection. A successful upload command alone cannot establish complete availability. V4 §§14, 20, 24.
+The required set is the union of default checks from enabled modules and checks added by the consumer. The selection records that set and its origin. A declared required check that cannot run has not passed and blocks publication success. A failed required check or build also blocks success.
+
+A relevant check outside the required set may be absent; publication can succeed with a visible coverage gap. The first Neovim proof still needs its declared command and editor checks to pass. A failed upload leaves the local output usable. A partial closure upload records partial progress and can retry against the same selection. A successful upload command alone cannot establish complete availability. D-CHECK-OWNER; D-CHECK-GAP; V4 §§6, 14, 20, 24.
 
 Attic distributes Nix store paths and closure members. Its default upstream filter may skip paths signed by an upstream cache. The publication policy must account for that filter. A verification fixture must query or substitute **every** required runtime path from Attic in an isolated store with other caches and builds disabled. It must include paths first fetched from a public cache. This tests an Attic-only closure claim; normal consumers may still use public caches as fallback. [Attic CLI](https://docs.attic.rs/reference/attic-cli.html), [Attic tutorial](https://docs.attic.rs/tutorial.html), [Nix closure query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query).
 
@@ -272,15 +282,17 @@ The application declares whether each instance is a user or system service. NixO
 
 An application fixture must run two different commits and two instances of one commit concurrently. It must show the same pinned commit and runtime in each instance report, distinct writable state, and a read-only image. It must fill running and queued capacity, reject the next request, and show a queued request start after a slot opens. It must reject ambiguous revisions, conflicted or unsupported trees, altered image mappings, missing runtime closure paths, and sandbox setup failure. It must restart the host supervisor during queued work without duplicate execution. It must restore source, image, Nix output, and instance state as separate results. These gates apply only if the owner includes this application in V4 scope.
 
-## 10. Unresolved questions and experiments
+## 10. Decision record and experiments
 
 | ID | Question or fact | Needed evidence or decision |
 | --- | --- | --- |
 | D-APP-SCOPE | Later reusable module outside initial V4. | Accepted owner decision, 2026-10-04. |
 | D-NAMES | Specify semantics; keep new names proposed. | Accepted owner decision, 2026-10-04. |
-| Q-CHECK-OWNER | Who declares the required checks for a selected output? | Owner decision; test module and consumer composition. |
-| Q-CHECK-MISSING | Does an absent relevant check remain a visible coverage gap, as V4 §14 states, or become a publication blocker? | Owner decision; blocking would amend V4. |
-| Q-CAPTURE | Which direct dependencies qualify for automatic capture at first use? | Owner decision; test discovery and capture separately. |
+| D-CHECK-OWNER | Enabled modules supply default required checks; consumers may add gates. | Accepted owner decision, 2026-10-04. |
+| D-CHECK-GAP | A missing relevant check outside the required set remains a visible gap and does not block publication. | Accepted owner decision, 2026-10-04. |
+| D-CAPTURE | Initial automatic dependency capture follows a consumer-maintained direct-dependency list and the first-proof fixture. | Accepted owner decision, 2026-10-04. |
+| P-CHECK-COVERAGE | How does a module expose expected check coverage without a new test language? | P4 fixture using existing check declarations and module documentation. |
+| P-CAPTURE-LIST | Which reviewable consumer declaration names direct dependencies for capture without duplicating native locks? | P3 fixture with selected, unlisted, and stale entries. |
 | Q-QUEUE | How does the later module implement its limits, queue ordering, and restart behavior? | Later owner decision and concurrent fixture. |
 | Q-APP-STATE | How long must stopped instance state and queued requests remain? | Owner retention policy and restore fixture. |
 | Q-APP-NET | Which network and device access does the first application need? | Application threat model and bubblewrap host probe. |
@@ -294,4 +306,4 @@ An application fixture must run two different commits and two instances of one c
 | P-IMAGE | How does the adapter preserve tree entries and reject conflicts safely? | Btrfs fixture with files, modes, symlinks, conflicts, and failure injection. |
 | P-SANDBOX | Which bubblewrap mount and namespace policy works on the selected NixOS hosts? | Host test, including denied host access and setup failure. |
 
-No row here authorizes a new Vendomat resolver, lock, runtime, registry, or deployment engine. V4 §25 remains the authority for the first eight technical gates.
+No row here authorizes a new Vendomat resolver, lock, runtime, registry, or deployment engine. V4 §25 remains the authority for its technical proof gates.

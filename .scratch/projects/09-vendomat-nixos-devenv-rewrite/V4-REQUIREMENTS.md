@@ -4,7 +4,7 @@
 **Authority:** [V4 concept](./CONCEPT-V4.md). [V4 specification](./V4-SPEC.md) states the system contract.  
 **Rule:** An ID is stable. Add new IDs; do not reuse or renumber old IDs.
 
-`M` requirements gate the stated V4 phase or apply whenever that V4 feature is offered. `C` requirements apply only to the later Jujutsu–btrfs–bubblewrap module. The owner accepted that scope as **D-APP-SCOPE** on 2026-10-04. The owner accepted semantics-first naming as **D-NAMES**. New option and command names remain proposed.
+`M` requirements gate the stated V4 phase or apply whenever that V4 feature is offered. `C` requirements apply only to the later Jujutsu–btrfs–bubblewrap module. The owner accepted that scope as **D-APP-SCOPE** on 2026-10-04. The owner accepted semantics-first naming as **D-NAMES**. The owner also accepted **D-CHECK-OWNER**, **D-CHECK-GAP**, and **D-CAPTURE** on 2026-10-04. New option and command names remain proposed.
 
 Each verification method describes an observable result for a later fixture. It does not assert that V4 already implements the behavior. Phase labels follow V4 §22. P1–P6 form the first complete Neovim proof; P7 covers Machines; P8 covers one reviewed upgrade. P9–P10 require a separate measured need. The conditional application has no V4 phase gate.
 
@@ -63,9 +63,17 @@ The delivery gates rely on current [devenv imports](https://devenv.sh/composing-
 | V4-CHK-002 | P4 | Required artifact checks run against the realized selected output. | Module repository | V4 §14 | Replace a test input with another output path; gate rejects identity mismatch. |
 | V4-CHK-003 | P4 | Required consumer integration checks exercise the selected composition. | Consumer | V4 §§6, 14, 21 | Run the command through the project and editor fixtures against the chosen path. |
 | V4-CHK-004 | P4 | A failed required check prevents successful publication. | Vendomat | V4 §§14, 20, 24 | Inject a deterministic failed gate; observe no success receipt or complete-publication claim. |
-| V4-CHK-005 | P4 | An absent relevant check appears as a coverage gap. | Vendomat | V4 §§14, 20 | Remove editor integration check; inspect coverage report. |
+| V4-CHK-005 | P4 | An absent relevant check outside the required set appears as a coverage gap. | Vendomat | V4 §§14, 20; D-CHECK-GAP | Remove a nonrequired editor integration check; inspect coverage report. |
 | V4-CHK-006 | P4 | A failed build retains diagnostic logs and cannot report publication success. | Vendomat | V4 §§14, 20 | Break derivation; inspect failure record and absence of success result. |
 | V4-CHK-007 | P4 | An idempotent stage verifies the state it reuses. | Vendomat helper | V4 §16 | Re-run with an existing output but changed check evidence; stage reruns or fails rather than skipping. |
+| V4-CHK-008 | P4 | Each enabled module exports its default required checks for the selected output. | Module repository | D-CHECK-OWNER; V4 §§4, 14 | Enable and disable one component; inspect the module's effective default gate set. |
+| V4-CHK-009 | P4 | A consumer can add required checks for its selected composition. | Consumer | D-CHECK-OWNER; V4 §14 | Add one native integration check; inspect the effective gate set. |
+| V4-CHK-010 | P4 | Publication runs the union of module default checks and consumer-added checks. | Vendomat | D-CHECK-OWNER; V4 §14 | Set one check from each owner; verify both run against the same frozen selection. |
+| V4-CHK-011 | P4 | An unavailable declared required check blocks publication success. | Vendomat | D-CHECK-OWNER; V4 §§14, 20 | Remove a declared gate implementation; verify no success receipt. |
+| V4-CHK-012 | P4 | An absent relevant check outside the required set does not block publication by itself. | Vendomat | D-CHECK-GAP; V4 §§14, 20 | Omit a nonrequired relevant check; pass declared gates; inspect success and visible gap. |
+| V4-CHK-013 | P1 | The first-proof module declares checks for its enabled command and editor contributions. | Module repository | D-CHECK-OWNER; V4 §§6, 21 | Evaluate review module with editor enabled; inspect command and editor check declarations. |
+| V4-CHK-014 | P4 | The selection records whether each required check came from a module or the consumer. | Vendomat | D-CHECK-OWNER; V4 §§14–15 | Inspect a mixed-check selection and match each gate to its declaration. |
+| V4-CHK-015 | P4 | Coverage reporting identifies absent checks against documented enabled contribution behavior. | Vendomat | D-CHECK-GAP; V4 §§4, 14 | Enable editor contribution without its nonrequired integration check; report names the uncovered behavior. |
 
 ### Inspection source
 
@@ -73,7 +81,7 @@ The delivery gates rely on current [devenv imports](https://devenv.sh/composing-
 | --- | --- | --- | --- | --- | --- |
 | V4-SRC-001 | P3 | Discovery lists selected modules and candidate direct dependency sources without requiring capture. | Source store | V4 §§11–12 | Inventory a consumer with capture disabled; inspect listed selections. |
 | V4-SRC-002 | P3 | Capture retains selected owned module source outside disposable read views. | Source store | V4 §§11–12 | Delete read view; restore it from retained object and verify bytes. |
-| V4-SRC-003 | P3 | Capture retains an identifiable important direct dependency in the first fixture. | Source store | V4 §§12, 21 | Capture fixture dependency; verify native revision or archive hash. |
+| V4-SRC-003 | P3 | Capture retains the first-proof consumer's listed third-party direct dependency. | Source store | D-CAPTURE; V4 §§12, 21 | Run capture stage; verify listed dependency's native revision or archive hash. |
 | V4-SRC-004 | P3 | Each capture record names native source identity and its consumer selection. | Source store | V4 §11 | Inspect captured module and dependency records against locks. |
 | V4-SRC-005 | P3 | An archive hash names its algorithm and hashed representation. | Source store | V4 §11 | Capture a compressed archive; verify recorded hash against those exact bytes. |
 | V4-SRC-006 | P3 | Capture status and correspondence level appear as separate fields. | Source store | V4 §11 | Retain an upstream-only reference; observe `retained` with non-exact correspondence. |
@@ -89,6 +97,11 @@ The delivery gates rely on current [devenv imports](https://devenv.sh/composing-
 | V4-SRC-016 | P3 | Project evaluation succeeds when the remote inspection tree is unmounted. | Consumer | V4 §11 | Unmount or deny source-store network path; evaluate accepted project. |
 | V4-SRC-017 | P3 | Application startup succeeds when the remote inspection tree is unmounted. | Native application | V4 §11 | Unmount or deny source-store network path; start accepted application. |
 | V4-SRC-018 | P3 | A client on the private network can read selected source and provenance without write access. | Source store | V4 §11 | Query from second host; read file and record; attempt write and verify denial. |
+| V4-SRC-019 | P3 | A consumer can list selected direct dependencies for automatic source capture. | Consumer | D-CAPTURE; V4 §12 | Declare one selected direct dependency; inspect effective capture policy. |
+| V4-SRC-020 | P3 | The capture stage automatically retains each listed selected direct dependency it can obtain. | Source store | D-CAPTURE; V4 §12 | List two available direct dependencies; run stage; verify both retained identities. |
+| V4-SRC-021 | P3 | A capture-list entry cannot select or change a dependency revision. | Vendomat | D-CAPTURE; V4 §§3, 12 | Change list entry without native lock change; verify selected revision remains native. |
+| V4-SRC-022 | P3 | Unlisted direct dependencies remain discoverable without automatic capture. | Source store | D-CAPTURE; V4 §12 | Inventory one unlisted direct dependency; verify discovery record and absent capture. |
+| V4-SRC-023 | P3 | An entry that does not match a selected direct dependency reports a policy gap. | Vendomat | D-CAPTURE; V4 §12 | Add stale entry; inspect diagnostic and unchanged native selection. |
 
 Nix distinguishes an output's runtime closure from a derivation's build inputs. The inventory fixture must preserve this distinction. [Nix store query](https://nix.dev/manual/nix/2.35/command-ref/nix-store/query).
 
@@ -238,39 +251,41 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | Source | Requirement IDs or disposition |
 | --- | --- |
 | V4 §§1–3, purpose, decisions, ownership | V4-OWN-001–011, V4-MOD-001–003, V4-CACHE-001–014 |
-| V4 §4, reusable module | V4-MOD-001–007, V4-MOD-011–014 |
+| V4 §4, reusable module | V4-MOD-001–007, V4-MOD-011–014, V4-CHK-008, V4-CHK-015 |
 | V4 §5, applications, actions, context | V4-MOD-001–003, V4-SRC-011–013; no global action registry gate |
-| V4 §6, Neovim modules | V4-MOD-008–010, V4-CHK-003, V4-PROOF-001–002 |
+| V4 §6, Neovim modules | V4-MOD-008–010, V4-CHK-003, V4-CHK-013, V4-PROOF-001–002 |
 | V4 §7, native target composition | V4-OWN-006, V4-MOD-001–007, V4-MACH-002 |
 | V4 §8, repository delivery | V4-OWN-001–002, V4-MOD-011–014, V4-PROOF-003 |
 | V4 §9, daily development | V4-OWN-003–004, V4-SEL-001–002 |
 | V4 §10, Machines | V4-MACH-001–013, V4-OWN-011, V4-REC-007 |
-| V4 §§11–12, inspection and coverage | V4-SRC-001–018, V4-REC-001, V4-REC-008 |
+| V4 §§11–12, inspection and coverage | V4-SRC-001–023, V4-REC-001, V4-REC-008 |
 | V4 §13, Attic and fallback | V4-CACHE-001–014, V4-REC-002 |
-| V4 §14, exact checked publication | V4-SEL-003–008, V4-CHK-001–007, V4-CACHE-001–009 |
-| V4 §15, evidence | V4-OWN-007, V4-EVD-001–010, V4-CACHE-014, V4-REC-010–011 |
+| V4 §14, exact checked publication | V4-SEL-003–008, V4-CHK-001–015, V4-CACHE-001–009 |
+| V4 §15, evidence | V4-OWN-007, V4-CHK-014, V4-EVD-001–010, V4-CACHE-014, V4-REC-010–011 |
 | V4 §16, tasks and generated files | V4-OWN-010, V4-CHK-001, V4-CHK-007, V4-OPT-004 |
 | V4 §17, reviewed upgrades | V4-UPG-001–009, V4-OPT-003 |
 | V4 §18, releases and automation | V4-OPT-001–003, when offered |
 | V4 §19, storage and recovery | V4-OWN-009, V4-REC-001–012, V4-MACH-011, V4-MACH-013 |
-| V4 §20, failure behavior | V4-MOD-006–007, V4-CHK-004–007, V4-SRC-008–010, V4-CACHE-005–007, V4-MACH-006–011, V4-REC-003–004 |
+| V4 §20, failure behavior | V4-MOD-006–007, V4-CHK-004–012, V4-SRC-008–010, V4-CACHE-005–007, V4-MACH-006–011, V4-REC-003–004 |
 | V4 §21, first complete proof | V4-PROOF-001–008 plus P1–P6 requirement groups |
 | V4 §22, sequence | Phase column in every mandatory requirement; P9–P10 require measured need |
 | V4 §23, boundaries | V4-OWN-001–011, V4-SRC-015, V4-MACH-012; excluded abstractions are not requirements to implement |
-| V4 §24, invariants | V4-OWN-001–011, V4-MOD-001–014, V4-SEL-001–008, V4-SRC-001–018, V4-CHK-001–007, V4-CACHE-001–014, V4-EVD-001–010, V4-MACH-001–013, V4-UPG-008, V4-REC-001–012 |
+| V4 §24, invariants | V4-OWN-001–011, V4-MOD-001–014, V4-SEL-001–008, V4-SRC-001–023, V4-CHK-001–015, V4-CACHE-001–014, V4-EVD-001–010, V4-MACH-001–013, V4-UPG-008, V4-REC-001–012 |
 | V4 §25, technical proof | V4-MOD-008–014, V4-SRC-004–010, V4-MACH-001, V4-MACH-008, V4-CACHE-003–004, V4-REC-006; see open experiments below |
 | V4 §26, references | Primary documentation cited next to relevant groups and in V4-SPEC.md |
 | D-APP-SCOPE, accepted 2026-10-04 | V4-APP-001–031 are conditional later-module requirements |
 | D-NAMES, accepted 2026-10-04 | No proposed option or command name is a binding V4 interface |
+| D-CHECK-OWNER, accepted 2026-10-04 | V4-CHK-008–011, V4-CHK-013–014 |
+| D-CHECK-GAP, accepted 2026-10-04 | V4-CHK-005, V4-CHK-012, V4-CHK-015 |
+| D-CAPTURE, accepted 2026-10-04 | V4-SRC-003, V4-SRC-019–023 |
 | Owner's Jujutsu–btrfs–bubblewrap case | V4-APP-001–031 |
 
 ## Open questions, assumptions, and experiments
 
 | ID | Status | Decision or proof needed | Affected IDs |
 | --- | --- | --- | --- |
-| Q-CHECK-OWNER | Owner choice pending | Decide who declares required checks when module and consumer compose. | V4-CHK-001–005 |
-| Q-CHECK-MISSING | Owner choice pending | Keep V4 §14's visible gap policy or amend it to block publication. | V4-CHK-005, V4-CACHE-005 |
-| Q-CAPTURE | Owner choice pending | Define initial automatic direct-dependency capture rule. | V4-SRC-001–003 |
+| P-CHECK-COVERAGE | P4 experiment | Prove how existing checks and module documentation expose coverage gaps without a new test language. | V4-CHK-005, V4-CHK-015 |
+| P-CAPTURE-LIST | P3 experiment | Prove a reviewable capture-list representation that refers to selected native dependencies without duplicating locks. | V4-SRC-019–023 |
 | Q-QUEUE | Later module | Decide queue durability, order, count owner, and restart policy. | V4-APP-020–024 |
 | Q-APP-STATE | Later module | Decide stopped-instance retention and backup. | V4-APP-017, V4-APP-025 |
 | Q-APP-NET | Later module | Decide permitted network, devices, and interprocess communication. | V4-APP-013–016 |
@@ -289,4 +304,4 @@ Assumptions for initial fixtures: the owner supplies one desktop publisher, one 
 
 ## Readiness for a later implementation guide
 
-These requirements can structure a separate implementation guide. That guide must start with P0 and the named proof gates. It must not fix unproved export syntax, source-mapping rules, Attic verification commands, Machines transfer behavior, or application queue internals before their fixtures pass. The three pending owner policy choices above need explicit resolution before their related requirements become final acceptance criteria. The later application case is illustrative and does not delay the Neovim P1–P6 proof.
+These requirements can structure a separate implementation guide. The owner policy choices for checks, coverage gaps, and initial capture are resolved. That guide must start with P0 and the named proof gates. It must not fix unproved export syntax, coverage metadata, capture-list representation, source-mapping rules, Attic verification commands, Machines transfer behavior, or application queue internals before their fixtures pass. The later application case is illustrative and does not delay the Neovim P1–P6 proof.
