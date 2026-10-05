@@ -54,7 +54,7 @@ V4 §25 leaves the flake export convention, plain repository input contract, pro
 
 Vendomat may cache evaluated facts for speed. Each cached fact names its native source and can be refreshed. No cached fact selects a dependency or overrides a native lock. Ordinary project entry, editor startup, and accepted output execution work without a live Vendomat service, mounted inspection tree, or Attic upload. V4 §§3, 9, 11, 15, 24.
 
-The current repository's [devenv module](../../../modules/devenv.nix) can read a host-installed `machine.json`, and its [consumer fixture](../../../tests/fixtures/store-consumer/devenv.yaml) imports a machine-delivered or input-delivered module. P0 must inventory these current paths and record a tested transition. The V4 selection must record any host-delivered store paths that affect evaluation. A current consumer's successful shell entry is not proof that its proposed V4 replacement works.
+The current repository's [devenv module](../../../modules/devenv.nix) can read a host-installed `machine.json`. Its [consumer fixture](../../../tests/fixtures/store-consumer/devenv.yaml) imports the module through a declared input. A separate [machine overlay](../../../README.md#L100) can import the installed module path. P0 must inventory these paths and record a tested transition. The V4 selection must record any host-delivered store paths that affect evaluation. A current consumer's successful shell entry is not proof that its proposed V4 replacement works.
 
 ## 3. Module contract and exports
 
