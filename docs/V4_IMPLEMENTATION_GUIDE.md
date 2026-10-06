@@ -1,6 +1,7 @@
 # Vendomat V4 implementation guide
 
-**Status:** P0 evidence recorded, gate blocked, 2026-10-06. No V4 phase gate has passed.
+**Status:** P0 evidence updated with the selected Attic host, gate blocked, 2026-10-06.
+No V4 phase gate has passed.
 See the [P0 evidence record](V4_P0_PROOF.md). Do not start P1 until its listed host,
 storage, and consumer-transition gaps are closed.
 

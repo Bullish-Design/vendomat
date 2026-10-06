@@ -57,13 +57,59 @@ Their `devenv.lock` transition fixtures on the proposed module revision remain a
 
 | Area | Observation | Requirement result |
 | --- | --- | --- |
-| Publisher | `server` is a reachable x86_64 Nix build host candidate. No owner decision selected it as the desktop publisher. | Gap: `V4-OWN-009`. |
+| Publisher | The user selected `server` as the Attic host. This does not select it as the desktop publisher. | Gap: `V4-OWN-009`. |
 | Cold laptop | Tailnet peers include `framework` (Linux), `tower` (Windows), `samsung-book` (Windows), and offline `pinix` (Linux). None is confirmed as a cold Linux Nix consumer. `ssh -o BatchMode=yes -o ConnectTimeout=5 andrew@100.64.36.58 true` timed out; root SSH to `server` returned `Permission denied (publickey)`. Logs: `ssh-framework.log`, `ssh-server-root.log`. | Gap: `V4-OWN-009`, `V4-MACH-001`. |
-| Attic | `attic --version` exited 127 because the client is absent; `systemctl is-active atticd.service` exited 4 with `inactive`; no Attic endpoint or credentials were configured. Logs: `attic-client.log`, `attic-service.log`. | Gap: `V4-OWN-009`, `V4-REC-009`. |
-| Existing backup | Restic uses `/mnt/wd_green1/restic` on a locally mounted ext4 disk. The latest success marker was `2026-10-06T02:35:25-04:00`. This is same-host storage, not an off-host backup or a tested restore. | Gap: `V4-OWN-009`, `V4-REC-009`. |
-| Durable state owners | No owner and restore destination are named for retained source, evidence and receipts, Attic objects and signing state, or application data. | Gap: `V4-REC-009`. |
+| Attic | The user selected `server`. A candidate service now builds for `https://server.tail770f47.ts.net/attic`; it is not active. No Attic cache or client token exists. | Partial evidence; runtime and cold-client gaps remain: `V4-OWN-009`, `V4-REC-009`. |
+| Existing backup | Restic uses `/mnt/wd_green1/restic` on the same ext4 disk proposed for Attic data. The current backup paths omit `/mnt/wd_green1/attic`. The latest success marker was `2026-10-06T02:35:25-04:00`. No off-host copy or restore is proven. | Gap: `V4-OWN-009`, `V4-REC-009`. |
+| Durable state owners | Candidate Attic objects and its SQLite database live at `/mnt/wd_green1/attic`, owned by service account `atticd`. The SOPS store owns the encrypted server signing key. No Attic backup path or restore destination is configured. Owners and restore destinations for retained source, evidence, and application data remain open. | Gap: `V4-REC-009`. |
 | Native fallback | `nix show-config | rg '^(substituters|fallback|require-sigs) ='` reports `https://cache.nixos.org/ https://devenv.cachix.org`, `fallback=false`, and `require-sigs=true`. No Attic cache or cold-client fallback behavior was exercised. Log: `nix-cache-policy.log`. | Gap: `V4-OWN-009`. |
 | First proof project and review module | No project owner or review-module repository was selected. `loci.nvim` is an active plugin consumer, but it has not been approved or proven as the V4 review application. | Gap: P0 selection. |
+
+### Attic host selection and candidate build
+
+The user selected `server` as the Attic host on 2026-10-06. The host runs NixOS 26.11,
+kernel 6.18.38, Nix 2.34.7, devenv 2.4.0, and Tailscale 1.98.8. Its root filesystem has
+13 GiB free at 98% use. `/mnt/wd_green1` is ext4, UUID
+`21488349-01cb-4efe-9d21-a72f74a908e0`, with 1.7 TiB free.
+
+The candidate uses the native NixOS `services.atticd` module from Nixpkgs revision
+`256551e45f6303e142ab4a98be1bf243feb77dc0`. It selects `attic-server`
+`0-unstable-2026-06-26`, listens on `127.0.0.1:8089`, and stores objects and SQLite data
+under `/mnt/wd_green1/attic`. A root setup unit creates that directory after the disk mounts.
+Attic runs as `atticd:atticd` and requires the mount. A Tailscale Serve unit adds `/attic`
+on the existing HTTPS port 443. It removes only that route when stopped. The design follows
+the [Attic local-storage tutorial](https://docs.attic.rs/tutorial.html) and the
+[Tailscale Serve path interface](https://tailscale.com/docs/reference/tailscale-cli/serve).
+A read-only port check found no listener on 8089. The storage directory was absent before
+activation.
+
+The `nix-secrets` input now selects tag `v0.1.4`, revision
+`2d11ef47ba0c99f31a48af325e5b56d860f4a5da`. Its encrypted SOPS file contains the new
+`attic-signing-key`. The host's derived age recipient matches `.sops.yaml`. The NixOS service
+reads a rendered file under `/run/secrets`; the key does not enter the Nix store. Activation
+has not tested decryption on this host.
+
+The current Restic repository is also under `/mnt/wd_green1`. Its source paths omit the
+proposed Attic directory. This repository shares the same disk and does not protect against
+disk or host loss. No separate Attic backup or restore location is available.
+
+| Command | Expected result | Actual result and artifact |
+| --- | --- | --- |
+| `ssh-to-age < /etc/ssh/ssh_host_ed25519_key.pub` | Match the server recipient in the encrypted store. | Passed. Output matched the `.sops.yaml` `tower` recipient. This proves public-key mapping, not runtime decryption. Log: `attic-host-age-recipient.log`. |
+| `nix eval --json .#nixosConfigurations.server.config.services.atticd --apply 'x: { enable = x.enable; package = x.package.name; settings = x.settings; environmentFile = toString x.environmentFile; }'` | Evaluate the native server module and selected settings. | Passed. It selected loopback `127.0.0.1:8089`, local storage and SQLite under `/mnt/wd_green1/attic`, package `attic-0-unstable-2026-06-26`, and `/run/secrets/rendered/atticd.env`. Log: `attic-host-config-eval.log`. |
+| `nix build .#nixosConfigurations.server.config.system.build.toplevel --no-link --print-out-paths` | Build the candidate generation and checked Attic config. | Passed, exit 0. Output `/nix/store/fmzw79hv8s04mzzd1b2midw7lqb73z7y-nixos-system-server-26.11.20260705.d407951`. Log: `nix-meta-server-build.log`. |
+| `nix flake check` | Run the nix-meta flake check. | Passed, exit 0. The flake reported all checks passed. Log: `nix-meta-flake-check.log`. |
+| `ss -H -ltn 'sport = :8089'` | Confirm the candidate loopback port is unused before activation. | Passed, exit 0; no listener was listed. The Attic storage directory was absent. Log: `attic-host-port-storage-check.log`. |
+| `tailscale serve status --json` | Before activation, only current routes remain. | Passed. Port 443 has `/atuin` and `/notes`; `/attic` is absent. Log: `attic-host-serve-before.json`. |
+| `systemctl show atticd.service -p LoadState -p ActiveState -p SubState` | Check whether the candidate service is active on the host. | `LoadState=not-found`, `ActiveState=inactive`, `SubState=dead`. The candidate generation is not active. Log: `attic-host-runtime-before.log`. |
+| `sudo -n true` | Check whether this session can activate the generation. | Failed, exit 1: `sudo: a password is required`. No activation or live Attic request ran. Log: `attic-host-runtime-before.log`. |
+
+The candidate config is committed and pushed in nix-meta revision
+`b757f494928ec61eb7d3b7a935f3c86ba85baa5c`. The secret tag is pushed; its value remains
+encrypted. To run the runtime fixture, an operator with local root access must run
+`sudo nixos-rebuild switch --flake /home/andrew/Documents/Projects/nix-meta#server`, then
+check `atticd.service`, the `/attic` Tailscale route, and a real Attic client request.
+The service and route have not passed those checks.
 
 ## Fixtures and results
 
@@ -103,7 +149,7 @@ failure; the corrected path-resolution check passed and its record is `store-con
 
 | Command | Expected result | Actual result and artifact |
 | --- | --- | --- |
-| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 19.1 seconds. Ruff, Ruff-format, ty, and pytest passed. Log: `testee-quick-proof-final.log`; Testee report: `.testee/runs/2026-10-06T18-43-32Z-99bf30/testee-report.json`. |
+| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 37.4 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T19-42-12Z-221f70/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
 | `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` | Existing real consumer integration passes. | Passed, exit 0, 22.7 seconds. Ruff, Ruff-format, ty, and pytest passed. Log: `testee-e2e-quick-final.log`; Testee report: `.testee/runs/2026-10-06T18-39-56Z-939be9/testee-report.json`. |
 | `devenv shell -- nix build .#repoman-toolchain-core --no-link --print-out-paths` | Relevant shared toolchain build passes. | Passed, exit 0; output `/nix/store/iilwbhx0zmrzc33wm4vr1x2ib5f3f60a-repoman-toolchain-core`. Log: `repoman-toolchain-build.log`. |
 
@@ -111,21 +157,22 @@ failure; the corrected path-resolution check passed and its record is `store-con
 
 | Requirement | Result | Evidence or missing proof |
 | --- | --- | --- |
-| `V4-OWN-009` | Gap | Publisher, cold laptop, endpoint access, durable-state owners, restore locations, and cold-client cache behavior are not established. |
+| `V4-OWN-009` | Gap | Attic host and candidate URL are selected, but the endpoint is inactive. The desktop publisher, cold laptop, fallback policy, and cold-client behavior remain open. |
 | `V4-OWN-012` | Partial | All four delivery paths are inventoried and marked preserve. The current consumer locks have not passed before-and-after transition fixtures; no path is retired or migrated. |
 | `V4-MACH-001` | Partial | CLI and matching module revisions are pinned. `machines info` and the local Home Manager plan pass; remote NixOS observation and current-consumer transition remain gaps. |
-| `V4-REC-009` | Gap | Durable source, evidence, Attic, and application state have no named storage and backup owners or restore targets. The local Restic repository is not an off-host proof. |
+| `V4-REC-009` | Gap | Attic storage and service account are named, but its backup path and restore destination are not. The same-disk Restic repository omits Attic data. Source, evidence, and application owners and restore targets also remain open. |
 
-**P0 gate: not passed.** Do not start P1. Continue only after an owner names the publisher, cold
-laptop, first-proof project, review-module repository, Attic endpoint, native fallback policy,
-durable-state owners and restore locations, and a reachable NixOS target. Then run the new pin
-against every current delivery path before any cutover. Existing paths remain in service.
+**P0 gate: not passed.** Do not start P1. The user selected the Attic host, but its service is
+not active and no backup or restore target exists. P0 also needs the desktop publisher, cold
+laptop, first-proof project, review-module repository, native fallback policy, and reachable
+NixOS target. Activate and test Attic with local root access. Then run the new pin against every
+current delivery path before any cutover. Existing paths remain in service.
 
 ## Preserved logs
 
 The dated directory above contains raw output for host and tool versions, cache policy, Attic and
 SSH availability, fixture input updates, Machines info and both plan outcomes, the copied native
 Home Manager plan, installed and checkout overlays, consumer command paths, input fallback
-attempt, both Testee runs, and the toolchain build. Large and local-only logs are not checked into
-the repository. Testee reports are under the local `.testee/runs/` directory and are ignored by
-Gitman.
+attempt, both Testee runs, the toolchain build, and candidate Attic host evaluation and build.
+Large and local-only logs are not checked into the repository. Testee reports are under the
+local `.testee/runs/` directory and are ignored by Gitman.
