@@ -47,7 +47,7 @@ the local Home Manager target tests native plan generation without activating it
 | Machine manifest | `../../nix-meta/machines/server.nix` imports `inputs.vendomat.nixosModules.default`. The active manifest is `/run/current-system/sw/share/vendomat/machine.json`. Vendomat's devenv module reads it before its flake-input fallback. | Preserve until a replacement passes its before-and-after fixture. |
 | Installed central overlay | 11 active overlays import `/run/current-system/sw/share/vendomat/consumer-module.nix`: `argentic`, `eventic`, `flora-qc`, `flora`, `llgym`, `loci-core`, `loci.nvim`, `nix-secrets`, `poddantic`, `pyllij`, and `shellij`. The `loci-core` real shell resolved `repoman` and `agentman` from the selected Nix toolchain; `repoman --version=0.7.5`. | Preserve all 11. No migration has passed. |
 | Local checkout overlay | 10 active overlays import `/home/andrew/Documents/Projects/vendomat/modules/devenv.nix`: `agentman`, `flora-core`, `forgelab`, `inferference`, `nix-desktop`, `nix-nvim`, `nix-paseo`, `repoman`, `talkee`, and `tyo3`. The RepoMan checkout shell resolved its editable `.devenv` command as configured. | Preserve all 10. No migration has passed. |
-| Flake-input consumer | `tests/fixtures/store-consumer/devenv.yaml` declares Vendomat revision `bd26fea8a2124bb4b1bbd8721418d831b4c2bf13`; its `devenv.nix` enables `vendor.toolchain`. | Preserve its declared pin until a new-pin transition passes. The host manifest overrode it during the successful E2E run, so input fallback remains unproved. |
+| Flake-input consumer | `tests/fixtures/store-consumer/devenv.yaml` declares Vendomat revision `bd26fea8a2124bb4b1bbd8721418d831b4c2bf13`; its `devenv.nix` enables `vendor.toolchain`. | Preserve its declared pin until a new-pin transition passes. The host-manifest path and, in the separate masked-manifest fixture below, the declared input path both pass. |
 | Real consumer fixture | `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` passed the real store-consumer checks. Commands `repoman`, `copyroom`, and `agentman` resolved in the selected toolchain store path; supported version probes reported RepoMan `0.7.5` and CopyRoom `0.7.7`. | Preserve. E2E result proves the current host-manifest path, not the absent-manifest fallback. |
 
 All 21 active central overlays remain on their current path. No current consumer was cut over.
@@ -171,11 +171,28 @@ selection overrides.
 The exploratory unsupported command `agentman --version` exited 3. This is not an integration
 failure; the corrected path-resolution check passed and its record is `store-consumer-paths.log`.
 
+#### Declared Vendomat input fallback
+
+The consumer fixture inputs are `tests/fixtures/store-consumer/devenv.yaml`, `devenv.nix`, and
+`devenv.lock`. The lock selects Vendomat `bd26fea8a2124bb4b1bbd8721418d831b4c2bf13`, Nixpkgs
+`c2f38fe7f9e04d9aadd354d380f2bd40531d9737`, and RepoMan
+`7c5b79b995e1942a78dbce8b8677969d3ef11233`. Copies of those three files are in the preserved
+proof directory.
+
+| Command | Expected result | Actual result and artifact |
+| --- | --- | --- |
+| Original rootless masked-manifest attempt, preserved as `input-fallback.log` | With the system manifest absent, evaluate the input-delivered module. | Failed before the module result. OpenSSH rejected a systemd SSH config include in the namespace, then the private `agentman` fetch failed. This did not disprove fallback behavior. |
+| `run-input-fallback-e2e.sh` | Mask `machine.json`, use the declared Vendomat input, and pass the real consumer E2E check. | Passed, exit 0. Testee quick completed in 54.0 seconds; all 181 pytest cases passed, including the three opt-in consumer-shell checks. Log: `input-fallback-e2e-retry.log`. Harness: `/home/andrew/.local/state/vendomat/v4-proof/2026-10-06/p0/run-input-fallback-e2e.sh`. Testee and pytest reports: `input-fallback-testee-report.json`, `input-fallback-pytest.json`. |
+| `run-input-fallback-resolution.sh` | Print the command paths and versions from the consumer shell while `machine.json` is absent. | Passed. `repoman`, `copyroom`, and `agentman` resolved under `/nix/store/iilwbhx0zmrzc33wm4vr1x2ib5f3f60a-repoman-toolchain-core/bin`; RepoMan reported `0.7.5`, CopyRoom `0.7.7`. Log: `input-fallback-resolution.log`. Harness: `/home/andrew/.local/state/vendomat/v4-proof/2026-10-06/p0/run-input-fallback-resolution.sh`. |
+
+This proves the current declared Vendomat input pin without the host manifest. It does not prove
+the proposed V4 module transition or the 21 active overlay transitions.
+
 ### Repository gates
 
 | Command | Expected result | Actual result and artifact |
 | --- | --- | --- |
-| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 35.6 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T20-20-49Z-cdfef2/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
+| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 38.5 seconds after the fallback evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T20-25-37Z-20baa9/testee-report.json`; preserved copy: `testee-quick-after-fallback-doc-report.json`. Log: `testee-quick-after-fallback-doc.log`. |
 | `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` | Existing real consumer integration passes. | Passed, exit 0, 22.7 seconds. Ruff, Ruff-format, ty, and pytest passed. Log: `testee-e2e-quick-final.log`; Testee report: `.testee/runs/2026-10-06T18-39-56Z-939be9/testee-report.json`. |
 | `devenv shell -- nix build .#repoman-toolchain-core --no-link --print-out-paths` | Relevant shared toolchain build passes. | Passed, exit 0; output `/nix/store/iilwbhx0zmrzc33wm4vr1x2ib5f3f60a-repoman-toolchain-core`. Log: `repoman-toolchain-build.log`. |
 
@@ -184,18 +201,18 @@ failure; the corrected path-resolution check passed and its record is `store-con
 | Requirement | Result | Evidence or missing proof |
 | --- | --- | --- |
 | `V4-OWN-009` | Gap | Attic host and candidate URL are selected, but the endpoint is inactive. `framework` was selected for the publisher/cold-machine question, but its roles and versions remain unproved. No Attic fallback policy has been exercised. |
-| `V4-OWN-012` | Partial | All four delivery paths are inventoried and marked preserve. The current consumer locks have not passed before-and-after transition fixtures; no path is retired or migrated. |
+| `V4-OWN-012` | Partial | All four delivery paths are inventoried and marked preserve. The current host-manifest and declared-input consumer fixtures pass. Before-and-after tests for the proposed V4 pin and the 21 active overlays remain gaps; no path is retired or migrated. |
 | `V4-MACH-001` | Partial | CLI and matching module revisions are pinned. `machines info` and the local Home Manager plan pass; remote NixOS observation and current-consumer transition remain gaps. |
 | `V4-REC-009` | Gap | Attic storage and service account are named, but its backup path and restore destination are not. The same-disk Restic repository omits Attic data. `/mnt/shared` is another local disk, not an off-host copy. Source, evidence, and application owners and restore targets also remain open. |
 
-**P0 gate: not passed.** Do not start P1. The user selected the Attic host, but its service is
-not active and no off-host backup or restore target exists. `loci.nvim` and `nix-nvim` are
-selected for the first proof, but the latter has an active conflict and cannot enter its devenv
-shell. P0 also needs distinct publisher and cold-client roles, framework access, native fallback
-policy, the Attic runtime fixture, and a reachable NixOS target. Resolve the module repository's
-active conflict through its owner before editing it. Activate and test Attic with local root
-access. Then run the new pin against every current delivery path before any cutover. Existing
-paths remain in service.
+**P0 gate: not passed.** Do not start P1. The declared input fallback now passes, but it uses the
+current Vendomat pin. The Attic service is not active, and no off-host backup or restore target
+exists. `loci.nvim` and `nix-nvim` are selected for the first proof, but the latter has an active
+conflict and cannot enter its devenv shell. P0 also needs distinct publisher and cold-client roles,
+framework access, native fallback policy, the Attic runtime fixture, a reachable NixOS target, and
+before-and-after tests for the proposed module pin. Resolve the module repository's active conflict
+through its owner before editing it. Activate and test Attic with local root access. Existing
+consumer paths remain in service until their replacements pass.
 
 ## Preserved logs
 
@@ -203,7 +220,7 @@ The dated directory above contains raw output for host and tool versions, cache 
 SSH availability, fixture input updates, Machines info and both plan outcomes, the copied native
 Home Manager plan, installed and checkout overlays, consumer command paths, input fallback
 attempt, both Testee runs, the toolchain build, candidate Attic host evaluation and build, Tailscale
-host discovery, framework reachability, repository selections, Gitman state, disk inventory, and
-the latest quick-gate report.
+host discovery, framework reachability, repository selections, Gitman state, disk inventory, the
+latest quick-gate report, and the masked-manifest E2E plus command-path proofs.
 Large and local-only logs are not checked into the repository. Testee reports are under the
 local `.testee/runs/` directory and are ignored by Gitman.
