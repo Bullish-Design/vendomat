@@ -398,3 +398,7 @@ The full `nix-meta` server check also passes all 14 checks against the active lo
 Remaining work is operational: keep those proofs repeatable, curate dependency skills only when
 there is a real knowledge need, and defer extra builders, fleet orchestration, and vendored source
 until real usage justifies them.
+
+A separate [V4 redesign](docs/CONCEPT.md) is planned. Its
+[implementation guide](docs/V4_IMPLEMENTATION_GUIDE.md) defines the proof gates. V4 interfaces
+are not implemented yet.

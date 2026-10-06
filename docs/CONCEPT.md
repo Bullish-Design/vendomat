@@ -22,8 +22,8 @@ Vendomat records source it cannot obtain. Binary-only software, unavailable sour
 installed outside Nix remain visible gaps. Later work may cover other installation methods.
 
 The existing Vendomat implementation does not define the rewrite's interfaces.
-The [project concept](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/CONCEPT.md) gives the detailed contract.
-The [implementation guide](../.scratch/projects/09-vendomat-nixos-devenv-rewrite/IMPLEMENTATION_GUIDE.md) orders the proofs.
+The [reviewed V4 concept](../.scratch/projects/10-vendomat-v4-adversarial-review/CONCEPT-V4.md) gives the detailed contract.
+The [V4 implementation guide](V4_IMPLEMENTATION_GUIDE.md) orders the reviewed proofs.
 
 ## Ownership
 
