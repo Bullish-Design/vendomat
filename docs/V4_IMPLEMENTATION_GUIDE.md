@@ -1,381 +1,240 @@
 # Vendomat V4 implementation guide
 
-**Status:** P0 evidence updated with the selected Attic host, gate blocked, 2026-10-06.
-No V4 phase gate has passed.
-See the [P0 evidence record](V4_P0_PROOF.md). Do not start P1 until its listed host,
-storage, and consumer-transition gaps are closed.
+**Status:** Canonical. No V4 phase has passed. **Date:** 2026-10-06.
 
-The reviewed [V4 concept](../.scratch/projects/10-vendomat-v4-adversarial-review/CONCEPT-V4.md),
-[specification](../.scratch/projects/10-vendomat-v4-adversarial-review/V4-SPEC.md), and
-[requirements](../.scratch/projects/10-vendomat-v4-adversarial-review/V4-REQUIREMENTS.md)
-define the contract. The [adversarial review](../.scratch/projects/10-vendomat-v4-adversarial-review/V4-REVIEW.md)
-names the proof risks. This guide orders the work and gives each step an observable check.
-If a fixture disproves a proposed interface, revise the specification and this guide before
-implementing a different interface. Preserve stable requirement IDs.
+This guide orders the V4 proof work. Each step has an instruction and a **Verify:** line.
 
-V4 keeps native declarations and locks as the selection authority. Vendomat adds source
-inspection and evidence for checked publication. The first complete application proof is a
-Neovim review command and editor interface. P1–P6 prove that application path. P7 separately
-proves machine integration. P8 is one reviewed upgrade. P9–P10 require measured demand.
+Authority:
+
+- [V4 specification](../.scratch/projects/13-vendomat-v4-canonical/V4-SPEC.md): the only normative contract.
+- [V4 requirements](../.scratch/projects/13-vendomat-v4-canonical/V4-REQUIREMENTS.md): 60 active IDs.
+- [V4 concept](../.scratch/projects/13-vendomat-v4-canonical/CONCEPT-V4.md): goals and boundary.
+- [Native baseline](../.scratch/projects/13-vendomat-v4-canonical/NATIVE-BASELINE.md): 24 upstream facts.
+
+The project-09 and project-10 documents do not define V4. Do not follow them for V4 work.
 
 ## How to run this guide
 
-1. Create one Gitman lane for each reviewable phase or smaller contract. Record its base revision.
-   **Verify:** `devenv shell -- gitman status` shows the intended lane and no unrelated work.
-2. Before implementation, write the fixture inputs and the expected pass, failure, and gap results.
-   **Verify:** Another reader can run each check without guessing a version, host, or selection.
-3. For each step, save the native command, exit status, relevant output, selected revisions, and
-   observed identities in a dated proof record. Keep large raw logs outside tracked documentation.
-   **Verify:** The record links to preserved logs and separates observation from inference.
-4. Run `devenv shell -- testee verify --mode quick` after repository code or documentation changes.
-   Run `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` when the module, toolchain,
-   or consumer integration changes. Run the relevant Nix build and real host fixture for affected
-   native behavior. **Verify:** The phase record contains the results and names any skipped gate.
-5. Do not advance past a failed phase gate. Fix the implementation or revise the contract with a
+1. Open one Gitman lane for each phase. Record its base revision. **Verify:** `devenv shell -- gitman status` shows the
+   intended lane and no unrelated work.
+2. Before you implement, write the fixture inputs and the expected pass, fail, and gap results. **Verify:** Another
+   reader can run each check without guessing a version, host, or selection.
+3. Record the command, exit status, relevant output, selected revisions, and observed identities in a dated record. Keep
+   raw logs outside the repository. **Verify:** The record separates observation from inference and links its preserved
+   logs.
+4. Run the repository gate after every change: `devenv shell -- testee verify --mode quick`. Run
+   `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` when a change affects the Nix module, toolchain, or
+   consumer integration. Do not advance past a failed gate. Fix the implementation, or revise the contract with a
    recorded decision. **Verify:** The next phase cites a passing prior gate and the exact fixture.
 
-The proof record for each step must name its requirement IDs, environment, commands, expected
-result, actual result, artifacts, and conclusion. A test that only asserts implementation
-details does not replace the named user-visible behavior. Proposed names and commands in the
-V4 specification become instructions only after their fixture proves them.
+## Pin record
 
-## P0 — pin the environment and preserve current consumers
+The pin record is a document. It is not a phase. It has no gate. There is no P0 and no combined
+preflight gate. Record the devenv version, the Nix version, and the target systems. Record the publisher host, the
+cold consumer host, and the Attic endpoint. Record each durable state class with its owner and
+restore route. Record the native cache policy and the 24 native baseline facts.
 
-**Requirements:** `V4-OWN-009`, `V4-OWN-012`, `V4-MACH-001`, `V4-REC-009`.
+The record itself satisfies `V4-OWN-009` and `V4-REC-009`. A missing host is a named blocker on the
+phase that needs it. It does not block the programme. The [P0 record](V4_P0_PROOF.md) holds
+observed evidence that the pin record may cite.
 
-1. Inventory the current Vendomat module, machine manifest, central overlay, input-based
-   consumer, and real active consumers. Mark each path for preserve, migrate, or retire.
-   **Verify:** Evaluate the current consumer fixture and at least one active example of each
-   used delivery path. Record its effective Vendomat input, store paths, and working commands.
-2. Select one desktop publisher, one cold laptop, one first-proof project, and one review-module
-   repository. Record system architectures, Nix versions, network access, Attic endpoint,
-   storage owners, backup destinations, and native cache fallback policy.
-   **Verify:** Each host can reach only its intended endpoints. Each durable state class has a
-   named owner and restore location. Record unavailable infrastructure as a P0 blocker.
-3. Pin a devenv executable and matching module revision with Machines support. Keep the old
-   consumer pin available during migration.
-   **Verify:** Record both identities. On the new pin, evaluate a minimal machine fixture and
-   create a native plan. A successful version query alone does not pass this step.
-4. Re-run every current delivery fixture on the proposed pin. Record any changed option,
-   module path, generated output, or host-delivered input. Choose and test a migration for
-   each affected active consumer before retiring a path.
-   **Verify:** Before and after results match the intended behavior. A failing consumer has a
-   named migration and rollback path. No host store path affecting selection is hidden.
-5. Run the current Testee gate and the existing opt-in consumer integration fixture. Save the
-   baseline without changing V4 code.
-   **Verify:** Record pass or failure for each check. A pre-existing failure has a reproducible
-   command and does not get reported as a V4 regression.
+The pin record is [docs/V4_PIN_RECORD.md](V4_PIN_RECORD.md). Its baseline observations are in the
+[native baseline](../.scratch/projects/13-vendomat-v4-canonical/NATIVE-BASELINE.md#observation-record-2026-10-06).
 
-**Gate:** A tested Machines pin and a complete consumer transition inventory exist. Host,
-storage, backup, and fallback policies are explicit. Do not use current devenv 2.2 behavior
-as evidence for Machines.
+| Phase | Entry condition |
+| --- | --- |
+| P1, P2 | devenv and Nix. |
+| P3 | P2 passed, and a writable store. |
+| P4 | P3 passed. |
+| P5 | P4 passed, a reachable Attic with a push token and a separate pull token, and a second machine with an empty store. |
+| P6 | P5 passed. |
+| P7 | A reachable NixOS target and the Machines pin (`V4-MACH-001`). |
 
-## P1 — prove one focused native module
+## P1 — one focused native module
 
-**Requirements:** `V4-OWN-001–008`, `V4-OWN-010`, `V4-MOD-001–010`, `V4-CHK-013`,
-`V4-MACH-002`, `V4-PROOF-001–002`.
+**IDs:** `V4-OWN-002`, `V4-OWN-003`, `V4-OWN-007`; `V4-MOD-001`, `V4-MOD-002`, `V4-MOD-005`, `V4-MOD-008`, `V4-MOD-009`, `V4-MOD-010`.
+**Scenarios:** `V4-PROOF-001`, `V4-PROOF-002`, `V4-CHK-013`.
 
-1. Put one review implementation and a command with a documented result format in its owning
-repository. Export project, NixOS, and Home Manager contributions as distinct native targets.
-   **Verify:** Run the command on known input and parse the expected result. Evaluate each
-   target alone. Confirm that project import does not activate system or user configuration.
-2. Define typed options, enabled defaults, supported targets, required inputs, and default
-   command and editor checks in the module contract.
-   **Verify:** Evaluate defaults, invalid types, a missing required input, and an unsupported
-   target. Each invalid case must fail with a diagnostic naming the cause.
-3. Export a normal Neovim plugin contribution and a dedicated configured Neovim output. Both
-   must invoke the same packaged review command by its selected path.
-   **Verify:** Run the representative editor command in both forms. Put a conflicting binary
-   first on `PATH`; both forms must still invoke the selected package.
-4. Test independent overrides and composition conflicts. Disable the editor while retaining
-   the command. Change one supported option. Compose a documented incompatible setting.
-   **Verify:** The command still runs without the editor. The override changes only its intended
-   output. The conflict fails with a named native diagnostic.
-5. Run the module locally without a Vendomat service or Attic. Keep a normal editor profile
-   active beside the dedicated output.
-   **Verify:** Both editors keep their own settings. The command produces its expected result
-   while Vendomat and Attic are unavailable.
+1. Put one review implementation and one command with a documented result format in one repository. Export a devenv
+   module, a NixOS module, and a Home Manager module as distinct native targets. **Verify:** Run the command on known
+   input and parse the expected result. Evaluate each target alone. Importing the project target activates no system or
+   user configuration.
+2. Export the plugin contribution as a `buildVimPlugin` derivation. Export the dedicated editor as `wrapNeovimUnstable`
+   with `wrapRc = true`. Substitute the absolute store path of the command into the Lua at build time. **Verify:** Both
+   forms invoke the same packaged implementation. Put a conflicting binary first on `PATH`. Both forms still invoke the
+   selected store path. The Nixpkgs and Home Manager wrappers default to `--suffix PATH`. Record that a `PATH` lookup
+   would lose.
+3. Enable the module with no overrides. Then disable the editor and keep the command. Then change one supported option.
+   **Verify:** Defaults evaluate as declared. The command runs without the editor. The override changes only its
+   intended output.
+4. Run the module with no Vendomat process and no Attic. Keep a normal editor profile active beside the dedicated
+   output. **Verify:** Both editors keep their own settings. The command produces its expected result. Declare the
+   required check set of the module, and confirm it evaluates.
 
-**Gate:** The command and both editor forms work from one implementation. Native target,
-default, override, conflict, and required-check contracts pass. This gate makes no machine
-activation or publication claim.
+**Gate:** One implementation serves the command and both editor forms. The editor reaches the
+command by absolute store path. This gate makes no publication claim and no machine claim.
 
-## P2 — prove delivery and fresh local use
+## P2 — delivery, overrides, and the publication form
 
-**Requirements:** `V4-OWN-013`, `V4-MOD-011–014`, `V4-SEL-001–002`, `V4-PROOF-003`.
+**IDs:** `V4-MOD-011`, `V4-MOD-012`; `V4-SEL-001`, `V4-SEL-002`, `V4-SEL-010`; `V4-OWN-013`.
+**Scenario:** `V4-PROOF-003`.
 
-1. Build two clean consumers: an ordinary devenv repository and a flake-backed repository.
-   Export only the focused module, not the author's development shell.
-   **Verify:** Evaluate and build both consumers. Add an author-only tool or process to the
-   author shell; confirm neither consumer inherits it.
-2. Determine the minimum native input contract for the ordinary consumer. Remove one required
-   input and test the resulting diagnostic. Record the exact import path proven by the fixture.
-   **Verify:** The complete consumer works. The incomplete consumer identifies the missing
-   input. It does not rely on recursive import of the author's `devenv.yaml`.
-3. Prove how a flake-backed export carries or explicitly passes its transitive inputs. Test the
-   selected revision in a fresh consumer and record its effective lock graph.
-   **Verify:** The consumer builds without undeclared local paths. Changing its lock changes
-   only the native selection. A lock entry alone does not enable the module.
-4. Test active profiles and a reversible local checkout override through both delivery paths.
-   Compare two independent consumers before and after the override.
-   **Verify:** The selection report names each effective path, profile, and override. Reverting
-   the override restores the prior result. Consumer B's accepted lock does not change.
-5. Deny Vendomat and Attic to a fresh local consumer. Permit only the native sources, public
-   caches, and local builds allowed by the P0 fallback policy. Realize and run the command.
-   **Verify:** A clean consumer obtains its needed native inputs and runs the selected command.
-   Record any external source or cache used. Do not call this a fully offline rebuild.
-6. Compare explicit native declarations with a small delivery helper only if repeated manual
-   declarations cause a concrete failure in both consumers.
-   **Verify:** A helper, if added, leaves native files and locks as the only selection authority.
-   If it adds no measurable value, keep the explicit declarations.
+1. Resolve the publication form. Build the same named output through a flake attribute and through
+   `devenv build outputs.<name>`. **Verify:** `nix build --json` returns `drvPath` and the output path for the flake
+   attribute. `nix flake metadata --json` returns the complete `locks` graph. Record whether `devenv build` supplies an
+   equivalent handle. If the flake form cannot express the P1 outputs, stop and revise the contract before P3.
+2. Build two clean consumers: a plain devenv repository and a flake-backed repository. Export only the focused module.
+   **Verify:** Neither consumer inherits an author-only tool or process. Remove one required input from the plain
+   consumer. The diagnostic identifies it. Add an extra input to the `devenv.yaml` of the author. The remote consumer
+   does not receive it. This matches the documented limit that devenv does not merge remote `devenv.yaml` imports.
+3. Test a reversible local checkout override through both paths, with two independent consumers. **Verify:** The
+   effective selection report names each path, profile, and override. Reverting restores the prior result. The accepted
+   lock of consumer B does not change.
+4. Deny Vendomat and Attic to a fresh local consumer. Permit only the native sources and public caches that the pin
+   record allows. **Verify:** The consumer realizes its inputs and runs the command. Record every external source used.
+   Do not call this an offline rebuild.
 
-**Gate:** Both delivery forms and a fresh local realization pass on the P0 pin. The tested
-export, input, profile, and override behavior replaces proposed syntax in the specification.
+**Gate:** One publication form is chosen and proved. Both delivery forms and a fresh local
+realization pass. The tested syntax replaces every proposed name in the specification.
 
-## P3 — retain and inspect selected source
+## P3 — retain selected source
 
-**Requirements:** `V4-SRC-001–009`, `V4-SRC-011–012`, `V4-SRC-014–017`,
-`V4-SRC-019–025`, `V4-PROOF-004`.
+**IDs:** `V4-SRC-002`, `V4-SRC-003`, `V4-SRC-004`, `V4-SRC-006`, `V4-SRC-008`, `V4-SRC-009`, `V4-SRC-011`, `V4-SRC-015`, `V4-SRC-024`.
+**Scenario:** `V4-PROOF-004`.
 
-1. Evaluate the first consumer's selected native inputs and selected output's direct package
-   dependencies. Choose one identifiable entry from each graph. Add both to a reviewable
-   consumer capture list, with the graph named for each entry.
-   **Verify:** Resolve each entry to the native selected revision or archive hash. An unlisted
-   dependency stays discoverable. A stale or unmatched entry reports a policy gap and cannot
-   change the native lock. If either graph cannot be resolved, stop P3 and revise the proof.
-2. Capture the selected owned module and the listed direct dependencies into durable storage.
-   Keep one retained object and a small identity record for each selected source.
-   **Verify:** Compare the declared revision or archive hash, content hash, and stored bytes.
-   Record original locator, selecting context, storage path, and capture result.
-3. Inspect native package metadata for patches, generated source, or other transformations.
-   Label each view as exact selected source, selected source with packaging changes, upstream
-   reference, or unresolved.
-   **Verify:** Use one patched fixture and one unresolved fixture. A retained upstream tree
-   cannot receive an exact installed-source label without matching evidence.
-4. Expose a read-only tree and provenance record from project context. Keep lookup separate
-   from native input selection and package execution.
-   **Verify:** Open a selected file, inspect its source relationship, and compare consumer
-   locks and output paths before and after lookup. They must remain unchanged.
-5. Exercise missing, unavailable, disconnected, and mismatched inspection source cases.
-   **Verify:** Reports distinguish identified but uncaptured, unavailable, unidentified, and
-   client-unreachable states. A disconnected lookup does not mark retained source as lost.
-   An inspection gap does not turn a valid artifact check into a failed check.
-6. Test source durability independently of derived read views. Remove a view, run local Nix
-   garbage collection in the fixture, and recreate the view from retained bytes.
-   **Verify:** Hashes and identity records still match. The project and accepted command run
-   without a mounted inspection tree. Measure retained bytes for the P6 storage report.
+1. Run `nix flake archive --json` on the chosen selection. Add a garbage-collection root for each archived path.
+   **Verify:** Every locked input has one store path. `nix flake metadata --json` supplies the `rev` and `narHash` of
+   each input. After local garbage collection, every archived path survives. Measure the total archived bytes and record
+   them.
+2. Record one identity entry for each retained input. Include the locator, locked revision, NAR hash, store path, and
+   the consumer selection that chose it. Label the correspondence. **Verify:** A locked input labels as exact selected
+   source. A package dependency labels as unresolved, and the record names `pkgs.srcOnly` as the later mechanism.
+   Corrupt one retained path. It loses its exact-correspondence claim. Capture a dirty local tree with `nix store add`.
+   Change the working tree. The content-addressed identity still names the captured bytes.
+3. Read one retained file through its store path from the project. Leave one selected package uncaptured. **Verify:**
+   Reading returns the file and its provenance. No lock or output path changes. The uncaptured package reports a
+   coverage gap, and the artifact checks still pass. A capture-only record sets no rebuild-proof field.
 
-**Gate:** Both direct-dependency graphs resolve under the pinned tools. The first consumer can
-read retained source with honest correspondence labels and explicit gaps. Source lookup never
-changes native selection.
+**Gate:** Every locked input is retained, rooted, identified, and readable. Package source is
+reported as unresolved, not guessed. Source retention changes no selection.
 
-## P4 — bind checks to one frozen output
+## P4 — bind declared checks to exact bytes
 
-**Requirements:** `V4-SEL-003–009`, `V4-CHK-001–012`, `V4-CHK-014–016`, `V4-SRC-010`,
-`V4-EVD-001–002`, `V4-EVD-004–006`, `V4-EVD-011`, `V4-PROOF-005`.
+**IDs:** `V4-SEL-003`, `V4-SEL-006`, `V4-SEL-007`, `V4-SEL-009`; `V4-CHK-001`, `V4-CHK-002`, `V4-CHK-004`, `V4-CHK-006`, `V4-CHK-007`, `V4-CHK-010`, `V4-CHK-011`;
+`V4-EVD-001`, `V4-EVD-002`, `V4-EVD-005`, `V4-EVD-006`, `V4-EVD-012`.
+**Scenarios:** `V4-PROOF-005`, `V4-CHK-003`.
 
-1. Freeze one immutable consumer revision, or one exact proposed diff against a recorded base.
-   Record declarations, locks, output attribute, target system, active profiles, overrides,
-   module sources, and effective host-delivered inputs.
-   **Verify:** Re-evaluate the selection and compare every recorded input. A mutable path or
-   changed host manifest prevents an immutable success claim unless its exact bytes were frozen.
-2. Evaluate the selected derivation and required-check set. Merge default checks from enabled
-   modules with consumer-added checks. Record each check's owner and input.
-   **Verify:** Enable and disable one component and add one consumer check. The effective set
-   changes as declared. An enabled module without its required-check declaration cannot pass.
-3. Run declared pre-build checks, realize the exact output, and run artifact and integration
-   checks against that output. Use devenv tasks for order and narrow helpers for validation.
-   **Verify:** Instrument stage order. A failed pre-build check prevents build success. An
-   artifact check supplied with a different output path fails identity validation.
-4. Query and record the realized output path, derivation, Nix Archive (NAR) hash, references,
-   and check logs. Recheck the frozen inputs before any upload.
-   **Verify:** Change a lock, derivation, output path, host input, or output bytes after checks.
-   Each drift fixture must reject publication success or require the affected check again.
-   Supply wrong fixed-output source bytes; native validation must fail before publication.
-5. Run three distinct check outcomes: a required check that runs and fails, a declared required
-   check that is missing or unavailable, and an absent documented nonrequired check.
-   **Verify:** The first two block success with different reasons. The third remains a visible
-   coverage gap and may accompany success. A build failure has its own reason.
-6. Preserve a receipt for the exact selection and useful failure logs for each failed stage.
-   Link source coverage without making inspection gaps artifact failures.
-   **Verify:** Compare receipt fields to native evaluation and check inputs. Inject a canary
-   secret in the environment; neither receipt nor preserved logs may expose it.
-7. Retry the same selection after partial work, then change one check input and retry again.
-   **Verify:** Reuse requires matching recorded inputs and validated side effects. A changed
-   input reruns its affected check. An existing output path alone cannot count as success.
+1. Freeze one immutable consumer revision. Evaluate the selection with undeclared host access denied. **Verify:**
+   Evaluation succeeds under denial and reproduces the same derivation path on re-evaluation. A selection that needs
+   host state cannot be published. The failure names the cause.
+2. Assemble the required check set as a declared list of native check names. Tag each name with its owner. Check that
+   each name exists with `devenv tasks list --json` before you run any check. **Verify:** The effective set changes when
+   a component is enabled or disabled, and when the consumer adds a check. Remove the implementation of a declared
+   check. The result is `missing-required`, distinct from `failed-required`. Never use a `devenv:enterShell` task as a
+   gate, because shell entry proceeds after such a failure.
+3. Run the declared pre-build checks. Realize the output. Then run the artifact and integration checks against that
+   output. **Verify:** Instrument the stage order. A failed pre-build check prevents any build success. An artifact
+   check given a different output path fails identity validation.
+4. Store the four native documents and the six Vendomat fields in one receipt. Record the tool version and the JSON
+   format of each document. **Verify:** Compare each stored document with a fresh native query. Inject a canary secret
+   into the environment. Neither the receipt nor the preserved logs contain it. Break the derivation. The failure record
+   names the stage, and no success result exists.
+5. Retry the same selection after partial work. Then change one check input and retry again. **Verify:** Reuse requires
+   matching recorded inputs. A changed input reruns its affected check. An existing output path alone is never success.
 
-**Gate:** Failed and missing required checks block publication success. A nonrequired gap
-remains visible. The exact checked bytes and their selection can be reconstructed from evidence.
+**Gate:** A failed required check and a missing required check both block success, with different
+reasons. The receipt lets a reader reconstruct the exact checked bytes and their selection.
 
 ## P5 — publish and prove Attic consumption
 
-**Requirements:** `V4-CACHE-001–015`, `V4-EVD-003`, `V4-EVD-007`, `V4-PROOF-006`.
+**IDs:** `V4-CACHE-001`, `V4-CACHE-002`, `V4-CACHE-003`, `V4-CACHE-005`, `V4-CACHE-006`, `V4-CACHE-009`, `V4-CACHE-013`, `V4-CACHE-014`, `V4-CACHE-015`; `V4-EVD-003`.
+**Scenario:** `V4-PROOF-006`.
 
-1. Configure Attic, credentials, trusted key, and the consumer's native fallback policy on the
-   P0 hosts. Keep push credentials outside tracked files, Nix outputs, and receipts.
-   **Verify:** A read-only client cannot push. The publisher can push only under its intended
-   scope. Record the effective substituter order and key accepted by the cold laptop.
-2. Derive the selected application's runtime closure from the P4 output. Include at least one
-   dependency that the build host first obtained from a public cache.
-   **Verify:** Save the native closure path list and NAR metadata. Confirm that the public-cache
-   dependency is in the expected list before testing Attic publication.
-3. Push the selected output and its full runtime closure. Account for Attic's upstream filter
-   when selecting push policy.
-   **Verify:** A partial upload reports partial progress. A failed upload leaves the local output
-   usable and produces no complete-publication receipt. A successful push command alone does
-   not pass the closure gate.
-4. In an isolated store, disable other substituters and builds. Obtain every required runtime
-   path from Attic alone, including the public-cache dependency.
-   **Verify:** Record a successful substitution for every path. Compare the served selected
-   output's NAR hash with P4 and record closure-member metadata. Any absent member fails P5.
-5. On the cold laptop, select the same immutable output and run the command and editor. Trace
-   normal cache priority separately from the Attic-only proof.
-   **Verify:** The laptop starts without the selected output, obtains the expected path from
-   Attic, performs no build, and runs both interfaces. Logs identify the source of transfers.
-6. Test local-store preference, Attic outage, public-cache fallback, and allowed local-build
-   fallback as separate fixtures. Remove one published object after a passing check.
-   **Verify:** Each case follows the P0 native policy without changing the consumer lock.
-   Current availability changes in the report, while historical check results remain intact.
+1. Configure the cache, a push token, a separate pull-only token, and the trusted public key of the consumer. Create the
+   pull token with `atticadm make-token --pull` only. **Verify:** The pull token cannot push. Secrets stay outside
+   tracked files and store paths. Record the effective substituter order and the accepted key on the cold machine. Set
+   the retention period of the source cache to zero.
+2. Seed one runtime dependency from a public cache. Then push the output with its closure. `attic push` includes the
+   closure by default. Clear the `upstream_cache_key_names` list of the cache, or pass `--ignore-upstream-cache-filter`.
+   Its default entry `cache.nixos.org-1` would otherwise drop the seeded path. **Verify:** The seeded path appears in
+   `nix-store -qR` before the push and in the cache afterwards.
+3. Query every closure path back from the cache as a store with `nix path-info --store <cache> --json --json-format 2`.
+   **Verify:** Every path is present. Record the result and its time in the receipt. A successful push with one absent
+   path is a failure. Interrupt an upload and retry. The record shows the partial progress and no false prior success.
+4. In an isolated store with other substituters and local builds disabled, substitute the whole closure from the cache
+   alone. **Verify:** Every path substitutes. The NAR hash of the served selected output equals the checked hash. Record
+   the metadata of each closure member. Attic re-hashes the upload and Nix re-hashes the import. This step confirms the
+   end-to-end result. It does not create the guarantee.
+5. On the cold machine, select the same immutable output. Run the command and both editor forms. **Verify:** The machine
+   starts without the output, obtains it from the cache, and performs no build. Both interfaces run. Remove one
+   published object afterwards. The fresh availability report changes. The historical check result does not.
 
-**Gate:** Attic alone serves every required runtime path with the checked output bytes. The
-cold laptop runs the selected application, and normal fallback follows the declared policy.
-This gate does not claim that a whole machine generation is cached.
+**Gate:** The cache alone serves every required runtime path with the checked bytes. The cold
+machine runs the application. This gate makes no machine-generation claim.
 
-## P6 — restore evidence and complete the application proof
+## P6 — evidence and recovery
 
-**Requirements:** `V4-EVD-009–010`, `V4-REC-001–006`, `V4-REC-008`,
-`V4-REC-010–012`, and the combined `V4-PROOF-001–006` gates.
+**IDs:** `V4-REC-001`, `V4-REC-002`, `V4-REC-005`; `V4-EVD-009`. **Measurement:** `V4-REC-006`.
 
-1. Back up source objects and identity records, Attic objects and signing state, and receipts
-   and failure logs as separate state classes.
-   **Verify:** Record backup time, owner, restore target, and hashes or native identities for
-   each class. A snapshot alone does not count as an off-host backup.
-2. Restore source into a clean location and rebuild any derived view. Look up the selected
-   module and dependency again.
-   **Verify:** Restored bytes match their recorded hashes, provenance stays readable, and a
-   damaged source backup fails only the source restore claim.
-3. Restore Attic objects and signing state into a clean fixture. Use an existing trusted
-   consumer to substitute the expected selected output.
-   **Verify:** The consumer accepts the restored object under its existing trust policy. A
-   missing signing state fails the cache restore claim without changing source status.
-4. Restore receipts and failure logs. Recreate the P4 and P5 reports from preserved evidence.
-   **Verify:** Prior check and upload outcomes remain explainable. A signed cache object does
-   not set an independent-rebuild proof field. Cache availability and source correspondence
-   remain distinct results.
-5. Measure source storage growth, selected closure size, and transfer bytes with native
-   queries. Confirm mutable application data stays outside immutable Nix outputs.
-   **Verify:** Reported sizes match the native measurements. Writing application data leaves
-   the selected output path and hash unchanged. No initial V4 operation deletes source or
-   Attic objects automatically.
-6. Run the whole P1–P5 path again from the recorded revisions. Run the normal Testee gate and
-   the opt-in consumer fixture if Vendomat's integration code changed.
-   **Verify:** The first-proof result includes command, editor, source, checks, Attic-only
-   closure, cold laptop, and restore evidence. List each passed requirement and any gap.
+1. Back up three state classes separately. They are the retained source store paths with their identity records, the
+   Attic server signing state, and the receipts with failure logs. Do not back up Attic objects. **Verify:** Record the
+   time, owner, restore target, and identity of each class. Source and binaries now share one cache and therefore one
+   loss domain.
+2. Restore the retained source into a clean location. Read one input again. **Verify:** The restored bytes match their
+   recorded NAR hashes. The provenance stays readable. A damaged source backup fails only the source restore claim.
+3. Restore the Attic signing state. Rebuild the selected output from a clean checkout of the retained source. Publish
+   it, and substitute it with an existing trusted consumer. **Verify:** The output path and NAR hash match P4. The
+   consumer accepts it under its existing trust policy. Record that Attic signs at read time with the key of each cache.
+   Regenerating that key invalidates the trust setting of every consumer. A missing signing state fails only the
+   cache-trust claim.
+4. Restore the receipts and logs. Recreate the P4 and P5 reports. **Verify:** Prior check and upload outcomes stay
+   explainable. A signature sets no rebuild-proof field. Measure the archived source bytes, the closure size, and the
+   transfer bytes. Record them.
 
-**Gate:** P1–P6 establish the Neovim application, inspection, publication, and recovery path.
-Do not claim machine readiness from this gate.
+**Gate:** Source, cache trust, and evidence restore as three separate results. Do not claim machine
+readiness from this gate.
 
-## P7 — prove native machine integration separately
+## P7 — the separate machine claim
 
-**Requirements:** `V4-OWN-011`, `V4-MACH-003–015`, `V4-REC-013`, `V4-PROOF-009`.
+**IDs:** `V4-MACH-001` (entry), `V4-MACH-004`, `V4-MACH-009`, `V4-MACH-015`.
+**Scenario:** `V4-PROOF-009`.
 
-1. Compose a native workstation fixture with one persistent NixOS service and a separate Home
-   Manager role on the tested P0 Machines pin. Name its activation driver.
-   **Verify:** Evaluate each native contribution. A system service candidate passes a native
-   activation or virtual-machine check, including its declared health result.
-2. Create a native plan and compare its selected outputs with the P4 checked paths. Link the
-   plan ID and paths to Vendomat evidence without creating another plan or apply interface.
-   **Verify:** Every linked path matches the native plan. A change in effective selection
-   requires new evidence or a check whose recorded inputs still match.
-3. Save a valid plan, block new builds, and apply it. Trace target transfers and native status.
-   **Verify:** Apply uses saved outputs. Label direct build-host copy and Attic substitution
-   from observed traffic; neither is inferred from a successful activation.
-4. Make the plan stale by changing target state, then attempt apply. Prepare a new plan and
-   alter one check input before retry.
-   **Verify:** Machines rejects the stale plan. The changed check runs again. Inspect unknown
-   or pending native status before another deployment attempt.
-5. Inject a NixOS health failure after an application write. Separately fail Home Manager
-   activation after NixOS succeeds. Exercise the native recovery paths.
-   **Verify:** Report system, user, and application outcomes separately. A NixOS rollback does
-   not claim to restore user files or application data. Record the driver-specific user result.
-6. Inspect source, Attic, and evidence status after machine failures. Check the publication
-   report for its scope.
-   **Verify:** A cached application output does not imply a cached machine generation. The
-   report keeps system, user, application, source, cache, and evidence outcomes distinct.
+1. Compose a native machine fixture on the pinned Machines version. Include one persistent NixOS service and a separate
+   Home Manager role. **Verify:** Each contribution evaluates. The NixOS input requirement `disko` is present, as the
+   Machines documentation requires even for an existing host.
+2. Create a native plan with `devenv machines plan`. Record its identifier and selected output paths beside the receipt.
+   **Verify:** Every recorded path matches `plan.json`. Vendomat creates no second plan. Record two upstream limits. The
+   identifier is random, not content-addressed. The plan has no staleness check against the lock or a re-evaluation.
+3. Apply the saved plan. **Verify:** Apply uses the saved outputs. Transfer is a direct `nix copy --to ssh://<target>`.
+   Record that no Attic substitution occurs. This is the documented upstream behaviour. Confirm that the target accepts
+   the copied paths through `nix.settings.trusted-users` or a trusted signature.
+4. Fail the NixOS health check after an application write. Separately, fail Home Manager activation after NixOS
+   succeeds. **Verify:** System, user, and application outcomes report separately. A NixOS rollback claims nothing about
+   user files or application data. Record that the Home Manager role has no staleness check and no automatic rollback.
+   Name its activation driver. An application output in the cache sets no machine-generation field.
 
-**Gate:** The pinned Machines fixture proves plan, transfer, activation, status, and recovery
-limits. Only then may V4 documentation claim machine readiness.
+**Gate:** The pinned fixture proves plan, transfer, activation, and recovery limits. Only now may
+V4 text make a machine claim.
 
-## Release and current-consumer cutover
+## Later work
 
-1. Compare the P0 inventory with every active consumer. Migrate one delivery path at a time
-   and retain a tested rollback until its consumer passes on the new path.
-   **Verify:** Re-run the before and after fixture for each path. Effective locks, host inputs,
-   packages, and commands match the recorded intended selection.
-2. Update public README, module examples, and project instructions to describe only proven
-   interfaces. Mark any surviving old face and its support boundary explicitly.
-   **Verify:** Every shown command runs on the selected pin. No text presents P8–P10, the later
-   application, or a proposed option name as an implemented V4 interface.
-3. Run Testee, the affected Nix builds, the opt-in consumer fixture, and the real P1–P6 proof.
-   Include P7 when releasing machine claims. Land and push through Gitman.
-   **Verify:** All required gates pass on the release revision. Gitman reports the completed
-   trunk in sync with origin and no relevant active work left behind.
+V4 has no P8, P9, or P10 phase. [FUTURE-WORK.md](../.scratch/projects/13-vendomat-v4-canonical/FUTURE-WORK.md)
+holds reviewed upgrades and deferred capabilities, each with its trigger.
+[LATER-APPLICATION.md](../.scratch/projects/13-vendomat-v4-canonical/LATER-APPLICATION.md) holds
+the `V4-APP-*` IDs. A trigger permits a design session. It does not authorize an implementation.
 
-## P8 — validate one reviewed upgrade
+## Pre-V4 consumer migration
 
-**Requirements:** `V4-UPG-001–008`, `V4-EVD-008`. Start after P1–P6. A machine upgrade
-claim also requires P7.
-
-1. Prepare one candidate from a recorded consumer base in an isolated checkout. Let native
-   update tooling produce the declaration and lock diff.
-   **Verify:** The active checkout stays unchanged. The diff and update trace show no second
-   Vendomat revision database.
-2. Validate the exact diff against P4 and P5 gates. Save checks, selected paths, and any
-   publication receipt without accepting the candidate.
-   **Verify:** Changing the diff invalidates its evidence. A failed check preserves logs and
-   leaves active files unchanged. A cached candidate does not change the accepted selection.
-3. Before acceptance, compare base files with the recorded base and recheck selected output
-   availability under the required policy.
-   **Verify:** A changed base or missing output rejects acceptance or requires revalidation.
-4. Apply only the validated native diff through the project's version-control flow.
-   **Verify:** Compare the applied diff byte for byte. Acceptance performs no rebuild,
-   automatic commit, or deployment. Reports distinguish prepared, accepted, and activated.
-
-**Gate:** One real candidate advances through prepare, validate, and explicit acceptance with
-no selection drift or hidden activation.
-
-## P9–P10 and the later application
-
-P9 adds scaffolds, release tasks, or cross-repository reports only after two real consumers
-show the same repeated problem. P10 adds scheduled proposals, broader capture, or full machine
-caching only after measured use justifies them. These phases have no automatic start date.
-
-1. Record the repeated user operation, native-only trial, failure, and proposed helper.
-   **Verify:** A second consumer reproduces the same problem. A helper leaves native files and
-   locks authoritative. Apply `V4-OPT-001–004` whenever the corresponding feature is offered.
-2. Test each optional operation's failure path before enabling it. A scheduled sweep may
-   prepare proposals but must not accept or deploy them.
-   **Verify:** Failed release gates cannot report success or move an immutable tag. A scaffold
-   yields a reviewable native patch. A timer leaves accepted files and targets unchanged.
-3. Treat the Jujutsu–btrfs–bubblewrap application as a separate later module. Resolve its
-   queue, state-retention, network, image, and sandbox choices from its own fixtures.
-   **Verify:** Apply conditional `V4-APP-001–031` to that module. Its results do not retroactively
-   gate the P1–P6 application proof or create a Vendomat runtime.
-4. Apply optional source and retention requirements only if their features are offered.
-   **Verify:** An index identifies its source and refreshes or reports stale data
-   (`V4-SRC-013`). Remote reads deny writes (`V4-SRC-018`). A managed hold records reason and
-   date (`V4-UPG-009`). An unreachable machine cannot authorize deletion (`V4-REC-007`).
+Migration of pre-V4 consumers is a separate project. Start it after P6 passes. It is not a V4 phase
+and not a V4 gate. `V4-OWN-012` is retired from V4 scope. Each migrated path needs its own
+before-and-after fixture. Existing paths stay in service until their replacement passes.
 
 ## Final acceptance checklist
 
-- P0 names tested pins, hosts, delivery paths, durable-state owners, and fallback policy.
-- P1–P2 prove focused native modules, both delivery forms, and fresh local use.
-- P3 retains selected source from both accepted direct-dependency graphs with honest labels.
-- P4 binds required checks and NAR hashes to one frozen native selection.
-- P5 proves every required runtime path from Attic alone and runs a cold laptop consumer.
-- P6 restores source, Attic trust, and evidence as separate domains.
-- P7 separately proves machine plan, transfer, activation, and recovery claims.
-- The release revision passes its Testee, consumer, Nix, and real-host gates.
+- [ ] The pin record exists. Each blocker names its phase, missing host, and evidence.
+- [ ] P1 to P7 each have a dated record, preserved logs, and a passing gate, in order.
+- [ ] Each of the 60 active IDs and the nine scenario IDs has a recorded result.
+- [ ] `devenv shell -- testee verify --mode quick` passes.
+- [ ] `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` passes for module, toolchain, or consumer changes.
 
-An incomplete item stays an explicit gap. The [requirement audit](../.scratch/projects/10-vendomat-v4-adversarial-review/V4-REQUIREMENT-AUDIT.md)
-retains retired IDs and the disposition of inherited requirements.
+

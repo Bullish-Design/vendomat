@@ -12,7 +12,11 @@
 {
   # Verification entrypoints (testee:quick/detailed/ci + enterTest) — the *man-family
   # verify interface. Route checks through `testee verify`, not pytest/ruff directly.
-  imports = [ ./nix/testee.nix ];
+  imports = [
+    ./nix/testee.nix
+    # Shared RepoMan command closure (gitman). Reads the machine manifest; the default is store mode.
+    ./modules/devenv.nix
+  ];
 
   # https://devenv.sh/basics/
   env.PROJ = "vendomat";

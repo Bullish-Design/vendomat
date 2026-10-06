@@ -22,7 +22,7 @@ Each verification method describes an observable result for a later fixture. It 
 | V4-OWN-006 | P1 | Evaluating a devenv module does not start processes or activate user/system configuration. | devenv | V4 §§7, 10 | Evaluate a module; observe no service start or user/system activation. |
 | V4-OWN-007 | P1 | Current selection reports come from native files and evaluated state. | Vendomat | V4 §15 | Change a native option; refresh report; observe new effective value without editing a Vendomat database. |
 | V4-OWN-008 | P1 | Vendomat does not require project registration for normal module use. | Vendomat | V4 §§8–9 | Import a module in a new consumer and enter it without registering the project elsewhere. |
-| V4-OWN-009 | P0 | The deployment record names tested host systems, storage owners, backup locations, and native cache fallback policy. | Consumer | V4 §§13, 19, 22 | Inspect P0 record against fixture hosts and native settings. |
+| V4-OWN-009 | P0 | The deployment record names tested host systems, storage owners, restore routes, and native cache fallback policy. | Consumer | V4 §§13, 19, 22 | Inspect P0 record against fixture hosts and native settings. |
 | V4-OWN-010 | P1 | Project-local pipeline stages run through devenv tasks and focused native helpers. | devenv | V4 §16 | Trace a publication fixture; observe task prerequisites and native stage results. |
 | V4-OWN-011 | P7 | Machine activation delegates to the pinned Machines implementation and its plan. | Vendomat | V4 §§10, 23 | Trace apply; compare native plan ID and target activation; find no second plan path. |
 | V4-OWN-012 | P0 | Each current consumer delivery path has a documented preserve, migrate, or retire outcome before V4 replaces it. | Vendomat | V4 §§2, 8, 22; current repository | Inventory machine manifest, central overlay, input fallback, and consumer fixture; run affected fixture before and after transition. |
@@ -149,14 +149,14 @@ Attic's push defaults, upstream filter, and default priority are documented in t
 | V4-EVD-010 | P6 | A cache signature does not set the independent-rebuild proof field. | Vendomat | V4 §15 | Import signed output without source build; inspect separate proof fields. |
 | V4-EVD-011 | P4 | Reports classify failed required checks, missing required checks, and nonrequired coverage gaps separately. | Vendomat | D-CHECK-OWNER; D-CHECK-GAP; V4 §15 | Exercise one case of each; inspect distinct result fields and publication outcomes. |
 | V4-REC-001 | P6 | Source restore verifies object identity and readable correspondence records. | Source store | V4 §19 | Restore archive and records; query selected source and verify hashes. |
-| V4-REC-002 | P6 | Attic restore includes signing state and proves an existing consumer accepts an expected output. | Attic | V4 §19 | Restore cache and key; substitute from a clean trusted consumer. |
+| V4-REC-002 | P6 | Attic signing state is restored, Attic outputs are rebuilt from the selected source, and an existing consumer accepts an expected output. | Attic | V4 §19 | Restore key; rebuild the selected output from a clean checkout of the selected source; substitute from a clean trusted consumer. |
 | V4-REC-003 | P6 | A failed source restore marks only the source recovery claim failed. | Vendomat | V4 §§19–20 | Corrupt source backup; inspect separate cache and source results. |
-| V4-REC-004 | P6 | A failed cache restore marks only the cache recovery claim failed. | Vendomat | V4 §§19–20 | Remove signing state; inspect separate source and cache results. |
+| V4-REC-004 | P6 | A missing Attic signing state marks only the cache-trust claim failed. | Vendomat | V4 §§19–20 | Remove signing state; inspect separate source and cache-trust results. |
 | V4-REC-005 | P6 | Initial V4 performs no automatic deletion from source archive or Attic. | Vendomat | V4 §19 | Exercise initial capture and publication operations; verify retained objects remain without a deletion policy. |
 | V4-REC-006 | P6 | Storage reports measure archive size and selected closure size. | Vendomat | V4 §§19, 25 | Capture and publish fixture; compare reported bytes with native storage queries. |
 | V4-REC-007 | When deletion is offered | An unreachable machine never counts as approval to delete its recovery paths. | Vendomat | V4 §19 | Make target unreachable during a later retention preview; verify its needs show unknown/protected. |
 | V4-REC-008 | P6 | Cleanup of derived indexes or read views leaves retained archive identity intact. | Source store | V4 §19 | Delete derived data; verify archive hash and record survive. |
-| V4-REC-009 | P0 | Each durable state class has a named storage and backup owner. | Consumer | V4 §19 | Inspect P0 policy for source, evidence, Attic, and application data owners. |
+| V4-REC-009 | P0 | Each durable state class has a named storage owner and restore route. Off-host copy status is recorded per class. | Consumer | V4 §19 | Inspect P0 policy for source, evidence, Attic, and application data owners and restore routes. |
 | V4-REC-010 | P6 | Source retention and binary availability report separate results. | Vendomat | V4 §§15, 19 | Remove a test cache object while keeping source; inspect distinct fields. |
 | V4-REC-011 | P6 | A cached output can remain valid when source correspondence is unresolved. | Vendomat | V4 §§15, 19 | Keep a signed output and force inspection gap; inspect distinct claims. |
 | V4-REC-012 | P6 | Mutable application state remains outside immutable package outputs. | Native application | V4 §19 | Write application data; verify selected Nix output path remains unchanged. |
@@ -293,6 +293,7 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | D-CAPTURE-GRAPH, accepted 2026-10-04 | V4-SRC-001, V4-SRC-019–023; P3 proves both native graph resolutions |
 | D-PROOF-GATE, accepted 2026-10-04 | V4-PROOF-001–006 can finish before V4-PROOF-009; P7 gates V4-MACH-001–015 claims |
 | D-OFFLINE-SOURCE, accepted 2026-10-04 | V4-SRC-016–018, V4-SRC-025; no initial local replica |
+| D-REPO-BACKUP, accepted 2026-10-06 | V4-OWN-009, V4-REC-002, V4-REC-009; GitHub backs up the owner's repositories outside Vendomat. Attic objects are not backed up. |
 | Current consumer migration | V4-OWN-012, V4-MACH-001, V4-SEL-009 |
 | Nix output byte identity | V4-SEL-006–007, V4-CACHE-015 |
 | Owner's Jujutsu–btrfs–bubblewrap case | V4-APP-001–031 |
@@ -306,6 +307,7 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | D-CAPTURE-GRAPH | Accepted owner decision | Include both direct native inputs and direct package dependencies of selected outputs; each entry names its graph. P3 proves resolution. | V4-SRC-001, V4-SRC-019–023 |
 | D-PROOF-GATE | Accepted owner decision | Let P1–P6 finish the application proof before separate P7; require P7 for machine claims. | V4-PROOF-001–009, V4-MACH-001–015 |
 | D-OFFLINE-SOURCE | Accepted owner decision | Let disconnected lookup report unavailable; keep local applications running; require no initial replica. | V4-SRC-016–018, V4-SRC-025 |
+| D-REPO-BACKUP | Accepted owner decision, 2026-10-06 | GitHub is a secondary location for the owner's local repository backups, outside Vendomat. Vendomat does not depend on it. Off-host copies of Vendomat state remain open. | V4-OWN-009, V4-REC-009 |
 | P-CURRENT-CONSUMERS | P0 experiment | Inventory and test machine-delivered, input-delivered, and local overlay consumers on the new pin. | V4-OWN-012, V4-MACH-001, V4-SEL-009 |
 | P-NAR-IDENTITY | P4–P5 experiment | Compare checked output bytes and Attic-served bytes using NAR metadata. | V4-SEL-006–007, V4-CACHE-015 |
 | Q-QUEUE | Later module | Decide queue durability, order, count owner, and restart policy. | V4-APP-020–024 |
@@ -322,7 +324,7 @@ The map lists all V4 sections. A section without an initial gate has a stated re
 | P-IMAGE | Later module | Prove exact tree materialization, mode handling, conflict rejection, and atomic image publication. | V4-APP-006–010 |
 | P-SANDBOX | Later module | Prove required bubblewrap namespaces and bind policy on selected hosts. | V4-APP-013–016 |
 
-Assumptions for initial fixtures: the owner supplies one desktop publisher, one cold laptop, a private Attic endpoint, and a pinned Machines-capable devenv revision (V4 §§10, 13, 21). The exact versions, host systems, storage paths, backup locations, and fallback policy remain P0 inputs. A result from current online documentation does not replace a test against that pinned toolchain. A fresh local consumer may need native source inputs or public caches; V4 does not claim an offline rebuild.
+Assumptions for initial fixtures: the owner supplies one desktop publisher, one cold laptop, a private Attic endpoint, and a pinned Machines-capable devenv revision (V4 §§10, 13, 21). The exact versions, host systems, storage paths, restore routes, and fallback policy remain P0 inputs. A result from current online documentation does not replace a test against that pinned toolchain. A fresh local consumer may need native source inputs or public caches; V4 does not claim an offline rebuild.
 
 ## Readiness for a later implementation guide
 

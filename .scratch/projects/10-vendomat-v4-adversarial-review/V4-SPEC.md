@@ -41,6 +41,8 @@ V4 §25 leaves the flake export convention, plain repository input contract, pro
 
 **D-OFFLINE-SOURCE, accepted 2026-10-04:** Disconnected source lookup may report unavailable. Local applications keep running, and initial V4 requires no local source replica.
 
+**D-REPO-BACKUP, accepted 2026-10-06:** GitHub is a secondary location for the owner's local repository backups. That backup runs outside Vendomat. Vendomat does not depend on GitHub, and no Vendomat requirement names it. Attic objects are not backed up.
+
 ## 2. System boundary and authoritative state
 
 | Fact or state | Authority | Vendomat role |
@@ -210,7 +212,7 @@ Track these rollback and retention domains separately:
 | Application | Application-defined migration and backup | Per-instance mutable data |
 | btrfs source image | Re-select a retained, verified image or rematerialize the pinned commit | Commit objects, image and mapping record |
 | Inspection source | Restore archive and identity records, then verify correspondence | Source objects, holds, records |
-| Attic | Restore objects and signing state, then prove consumer substitution | Cache objects and trust material |
+| Attic | Restore signing state, rebuild outputs from the selected source, then prove consumer substitution | Signing state; cache objects are rebuilt, not restored |
 | Evidence | Restore receipts and failure logs | Historical records |
 
 The btrfs row applies only if the conditional application enters scope. A btrfs snapshot is not a backup by itself. [btrfs subvolumes](https://btrfs.readthedocs.io/en/latest/btrfs-subvolume.html). Source and binary retention may differ. An unreachable machine gives unknown recovery needs; it does not authorize deletion. Initial V4 performs no automatic source or Attic deletion. V4 §19.
@@ -307,6 +309,7 @@ An application fixture must run two different commits and two instances of one c
 | D-CAPTURE-GRAPH | List entries name the direct native-input or selected-output package-dependency graph. | Accepted owner decision; P3 must prove both native resolution paths. |
 | D-PROOF-GATE | P1–P6 may finish before separate P7; P7 gates machine claims. | Accepted owner decision; P7 still needs a pinned fixture. |
 | D-OFFLINE-SOURCE | Disconnected source lookup may report unavailable; local applications keep running. | Accepted owner decision; no initial local replica requirement. |
+| D-REPO-BACKUP | GitHub is a secondary location for the owner's local repository backups, outside Vendomat. Vendomat does not depend on it. | Accepted owner decision, 2026-10-06. Off-host copies of Vendomat state remain open. |
 | P-CURRENT-CONSUMERS | Which current consumer paths survive, migrate, or retire under a Machines-capable pin? | P0 inventory and before/after consumer fixture. |
 | P-NAR-IDENTITY | How do checked output bytes and Attic-served bytes compare on pinned Nix and Attic? | P4/P5 NAR-hash and isolated substitution fixture. |
 | P-CHECK-COVERAGE | How does a module expose expected check coverage without a new test language? | P4 fixture using existing check declarations and module documentation. |

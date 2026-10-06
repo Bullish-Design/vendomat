@@ -73,6 +73,7 @@ Accepted owner decisions for this review remain fixed.
 `D-CAPTURE-GRAPH` includes direct native inputs and direct package dependencies of selected outputs; each capture-list entry names its graph.
 `D-PROOF-GATE` lets the P1–P6 application proof finish before a separate P7 Machines fixture. P7 gates machine-readiness claims.
 `D-OFFLINE-SOURCE` permits source lookup to report unavailable when the client cannot reach retained source. Local applications keep running; initial V4 needs no local source replica.
+`D-REPO-BACKUP`, accepted 2026-10-06, scopes GitHub as a secondary location for the owner's local repository backups. That backup runs outside Vendomat. Vendomat does not depend on GitHub, and no Vendomat requirement names it. Attic objects are not backed up.
 
 This is a new interface design, but current consumers exist.
 Before replacement, inventory their delivery paths and either preserve, migrate, or explicitly retire each path.
@@ -808,9 +809,18 @@ Each has a clear storage and backup owner.
 | Inspection archive and identity records | Durable source storage and backup |
 | Read views, indexes, and disposable summaries | Derived state that can be regenerated |
 | Publication receipts and failure logs | Durable evidence, with an explicit retention policy |
-| Attic objects and signing state | Native Attic storage and coordinated backup |
+| Attic objects | Rebuildable from the selected source and Nix inputs; not backed up |
+| Attic signing state | Native secret storage and backup |
 | Application data and human notes | Native application or user storage and backup |
 | Temporary checkouts and local overrides | Development state with explicit cleanup |
+
+### Backup scope
+
+Each Vendomat state class needs a named storage owner and restore route.
+Off-host copies of Vendomat state remain an open decision.
+A local snapshot or a backup on the same host does not count as off-host.
+Attic objects are not backed up. Selected source and Nix inputs rebuild them.
+The owner's GitHub copy of local repositories is outside Vendomat (`D-REPO-BACKUP`).
 
 Use normal directories and native service storage first.
 Modules may declare state locations and required services.
@@ -840,12 +850,12 @@ Destructive retention needs its own inventory and recovery proof.
 ### Restore proof
 
 Restore source objects with their identity records, then verify readable source correspondence.
-Restore Attic data and signing state, then prove that an existing consumer accepts the selected cached output.
+Restore Attic signing state, rebuild Attic outputs from the selected source, then prove that an existing consumer accepts a selected output.
 Restore evidence so prior results remain explainable.
 
 These are separate recovery results.
 A source restore need not demonstrate an offline build.
-A cache restore need not demonstrate complete source retention.
+Attic objects are not restored from backup. Selected source and Nix inputs rebuild them.
 
 ## 20. Failure behavior
 
@@ -924,7 +934,7 @@ Choose implementation details through the smallest real fixture that can test th
 | P3: useful inspection | Capture selected module and dependency source; expose readable views and an honest correspondence gap |
 | P4: checked output | Bind checks and output bytes to a frozen selection; distinguish failed, missing required, and nonrequired coverage results |
 | P5: Attic consumption | Publish the complete runtime closure; prove cold-laptop substitution and declared fallback behavior |
-| P6: evidence and recovery | Persist receipts; restore inspection source and Attic signing state; repeat the relevant checks |
+| P6: evidence and recovery | Persist receipts; restore inspection source and Attic signing state; rebuild Attic outputs from the selected source; repeat the relevant checks |
 | P7: machine integration | Compose native machine contributions; attach evidence to a native plan; exercise activation and its recovery limits |
 | P8: one reviewed upgrade | Prepare and validate one native dependency diff; accept it without rebuilding or committing |
 | P9: repeated-use helpers | Add justified scaffolds, optional release tasks, and cross-repository reports |
