@@ -57,13 +57,12 @@ Their `devenv.lock` transition fixtures on the proposed module revision remain a
 
 | Area | Observation | Requirement result |
 | --- | --- | --- |
-| Publisher | The user selected `server` as the Attic host. This does not select it as the desktop publisher. | Gap: `V4-OWN-009`. |
-| Cold laptop | Tailnet peers include `framework` (Linux), `tower` (Windows), `samsung-book` (Windows), and offline `pinix` (Linux). None is confirmed as a cold Linux Nix consumer. `ssh -o BatchMode=yes -o ConnectTimeout=5 andrew@100.64.36.58 true` timed out. Both root and Andrew SSH to `server` returned `Permission denied (publickey)`. Logs: `ssh-framework.log`, `ssh-server-root.log`, `ssh-server-user-hostname.log`. | Gap: `V4-OWN-009`, `V4-MACH-001`. |
+| Publisher and cold laptop | The user selected `framework` for the publisher/cold-machine question. The answer did not assign the two roles separately. Tailscale reports `framework` online as Linux at `100.64.36.58`; `tailscale ping --c=1 framework` passed directly in 4 ms. `timeout 12s tailscale ssh andrew@framework ...` timed out with exit 124. Host versions and Nix access remain unknown. `pinix` is Linux but offline, last seen 242 days ago. No separate cold client is confirmed. Logs: `framework-reachability.log`, `tailscale-hosts.log`, `ssh-framework.log`. | Gap: `V4-OWN-009`, `V4-MACH-001`. |
 | Attic | The user selected `server`. A candidate service now builds for `https://server.tail770f47.ts.net/attic`; it is not active. No Attic cache or client token exists. | Partial evidence; runtime and cold-client gaps remain: `V4-OWN-009`, `V4-REC-009`. |
-| Existing backup | Restic uses `/mnt/wd_green1/restic` on the same ext4 disk proposed for Attic data. The current backup paths omit `/mnt/wd_green1/attic`. The latest success marker was `2026-10-06T02:35:25-04:00`. No off-host copy or restore is proven. | Gap: `V4-OWN-009`, `V4-REC-009`. |
+| Existing backup | Restic uses `/mnt/wd_green1/restic` on `/dev/sdb1`, the same ext4 disk proposed for Attic data. Its source paths omit `/mnt/wd_green1/attic`. The latest success marker was `2026-10-06T02:35:25-04:00`. The host also has `/mnt/shared` on `/dev/sda2`, a separate local disk, but no off-host mount was found. The user asked why an off-host copy matters; no destination was selected. No independent restore is proven. Log: `attic-storage-devices.log`. | Gap: `V4-OWN-009`, `V4-REC-009`. |
 | Durable state owners | Candidate Attic objects and its SQLite database live at `/mnt/wd_green1/attic`, owned by service account `atticd`. The SOPS store owns the encrypted server signing key. No Attic backup path or restore destination is configured. Owners and restore destinations for retained source, evidence, and application data remain open. | Gap: `V4-REC-009`. |
 | Native fallback | `nix show-config | rg '^(substituters|fallback|require-sigs) ='` reports `https://cache.nixos.org/ https://devenv.cachix.org`, `fallback=false`, and `require-sigs=true`. No Attic cache or cold-client fallback behavior was exercised. Log: `nix-cache-policy.log`. | Gap: `V4-OWN-009`. |
-| First proof project and review module | No project owner or review-module repository was selected. `loci.nvim` is an active plugin consumer, but it has not been approved or proven as the V4 review application. | Gap: P0 selection. |
+| First proof project and review module | The user delegated the choice. Select `loci.nvim` as the first proof consumer at main revision `f0cca7c2e90a8a917fc52dc7bbcac3c6843805f0`. Its lock selects `loci-core` revision `4be325043194898b5a1ab8045ac84b75226e8744` and Nixpkgs revision `567a49d1913ce81ac6e9582e3553dd90a955875f`. Select `nix-nvim` as the review-module repository because it owns the existing Home Manager module and configured Neovim launcher. Its main revision is `edac5777c3f26940516d11628ede2d9efce2edce`; its flake lock selects Home Manager `5d320ab301cfaaca7d32514f13815d19d109f5f4`, `loci.nvim` `133dad16d062b6ff3a8218b26544d52e147c3315`, Nixpkgs `e73de5be04e0eff4190a1432b946d469c794e7b4`, and `nixpkgs-neovim` `d233902339c02a9c334e7e593de68855ad26c4cb`. `loci.nvim` exports packages, not option modules. The `nix-nvim` checkout has an active conflicted `stray-devenv` lane; `devenv shell -- gitman status` fails because conflict markers make `devenv.yaml` invalid. Do not change that lane. Logs: `loci-nvim-selection-status.log`, `nix-nvim-gitman-status.log`. | Selection recorded. The module fixture remains blocked until the active conflict is resolved safely. |
 
 ### Attic host selection and candidate build
 
@@ -135,6 +134,32 @@ This proves a local Home Manager Machines plan under the recorded CLI and module
 does not prove remote NixOS planning, activation, or consumer migration. `V4-MACH-001` is therefore
 partial, not passed.
 
+### Host, storage, and project selection fixture
+
+The selected application project is `loci.nvim` at main revision
+`f0cca7c2e90a8a917fc52dc7bbcac3c6843805f0`. Its `flake.lock` selects `loci-core`
+`4be325043194898b5a1ab8045ac84b75226e8744` and Nixpkgs
+`567a49d1913ce81ac6e9582e3553dd90a955875f`. The selected review-module repository is
+`nix-nvim`, at main revision `edac5777c3f26940516d11628ede2d9efce2edce`. It owns the existing
+Home Manager module and configured Neovim launcher. Its flake selects Home Manager
+`5d320ab301cfaaca7d32514f13815d19d109f5f4`, `loci.nvim`
+`133dad16d062b6ff3a8218b26544d52e147c3315`, Nixpkgs
+`e73de5be04e0eff4190a1432b946d469c794e7b4`, and `nixpkgs-neovim`
+`d233902339c02a9c334e7e593de68855ad26c4cb`. These are candidate input revisions, not V4
+selection overrides.
+
+| Command | Expected result | Actual result and artifact |
+| --- | --- | --- |
+| `tailscale status` | Identify the selected publisher and an available cold Linux client. | `framework` is online Linux; `pinix` is offline, last seen 242 days ago. The user selected `framework`, but the response did not distinguish publisher from cold-client role. Log: `tailscale-hosts.log`. |
+| `tailscale ping --c=1 framework` | Reach the selected Linux host over its intended private endpoint. | Passed, direct peer `192.168.68.123:41641`, 3 ms in the preserved run. This proves Tailscale reachability only. Log: `framework-reachability.log`. |
+| `timeout 12s tailscale ssh andrew@framework 'uname -a; nix --version; devenv --version; hostnamectl --static'` | Read host and tool versions without changing the host. | Timed out, exit 124, with no shell output. Versions and cold-client access remain unproved. Log: `framework-reachability.log`. |
+| `findmnt -T /mnt/wd_green1/restic -o TARGET,SOURCE,FSTYPE,OPTIONS` | Identify the current Restic repository's filesystem. | Passed. `/mnt/wd_green1` is `/dev/sdb1`, ext4. Log: `attic-storage-devices.log`. |
+| `lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,MODEL` | Inventory local disks and mounts relevant to backup placement. | Passed. `/mnt/shared` is `/dev/sda2`, a separate local NTFS disk on the same server. It is not an off-host destination. Log: `attic-storage-devices.log`. |
+| `findmnt -t nfs,nfs4,cifs,sshfs -o TARGET,SOURCE,FSTYPE` | Find a mounted off-host backup target. | Passed with no matching mounts. No mounted off-host target is available. Log: `attic-storage-devices.log`. |
+| `devenv shell -- gitman status` in `loci.nvim` | Confirm the selected first-proof base and preserve active work. | Passed. Main is `f0cca7c2e90a8a917fc52dc7bbcac3c6843805f0`, in sync with origin. The first status also reported an unbookmarked `devenv.lock`; the later recorded status did not. No changes were made in that repository. Log: `loci-nvim-selection-status.log`. |
+| `gitman status` in `nix-nvim` | Confirm the review-module base and detect active work before edits. | Main is `edac5777c3f26940516d11628ede2d9efce2edce`, in sync with origin. A `stray-devenv` lane has one conflicted change. Log: `nix-nvim-gitman-status.log`. |
+| `devenv shell -- gitman status` in `nix-nvim` | Run Gitman in its required project environment. | Failed, exit 1. Devenv cannot parse conflict markers in `devenv.yaml` at line 12. No lane was changed. Log: `nix-nvim-gitman-status.log`. |
+
 ### Current consumer checks
 
 | Command or fixture | Expected result | Actual result and artifact |
@@ -150,7 +175,7 @@ failure; the corrected path-resolution check passed and its record is `store-con
 
 | Command | Expected result | Actual result and artifact |
 | --- | --- | --- |
-| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 37.1 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T19-47-44Z-8d52db/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
+| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 35.6 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T20-20-49Z-cdfef2/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
 | `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` | Existing real consumer integration passes. | Passed, exit 0, 22.7 seconds. Ruff, Ruff-format, ty, and pytest passed. Log: `testee-e2e-quick-final.log`; Testee report: `.testee/runs/2026-10-06T18-39-56Z-939be9/testee-report.json`. |
 | `devenv shell -- nix build .#repoman-toolchain-core --no-link --print-out-paths` | Relevant shared toolchain build passes. | Passed, exit 0; output `/nix/store/iilwbhx0zmrzc33wm4vr1x2ib5f3f60a-repoman-toolchain-core`. Log: `repoman-toolchain-build.log`. |
 
@@ -158,22 +183,27 @@ failure; the corrected path-resolution check passed and its record is `store-con
 
 | Requirement | Result | Evidence or missing proof |
 | --- | --- | --- |
-| `V4-OWN-009` | Gap | Attic host and candidate URL are selected, but the endpoint is inactive. The desktop publisher, cold laptop, fallback policy, and cold-client behavior remain open. |
+| `V4-OWN-009` | Gap | Attic host and candidate URL are selected, but the endpoint is inactive. `framework` was selected for the publisher/cold-machine question, but its roles and versions remain unproved. No Attic fallback policy has been exercised. |
 | `V4-OWN-012` | Partial | All four delivery paths are inventoried and marked preserve. The current consumer locks have not passed before-and-after transition fixtures; no path is retired or migrated. |
 | `V4-MACH-001` | Partial | CLI and matching module revisions are pinned. `machines info` and the local Home Manager plan pass; remote NixOS observation and current-consumer transition remain gaps. |
-| `V4-REC-009` | Gap | Attic storage and service account are named, but its backup path and restore destination are not. The same-disk Restic repository omits Attic data. Source, evidence, and application owners and restore targets also remain open. |
+| `V4-REC-009` | Gap | Attic storage and service account are named, but its backup path and restore destination are not. The same-disk Restic repository omits Attic data. `/mnt/shared` is another local disk, not an off-host copy. Source, evidence, and application owners and restore targets also remain open. |
 
 **P0 gate: not passed.** Do not start P1. The user selected the Attic host, but its service is
-not active and no backup or restore target exists. P0 also needs the desktop publisher, cold
-laptop, first-proof project, review-module repository, native fallback policy, and reachable
-NixOS target. Activate and test Attic with local root access. Then run the new pin against every
-current delivery path before any cutover. Existing paths remain in service.
+not active and no off-host backup or restore target exists. `loci.nvim` and `nix-nvim` are
+selected for the first proof, but the latter has an active conflict and cannot enter its devenv
+shell. P0 also needs distinct publisher and cold-client roles, framework access, native fallback
+policy, the Attic runtime fixture, and a reachable NixOS target. Resolve the module repository's
+active conflict through its owner before editing it. Activate and test Attic with local root
+access. Then run the new pin against every current delivery path before any cutover. Existing
+paths remain in service.
 
 ## Preserved logs
 
 The dated directory above contains raw output for host and tool versions, cache policy, Attic and
 SSH availability, fixture input updates, Machines info and both plan outcomes, the copied native
 Home Manager plan, installed and checkout overlays, consumer command paths, input fallback
-attempt, both Testee runs, the toolchain build, and candidate Attic host evaluation and build.
+attempt, both Testee runs, the toolchain build, candidate Attic host evaluation and build, Tailscale
+host discovery, framework reachability, repository selections, Gitman state, disk inventory, and
+the latest quick-gate report.
 Large and local-only logs are not checked into the repository. Testee reports are under the
 local `.testee/runs/` directory and are ignored by Gitman.
