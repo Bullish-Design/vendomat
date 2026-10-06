@@ -1,6 +1,8 @@
 # Vendomat V4 implementation guide
 
-**Status:** Planned, 2026-10-06. No step in this guide claims a V4 proof has passed.
+**Status:** P0 evidence recorded, gate blocked, 2026-10-06. No V4 phase gate has passed.
+See the [P0 evidence record](V4_P0_PROOF.md). Do not start P1 until its listed host,
+storage, and consumer-transition gaps are closed.
 
 The reviewed [V4 concept](../.scratch/projects/10-vendomat-v4-adversarial-review/CONCEPT-V4.md),
 [specification](../.scratch/projects/10-vendomat-v4-adversarial-review/V4-SPEC.md), and
