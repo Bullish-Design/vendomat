@@ -58,7 +58,7 @@ Their `devenv.lock` transition fixtures on the proposed module revision remain a
 | Area | Observation | Requirement result |
 | --- | --- | --- |
 | Publisher | The user selected `server` as the Attic host. This does not select it as the desktop publisher. | Gap: `V4-OWN-009`. |
-| Cold laptop | Tailnet peers include `framework` (Linux), `tower` (Windows), `samsung-book` (Windows), and offline `pinix` (Linux). None is confirmed as a cold Linux Nix consumer. `ssh -o BatchMode=yes -o ConnectTimeout=5 andrew@100.64.36.58 true` timed out; root SSH to `server` returned `Permission denied (publickey)`. Logs: `ssh-framework.log`, `ssh-server-root.log`. | Gap: `V4-OWN-009`, `V4-MACH-001`. |
+| Cold laptop | Tailnet peers include `framework` (Linux), `tower` (Windows), `samsung-book` (Windows), and offline `pinix` (Linux). None is confirmed as a cold Linux Nix consumer. `ssh -o BatchMode=yes -o ConnectTimeout=5 andrew@100.64.36.58 true` timed out. Both root and Andrew SSH to `server` returned `Permission denied (publickey)`. Logs: `ssh-framework.log`, `ssh-server-root.log`, `ssh-server-user-hostname.log`. | Gap: `V4-OWN-009`, `V4-MACH-001`. |
 | Attic | The user selected `server`. A candidate service now builds for `https://server.tail770f47.ts.net/attic`; it is not active. No Attic cache or client token exists. | Partial evidence; runtime and cold-client gaps remain: `V4-OWN-009`, `V4-REC-009`. |
 | Existing backup | Restic uses `/mnt/wd_green1/restic` on the same ext4 disk proposed for Attic data. The current backup paths omit `/mnt/wd_green1/attic`. The latest success marker was `2026-10-06T02:35:25-04:00`. No off-host copy or restore is proven. | Gap: `V4-OWN-009`, `V4-REC-009`. |
 | Durable state owners | Candidate Attic objects and its SQLite database live at `/mnt/wd_green1/attic`, owned by service account `atticd`. The SOPS store owns the encrypted server signing key. No Attic backup path or restore destination is configured. Owners and restore destinations for retained source, evidence, and application data remain open. | Gap: `V4-REC-009`. |
@@ -102,6 +102,7 @@ disk or host loss. No separate Attic backup or restore location is available.
 | `ss -H -ltn 'sport = :8089'` | Confirm the candidate loopback port is unused before activation. | Passed, exit 0; no listener was listed. The Attic storage directory was absent. Log: `attic-host-port-storage-check.log`. |
 | `tailscale serve status --json` | Before activation, only current routes remain. | Passed. Port 443 has `/atuin` and `/notes`; `/attic` is absent. Log: `attic-host-serve-before.json`. |
 | `systemctl show atticd.service -p LoadState -p ActiveState -p SubState` | Check whether the candidate service is active on the host. | `LoadState=not-found`, `ActiveState=inactive`, `SubState=dead`. The candidate generation is not active. Log: `attic-host-runtime-before.log`. |
+| `ssh -oBatchMode=yes -oConnectTimeout=5 andrew@server true` | Confirm a real NixOS target accepts the available user key. | Failed: `Permission denied (publickey)`. No target was modified. Log: `ssh-server-user-hostname.log`. |
 | `sudo -n true` | Check whether this session can activate the generation. | Failed, exit 1: `sudo: a password is required`. No activation or live Attic request ran. Log: `attic-host-runtime-before.log`. |
 
 The candidate config is committed and pushed in nix-meta revision
@@ -149,7 +150,7 @@ failure; the corrected path-resolution check passed and its record is `store-con
 
 | Command | Expected result | Actual result and artifact |
 | --- | --- | --- |
-| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 37.4 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T19-42-12Z-221f70/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
+| `devenv shell -- testee verify --mode quick` | Normal repository gate passes. | Passed, exit 0, 37.1 seconds after this evidence update. Ruff, Ruff-format, ty, and pytest passed. Testee report: `.testee/runs/2026-10-06T19-47-44Z-8d52db/testee-report.json`. Earlier baseline log: `testee-quick-proof-final.log`. |
 | `VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick` | Existing real consumer integration passes. | Passed, exit 0, 22.7 seconds. Ruff, Ruff-format, ty, and pytest passed. Log: `testee-e2e-quick-final.log`; Testee report: `.testee/runs/2026-10-06T18-39-56Z-939be9/testee-report.json`. |
 | `devenv shell -- nix build .#repoman-toolchain-core --no-link --print-out-paths` | Relevant shared toolchain build passes. | Passed, exit 0; output `/nix/store/iilwbhx0zmrzc33wm4vr1x2ib5f3f60a-repoman-toolchain-core`. Log: `repoman-toolchain-build.log`. |
 
