@@ -42,4 +42,13 @@ not follow them for V4 work.
 | [docs/V4_IMPLEMENTATION_GUIDE.md](../../../docs/V4_IMPLEMENTATION_GUIDE.md) | Rebuilt 2026-10-06. A pin record plus P1–P7, with 4 common steps and 29 phase steps. No P0 and no combined preflight gate. P8–P10 are gone as phases. |
 | [AGENTS.md](../../../AGENTS.md) | Updated 2026-10-06. Its authority list and gate order point here. Pre-V4 consumer migration is a separate project that starts after P6 passes. |
 
+## First-proof host
+
+The first proof module lives in a new repository, `nvim-review`, created at P1 entry. It holds one
+review command and its two Neovim targets, and nothing else. Vendomat does not host it.
+
+- Not `nix-nvim`. Its `stray-devenv` lane conflicts. Its owner must resolve that first.
+- Not `loci.nvim`. It was selected under the superseded P0 framing. Its own configuration would
+  blur what the proof shows.
+
 No V4 phase has passed. Do not claim a gate.

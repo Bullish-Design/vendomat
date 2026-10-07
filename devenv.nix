@@ -29,6 +29,14 @@
     pkgs.uv
   ];
 
+  # Local gitman checkout, a sibling of this repository. It runs in its own .venv.
+  # UV_PROJECT_ENVIRONMENT overrides the inherited vendomat venv. --no-sync leaves
+  # gitman's .venv unchanged. A devenv input would copy the tree into the read-only
+  # store, which uv cannot use for its venv.
+  scripts.gitman.exec = ''
+    UV_PROJECT_ENVIRONMENT="$DEVENV_ROOT/../gitman/.venv" exec uv run --no-sync --project "$DEVENV_ROOT/../gitman" gitman "$@"
+  '';
+
   # https://devenv.sh/languages/
   languages.python = {
     enable = true;
