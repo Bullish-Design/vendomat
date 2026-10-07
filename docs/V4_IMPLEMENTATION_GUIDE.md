@@ -147,6 +147,7 @@ The result is in the [P3 record](V4_P3_RECORD.md).
 
 **Gate:** A failed required check and a missing required check both block success, with different
 reasons. The receipt lets a reader reconstruct the exact checked bytes and their selection.
+The result is in the [P4 record](V4_P4_RECORD.md).
 
 ## P5 — publish and prove Attic consumption
 

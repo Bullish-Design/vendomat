@@ -126,7 +126,7 @@ combined acceptance scenarios in the implementation guide.
 | ID | Why it is new |
 | --- | --- |
 | `V4-SEL-010` | No earlier ID stated the publication form. The choice between a flake output attribute and `devenv build outputs.<name>` gates the design of both Vendomat operations, because `nix build --json`, `nix flake metadata --json`, and `nix flake archive` all need a flake reference. |
-| `V4-EVD-012` | `nix path-info --json` takes `--json-format 1|2|3`, and `nix derivation show` changed shape across releases. A stored native document without its producing version and format is not readable later. |
+| `V4-EVD-012` | `nix path-info --json` takes `--json-format 1|2` (Nix 2.34.7), and `nix derivation show` changed shape across releases. A stored native document without its producing version and format is not readable later. |
 
 Neither ID replaces an earlier ID.
 

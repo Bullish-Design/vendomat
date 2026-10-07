@@ -263,7 +263,7 @@ It adds six fields no native tool knows:
 5. The optional native machine plan identifier.
 6. The tool version and JSON format of every stored document.
 
-Field 6 is required because `nix path-info --json` takes `--json-format 1|2|3` and
+Field 6 is required because `nix path-info --json` takes `--json-format 1|2` (observed on Nix 2.34.7) and
 `nix derivation show` changed shape across releases. A stored document without its format is not
 readable later.
 
