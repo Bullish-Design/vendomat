@@ -23,6 +23,7 @@ in full on 2026-10-06. These documents apply its recommendations.
 | [docs/V4_PIN_RECORD.md](../../../docs/V4_PIN_RECORD.md) | Pin record: tool versions, hosts, state classes, cache policy, and named blockers per phase. Incomplete by design. No gate. |
 | [docs/V4_P1_RECORD.md](../../../docs/V4_P1_RECORD.md) | P1 record: the first proof module, its checks, and the observed IDs. P1 checks passed on 2026-10-06. |
 | [docs/V4_P2_RECORD.md](../../../docs/V4_P2_RECORD.md) | P2 record: publication form, delivery, overrides, and fresh realization. P2 passed on 2026-10-07. |
+| [docs/V4_P3_RECORD.md](../../../docs/V4_P3_RECORD.md) | P3 record: source retention, identity records, corruption and dirty-capture checks. P3 passed on 2026-10-07. |
 
 ## History, retained unchanged
 
@@ -53,4 +54,4 @@ review command and its two Neovim targets, and nothing else. Vendomat does not h
 - Not `loci.nvim`. It was selected under the superseded P0 framing. Its own configuration would
   blur what the proof shows.
 
-P1 and P2 have passed ([P1](../../../docs/V4_P1_RECORD.md), [P2](../../../docs/V4_P2_RECORD.md)). P3 to P7 have not. Do not claim a gate.
+P1 to P3 have passed ([P1](../../../docs/V4_P1_RECORD.md), [P2](../../../docs/V4_P2_RECORD.md), [P3](../../../docs/V4_P3_RECORD.md)). P4 to P7 have not. Do not claim a gate.

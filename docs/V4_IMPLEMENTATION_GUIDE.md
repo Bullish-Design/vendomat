@@ -119,6 +119,7 @@ The result is in the [P2 record](V4_P2_RECORD.md).
 
 **Gate:** Every locked input is retained, rooted, identified, and readable. Package source is
 reported as unresolved, not guessed. Source retention changes no selection.
+The result is in the [P3 record](V4_P3_RECORD.md).
 
 ## P4 — bind declared checks to exact bytes
 

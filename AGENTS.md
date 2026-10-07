@@ -19,7 +19,7 @@ activation. RepoMan, `repoman.lock`, and the surrounding `*man` tools keep their
 
 ## Current state
 
-- The V4 contract is defined in project 13. The implementation is not. P1 and P2 have passed ([P1 record](docs/V4_P1_RECORD.md), [P2 record](docs/V4_P2_RECORD.md)). P3 to P7 have not.
+- The V4 contract is defined in project 13. The implementation is not. P1 to P3 have passed ([P1](docs/V4_P1_RECORD.md), [P2](docs/V4_P2_RECORD.md), [P3](docs/V4_P3_RECORD.md) records). P4 to P7 have not.
 - There is no P0 and no combined preflight gate. A pin record and per-phase entry conditions
   replace them. P1 and P2 need only a pinned devenv and Nix.
 - The code at version 0.4.4 still serves the pre-V4 surface: the wheel build, the dependency
