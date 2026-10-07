@@ -40,7 +40,7 @@
     # revision in store mode (CONCEPT 03 §8.2, decided 2026-09-07): `repoman.lock` gains
     # no `toolchain:` kind, and a consumer that still names a manager by `path:` fails.
     repoman = {
-      url = "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.7.5";
+      url = "git+https://github.com/Bullish-Design/repoman?ref=refs/tags/v0.10.0";
       flake = false;
     };
     copyroom = {
