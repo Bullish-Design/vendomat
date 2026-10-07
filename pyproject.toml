@@ -42,7 +42,7 @@ dev = [
 # you are editing, overlay the run instead — no edit here, tree stays clean:
 #
 #     uv run --with-editable ../testee testee verify
-testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.3.0" }
+testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.4.0" }
 
 [project.scripts]
 vendomat = "vendomat.cli:main"
