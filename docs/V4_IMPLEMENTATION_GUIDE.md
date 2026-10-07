@@ -175,6 +175,8 @@ The result is in the [P4 record](V4_P4_RECORD.md).
 
 **Gate:** The cache alone serves every required runtime path with the checked bytes. The cold
 machine runs the application. This gate makes no machine-generation claim.
+Steps 1 to 4 passed 2026-10-07. The gate itself has not passed; it needs the cold machine. See the
+[P5 record](V4_P5_RECORD.md).
 
 ## P6 — evidence and recovery
 

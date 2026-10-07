@@ -115,7 +115,7 @@ A blocker names one missing item, its phase, and its evidence. A missing host bl
 | P2 | devenv and Nix | Met. BLK-P2-01 cleared 2026-10-06 |
 | P3 | P2 passed, and a writable store | Met. P2 passed 2026-10-07. The store accepts writes through the daemon (`nix store info`). Direct writes are denied (`V4-SRC-012.log`) |
 | P4 | P3 passed | Met. P3 passed 2026-10-07 |
-| P5 | P4 passed; Attic with push and pull tokens; cold machine with an empty store | P4 passed 2026-10-07. Attic and the cold machine are not met. Blockers BLK-P5-01 to BLK-P5-07, re-observed 2026-10-07 |
+| P5 | P4 passed; Attic with push and pull tokens; cold machine with an empty store | P4 passed 2026-10-07. Attic, tokens, and the cache are met 2026-10-07. The cold machine is not met. Blockers BLK-P5-04, BLK-P5-08 |
 | P6 | P5 passed | Not met. Blockers BLK-P6-01 to BLK-P6-03 |
 | P7 | NixOS target and Machines pin | Partly met. The Machines pin ran a Home Manager plan (`V4-MACH-003.log`). No NixOS target. Blockers BLK-P7-01 to BLK-P7-04 |
 
@@ -125,13 +125,14 @@ A blocker names one missing item, its phase, and its evidence. A missing host bl
 | --- | --- | --- | --- |
 | BLK-P2-01 | P2 | Cleared 2026-10-06. Owner approved raw git for a throwaway fixture. `V4-MOD-013` observed in `NATIVE-BASELINE.md` | `V4-MOD-013-run.log`, `V4-MOD-013-lock-nodes.txt` |
 | BLK-P3-01 | P3 | Cleared 2026-10-07. Source retained, rooted, and identified under `V4_P3_RECORD.md` | `docs/V4_P3_RECORD.md` |
-| BLK-P5-01 | P5 | No Attic cache. Re-observed 2026-10-07: `GET /nix-cache-info` still returns 404 | `attic-http-get.log`, `attic-recheck-2026-10-07.log` |
-| BLK-P5-02 | P5 | No push token and no pull token. Re-observed 2026-10-07: minting one needs the server's admin secret, root-only (`/run/secrets/rendered/atticd.env`, mode 0400) | `attic-client.log`, `attic-recheck-2026-10-07.log` |
-| BLK-P5-03 | P5 | No Attic client on the publisher. Re-observed 2026-10-07: `nixpkgs#attic-client` is fetchable but not installed | `attic-client.log`, `attic-server-bin-listing.log`, `attic-recheck-2026-10-07.log` |
-| BLK-P5-04 | P5 | No confirmed cold machine with an empty store. `framework` SSH timed out. Its Nix and devenv versions are unknown | `framework-reachability-baseline.log` |
-| BLK-P5-05 | P5 | Owner decisions: publisher role, and local build when Attic is unavailable | P0 `framework` answer; section 5 |
-| BLK-P5-06 | P5 | No Attic public key in `trusted-public-keys`. No Attic priority below 40 | `nix-show-config-cache.log`, `V4-CACHE-010.log` |
-| BLK-P5-07 | P5 | Attic-side traces pending: the upload denial, the closure query, the mid-transfer fallback, and the signing check | `NATIVE-BASELINE.md` observation record |
+| BLK-P5-01 | P5 | Cleared 2026-10-07. Cache `vendomat` created, private, priority 20, retention 0 | `docs/V4_P5_RECORD.md`, `cache-create.log`, `cache-info.log` |
+| BLK-P5-02 | P5 | Cleared 2026-10-07. Owner decrypted the signing key as the authorized `author` sops recipient (no root needed) and minted a push and a separate pull-only token | `docs/V4_P5_RECORD.md` |
+| BLK-P5-03 | P5 | Cleared 2026-10-07. `nixpkgs#attic-client` built and used for login, cache creation, and push | `docs/V4_P5_RECORD.md` |
+| BLK-P5-04 | P5 | Still open. Re-observed 2026-10-07: `framework` now fails even `ping` (100% loss), worse than the earlier SSH timeout | `framework-reachability-baseline.log`, `docs/V4_P5_RECORD.md` |
+| BLK-P5-05 | P5 | Partly cleared. Publisher role confirmed as `server`, used throughout P5. The local-build-when-Attic-unavailable policy is still an open owner decision | P0 `framework` answer; section 5 |
+| BLK-P5-06 | P5 | Cleared for the proof 2026-10-07: priority 20 (below 40) and the trusted public key both used successfully, per-command. Not yet set in the NixOS system config for real consumers | `docs/V4_P5_RECORD.md`, `nix-show-config-cache.log` |
+| BLK-P5-07 | P5 | Partly cleared 2026-10-07. The closure query and the signing check (NAR hash match) are done. The upload denial and the mid-transfer fallback are not tested | `docs/V4_P5_RECORD.md`, `NATIVE-BASELINE.md` observation record |
+| BLK-P5-08 | P5 | No way to remove one cached path. Server storage is root-only. This Attic client has no path-delete subcommand, and the server exposes no delete route besides destroying a whole cache | `docs/V4_P5_RECORD.md` |
 | BLK-P6-01 | P6 | No off-host copy of any durable state class | `final-host-checks.log` |
 | BLK-P6-02 | P6 | No restore route tested for source, receipts, or GC roots | This record, section 4 |
 | BLK-P6-03 | P6 | Attic signing state restore not tested. The rendered key file exists on the server | `final-host-checks.log` |

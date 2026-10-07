@@ -25,6 +25,7 @@ in full on 2026-10-06. These documents apply its recommendations.
 | [docs/V4_P2_RECORD.md](../../../docs/V4_P2_RECORD.md) | P2 record: publication form, delivery, overrides, and fresh realization. P2 passed on 2026-10-07. |
 | [docs/V4_P3_RECORD.md](../../../docs/V4_P3_RECORD.md) | P3 record: source retention, identity records, corruption and dirty-capture checks. P3 passed on 2026-10-07. |
 | [docs/V4_P4_RECORD.md](../../../docs/V4_P4_RECORD.md) | P4 record: declared checks, stage order, receipt assembly, canary scrub, retry/reuse. P4 passed on 2026-10-07. |
+| [docs/V4_P5_RECORD.md](../../../docs/V4_P5_RECORD.md) | P5 record: real Attic cache, push, closure query, isolated-store substitution. Steps 1-4 pass; the cold-machine gate does not. |
 
 ## History, retained unchanged
 
