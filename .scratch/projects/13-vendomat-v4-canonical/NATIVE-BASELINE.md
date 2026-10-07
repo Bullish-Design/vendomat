@@ -69,7 +69,7 @@ Observed facts are evidence, not gates.
 | `V4-MOD-003` | observed | Int option accepts `1`. Rejects `"x"` with "not of type `signed integer'" | `V4-MOD-003.log` |
 | `V4-MOD-006` | observed | Two different values for a `str` option fail with "conflicting definition values". No silent choice | `V4-MOD-006.log` |
 | `V4-MOD-007` | observed | Absent flake output fails and names the missing attribute | `V4-MOD-007.log` |
-| `V4-MOD-013` | pending | Needs a plain consumer and a git root. Raw git is barred for this task. Owner route needed | P2 (BLK-P2-01) |
+| `V4-MOD-013` | observed, 2026-10-06 | Remote author input `author-only` is absent from the consumer `devenv.lock`. Local input `local-only` is present. Raw logs: `~/.local/state/vendomat/v4-proof/2026-10-06/baseline/V4-MOD-013-*`. Fixture: `mod-013/` in the same proof tree, with a git root made by raw git. | devenv (observed) |
 | `V4-SRC-005` | observed | `nix path-info --json --json-format 2` reports `narHash` as `sha256-...` (SRI) | `V4-SRC-005.log` |
 | `V4-SRC-010` | observed | Wrong fixed-output hash fails with "hash mismatch". The bytes register at a sibling path. The specified output path stays invalid | `V4-SRC-010.log`, `V4-SRC-010-followup.log` |
 | `V4-SRC-012` | observed | Append, remove, create, and chmod on a store path all denied | `V4-SRC-012.log` |

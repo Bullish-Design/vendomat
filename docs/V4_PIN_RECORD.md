@@ -112,7 +112,7 @@ A blocker names one missing item, its phase, and its evidence. A missing host bl
 | Phase | Entry condition | Status |
 | --- | --- | --- |
 | P1 | devenv and Nix | Met. Versions observed in section 1 |
-| P2 | devenv and Nix | Met. Blocker BLK-P2-01 affects one fixture, not the entry |
+| P2 | devenv and Nix | Met. BLK-P2-01 cleared 2026-10-06 |
 | P3 | P2 passed, and a writable store | P2 not passed. The store accepts writes through the daemon (`nix store info`). Direct writes are denied (`V4-SRC-012.log`) |
 | P4 | P3 passed | Not met |
 | P5 | P4 passed; Attic with push and pull tokens; cold machine with an empty store | Not met. Blockers BLK-P5-01 to BLK-P5-07 |
@@ -123,7 +123,7 @@ A blocker names one missing item, its phase, and its evidence. A missing host bl
 
 | ID | Phase | Missing item | Evidence |
 | --- | --- | --- | --- |
-| BLK-P2-01 | P2 | `V4-MOD-013` needs a git root for the devenv merge-rule test. This task forbids raw git and lane creation. The owner must approve a route | `V4-MOD-013` is pending in `NATIVE-BASELINE.md` |
+| BLK-P2-01 | P2 | Cleared 2026-10-06. Owner approved raw git for a throwaway fixture. `V4-MOD-013` observed in `NATIVE-BASELINE.md` | `V4-MOD-013-run.log`, `V4-MOD-013-lock-nodes.txt` |
 | BLK-P3-01 | P3 | No retained source, identity record, or Vendomat root yet. Depends on P2 | This record, section 4 |
 | BLK-P5-01 | P5 | No Attic cache. A cache name is required before any check | `attic-http-get.log` |
 | BLK-P5-02 | P5 | No push token and no pull token | `attic-client.log` |
