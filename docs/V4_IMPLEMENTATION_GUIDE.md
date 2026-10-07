@@ -97,6 +97,7 @@ The result is in the [P1 record](V4_P1_RECORD.md).
 
 **Gate:** One publication form is chosen and proved. Both delivery forms and a fresh local
 realization pass. The tested syntax replaces every proposed name in the specification.
+The result is in the [P2 record](V4_P2_RECORD.md).
 
 ## P3 — retain selected source
 

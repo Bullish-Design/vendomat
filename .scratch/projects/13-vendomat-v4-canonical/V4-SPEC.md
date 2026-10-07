@@ -86,8 +86,11 @@ Two delivery forms are supported, and they are not interchangeable.
 - A **flake-backed** export carries its locked transitive inputs and passes them to its
   implementation explicitly. A lock entry alone does not enable a module.
 
-Under `D-PUB-FORM`, the publication path uses the flake form. The exact export convention is a P2
-result.
+Under `D-PUB-FORM`, the publication path uses the flake form. The P2 result fixes the export convention.
+A module repository exports each publishable output as `packages.<system>.<name>`. It exports native
+targets as `devenvModules.default`, `nixosModules.default`, and `homeManagerModules.default`. A plain
+consumer declares each module input in its own `devenv.yaml`. A flake-backed consumer gets the locked
+transitive inputs from the module lock. Evidence: [docs/V4_P2_RECORD.md](../../../docs/V4_P2_RECORD.md).
 
 ## 4. Selection
 
@@ -328,9 +331,9 @@ or withdrawn.
 
 | ID | Question | Evidence needed | Affected IDs |
 | --- | --- | --- | --- |
-| `P-PUB-FORM` | Can the flake output attribute express the P1 Neovim outputs, and does `devenv build` supply an equivalent handle? | P2 step 1. If the flake form cannot express them, stop and revise this document before P3. | `V4-SEL-010`, `V4-MOD-012` |
-| `P-DELIVERY` | Which flake export convention passes transitive inputs, and what must a plain consumer declare? | P2 plain and flake-backed fixtures. | `V4-MOD-011`, `V4-MOD-012` |
-| `P-PROFILES` | Which profiles and overrides survive each consumption path on the pin? | P2 matrix. | `V4-SEL-001`, `V4-MOD-005` |
+| `P-PUB-FORM` | Can the flake output attribute express the P1 Neovim outputs, and does `devenv build` supply an equivalent handle? | Resolved 2026-10-07. The flake attribute expresses all three outputs. `devenv build` returns a store path, not a `drvPath`, and gives no `nix build` route. Evidence: `docs/V4_P2_RECORD.md`. | `V4-SEL-010`, `V4-MOD-012` |
+| `P-DELIVERY` | Which flake export convention passes transitive inputs, and what must a plain consumer declare? | Resolved 2026-10-07. A plain consumer declares the module input. A flake consumer gets the locked transitive input. A remote `devenv.yaml` input is not merged. Evidence: `docs/V4_P2_RECORD.md`. | `V4-MOD-011`, `V4-MOD-012` |
+| `P-PROFILES` | Which profiles and overrides survive each consumption path on the pin? | Partly resolved 2026-10-07. Overrides revert cleanly, and a second consumer's lock is unchanged. No profile was exercised. Evidence: `docs/V4_P2_RECORD.md`. | `V4-SEL-001`, `V4-MOD-005` |
 | `P-ATTIC` | Does the cache serve every runtime closure path in an isolated store with the upstream filter accounted for? | P5 isolated-store substitution with a public-cache-seeded dependency. | `V4-CACHE-002`, `003`, `015` |
 | `P-STORAGE` | What are archived source growth, closure size, and transfer cost? | Measure in P3 and P6 before wider retention. | `V4-REC-006` (measurement) |
 
