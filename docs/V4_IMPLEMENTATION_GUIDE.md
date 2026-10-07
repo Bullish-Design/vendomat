@@ -73,6 +73,7 @@ The pin record is [docs/V4_PIN_RECORD.md](V4_PIN_RECORD.md). Its baseline observ
 
 **Gate:** One implementation serves the command and both editor forms. The editor reaches the
 command by absolute store path. This gate makes no publication claim and no machine claim.
+The result is in the [P1 record](V4_P1_RECORD.md).
 
 ## P2 — delivery, overrides, and the publication form
 

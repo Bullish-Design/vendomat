@@ -21,6 +21,7 @@ in full on 2026-10-06. These documents apply its recommendations.
 | [FUTURE-WORK.md](./FUTURE-WORK.md) | Reviewed upgrades, release helpers, and three deferred capabilities, each with its trigger. |
 | [PUB-FORM-SPIKE.md](./PUB-FORM-SPIKE.md) | Throwaway spike on the flake output form for publishable selections (`V4-SEL-010`). Observations only. No gate. |
 | [docs/V4_PIN_RECORD.md](../../../docs/V4_PIN_RECORD.md) | Pin record: tool versions, hosts, state classes, cache policy, and named blockers per phase. Incomplete by design. No gate. |
+| [docs/V4_P1_RECORD.md](../../../docs/V4_P1_RECORD.md) | P1 record: the first proof module, its checks, and the observed IDs. P1 checks passed on 2026-10-06. |
 
 ## History, retained unchanged
 
@@ -44,11 +45,11 @@ not follow them for V4 work.
 
 ## First-proof host
 
-The first proof module lives in a new repository, `nvim-review`, created at P1 entry. It holds one
+The first proof module lives in a new repository, `nvim-review`, created on 2026-10-06 for P1. It holds one
 review command and its two Neovim targets, and nothing else. Vendomat does not host it.
 
 - Not `nix-nvim`. Its `stray-devenv` lane conflicts. Its owner must resolve that first.
 - Not `loci.nvim`. It was selected under the superseded P0 framing. Its own configuration would
   blur what the proof shows.
 
-No V4 phase has passed. Do not claim a gate.
+P1 has passed on 2026-10-06 ([record](../../../docs/V4_P1_RECORD.md)). P2 to P7 have not. Do not claim a gate.
