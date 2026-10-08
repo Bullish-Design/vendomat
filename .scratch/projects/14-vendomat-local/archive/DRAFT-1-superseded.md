@@ -1,4 +1,9 @@
-> **Superseded by [CONCEPT-V5.md](./CONCEPT-V5.md).** This draft put the dependency graph in the consumer file and had no system-configuration tier.
+> **Superseded by [CONCEPT-V5.md](./CONCEPT-V5.md).** This draft put the dependency graph in the
+> consumer file and had no system-configuration tier.
+>
+> **Do not run any disk command from this file.** It names `nvme0n1` as an empty 4 TB drive. As of
+> 2026-10-08 that kernel name is the running 512 GB system. See
+> [REFINEMENT-2026-10-08.md](./REFINEMENT-2026-10-08.md).
 
 # Vendomat concept — system-local inputs
 
