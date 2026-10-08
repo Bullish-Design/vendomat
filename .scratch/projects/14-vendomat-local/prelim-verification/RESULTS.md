@@ -22,7 +22,9 @@ verification results.
 | PV-12 | Reconciled authority and readiness; repository gate results are recorded in its report | [Reconciliation](results/PV-12.md) | [Final ID inventory](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-12-id-inventory.log) |
 | PV-13 | Passed fixture: the project-output bridge, the `[follows]` shape, and a query-form `ref`/`rev`. Two draft details failed and were revised | [Interface](results/PV-13.md) | [Testee run 2](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/interface-run2.log) |
 | PV-14 | Passed fixture: `vendomat sync` output equals the PV-13 candidate; not fleet acceptance | [Generator](results/PV-14.md) | [Testee run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/gen-run3.log) |
-| PV-15 | Blocked: no private Git host; Attic serves hash-locked paths, not a Git remote | [Source host](results/PV-15.md) | [Blocker report](/home/andrew/.local/state/vendomat/v5/2026-10-08/blockers/REPORT.md) |
+| PV-15 | Reframed: no Git host existed, and the framing was wrong. The host is `server`; see the addendum | [Source host](results/PV-15.md) | [Blocker report](/home/andrew/.local/state/vendomat/v5/2026-10-08/blockers/REPORT.md) |
+| PV-16 | Passed fixture: a read-only `git daemon` serves a tagged release to Nix; an idle daemon costs 0 CPU; SSH to self is not set up | [Collection transport](results/PV-16.md) | [Probe](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/05-daemon-idle-and-pins-i1.log) |
+| PV-17 | Passed fixture: `vendomat sync` with the collection, the tag pin, and the reference-copy flags; loopback only | [Generator with the collection](results/PV-17.md) | [Opt-in gate](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/forge-e2e-run1.log) |
 
 ## Readiness and blockers
 
@@ -51,10 +53,24 @@ Vendomat is a system-installed command, and it generates no shell. These changes
 | Supersede `REG-005` with `REG-013`. Add `REG-011`, `REG-012`, `REG-014`, `REG-015` | PV-13 `ref`/`rev` and F7; PV-14 unit tests |
 | Supersede `DEL-002`, `DEL-005`, `ISO-006` with `DEL-008`, `DEL-009`, `ISO-007`. Add `DEL-010`, `DEL-011` | PV-14; `DEL-010` has no fixture yet |
 
-The specification now defines 171 requirement IDs in its tables: 132 active, 28 superseded, 10
-withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 190 IDs are preserved. It
-lists 13 native fact IDs. The inventory found no duplicate and no broken successor link
+After the project-output contract the specification defined 171 requirement IDs: 132 active, 28
+superseded, 10 withdrawn, and 1 narrowed. The inventory found no duplicate and no broken successor link
 ([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory.log)).
+
+## Source collection (2026-10-08, later)
+
+The owner decided that one collection on `server` holds the released source, and that every input
+pins a tag. These changes follow PV-16 and PV-17.
+
+| Requirement change | Supporting fixture |
+| --- | --- |
+| Add `REG-016` (forge URL), `REG-017` (tag pin), `REG-018` (`mirror`), `REG-019` (`keep`), `REG-020` (`backup`). Supersede `REG-015` with `REG-021` | PV-16 pin forms; PV-17 unit and Nix tests |
+| Add `STORE-008` (collection), `STORE-011` (release push), `STORE-012` (no Attic dependency). Supersede `STORE-002` with `STORE-009` and `STORE-004` with `STORE-010`. Add `STORE-013` | PV-16 and PV-17 for `STORE-008` and `STORE-012`; the rest are not yet built |
+
+The specification now defines 183 requirement IDs in its tables: 141 active, 31 superseded, 10
+withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 202 IDs are preserved. It
+lists 17 native fact IDs. The inventory found no duplicate and no broken successor link
+([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory-3.log)).
 
 ## Changed requirement IDs (preliminary session, 2026-10-08 morning)
 

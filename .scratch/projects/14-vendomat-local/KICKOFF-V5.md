@@ -1,6 +1,6 @@
 # V5 implementation kickoff prompt
 
-**Status on 2026-10-08: partly unblocked. Do not start steps 0 to 7 or step 10.** Step 8 (registry and generator) ran in isolation and its fixtures pass (PV-13, PV-14). Its acceptance still needs a private source host (PV-15). The preliminary
+**Status on 2026-10-08: partly unblocked. Do not start steps 0 to 7 or step 10.** Step 8 (registry and generator) ran in isolation and its fixtures pass (PV-13, PV-14). Its acceptance still needs a fetch from `framework` to the source collection on `server` (PV-16, PV-17). The preliminary
 verification is recorded in [prelim-verification/RESULTS.md](./prelim-verification/RESULTS.md).
 This file is not a green light to start Step 0.
 
@@ -12,7 +12,7 @@ All in `.scratch/projects/14-vendomat-local/`:
 
 1. `../../CURRENT.md` — active state and blockers.
 2. `prelim-verification/RESULTS.md` — all spike outcomes and remaining proof.
-3. `SPEC-V5.md` — normative requirements. It lists 171 requirement IDs in its tables; 132 are active. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain preserved.
+3. `SPEC-V5.md` — normative requirements. It lists 183 requirement IDs in its tables; 141 are active. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain preserved.
 4. `CONCEPT-V5.md` — design and examples.
 5. `GUIDE-V5.md` — proposed commands. Step 8 may run in isolation; Step 0 and installer cache access stay blocked.
 6. `REFINEMENT-2026-10-08.md` — drive identity and storage plan.
@@ -30,6 +30,7 @@ All in `.scratch/projects/14-vendomat-local/`:
 - Nix declares and resolves flake inputs and owns `flake.lock`. Vendomat does not implement a resolver, manifest, `devenv.yaml` dependency list, or `fromManifest` loader.
 - The one-`nixpkgs` result is a controlled-graph goal. A consumer follows edge alone left three nodes; each authored nested flake must follow its parent for the tested graph to use one node.
 - The generated project flake bridges to a project-owned outputs file and defines no shell. PV-05's `--impure` finding applies to its old devenv shell only. No Vendomat check needs `--impure`.
+- Vendomat tracks source and build outputs. Attic holds outputs only. One collection on `server` holds the owner's released tags; every `[inputs]` entry pins a tag (`REG-016`, `REG-017`, `STORE-008`).
 - `ref` and `rev` reach Nix as URL query parameters. Nix rejects them as separate input attributes. `[follows]` edges are explicit, and the registry rejects a non-flake child.
 - A TOML converter must return a valid NixOS module. Resolve package names only for explicit package-valued option paths. Native Nix option types merge equal scalars and lists; incompatible scalars fail.
 - `mkModules` uses native module merging to preserve package lists. An authored flake exports only the module faces it supports.
@@ -40,7 +41,7 @@ All in `.scratch/projects/14-vendomat-local/`:
 ## Conditions before implementation
 
 1. Obtain an authorized read-only scan of the 4 TB target's partition table and signatures. Review a fail-closed checker against the real inventory and all injected mismatch cases.
-2. Choose and test a portable source route for private flakes. The local override behavior passed in PV-14. No private Git host exists yet (PV-15).
+2. Build the source collection on `server` and fetch from `framework` over the tailnet. The owner chose `git://` for reads and SSH for release pushes; PV-16 and PV-17 passed on loopback. The local override passed in PV-14.
 3. Choose how an installer obtains the cache route, trust key, pull credential, and source before first boot. Prove the complete closure transfer in a cold disposable VM or image with local builds disabled.
 4. Reconcile `.scratch/CURRENT.md` and this kickoff after those results. Keep each old requirement ID and add a new ID when its claim changes.
 

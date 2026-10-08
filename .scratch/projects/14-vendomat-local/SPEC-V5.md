@@ -14,11 +14,18 @@ outputs file. This adds `REG-011` to `REG-015`, `GEN-015` to `GEN-022`, `DEL-008
 [PV-13](./prelim-verification/results/PV-13.md) (Nix interface) and
 [PV-14](./prelim-verification/results/PV-14.md) (generator). PV-05 stays as dated history.
 
+**2026-10-08 source collection decision:** one source collection on `server` holds the owner's
+released tags. Nix fetches personal inputs from it over `git://`, and every input pins a tag. Attic
+holds build outputs only. This adds `REG-016` to `REG-021` and `STORE-008` to `STORE-013`, and it
+supersedes `REG-015`, `STORE-002`, and `STORE-004`. The evidence is
+[PV-16](./prelim-verification/results/PV-16.md) (transport and idle cost) and
+[PV-17](./prelim-verification/results/PV-17.md) (generator with the collection).
+
 **Earlier PV-12 update (superseded by the count below):** 153 requirement IDs were defined in the tables below; 126 were active.
 
-**Current count:** 171 requirement IDs are defined in the tables below: 132 active, 28 superseded, 10
+**Current count:** 183 requirement IDs are defined in the tables below: 141 active, 31 superseded, 10
 withdrawn, and 1 narrowed. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2, so
-190 IDs are preserved in all. Thirteen `NAT-*` entries are facts, not requirements. A preliminary
+202 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
 fixture result does not pass an implementation requirement.
 
 ## How to use this document
@@ -42,7 +49,7 @@ A requirement is satisfied when its **Verify** column runs and passes. Nothing e
 | Variant | A build produced by calling a core's `lib` with additions |
 | Registry | `vendomat.toml`, the flat list of directly requested inputs |
 | Resolution | The transitive input set with one exact revision per name |
-| Store | The git clones under `~/vendor` |
+| Collection | The one set of repositories on `server` at `/home/andrew/vendor/<repo>`: the owner's released tags, plus reference copies |
 | Face | One of the three module targets: devenv, NixOS, Home Manager |
 
 ## Authority
@@ -50,11 +57,14 @@ A requirement is satisfied when its **Verify** column runs and passes. Nothing e
 Native declarations and locks select. devenv composes. Nix builds and substitutes. Attic stores and
 signs. NixOS and Home Manager activate. Version control keeps history.
 
-Vendomat writes the generated `flake.nix` from the registry, manages optional source checkouts, and
-reports. The owner writes the project outputs file. Nix resolves revisions and owns `flake.lock`.
+Vendomat writes the generated `flake.nix` from the registry, manages the collection's reference
+copies, and reports. The owner writes the project outputs file. Nix resolves revisions and owns
+`flake.lock`.
 
-Vendomat owns no durable state. The cache belongs to Attic. The store is a cache of git remotes.
-`.vend/` holds out-links. The build record belongs to the builder.
+Vendomat owns no durable state. The cache belongs to Attic and holds build outputs only. The
+collection holds release tags that CI pushed from the authoring repositories, which can push them
+again. Reference copies and `keep` clones are caches. `.vend/` holds out-links. The build record
+belongs to the builder.
 
 ---
 
@@ -65,14 +75,17 @@ Vendomat owns no durable state. The cache belongs to Attic. The store is a cache
 Hand-edited. One file per consumer.
 
 ```toml
+[forge]
+url = "git://server"
+
 [inputs]
-loci-nvim = { url = "git+https://<remote-host>/andrew/loci.nvim" }
-nvim-core = { url = "git+https://<remote-host>/andrew/nvim-core" }
-telescope = { url = "github:Bullish-Design/telescope.nvim/patched-0.1.8", flake = false }
-gitman    = { url = "git+https://<remote-host>/andrew/gitman", ref = "refs/tags/v0.10.0" }
+loci-nvim = { repo = "loci.nvim", ref = "refs/tags/v1.2.0", keep = true }
+nvim-core = { ref = "refs/tags/v0.3.0" }
+gitman    = { ref = "refs/tags/v0.10.0" }
+telescope = { url = "git+https://<upstream-host>/telescope.nvim", ref = "refs/tags/v0.1.8", flake = false, mirror = true }
 
 [passthrough]
-nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling" }
+nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling", backup = "https://<backup-host>/devenv-nixpkgs" }
 
 [follows]
 loci-nvim = ["nixpkgs"]
@@ -80,15 +93,23 @@ nvim-core = ["nixpkgs"]
 gitman    = ["nixpkgs"]
 ```
 
-The remote host values are placeholders. The keys `url` and `flake` become flake input
-attributes. `ref` and `rev` become URL query parameters, because Nix 2.34.7 rejects them as
-separate attributes beside `url` (`REG-013`, PV-13). Select a local checkout with an explicit Nix
-input override.
+`[forge]` names the one source collection, on `server`. An `[inputs]` entry without a `url` lives
+there: its URL is `<forge url>/<repo>`, and `repo` defaults to the entry name. An entry with a `url`
+is third-party code from upstream. Every `[inputs]` entry pins a tag (`REG-017`). The keys `url` and
+`flake` become flake input attributes. `ref` and `rev` become URL query parameters, because Nix
+2.34.7 rejects them as separate attributes beside `url` (`REG-013`, PV-13). Select a local checkout
+with an explicit Nix input override.
 
-`[passthrough]` holds infrastructure inputs such as `nixpkgs`. It uses the same entry keys as
-`[inputs]`. Vendomat adds no input of its own: a project that needs `nixpkgs` lists it.
-`[follows]` lists, per direct flake input, the children that follow the root `nixpkgs`. Vendomat
-cannot know whether an input declares `nixpkgs` without fetching it, so the owner states the edge.
+`mirror`, `keep`, and `backup` never reach the generated flake. `mirror = true` keeps a reading copy
+of a third-party repository in the collection and leaves the input URL alone. `keep = true` keeps a
+persistent clone on each machine that runs `sync`. `backup` records a second URL that the owner
+applies by hand. nixpkgs and devenv are never mirrored or kept: they are huge.
+
+`[passthrough]` holds infrastructure inputs such as `nixpkgs`. Each entry needs its own `url`, takes
+no tag pin, and takes no `mirror` or `keep`. Vendomat adds no input of its own: a project that needs
+`nixpkgs` lists it. `[follows]` lists, per direct flake input, the children that follow the root
+`nixpkgs`. Vendomat cannot know whether an input declares `nixpkgs` without fetching it, so the owner
+states the edge.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
@@ -106,7 +127,13 @@ cannot know whether an input declares `nixpkgs` without fetching it, so the owne
 | `REG-012` | An input name MUST NOT appear in both `[inputs]` and `[passthrough]` | The registry is rejected and the message names the input and both tables |
 | `REG-013` | `url` and `flake` MUST become flake input attributes. `ref` and `rev` MUST be appended to the URL as `ref=` and `rev=` query parameters. A `ref` or `rev` key beside the same query parameter in the URL MUST be an error | PV-13: Nix rejects `inputs.x.ref` beside `inputs.x.url` and locks both values from the query form. Unit tests cover the join with an existing query and the duplicate error |
 | `REG-014` | A `[follows]` entry MUST be rejected when its key is not a direct input, names a `flake = false` input, names `nixpkgs` itself, lists a root other than `nixpkgs`, or when no `nixpkgs` input exists | PV-13: Nix ignores a follows edge on a non-flake input without any message, so only this check catches it. Each rejection names the entry |
-| `REG-015` | A top-level table other than `[inputs]`, `[passthrough]`, and `[follows]` MUST be an error naming it. `[inputs]` MUST be present | A `[follow]` typo is rejected instead of dropped |
+| `REG-015` | *Superseded by `REG-021`.* A top-level table other than `[inputs]`, `[passthrough]`, and `[follows]` was an error. `[forge]` now exists | — |
+| `REG-016` | An `[inputs]` entry with no `url` MUST resolve to `<forge url>/<repo>`, with `repo` defaulting to the entry name. An entry with no `url` and no `[forge]` table, a `[forge]` table with a query or an unknown key, an entry that sets both `repo` and `url`, and a `[passthrough]` entry with no `url` MUST each be an error | Unit tests. PV-17: `sync` writes `git://127.0.0.1:<port>/lib-a?ref=refs/tags/v1.0.0`, and Nix locks and evaluates it through a loopback `git daemon` |
+| `REG-017` | Every `[inputs]` entry MUST pin a tag: `ref` is `refs/tags/<tag>`, or the URL query carries it. `rev` MAY be added as a second guard. A branch, a `rev` alone, or no pin MUST be an error. A `path:` URL and a `[passthrough]` entry are exempt | Unit tests name the entry. PV-16: Nix accepts a tag, a tag with a rev, and a rev alone over `git://`, so the rule is Vendomat policy; an unpinned URL did not resolve on the fixture repository |
+| `REG-018` | `mirror = true` MUST be allowed only on an `[inputs]` entry that has its own `url`. It marks a reading copy in the collection and MUST NOT change the input URL. The registry MUST reject `mirror` on a `[passthrough]` entry, on a forge entry, and on `nixpkgs` or `devenv` | Unit tests: each rejection names the entry, and `flake.nix` is byte-identical with and without the flag. **The copy itself is not yet built** (`STORE-009`) |
+| `REG-019` | `keep = true` MUST be allowed only on an `[inputs]` entry other than `nixpkgs` and `devenv`. It asks each machine that runs `sync` to hold a persistent clone | Unit tests for the shape and the rejections. **The clone is not yet built** (`STORE-009`) |
+| `REG-020` | `backup` MUST be an optional URL on any entry. It MUST NOT appear in the generated flake. Vendomat MUST use it only when the owner asks | Unit tests: the generated flake and its digest are identical with and without `backup`. **The explicit use is not yet built** |
+| `REG-021` | A top-level table other than `[forge]`, `[inputs]`, `[passthrough]`, and `[follows]` MUST be an error naming it. `[inputs]` MUST be present | A `[follow]` typo is rejected instead of dropped |
 
 ## 1.2 Generated `flake.nix`
 
@@ -118,17 +145,17 @@ This is the real output of the generator for the registry in section 1.1:
 
 ```nix
 # GENERATED by vendomat 0.5.0. Do not edit.
-# registry-digest: sha256-7e37d755285b70eaaea7cf8cd20d46cf3d1903243b3262038447e1e86f11a504
+# registry-digest: sha256-c1ad43517b757db583cad1e0a67204a62eb3da652d4d8d375aed8668e36c7850
 {
   inputs = {
-    gitman.url = "git+https://<remote-host>/andrew/gitman?ref=refs/tags/v0.10.0";
+    gitman.url = "git://server/gitman?ref=refs/tags/v0.10.0";
     gitman.inputs.nixpkgs.follows = "nixpkgs";
-    loci-nvim.url = "git+https://<remote-host>/andrew/loci.nvim";
+    loci-nvim.url = "git://server/loci.nvim?ref=refs/tags/v1.2.0";
     loci-nvim.inputs.nixpkgs.follows = "nixpkgs";
     nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
-    nvim-core.url = "git+https://<remote-host>/andrew/nvim-core";
+    nvim-core.url = "git://server/nvim-core?ref=refs/tags/v0.3.0";
     nvim-core.inputs.nixpkgs.follows = "nixpkgs";
-    telescope.url = "github:Bullish-Design/telescope.nvim/patched-0.1.8";
+    telescope.url = "git+https://<upstream-host>/telescope.nvim?ref=refs/tags/v0.1.8";
     telescope.flake = false;
   };
 
@@ -149,7 +176,8 @@ inputs@{ self, nixpkgs, nvim-core, ... }:
 ```
 
 Input order is by name, so the file does not depend on the order in `vendomat.toml`. The digest hashes
-the validated registry content, so a comment or spacing change leaves the file identical.
+what the generator writes (names, URLs, `flake`, and `follows`), so a change to a comment, to spacing,
+or to `mirror`, `keep`, or `backup` leaves the file identical.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
@@ -257,17 +285,27 @@ Two consequences, both recorded so they are not rediscovered:
   consumer was obliged to supply. The `devenv.yaml` route could not offer that, and it was the
   reason the resolver existed.
 
-# 3. Source store
+# 3. Source collection
+
+The owner's released source lives in one collection on `server`. Nix reads it at evaluation, and the
+owner and agents read it for context. Attic never holds it. [CONCEPT-V5.md](./CONCEPT-V5.md) explains
+the two phases.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `STORE-001` | Clones MUST live at `~/vendor/<name>`, overridable by `VENDOMAT_SOURCE_ROOT` | Both locations work |
-| `STORE-002` | `sync` MUST clone a missing input and fetch an existing one | A missing input appears; an existing one advances its remote refs |
+| `STORE-002` | *Superseded by `STORE-009`.* `sync` cloned a missing input and fetched an existing one | — |
 | `STORE-003` | `sync` MUST NOT change a working tree that has uncommitted changes. It MUST report instead | Dirty the tree; `sync` reports and exits non-zero for that input only |
-| `STORE-004` | The store MUST be a cache: deleting it and re-running `sync` MUST restore it | `rm -rf ~/vendor && vendomat sync` reproduces the same resolution |
+| `STORE-004` | *Superseded by `STORE-010`.* The whole store was a cache of git remotes | — |
 | `STORE-005` | A `rev` or path pin to a sibling checkout MUST be used in place and never copied | The resolved url names the sibling path |
 | `STORE-006` | Generated inputs MUST use a portable remote URL by default; absolute `git+file` paths MUST NOT be the fleet default | Generate a consumer with remote source declarations and evaluate it after moving the consumer checkout |
 | `STORE-007` | A local source checkout MUST be selected by an explicit input override; `VENDOMAT_SOURCE_ROOT` alone MUST NOT alter an existing flake or lock | Apply an input override and compare lock hashes; setting only the environment variable leaves both unchanged |
+| `STORE-008` | The collection MUST be one set of repositories on the collection host (`server`), at `/home/andrew/vendor/<repo>`, served read-only to the tailnet over `git://`. The serving process MUST sleep when idle | PV-16: a loopback `git daemon` serves a tagged repository to Nix 2.34.7, and idle it used 0 CPU ticks in 20 seconds. A fetch from `framework` over the tailnet is **not yet tested** |
+| `STORE-009` | `sync` MUST clone a missing `keep` or `mirror` entry and fetch an existing one. It MUST NOT clone any other entry | **Not yet built.** A fixture lists the clones after `sync` |
+| `STORE-010` | The collection MUST be rebuildable from the authoring repositories by pushing their release tags again. A `mirror` copy and a `keep` clone MUST be caches: deleting one and re-running `sync` restores it | **Not yet built.** Delete a collection repository, push its tags again, and compare the tag lists |
+| `STORE-011` | Only release tags MUST enter the collection. CI pushes them over SSH. Unreleased work and branches MUST NOT enter | **Not yet built.** Push a branch and get a refusal; push a tag and see it in the collection |
+| `STORE-012` | No Vendomat step MAY require a source path to be present in Attic. Evaluation takes source from the collection or from upstream | PV-17: a consumer locks and evaluates with only the collection configured and no Attic |
+| `STORE-013` | A collection repository's working tree MUST show its newest release tag by version order, so the owner and agents can read it. A hook or `sync` refreshes it and MUST NOT touch a tree with uncommitted changes (`STORE-003`) | **Not yet built.** Push a newer tag; the files on disk match it |
 
 ---
 
@@ -404,6 +442,9 @@ Every failure names the input, the file, or the option path it concerns.
 | Dependency cycle | Nix reports it during locking; Vendomat does not duplicate the check |
 | Dirty store working tree | Non-zero for that input only; other inputs proceed |
 | Hand-written `flake.nix` present | Non-zero (exit 1); names the file; leaves it untouched |
+| `[inputs]` entry without a tag pin | Non-zero (exit 2); names the entry and shows `ref = "refs/tags/<tag>"`; writes nothing |
+| Entry with no `url` and no `[forge]` table | Non-zero (exit 2); names the entry; writes nothing |
+| `mirror` or `keep` on `nixpkgs`, `devenv`, or a `[passthrough]` entry | Non-zero (exit 2); names the entry |
 | `flake-outputs.nix` missing | Non-zero (exit 2); names the file; writes nothing |
 | Invalid registry entry or `[follows]` pair | Non-zero (exit 2); names the file, the table, and the entry; writes nothing |
 | `follows` edge on a child with no `nixpkgs` | Nix warns at lock time; Vendomat does not fetch the child to check |
@@ -433,6 +474,10 @@ Each was observed on the pinned tools. The design depends on them. None is a gat
 | `NAT-011` | `nix flake lock` does not evaluate `outputs`. A missing project file fails at evaluation | PV-13 F6 |
 | `NAT-012` | Nix cannot see an untracked file in a Git-backed flake and says so. A new `flake.lock` is added as intent-to-add, and the tree reads dirty until it is recorded | PV-13 F5 |
 | `NAT-013` | A `follows` override on a child with no such input draws a warning. The same override on a `flake = false` input is ignored with no message. A missing target is an error | PV-13 F7 |
+| `NAT-014` | A read-only `git daemon` serves a tagged repository to Nix 2.34.7. The lock records the `git://` URL, the tag, and the revision. A tag, a tag with a rev, and a rev alone all lock | PV-16 |
+| `NAT-015` | A revision Nix already fetched evaluates with the daemon stopped. A cold store with an empty fetcher cache fails | PV-16 |
+| `NAT-016` | An idle `git daemon` used 0 CPU ticks in 20 seconds, 1.8 MB of memory, one thread, and no child process | PV-16 |
+| `NAT-017` | The source path is the same whether Nix fetches a tag by `git://` or by a local `file://` URL | PV-17 |
 
 `NAT-009` is why system activation runs through `nixos-rebuild`, which substitutes normally.
 
@@ -444,15 +489,16 @@ Two tests. Both run on one machine.
 
 **A. An input reaches a project output with no local build.**
 
-1. In a project that has never used Vendomat, write `flake-outputs.nix` and add one line to `vendomat.toml`.
+1. In a project that has never used Vendomat, write `flake-outputs.nix` and add one entry that names a tag to `vendomat.toml`.
 2. Run `vendomat sync`, and track both Nix files in Git.
 3. Lock the flake and build the selected output: `nix build .#packages.<system>.default`.
 
 Pass: the generated `flake.nix` names only the direct inputs and no `devenv`, `flake.lock` carries
 every transitive input at an exact revision, and the output builds with Vendomat absent from the
-flake and from `PATH`. Record the graph's `nixpkgs` nodes. Require one node only when every authored
-input in the tested graph follows its parent. A project that wants a shell defines it in its own
-outputs file and owns its entry command.
+flake and from `PATH`. The source arrives from the collection on `server` over the tailnet, from
+`framework`, and the built outputs arrive from Attic. Record the graph's `nixpkgs` nodes. Require
+one node only when every authored input in the tested graph follows its parent. A project that wants
+a shell defines it in its own outputs file and owns its entry command.
 
 **B. A setting reaches a machine from TOML.**
 

@@ -11,8 +11,11 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -31,6 +34,7 @@ from nixfixture import (
     run,
     sanitized_env,
     save,
+    tag_release,
     write,
     write_sources,
 )
@@ -157,6 +161,7 @@ def _source_repo(root: Path, marker: str) -> None:
 """
     write(root / "flake.nix", flake)
     init_repo(root, f"source {marker}")
+    tag_release(root, "1.0.0")
 
 
 def test_local_override_selects_another_source_without_touching_the_lock(tmp_path: Path):
@@ -168,7 +173,7 @@ def test_local_override_selects_another_source_without_touching_the_lock(tmp_pat
     project = tmp_path / "project"
     write(
         project / "vendomat.toml",
-        f'[inputs]\nmod-pkg = {{ url = "git+file://{remote}" }}\n\n'
+        f'[inputs]\nmod-pkg = {{ url = "git+file://{remote}", ref = "refs/tags/v1.0.0" }}\n\n'
         f'[passthrough]\nnixpkgs = {{ url = "{NIXPKGS_URL}" }}\n',
     )
     write(
@@ -194,6 +199,91 @@ def test_local_override_selects_another_source_without_touching_the_lock(tmp_pat
     env_only = nix(["build", "--no-link", "--print-out-paths", attr], project, env=env)
     assert env_only.returncode == 0, env_only.stderr
     assert Path(env_only.stdout.strip()).read_text() == "remote-marker\n"
+
+
+# --- the source collection over git:// (STORE-008, REG-016, REG-017) ---------------------------
+
+
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+@pytest.fixture
+def collection(tmp_path: Path) -> Iterator[tuple[Path, int, subprocess.Popen[bytes]]]:
+    """A collection with one tagged repository, served read-only by `git daemon` on loopback."""
+    base = tmp_path / "vendor"
+    repo = base / "lib-a"
+    write(repo / "flake.nix", '{ outputs = _: { marker = "lib-a-v1"; }; }\n')
+    init_repo(repo, "lib-a release")
+    tag_release(repo, "1.0.0")
+    port = _free_port()
+    daemon = subprocess.Popen(
+        ["git", "daemon", "--reuseaddr", f"--base-path={base}", "--export-all", "--listen=127.0.0.1", f"--port={port}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        for _ in range(50):
+            with socket.socket() as probe:
+                if probe.connect_ex(("127.0.0.1", port)) == 0:
+                    break
+            time.sleep(0.1)
+        else:
+            pytest.fail("git daemon did not start")
+        yield base, port, daemon
+    finally:
+        daemon.terminate()
+        daemon.wait(timeout=10)
+
+
+def test_forge_entry_fetches_over_git_and_keeps_working_after_the_daemon_stops(
+    collection: tuple[Path, int, subprocess.Popen[bytes]], tmp_path: Path
+):
+    base, port, daemon = collection
+    project = tmp_path / "project"
+    write(
+        project / "vendomat.toml",
+        f'[forge]\nurl = "git://127.0.0.1:{port}"\n\n[inputs]\nlib-a = {{ ref = "refs/tags/v1.0.0" }}\n',
+    )
+    write(project / "flake-outputs.nix", "inputs: { lib.marker = inputs.lib-a.marker; }\n")
+    init_repo(project, "forge project")
+    synced(project)
+    assert f'lib-a.url = "git://127.0.0.1:{port}/lib-a?ref=refs/tags/v1.0.0";' in (project / "flake.nix").read_text()
+
+    lock = nix(["flake", "lock"], project)
+    assert lock.returncode == 0, lock.stderr
+    assert lock.warnings == []
+    save(project, "lock", "record the lock Nix wrote")
+    locked = json.loads((project / "flake.lock").read_text())["nodes"]["lib-a"]["locked"]
+    assert (locked["type"], locked["url"], locked["ref"]) == (
+        "git",
+        f"git://127.0.0.1:{port}/lib-a",
+        "refs/tags/v1.0.0",
+    )
+
+    online = nix(["eval", "--raw", ".#lib.marker"], project)
+    assert online.returncode == 0, online.stderr
+    assert online.stdout == "lib-a-v1"
+    assert online.warnings == []
+
+    # The source path is the same whether Nix fetches by daemon URL or by local path, so the
+    # builder may use a local clone and still produce the outputs that consumers substitute.
+    def source_path(url: str) -> str:
+        expr = f'(builtins.fetchTree {{ type = "git"; url = "{url}"; ref = "refs/tags/v1.0.0"; }}).outPath'
+        result = nix(["eval", "--impure", "--raw", "--expr", expr], project)
+        assert result.returncode == 0, result.stderr
+        return result.stdout
+
+    assert source_path(f"git://127.0.0.1:{port}/lib-a") == source_path(f"file://{base}/lib-a")
+
+    # A revision that is already fetched needs no network (the laptop off the tailnet).
+    daemon.terminate()
+    daemon.wait(timeout=10)
+    offline = nix(["eval", "--raw", ".#lib.marker"], project)
+    assert offline.returncode == 0, offline.stderr
+    assert offline.stdout == "lib-a-v1"
 
 
 def test_nix_version_is_the_pinned_one():

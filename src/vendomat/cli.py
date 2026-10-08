@@ -22,8 +22,8 @@ from .add import EntryExistsError, gather, scaffold
 from .catalog import CatalogError
 from .checks import format_self_check, self_check_exit, vendor_checks
 from .deps import read_deps, read_resolved_versions
-from .generate import REGISTRY_FILE, GenerateError, sync_flake
-from .install import LIB_PREFIX, install_knowledge
+from .generate import GenerateError, sync_flake
+from .install import LIB_PREFIX
 from .plane import (
     GenerationStore,
     PlaneError,
@@ -639,46 +639,22 @@ def vendor_doctor(
 
 @app.command()
 def sync(
-    vendor_root: str | None = typer.Option(
-        None, "--vendor-root", help="Knowledge tree (defaults to $VENDOMAT_VENDOR_ROOT)."
-    ),
-    root: str | None = typer.Option(
-        None, "--root", help="Project directory for the flake generator (defaults to the current directory)."
-    ),
+    root: str | None = typer.Option(None, "--root", help="Project directory (defaults to the current directory)."),
 ) -> None:
-    """Write the project ``flake.nix`` from ``vendomat.toml``, or install knowledge skills.
+    """Write the project ``flake.nix`` from ``vendomat.toml``.
 
-    A directory with a ``vendomat.toml`` is a V5 project. ``sync`` then writes the generated
-    ``flake.nix`` and leaves ``flake.lock`` and ``flake-outputs.nix`` alone. Without that file,
-    ``sync`` keeps its earlier job: it installs a ``dep-<lib>`` skill for each lib the repo
-    uses that the vendor tree carries. Idempotent.
+    ``sync`` leaves ``flake.lock`` and ``flake-outputs.nix`` alone: Nix owns the lock and the
+    project owns its outputs. It refuses to overwrite a ``flake.nix`` that has no generated header.
     """
 
     project = Path(root) if root is not None else Path.cwd()
-    if (project / REGISTRY_FILE).exists():
-        try:
-            result = sync_flake(project)
-        except GenerateError as exc:
-            typer.echo(f"vendomat sync: {exc}", err=True)
-            raise typer.Exit(code=exc.code) from exc
-        verb = "wrote" if result.changed else "unchanged"
-        typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
-        return
-
-    vr = _vendor_root(vendor_root)
-    if not vr:
-        typer.echo("vendomat sync: VENDOMAT_VENDOR_ROOT is unset (set it or pass --vendor-root).", err=True)
-        raise typer.Exit(code=2)  # infra/config
-
-    repo_root = Path(_repo_root())
-    deps = read_deps(repo_root)
-    written = install_knowledge(Path(vr), deps, _skills_dir(), repo_root)
-
-    installed = [p.parent.name for p in written if p.name == "SKILL.md"]
-    if installed:
-        typer.echo(f"vendomat sync: installed {len(installed)} skill(s): {', '.join(installed)}")
-    else:
-        typer.echo("vendomat sync: no matching dependency skills to install.")
+    try:
+        result = sync_flake(project)
+    except GenerateError as exc:
+        typer.echo(f"vendomat sync: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
+    verb = "wrote" if result.changed else "unchanged"
+    typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
 
 
 def _add_vendor_root(flag: str | None) -> Path:

@@ -12,10 +12,11 @@ The limits:
 
 - **May run now:** Step 8 in a temporary or fixture directory, with the pinned Nix and Testee. It
   writes no disk, switches no host, and changes no cache or Attic state.
-- **Still blocked:** Step 0 (PV-02), Step 2 and Step 10 (PV-09), Step 7 (PV-02 and PV-09). Steps 1,
+- **Still blocked:** Step 0 (PV-02), Step 2 and Step 10 (PV-09), Step 7 (PV-02 and PV-09), and Step 6.3
+  (the collection service changes `server`). Steps 1,
   3, 4, 5, 6, and 9 keep their order and have not run.
-- **Step 8 is not complete** until its acceptance passes against a real private source host. Until
-  then it is a fixture result. A passing Step 8 fixture is not fleet acceptance, a cache proof, a
+- **Step 8 is not complete** until its acceptance passes with a fetch from `framework` to the source
+  collection on `server`. Until then it is a fixture result. A passing Step 8 fixture is not fleet acceptance, a cache proof, a
   cold-installer proof, or a production boot.
 - Vendomat is a system-installed command, added by a host delta at `packages.<system>.vendomat`. It
   is not installed through devenv or the shared core, and it generates no project shell.
@@ -43,6 +44,7 @@ run, how to verify, how to undo, and when to stop.
 | Nix | 2.34.7 |
 | devenv | 2.4.0+b904dcb |
 | Attic | server and client `attic-0-unstable-2026-06-26` |
+| Source collection | `server`, `/home/andrew/vendor/<repo>`. Read-only `git://` over the tailnet; CI pushes release tags over SSH. Decided 2026-10-08; not yet built on `server` |
 | Cache | `vendomat`, private, priority 20, retention 0; the fresh-installer route is blocked by PV-09 |
 | Cache key | `vendomat:SRJCMEnuScYDRmGId+o9nkXn+MaLpQvDTHs5AfnRQgA=` |
 | Attic listen | `127.0.0.1:8089`, tailnet-only Serve route at `/attic`; `attic use` drops this prefix |
@@ -476,6 +478,39 @@ done
 
 ---
 
+## 6.3 The source collection
+
+**Blocked until the machine steps are authorized.** This changes `server`. Nothing here has run there.
+
+The collection is one directory of repositories, `/home/andrew/vendor/<repo>`, on `server`. It holds
+the owner's released tags. Nix reads it at evaluation, and the owner and agents read it for context.
+Attic never holds it (`STORE-008`, `STORE-012`).
+
+- **Read.** A read-only `git daemon` bound to the tailnet address, with base path
+  `/home/andrew/vendor`. Inputs use `git://server/<repo>?ref=refs/tags/<tag>`. PV-16 tested this on
+  loopback with Nix 2.34.7. The daemon sleeps when idle: 0 CPU ticks in 20 seconds and 1.8 MB of
+  memory. Any device on the tailnet can read it; a Tailscale ACL can narrow that.
+- **Write.** CI pushes only release tags, over SSH (`STORE-011`). Each library's devenv release task
+  tags `v<semver>` and pushes that tag to `ssh://andrew@server/home/andrew/vendor/<repo>`. Create
+  each repository once on `server`. A normal repository accepts a tag push and refuses a push to its
+  checked-out branch. Key login from the pushing machine to `server` is required. SSH from `server` to
+  itself failed on 2026-10-08, so set the keys up first.
+- **Working tree.** After a push, move the working tree to the newest tag when it is clean, so agents
+  read current files (`STORE-013`). Not built.
+- **Builder.** Step 6.2 reads the newest `v<semver>` tag from the same directory. The source path is
+  identical whether Nix fetches by `git://` or by a local `file://` URL (PV-17), so consumers
+  substitute the builder's outputs.
+
+Verify, when authorized:
+
+```sh
+# on framework, in a project whose vendomat.toml names a tag in the collection
+nix flake lock
+nix build .#packages.x86_64-linux.default
+```
+
+**Stop if:** the fetch from `framework` fails, or a consumer builds what the builder already built.
+
 # Step 7 — install `server` fresh on the 4 TB drive
 
 **Blocked. Do not run this step.** PV-02 could not verify the target signature and partition-table
@@ -497,13 +532,15 @@ fixture passes. The implementation session must not use the old partition or ins
 `flake-outputs.nix`. **IDs:** `REG-*`, `GEN-005` to `GEN-008`, `GEN-015` to `GEN-022`, `STORE-*`.
 **State:** the registry reader and generator exist and pass their fixtures
 ([PV-13](./prelim-verification/results/PV-13.md), [PV-14](./prelim-verification/results/PV-14.md)).
-Acceptance against a real private source host has not run.
+Acceptance with a fetch from `framework` to the collection on `server` has not run.
 
-The generator declares direct inputs only. Use a portable remote URL by default. A local checkout
-needs an explicit input override; `VENDOMAT_SOURCE_ROOT` alone does not alter an existing flake or
-lock (`STORE-006`, `STORE-007`). Nix follows the transitive graph. A direct `nixpkgs.follows` edge
-leaves nested nodes separate unless each authored flake follows its parent. List each edge you want
-in `[follows]`; require one node only for a controlled graph that meets that condition (`GEN-021`).
+The generator declares direct inputs only. A personal input names a tag in the source collection;
+its URL is `<forge url>/<repo>` (`REG-016`). Every `[inputs]` entry pins a tag (`REG-017`). A local
+checkout needs an explicit input override; `VENDOMAT_SOURCE_ROOT` alone does not alter an existing
+flake or lock (`STORE-006`, `STORE-007`). Nix follows the transitive graph. A direct
+`nixpkgs.follows` edge leaves nested nodes separate unless each authored flake follows its parent.
+List each edge you want in `[follows]`; require one node only for a controlled graph that meets that
+condition (`GEN-021`).
 
 Write the project outputs file first. `sync` fails, naming it, when it is missing (`GEN-018`). Track
 both Nix files in Git before Nix reads them.
@@ -522,12 +559,16 @@ To test a local checkout without changing the registry or the lock:
 nix build --no-write-lock-file --override-input <name> git+file://<checkout> .#<output>
 ```
 
-`vendomat sync` in a directory with a `vendomat.toml` is the V5 command. Without that file it keeps
-its earlier job, installing knowledge skills, because `modules/devenv.nix` still calls it. Remove
-that fallback when the knowledge layer is retired.
+To follow a new release, edit the tag in `vendomat.toml`, run `vendomat sync`, then
+`nix flake update <input>`. A script or a scheduled job can do this later; Vendomat does not.
 
-Do not use `devenv.yaml` as a second dependency declaration. Do not claim the private-source
-acceptance has passed until a portable URL works from the intended host.
+`mirror`, `keep`, and `backup` are validated and ignored by `sync`. Their effects wait for the
+collection step (`STORE-009`). nixpkgs and devenv are never mirrored or kept (`REG-018`, `REG-019`).
+Nix cannot fail over between two URLs, so a `backup` URL is applied by hand with `--override-input`
+(`REG-020`).
+
+Do not use `devenv.yaml` as a second dependency declaration. Do not claim the source acceptance has
+passed until `framework` fetches from the collection on `server`.
 
 # Step 9 — system configuration from TOML
 
@@ -566,7 +607,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Area | Result |
 | --- | --- |
 | Step 0 and physical target | Blocked: partition-table and signature scans were not available |
-| Consumer source portability | Failed for absolute `git+file` paths. The generator fixture passes with an explicit override. No private remote exists yet (PV-15) |
+| Consumer source portability | Absolute `git+file` paths failed (PV-03). The decided route is the collection on `server` over `git://`; a loopback fixture and the generator pass (PV-16, PV-17). A fetch from `framework` has not run |
 | Consumer output | PV-13 and PV-14 passed: the bridge, `[follows]`, and `sync` output work on pinned Nix. There is no generated shell; PV-05's `--impure` result is history |
 | TOML and module merge | Current examples failed; successor contracts are recorded in `SPEC-V5.md` |
 | Cache and retention | Isolated fixture passed; cold installer remains blocked |
@@ -577,9 +618,11 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 
 | Question | Blocks |
 | --- | --- |
-| Which reachable remote host will serve private source flakes? (PV-15: none exists; the owner chooses) | Step 8 acceptance |
+| Does a fetch from `framework` to the collection on `server` work over the tailnet? (PV-16 and PV-17 tested loopback only) | Step 8 acceptance |
+| Who sets up SSH key login from the pushing machine to `server`? SSH from `server` to itself failed on 2026-10-08 | Step 6.3 release pushes |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
 | When can an authorized read-only signature scan unblock PV-02? (PV-02 addendum: the owner runs the scan) | Step 0 |
 
 Closed 2026-10-08: the laptop keeps the name `framework`. The owner dropped the `--impure` shell
-contract, because Vendomat generates no shell.
+contract, because Vendomat generates no shell. The source host is `server`, read over `git://`, and
+inputs pin tags.

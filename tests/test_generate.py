@@ -56,7 +56,7 @@ def test_generated_flake_has_no_shell_and_no_module_scan():
 
 def test_follows_edges_are_emitted_only_for_declared_children():
     registry = parse_registry(
-        '[inputs]\na = { url = "x:a" }\nb = { url = "x:b" }\n[passthrough]\nnixpkgs = { url = "x:np" }\n'
+        '[inputs]\na = { url = "path:./a" }\nb = { url = "path:./b" }\n[passthrough]\nnixpkgs = { url = "x:np" }\n'
         '[follows]\na = ["nixpkgs"]\n'
     )
     text = render(registry, VERSION)
@@ -65,16 +65,49 @@ def test_follows_edges_are_emitted_only_for_declared_children():
 
 
 def test_names_that_nix_cannot_write_bare_are_quoted():
-    registry = parse_registry('[inputs]\n3d-lib = { url = "x:a" }\nrec = { url = "x:b" }\nplain = { url = "x:c" }\n')
+    registry = parse_registry(
+        '[inputs]\n3d-lib = { url = "path:./a" }\nrec = { url = "path:./b" }\nplain = { url = "path:./c" }\n'
+    )
     text = render(registry, VERSION)
-    assert '"3d-lib".url = "x:a";' in text
-    assert '"rec".url = "x:b";' in text
+    assert '"3d-lib".url = "path:./a";' in text
+    assert '"rec".url = "path:./b";' in text
     assert "    plain.url" in text
 
 
 def test_ref_and_rev_reach_the_generated_url():
     registry = parse_registry('[inputs]\na = { url = "git+https://h/a", ref = "refs/tags/v1.0.0" }\n')
     assert 'a.url = "git+https://h/a?ref=refs/tags/v1.0.0";' in render(registry, VERSION)
+
+
+FORGE_REGISTRY = """
+[forge]
+url = "git://server/"
+
+[inputs]
+lib-a = { ref = "refs/tags/v1.0.0" }
+loci-nvim = { repo = "loci.nvim", ref = "refs/tags/v1.2.0", keep = true }
+telescope = { url = "github:upstream/telescope.nvim", ref = "refs/tags/v0.1.8", flake = false, mirror = true }
+
+[passthrough]
+nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling", backup = "https://backup.example/nixpkgs" }
+"""
+
+
+def test_forge_entries_resolve_to_the_collection_with_the_tag_in_the_url():
+    text = render(parse_registry(FORGE_REGISTRY), VERSION)
+    assert 'lib-a.url = "git://server/lib-a?ref=refs/tags/v1.0.0";' in text
+    assert 'loci-nvim.url = "git://server/loci.nvim?ref=refs/tags/v1.2.0";' in text
+    assert 'telescope.url = "github:upstream/telescope.nvim?ref=refs/tags/v0.1.8";' in text
+    assert "telescope.flake = false;" in text
+
+
+def test_collection_flags_and_backup_never_reach_the_generated_flake():
+    plain = FORGE_REGISTRY.replace(", keep = true", "").replace(", mirror = true", "")
+    plain = plain.replace(', backup = "https://backup.example/nixpkgs"', "")
+    flagged, bare = parse_registry(FORGE_REGISTRY), parse_registry(plain)
+    assert flagged.digest == bare.digest
+    assert render(flagged, VERSION) == render(bare, VERSION)
+    assert "backup.example" not in render(flagged, VERSION)
 
 
 def test_sync_twice_gives_identical_bytes_and_does_not_rewrite(project: Path):
@@ -170,9 +203,8 @@ def test_cli_sync_exit_codes_and_causes(project: Path):
     assert "flake-outputs.nix" in missing.output
 
 
-def test_cli_sync_without_a_registry_keeps_the_knowledge_installer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_cli_sync_without_a_registry_names_the_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("VENDOMAT_VENDOR_ROOT", raising=False)
     result = runner.invoke(app, ["sync"])
     assert result.exit_code == 2
-    assert "VENDOMAT_VENDOR_ROOT is unset" in result.output
+    assert "vendomat.toml: no registry here" in result.output

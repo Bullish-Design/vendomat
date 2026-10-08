@@ -28,7 +28,7 @@ tracked implementation fixtures pass.
 
 **Update 2026-10-08:** the `--impure` shell is no longer a Vendomat contract. Vendomat generates no
 shell (see [DECISIONS.md](DECISIONS.md)). PV-13 and PV-14 pass the project-output interface and the
-generator in isolation. PV-15 records that no private source host exists.
+generator in isolation. PV-15 first recorded that no private source host existed; its addendum and PV-16 and PV-17 record the owner's decision to use a source collection on `server`.
 
 ## Evidence locations
 

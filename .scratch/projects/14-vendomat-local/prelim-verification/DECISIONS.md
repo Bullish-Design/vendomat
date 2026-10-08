@@ -5,7 +5,7 @@ design decisions. They do not pass the implementation requirements.
 
 | Topic | Decision | Evidence | Requirement changes | Remaining work |
 | --- | --- | --- | --- | --- |
-| Source URLs | Use portable remote URLs as the fleet default. Use an explicit Nix input override for a local checkout. `VENDOMAT_SOURCE_ROOT` alone does not change a flake or lock. | [PV-03](results/PV-03.md) | Add `STORE-006`, `STORE-007`; keep `STORE-001` for the clone store only | Add a generator fixture and name the reachable remote for private repos |
+| Source URLs | Use portable remote URLs as the fleet default. Use an explicit Nix input override for a local checkout. `VENDOMAT_SOURCE_ROOT` alone does not change a flake or lock. | [PV-03](results/PV-03.md) | Add `STORE-006`, `STORE-007`; keep `STORE-001` for the clone store only | Add a generator fixture and name the reachable remote for private repos Done 2026-10-08: the remote is the collection on `server` (third session below). |
 | `nixpkgs` sharing | One node is a goal for controlled graphs where every authored nested flake follows its parent. | [PV-04](results/PV-04.md) | Supersede `GEN-002` with `GEN-013`; supersede `CORE-007` with `CORE-008` | Test actual project inputs for compatibility |
 | Consumer shell | **Superseded 2026-10-08 (below).** Original text: use `nix develop --impure` with the pinned devenv integration; pure root discovery failed. Kept as history. | [PV-05](results/PV-05.md) | Supersede `GEN-009` with `GEN-014`, then `GEN-014` with `GEN-019` | None. The generated shell is gone |
 | Host TOML | Return a valid NixOS module. Resolve packages only at explicit package-valued option paths. Let native option types merge definitions. | [PV-06](results/PV-06.md) | Supersede `SYS-002`, `SYS-003`, `SYS-005` with `SYS-008` to `SYS-010` | Implement and test the allowlist and module wrapper |
@@ -40,12 +40,33 @@ evidence about its old devenv fixture and is not a reason to require `--impure` 
 | `ref` and `rev` | The draft claim that they pass through as separate attributes failed. Emit them as URL query parameters. | PV-13 | Supersede `REG-005` with `REG-013` | None |
 | Name checks | A name in both `[inputs]` and `[passthrough]` is an error. An unknown top-level table is an error. | PV-14 | Add `REG-012`, `REG-015` | None |
 | Verification of absence | Check parsed input names and the lock, never `rg vendomat flake.nix`. The header names the tool, and the Nixpkgs URL contains `devenv`. | PV-13 F2 | Supersede `DEL-002` with `DEL-008`, `DEL-005` with `DEL-009`, `ISO-006` with `ISO-007` | None |
-| `sync` name | `vendomat sync` in a directory with `vendomat.toml` is the V5 generator. Without that file it keeps the earlier knowledge installer, because `modules/devenv.nix` still calls it. | PV-14 | None | Retire the fallback with the knowledge layer |
+| `sync` name (**superseded in the third session below**) | `vendomat sync` in a directory with `vendomat.toml` is the V5 generator. Without that file it keeps the earlier knowledge installer, because `modules/devenv.nix` still calls it. | PV-14 | None | Retire the fallback with the knowledge layer |
 | Laptop name | The laptop is `framework`. | Owner | None | None |
 | Step order | Isolated registry and generator work may run before the machine steps. Machine activation and fleet acceptance keep their gates. | Owner | None | See the guide's "Revised order" |
 
+## Decisions of 2026-10-08, third session: the source collection
+
+The owner decided these after a clarifying exchange. They supersede the "private source host" owner
+choice that an earlier version of this file listed. The framing in [PV-15](results/PV-15.md) was
+wrong, and its addendum says so.
+
+| Topic | Decision | Evidence | Requirement changes | Remaining work |
+| --- | --- | --- | --- | --- |
+| Two tracked things | Vendomat tracks source and build outputs. Attic holds build outputs only. Source is separate, and no step requires it to be in Attic. | Owner | `STORE-012` | None |
+| Source collection | One collection on `server` at `/home/andrew/vendor/<repo>` holds the owner's released tags. Nix reads it at evaluation. The owner and agents read it for context. | Owner; [PV-16](results/PV-16.md) | `STORE-008`; `STORE-006` stays | A fetch from `framework` over the tailnet |
+| Read transport | A read-only `git daemon` serves `git://` to the tailnet. The tailnet is the access boundary, and the owner accepts that every tailnet device can read. An idle daemon used 0 CPU ticks in 20 seconds. | Owner; PV-16 | `STORE-008` | Build it on `server` (Step 6.3) |
+| Release push | The owner's CI, through devenv, pushes release tags over SSH. Unreleased work stays out. | Owner | `STORE-011` | SSH key login; the release task |
+| Pinning | Every `[inputs]` entry pins a tag. There is no `latest` ref. Following a release means editing the tag and running `nix flake update`; a script can do that later. | Owner | `REG-017` | None |
+| Registry shape | A `[forge]` table names the collection. An entry without `url` resolves to it. `repo` names a repository whose name has a dot. | [PV-17](results/PV-17.md) | `REG-016`; `REG-021` supersedes `REG-015` | None |
+| Third-party code | Optional per entry. `mirror = true` keeps a reading copy in the collection and leaves the input URL alone. nixpkgs and devenv are never copied. | Owner | `REG-018` | The store step |
+| Reading on other machines | `vendomat path <name>` prints the locked tree as a store path. `keep = true` keeps a persistent clone. | Owner | `REG-019`; `CLI-007` stays | The store step |
+| Backup URL | An optional `backup` per entry. Vendomat uses it only when the owner asks, because Nix cannot fail over between two URLs. | Owner | `REG-020` | An explicit command |
+| Store rules | `STORE-002` becomes `STORE-009`, and `STORE-004` becomes `STORE-010`, because the collection is the owner's source and not a cache. A working tree shows the newest release (`STORE-013`). | Owner | `STORE-009` to `STORE-013` | The store step |
+| `sync` | `vendomat sync` is V5-only. The knowledge installer is gone from it, because the library is being rewritten from scratch. | Owner | None | The old `vendor-sync` script in `modules/devenv.nix` now fails |
+
 ## Open owner choices (recommendation first)
 
-1. **Private source host** (blocks Step 8 acceptance, [PV-15](results/PV-15.md)). Recommend a real Git remote that both machines reach, either Forgejo on the tailnet or `git+ssh` through `server`. Consequence: one new service or an SSH key setup. The alternative, cache-served sources, adds a publish step per deploy, ties source access to the cache credential, and is not a Git remote.
+1. ~~Private source host.~~ Closed above: `server`, over `git://`.
 2. **Installer credential delivery** (blocks Step 10, [PV-09 addendum](results/PV-09.md)). Recommend a root-only, pull-only, short-lived credential file copied from the installer medium to `/run` and passed with `--option netrc-file`. Consequence: the medium holds a secret.
 3. **Drive scan** (blocks Step 0, [PV-02 addendum](results/PV-02.md)). Recommend that the owner runs the read-only `wipefs --no-act`, `sfdisk --dump`, and `blkid -p` with their own sudo, and saves the output.
+4. **SSH key login to `server`** (blocks release pushes in Step 6.3). SSH from `server` to itself failed on 2026-10-08. Set up key login from each pushing machine.

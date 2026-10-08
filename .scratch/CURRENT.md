@@ -8,7 +8,7 @@ points here. When the active project changes, change this file and not `AGENTS.m
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 171 requirement IDs in its tables, 132 active, 28 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
+2. `SPEC-V5.md` — normative. 183 requirement IDs in its tables, 141 active, 31 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 
@@ -25,7 +25,10 @@ This is not fleet acceptance.
 Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
 `packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated
 `flake.nix` bridges to a project-owned `flake-outputs.nix`. The laptop is `framework`. Nix owns
-`flake.lock`. Attic is a cache, not a Git host. See
+`flake.lock`. Vendomat tracks two things: build outputs, which Attic holds, and source, which one
+collection on `server` holds. Nix reads personal inputs from that collection over `git://`, CI pushes
+release tags to it, and every input pins a tag. Attic never needs to hold source. The library is
+being rewritten from scratch around the V5 concept; old code is provenance. See
 [DECISIONS.md](projects/14-vendomat-local/prelim-verification/DECISIONS.md). PV-05 stays as history.
 
 Still blocked, each by evidence:
@@ -34,7 +37,9 @@ Still blocked, each by evidence:
   signatures cannot be read without privilege. The owner runs the scan.
 - **Step 2, 3, and 10 (PV-09):** a cold VM reaches the private route and meets HTTP 401 without a
   credential. The owner chooses how the installer gets the pull credential.
-- **Step 8 acceptance (PV-15):** no private Git host exists. The owner chooses a source host.
+- **Step 6.3 and Step 8 acceptance:** the collection service changes `server`, and no fetch from
+  `framework` over the tailnet has run. PV-16 and PV-17 tested loopback only. SSH key login to
+  `server` is not set up.
 - **`DEL-010`:** no fixture yet shows the host-installed CLI reachable from a project shell.
 
 The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not
