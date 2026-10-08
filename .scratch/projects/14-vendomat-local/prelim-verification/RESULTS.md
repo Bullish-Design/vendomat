@@ -1,5 +1,7 @@
 # V5 preliminary verification results
 
+**2026-10-08 second session:** PV-13 to PV-15 and addenda to PV-02 and PV-09 follow the table. They record the project-output contract, the generator, and the blocker reassessment.
+
 **State:** investigation complete on 2026-10-08; V5 implementation is **not ready**. No V5
 implementation step has run. PV-12 reconciles the authority documents and records the repository
 verification results.
@@ -7,21 +9,24 @@ verification results.
 | Spike | Outcome | Evidence | Representative raw output |
 | --- | --- | --- | --- |
 | PV-01 | Failed: active documents conflicted; reconciled in PV-12 | [Claim audit](results/PV-01.md) | [ID inventory](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-01-id-inventory.log) |
-| PV-02 | Blocked: real partition-table and signature scan was denied | [Drive preflight](results/PV-02.md) | [Read-only signature scan](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-02-wipefs-no-act.log) |
+| PV-02 | Blocked: real partition-table and signature scan was denied. The 2026-10-08 addendum confirms it; the owner runs the scan | [Drive preflight](results/PV-02.md) | [Read-only signature scan](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-02-wipefs-no-act.log) |
 | PV-03 | Failed: a locked local source URL requires the source at its recorded absolute path | [Source portability](results/PV-03.md) | [Missing source with public cache](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-03-missing-public-cache.log) |
 | PV-04 | Passed controlled graph fixture: nested follows edges shared one nixpkgs node | [Graph fixture](results/PV-04.md) | [Followed graph summary](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-04-consumer-followed-graph-summary-final.log) |
-| PV-05 | Failed pure shell entry; the pinned fixture passed with `nix develop --impure` | [Consumer independence](results/PV-05.md) | [Pure shell failure](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-05-shell-entry-pure-final.log) |
+| PV-05 | Failed pure shell entry; the pinned fixture passed with `nix develop --impure`. **History:** the owner dropped the generated shell on 2026-10-08, see [DECISIONS](DECISIONS.md) | [Consumer independence](results/PV-05.md) | [Pure shell failure](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-05-shell-entry-pure-final.log) |
 | PV-06 | Failed current converter shape and blanket package-list conversion | [Typed host TOML](results/PV-06.md) | [Direct converter failure](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-06-direct-converter-failure.log) |
 | PV-07 | Failed `recursiveUpdate` package-list merge; native module merge preserved additions | [Module faces](results/PV-07.md) | [Evaluation](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-07-evaluation.log) |
 | PV-08 | Failed the documented `set → diff → apply` sequence; a commit boundary is specified | [Host edit sequence](results/PV-08.md) | [Final host evaluation](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-08-after-commit-eval-final.log) |
-| PV-09 | Blocked: host-local cold substitution passed; fresh installer access did not | [Cache bootstrap](results/PV-09.md) | [Cold store fetch](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-09-cold-store-fetch.log) |
+| PV-09 | Blocked: host-local cold substitution passed; fresh installer access did not. The addendum shows a cold VM reaches the route and meets 401 with no credential | [Cache bootstrap](results/PV-09.md) | [Cold store fetch](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-09-cold-store-fetch.log) |
 | PV-10 | Passed isolated Attic publication and retention fixture; no permanence claim | [Cache retention](results/PV-10.md) | [Zero-retention collector](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-10-gc-zero-retention.log) |
 | PV-11 | Passed disposable NixOS VM fixture without the Vendomat CLI | [Machine core](results/PV-11.md) | [VM build and boot](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-11-nix-build-boot-final.log) |
 | PV-12 | Reconciled authority and readiness; repository gate results are recorded in its report | [Reconciliation](results/PV-12.md) | [Final ID inventory](/home/andrew/.local/state/vendomat/v5/prelim-verification/2026-10-08/PV-12-id-inventory.log) |
+| PV-13 | Passed fixture: the project-output bridge, the `[follows]` shape, and a query-form `ref`/`rev`. Two draft details failed and were revised | [Interface](results/PV-13.md) | [Testee run 2](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/interface-run2.log) |
+| PV-14 | Passed fixture: `vendomat sync` output equals the PV-13 candidate; not fleet acceptance | [Generator](results/PV-14.md) | [Testee run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/gen-run3.log) |
+| PV-15 | Blocked: no private Git host; Attic serves hash-locked paths, not a Git remote | [Source host](results/PV-15.md) | [Blocker report](/home/andrew/.local/state/vendomat/v5/2026-10-08/blockers/REPORT.md) |
 
 ## Readiness and blockers
 
-**Do not start Steps 0 to 10.** Step 0 is blocked because the 4 TB target's partition table and
+**Do not start Steps 0 to 7 or Step 10.** Step 8 (registry and generator) may run in isolation since 2026-10-08; its fixtures pass (PV-13, PV-14) and its acceptance needs a private source host (PV-15). Step 0 is blocked because the 4 TB target's partition table and
 signatures could not be read. Its stable ID, model, serial, and exact size matched the inventory;
 `lsblk` showed no partition or mount. That is not proof that the target is bare. No physical disk
 was written.
@@ -36,7 +41,22 @@ entry, typed TOML conversion, module helper activation, CLI dirty-file and rollb
 production boot and network acceptance. The disposable PV-11 test did not have external network
 access and did not prove tailnet reachability.
 
-## Changed requirement IDs
+## Project-output contract (2026-10-08)
+
+Vendomat is a system-installed command, and it generates no shell. These changes follow PV-13 and PV-14.
+
+| Requirement change | Supporting fixture |
+| --- | --- |
+| Supersede `GEN-001` with `GEN-015`, `GEN-003` with `GEN-020`, `GEN-004` with `GEN-016`, `GEN-010` and `GEN-011` with `GEN-017`, `GEN-013` with `GEN-021`, `GEN-014` with `GEN-019`. Withdraw `GEN-012`. Add `GEN-018` and `GEN-022` | PV-13 F1 to F7; PV-14 |
+| Supersede `REG-005` with `REG-013`. Add `REG-011`, `REG-012`, `REG-014`, `REG-015` | PV-13 `ref`/`rev` and F7; PV-14 unit tests |
+| Supersede `DEL-002`, `DEL-005`, `ISO-006` with `DEL-008`, `DEL-009`, `ISO-007`. Add `DEL-010`, `DEL-011` | PV-14; `DEL-010` has no fixture yet |
+
+The specification now defines 171 requirement IDs in its tables: 132 active, 28 superseded, 10
+withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 190 IDs are preserved. It
+lists 13 native fact IDs. The inventory found no duplicate and no broken successor link
+([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory.log)).
+
+## Changed requirement IDs (preliminary session, 2026-10-08 morning)
 
 | Requirement change | Supporting fixture |
 | --- | --- |
@@ -52,8 +72,8 @@ access and did not prove tailnet reachability.
 | Supersede `DEL-001` with `DEL-006`; add `DEL-007` for CLI package selection | PV-11 |
 | Add `CLI-015` for committed diff baseline and apply sequencing | PV-08 |
 
-The specification now defines 153 requirement IDs in its tables: 126 active, 9 withdrawn, 17
-superseded, and 1 narrowed. It preserves the 19 withdrawn resolver and emitter IDs and 9 native
+At the end of the morning session the specification defined 153 requirement IDs in its tables: 126
+active, 9 withdrawn, 17 superseded, and 1 narrowed. It preserves the 19 withdrawn resolver and emitter IDs and 9 native
 fact IDs. The final inventory found no duplicate requirement definitions.
 
 ## Limits of the evidence

@@ -1,7 +1,24 @@
 # Vendomat V5 implementation guide
 
-**Date:** 2026-10-07. **Status:** Superseded and blocked. Do not execute this guide. PV-02 blocks Step 0; PV-09 blocks installer cache access. **Authority:** [SPEC-V5.md](./SPEC-V5.md) is
+**Date:** 2026-10-07. **Status:** Partly unblocked on 2026-10-08. **Do not run Steps 0 to 7 or Step 10.**
+PV-02 blocks Step 0 and Step 7. PV-09 blocks installer cache access. Step 8 (registry and generator)
+may run now in isolation; see "Revised order" below. **Authority:** [SPEC-V5.md](./SPEC-V5.md) is
 normative. [CONCEPT-V5.md](./CONCEPT-V5.md) holds the shape. This file holds the commands.
+
+## Revised order (2026-10-08)
+
+The owner authorized isolated registry and generator work before the machine installation steps.
+The limits:
+
+- **May run now:** Step 8 in a temporary or fixture directory, with the pinned Nix and Testee. It
+  writes no disk, switches no host, and changes no cache or Attic state.
+- **Still blocked:** Step 0 (PV-02), Step 2 and Step 10 (PV-09), Step 7 (PV-02 and PV-09). Steps 1,
+  3, 4, 5, 6, and 9 keep their order and have not run.
+- **Step 8 is not complete** until its acceptance passes against a real private source host. Until
+  then it is a fixture result. A passing Step 8 fixture is not fleet acceptance, a cache proof, a
+  cold-installer proof, or a production boot.
+- Vendomat is a system-installed command, added by a host delta at `packages.<system>.vendomat`. It
+  is not installed through devenv or the shared core, and it generates no project shell.
 
 ## How to use this guide
 
@@ -12,7 +29,8 @@ run, how to verify, how to undo, and when to stop.
 - Open one Gitman lane per step. Never run raw `git` or `jj`.
 - `sudo` is at `/run/wrappers/bin/sudo`. The copy first on `PATH` is not setuid.
 - **All work happens on `server`.** No step before 10 may depend on the laptop (`BOOT-018`, `BOOT-020`).
-- Steps 1 to 7 need no Python. Do not start step 8 before step 7 passes.
+- Steps 1 to 7 need no Python. Step 8 may run in isolation first (see "Revised order"); the machine
+  steps keep their own gates.
 - Record each step's date, commands, and result. Keep raw logs in
   `~/.local/state/vendomat/v5/<date>/`.
 
@@ -21,7 +39,7 @@ run, how to verify, how to undo, and when to stop.
 | Item | Value |
 | --- | --- |
 | `server` | Dell Precision 5820, headless, `x86_64-linux`. Runs `atticd` and the builder |
-| Laptop | `framework`, `x86_64-linux`. Installed last, in step 10. Unreachable as of 2026-10-07 |
+| Laptop | `framework` (name confirmed by the owner 2026-10-08), `x86_64-linux`. Installed last, in step 10. Unreachable as of 2026-10-07 |
 | Nix | 2.34.7 |
 | devenv | 2.4.0+b904dcb |
 | Attic | server and client `attic-0-unstable-2026-06-26` |
@@ -220,18 +238,10 @@ found 14 of 18 providers with one face and one provider with all three.
 
 ## 4.1 Consumer outputs
 
-Inline the `outputs` block in the generated consumer `flake.nix`. Do not import Vendomat from a
-consumer. PV-05 showed that the standalone package and the shell work with Vendomat absent from a
-sanitized `PATH`. The pinned devenv shell failed under pure root discovery and passed with
-`--impure`.
-
-```sh
-nix develop --impure --no-write-lock-file -c true
-nix build --impure --no-link .#devShells.x86_64-linux.default
-```
-
-A fixture must still prove the generated output after `vendomat sync` and with a genuinely cold
-store.
+The generator writes a bridge, not the outputs. The project owns `flake-outputs.nix`. Do not import
+Vendomat from a consumer, and do not ask the generator for a shell or a module import. See Step 8 and
+`GEN-016` to `GEN-022`. PV-05 tested an earlier generated devenv shell; its `--impure` result is dated
+history about that shell and is not a Vendomat gate.
 
 ## 4.2 Typed TOML module
 
@@ -483,28 +493,41 @@ fixture passes. The implementation session must not use the old partition or ins
 
 # Step 8 — the registry and the flake generator
 
-**Goal:** `vendomat sync` writes `flake.nix`; Nix owns `flake.lock`. **IDs:** `REG-*`,
-`GEN-001` to `GEN-014`, `STORE-*`.
+**Goal:** `vendomat sync` writes `flake.nix`; Nix owns `flake.lock`; the project owns
+`flake-outputs.nix`. **IDs:** `REG-*`, `GEN-005` to `GEN-008`, `GEN-015` to `GEN-022`, `STORE-*`.
+**State:** the registry reader and generator exist and pass their fixtures
+([PV-13](./prelim-verification/results/PV-13.md), [PV-14](./prelim-verification/results/PV-14.md)).
+Acceptance against a real private source host has not run.
 
 The generator declares direct inputs only. Use a portable remote URL by default. A local checkout
 needs an explicit input override; `VENDOMAT_SOURCE_ROOT` alone does not alter an existing flake or
-lock (`STORE-006`, `STORE-007`). Nix follows the transitive graph. The PV-04 fixture showed that
-a direct `nixpkgs.follows` edge leaves nested nodes separate unless each authored flake follows
-its parent. Require one node only for a controlled graph that meets that condition (`GEN-013`).
+lock (`STORE-006`, `STORE-007`). Nix follows the transitive graph. A direct `nixpkgs.follows` edge
+leaves nested nodes separate unless each authored flake follows its parent. List each edge you want
+in `[follows]`; require one node only for a controlled graph that meets that condition (`GEN-021`).
 
-The consumer shell passed with the pinned devenv only when invoked using `--impure`; the pure
-command failed during root discovery (`GEN-014`). Preserve that flag in generated-consumer checks.
-A cold-store generated consumer remains untested.
+Write the project outputs file first. `sync` fails, naming it, when it is missing (`GEN-018`). Track
+both Nix files in Git before Nix reads them.
 
 ```sh
-vendomat sync
-nix flake metadata --json
-nix develop --impure --no-write-lock-file -c true
-nix build --impure --no-link .#devShells.x86_64-linux.default
+$EDITOR vendomat.toml flake-outputs.nix
+vendomat sync                       # writes flake.nix only
+gitman describe -m "Update flake"   # then land; Nix cannot see untracked files
+nix flake lock                      # Nix writes flake.lock
+nix build .#packages.x86_64-linux.default
 ```
 
-Do not use `devenv.yaml` as a second dependency declaration. Do not claim the generator or a future
-`vendomat sync` has passed until its fixture runs.
+To test a local checkout without changing the registry or the lock:
+
+```sh
+nix build --no-write-lock-file --override-input <name> git+file://<checkout> .#<output>
+```
+
+`vendomat sync` in a directory with a `vendomat.toml` is the V5 command. Without that file it keeps
+its earlier job, installing knowledge skills, because `modules/devenv.nix` still calls it. Remove
+that fallback when the knowledge layer is retired.
+
+Do not use `devenv.yaml` as a second dependency declaration. Do not claim the private-source
+acceptance has passed until a portable URL works from the intended host.
 
 # Step 9 — system configuration from TOML
 
@@ -543,18 +566,20 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Area | Result |
 | --- | --- |
 | Step 0 and physical target | Blocked: partition-table and signature scans were not available |
-| Consumer source portability | Failed for absolute `git+file` paths; remote-default generator fixture remains required |
-| Consumer shell | Impure fixture passed; pure root discovery failed |
+| Consumer source portability | Failed for absolute `git+file` paths. The generator fixture passes with an explicit override. No private remote exists yet (PV-15) |
+| Consumer output | PV-13 and PV-14 passed: the bridge, `[follows]`, and `sync` output work on pinned Nix. There is no generated shell; PV-05's `--impure` result is history |
 | TOML and module merge | Current examples failed; successor contracts are recorded in `SPEC-V5.md` |
 | Cache and retention | Isolated fixture passed; cold installer remains blocked |
 | Machine core | Disposable VM passed without Vendomat CLI; production boot remains open |
+| Host CLI reachability | Not run (`DEL-010`, fixture F8) |
 
 # Open questions
 
 | Question | Blocks |
 | --- | --- |
-| Which reachable remote host will serve private source flakes, and how will local overrides work in the generator? | Step 8 acceptance |
-| How does a fresh installer obtain the private cache credential and route before first boot? | Steps 2, 3, and 10 |
-| Will the owner accept `nix develop --impure` as the consumer shell contract? | Step 8 acceptance |
-| Does the laptop keep the name `framework`? | Step 10 |
-| When can an authorized read-only signature scan unblock PV-02? | Step 0 |
+| Which reachable remote host will serve private source flakes? (PV-15: none exists; the owner chooses) | Step 8 acceptance |
+| How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
+| When can an authorized read-only signature scan unblock PV-02? (PV-02 addendum: the owner runs the scan) | Step 0 |
+
+Closed 2026-10-08: the laptop keeps the name `framework`. The owner dropped the `--impure` shell
+contract, because Vendomat generates no shell.

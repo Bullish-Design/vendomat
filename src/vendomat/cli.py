@@ -22,6 +22,7 @@ from .add import EntryExistsError, gather, scaffold
 from .catalog import CatalogError
 from .checks import format_self_check, self_check_exit, vendor_checks
 from .deps import read_deps, read_resolved_versions
+from .generate import REGISTRY_FILE, GenerateError, sync_flake
 from .install import LIB_PREFIX, install_knowledge
 from .plane import (
     GenerationStore,
@@ -641,12 +642,28 @@ def sync(
     vendor_root: str | None = typer.Option(
         None, "--vendor-root", help="Knowledge tree (defaults to $VENDOMAT_VENDOR_ROOT)."
     ),
+    root: str | None = typer.Option(
+        None, "--root", help="Project directory for the flake generator (defaults to the current directory)."
+    ),
 ) -> None:
-    """Install per-dependency knowledge skills, gated on the repo's actual deps.
+    """Write the project ``flake.nix`` from ``vendomat.toml``, or install knowledge skills.
 
-    Reads the consuming repo's dependency set and installs a ``dep-<lib>`` skill for each lib it
-    actually uses that the vendor tree carries. Idempotent.
+    A directory with a ``vendomat.toml`` is a V5 project. ``sync`` then writes the generated
+    ``flake.nix`` and leaves ``flake.lock`` and ``flake-outputs.nix`` alone. Without that file,
+    ``sync`` keeps its earlier job: it installs a ``dep-<lib>`` skill for each lib the repo
+    uses that the vendor tree carries. Idempotent.
     """
+
+    project = Path(root) if root is not None else Path.cwd()
+    if (project / REGISTRY_FILE).exists():
+        try:
+            result = sync_flake(project)
+        except GenerateError as exc:
+            typer.echo(f"vendomat sync: {exc}", err=True)
+            raise typer.Exit(code=exc.code) from exc
+        verb = "wrote" if result.changed else "unchanged"
+        typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
+        return
 
     vr = _vendor_root(vendor_root)
     if not vr:

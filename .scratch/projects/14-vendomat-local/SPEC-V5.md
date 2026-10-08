@@ -7,9 +7,19 @@
 `PATH-*` and `DISK-*` requirements. The in-place server conversion is replaced by a fresh install
 on the 4 TB drive: see `BOOT-021` to `BOOT-024`.
 
-**PV-12 update:** 153 requirement IDs are defined in the tables below; 126 are active. The 19
-withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2. Nine `NAT-*` entries are facts,
-not requirements. A preliminary fixture result does not pass an implementation requirement.
+**2026-10-08 project-output contract:** the owner decided that Vendomat is a system-installed command
+and does not generate a consumer development shell. A generated flake bridges to a project-owned
+outputs file. This adds `REG-011` to `REG-015`, `GEN-015` to `GEN-022`, `DEL-008` to `DEL-011`, and
+`ISO-007`, and it supersedes or withdraws twelve earlier IDs. The evidence is
+[PV-13](./prelim-verification/results/PV-13.md) (Nix interface) and
+[PV-14](./prelim-verification/results/PV-14.md) (generator). PV-05 stays as dated history.
+
+**Earlier PV-12 update (superseded by the count below):** 153 requirement IDs were defined in the tables below; 126 were active.
+
+**Current count:** 171 requirement IDs are defined in the tables below: 132 active, 28 superseded, 10
+withdrawn, and 1 narrowed. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2, so
+190 IDs are preserved in all. Thirteen `NAT-*` entries are facts, not requirements. A preliminary
+fixture result does not pass an implementation requirement.
 
 ## How to use this document
 
@@ -40,8 +50,8 @@ A requirement is satisfied when its **Verify** column runs and passes. Nothing e
 Native declarations and locks select. devenv composes. Nix builds and substitutes. Attic stores and
 signs. NixOS and Home Manager activate. Version control keeps history.
 
-Vendomat writes the direct-input registry and generated `flake.nix`, manages optional source
-checkouts, and reports. Nix resolves revisions and owns `flake.lock`.
+Vendomat writes the generated `flake.nix` from the registry, manages optional source checkouts, and
+reports. The owner writes the project outputs file. Nix resolves revisions and owns `flake.lock`.
 
 Vendomat owns no durable state. The cache belongs to Attic. The store is a cache of git remotes.
 `.vend/` holds out-links. The build record belongs to the builder.
@@ -63,10 +73,22 @@ gitman    = { url = "git+https://<remote-host>/andrew/gitman", ref = "refs/tags/
 
 [passthrough]
 nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling" }
+
+[follows]
+loci-nvim = ["nixpkgs"]
+nvim-core = ["nixpkgs"]
+gitman    = ["nixpkgs"]
 ```
 
-The remote host values are placeholders. Keys `url`, `ref`, `rev`, and `flake` pass through to the
-generated flake input verbatim. Select a local checkout with an explicit Nix input override.
+The remote host values are placeholders. The keys `url` and `flake` become flake input
+attributes. `ref` and `rev` become URL query parameters, because Nix 2.34.7 rejects them as
+separate attributes beside `url` (`REG-013`, PV-13). Select a local checkout with an explicit Nix
+input override.
+
+`[passthrough]` holds infrastructure inputs such as `nixpkgs`. It uses the same entry keys as
+`[inputs]`. Vendomat adds no input of its own: a project that needs `nixpkgs` lists it.
+`[follows]` lists, per direct flake input, the children that follow the root `nixpkgs`. Vendomat
+cannot know whether an input declares `nixpkgs` without fetching it, so the owner states the edge.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
@@ -74,67 +96,91 @@ generated flake input verbatim. Select a local checkout with an explicit Nix inp
 | `REG-002` | An input name MUST match `[a-z0-9][a-z0-9-]*` | `Nvim_Review` is rejected, naming the key |
 | `REG-003` | *Superseded by `REG-010`.* An empty table used the clone at `~/vendor/<name>` at its default ref | — |
 | `REG-004` | *Withdrawn 2026-10-08.* Version constraints are gone. Nix owns revision selection through `flake.lock` | — |
-| `REG-005` | A table MAY carry `url`, `ref`, `rev`, or `flake`. Each passes through to the generated flake input verbatim | Each appears unchanged in `flake.nix` |
+| `REG-005` | *Superseded by `REG-013`.* A table MAY carry `url`, `ref`, `rev`, or `flake`, each passed through as a separate flake input attribute | — |
 | `REG-006` | An unknown key in an input table MUST be an error naming the key | `{ revision = "…" }` is rejected and names `revision` |
 | `REG-007` | The file MUST list only directly requested inputs | After `sync`, the registry is byte-identical |
 | `REG-008` | `[passthrough]` entries MUST be copied verbatim into the generated `inputs:` | `nixpkgs` appears in the output unchanged |
 | `REG-009` | No command other than `add` and `remove` MUST write the registry | `sync`, `update`, `status` leave it byte-identical |
 | `REG-010` | Each input MUST name a portable source URL; a local checkout MUST be selected by an explicit Nix input override | An empty input table fails; a remote URL is emitted; an override selects another source without rewriting the lock when lock writes are disabled |
+| `REG-011` | `[follows]` MUST map a direct flake input name to a list of root input names. Today the only root name is `nixpkgs`. The generator emits one `follows` edge per listed pair and no other | PV-13 F7: one `nixpkgs` node for a child that declares `nixpkgs`, with no Nix warning. The unit test checks that an unlisted input gets no edge |
+| `REG-012` | An input name MUST NOT appear in both `[inputs]` and `[passthrough]` | The registry is rejected and the message names the input and both tables |
+| `REG-013` | `url` and `flake` MUST become flake input attributes. `ref` and `rev` MUST be appended to the URL as `ref=` and `rev=` query parameters. A `ref` or `rev` key beside the same query parameter in the URL MUST be an error | PV-13: Nix rejects `inputs.x.ref` beside `inputs.x.url` and locks both values from the query form. Unit tests cover the join with an existing query and the duplicate error |
+| `REG-014` | A `[follows]` entry MUST be rejected when its key is not a direct input, names a `flake = false` input, names `nixpkgs` itself, lists a root other than `nixpkgs`, or when no `nixpkgs` input exists | PV-13: Nix ignores a follows edge on a non-flake input without any message, so only this check catches it. Each rejection names the entry |
+| `REG-015` | A top-level table other than `[inputs]`, `[passthrough]`, and `[follows]` MUST be an error naming it. `[inputs]` MUST be present | A `[follow]` typo is rejected instead of dropped |
 
 ## 1.2 Generated `flake.nix`
 
-Written by `vendomat sync`. Never hand-edited. `flake.lock` is **not** generated: Nix owns it.
+Written by `vendomat sync`. Never hand-edited. `flake.lock` is **not** generated: Nix owns it. The
+project writes `flake-outputs.nix`; Vendomat never writes or reads it. Both files must be tracked in
+Git before Nix evaluates a Git-backed flake: Nix cannot see an untracked file (PV-13 F5).
+
+This is the real output of the generator for the registry in section 1.1:
 
 ```nix
 # GENERATED by vendomat 0.5.0. Do not edit.
-# registry-digest: sha256-4c81…
+# registry-digest: sha256-7e37d755285b70eaaea7cf8cd20d46cf3d1903243b3262038447e1e86f11a504
 {
   inputs = {
-    nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
-    devenv.url = "github:cachix/devenv";
-    devenv.inputs.nixpkgs.follows = "nixpkgs";
-    loci-nvim.url = "git+file:///home/andrew/vendor/loci.nvim";
+    gitman.url = "git+https://<remote-host>/andrew/gitman?ref=refs/tags/v0.10.0";
+    gitman.inputs.nixpkgs.follows = "nixpkgs";
+    loci-nvim.url = "git+https://<remote-host>/andrew/loci.nvim";
     loci-nvim.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
+    nvim-core.url = "git+https://<remote-host>/andrew/nvim-core";
+    nvim-core.inputs.nixpkgs.follows = "nixpkgs";
+    telescope.url = "github:Bullish-Design/telescope.nvim/patched-0.1.8";
+    telescope.flake = false;
   };
 
-  outputs = { nixpkgs, devenv, ... }@inputs:
-    let
-      system = "x86_64-linux";
-      lib = nixpkgs.lib;
-      auto = lib.mapAttrsToList (_: v: v.devenvModules.default)
-        (lib.filterAttrs (_: v: v ? devenvModules.default) inputs);
-    in {
-      devShells.${system}.default = devenv.lib.mkShell {
-        inherit inputs;
-        pkgs = nixpkgs.legacyPackages.${system};
-        modules = [ ./devenv.nix ] ++ auto;
-      };
-    };
+  outputs = inputs: import ./flake-outputs.nix inputs;
 }
 ```
 
+The project file receives every declared input and `self`, and returns native flake outputs:
+
+```nix
+# flake-outputs.nix — written by the project
+inputs@{ self, nixpkgs, nvim-core, ... }:
+{
+  packages.x86_64-linux.default = nvim-core.packages.x86_64-linux.default;
+  # A module is used only when this file names it:
+  # lib.shell = nixpkgs.lib.evalModules { modules = [ nvim-core.devenvModules.default ]; };
+}
+```
+
+Input order is by name, so the file does not depend on the order in `vendomat.toml`. The digest hashes
+the validated registry content, so a comment or spacing change leaves the file identical.
+
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `GEN-001` | `inputs` MUST carry one entry per registry entry, plus `nixpkgs` and `devenv` | A registry of two inputs yields four entries |
-| `GEN-002` | *Superseded by `GEN-013`.* Direct follows declarations alone do not guarantee one transitive `nixpkgs` node | — |
-| `GEN-003` | The generated file MUST name **only** direct registry entries. No transitive input may appear | An input whose repo needs two others still yields one entry |
-| `GEN-004` | The `outputs` block MUST be written inline and MUST NOT reference Vendomat | `rg -c vendomat flake.nix` returns 0 |
-| `GEN-009` | *Superseded by `GEN-014`.* The proposed pure shell command fails with pinned devenv when `devenv.root` is unset | — |
-| `GEN-010` | The inline `outputs` block MUST import `devenvModules.default` from every input that exposes one | Add a registry entry; its options appear after `sync` with no other edit |
-| `GEN-011` | An input without `devenvModules.default` MUST be skipped, not an error | `nixpkgs`, `devenv`, and a `flake = false` input are all ignored |
-| `GEN-012` | An auto-imported module MUST activate nothing | After `sync`, no package is installed and no service runs until `enable` is true |
+| `GEN-001` | *Superseded by `GEN-015`.* `inputs` carried one entry per registry entry, plus `nixpkgs` and `devenv` | — |
+| `GEN-002` | *Superseded by `GEN-013`, then by `GEN-021`.* Direct follows declarations alone do not guarantee one transitive `nixpkgs` node | — |
+| `GEN-003` | *Superseded by `GEN-020`.* The generated file named only direct registry entries | — |
+| `GEN-004` | *Superseded by `GEN-016`.* The `outputs` block was inline and had to omit Vendomat, checked with `rg -c vendomat flake.nix`. The required header contains that word, so the check could not pass | — |
+| `GEN-009` | *Superseded by `GEN-014`, then by `GEN-019`.* The proposed pure shell command fails with pinned devenv when `devenv.root` is unset. PV-05 keeps this as dated history | — |
+| `GEN-010` | *Superseded by `GEN-017`.* The inline `outputs` block imported `devenvModules.default` from every input that exposed one | — |
+| `GEN-011` | *Superseded by `GEN-017`.* An input without `devenvModules.default` was skipped | — |
+| `GEN-012` | *Withdrawn 2026-10-08.* It required an auto-imported module to activate nothing. The generator no longer imports a module. `INP-006` and `MOD-003` keep the rule at the module boundary | — |
 | `GEN-005` | The file MUST open with a generated header naming the tool version and the registry digest | The first two lines match |
-| `GEN-006` | Output MUST be byte-identical for an unchanged registry | Run `sync` twice; `cmp` reports no difference |
+| `GEN-006` | Output MUST be byte-identical for an unchanged registry | Run `sync` twice; `cmp` reports no difference. The second run does not rewrite the file |
 | `GEN-007` | `sync` MUST refuse to overwrite a `flake.nix` that has no generated header, and name the file | A hand-written flake is left untouched; the command exits non-zero |
-| `GEN-008` | Vendomat MUST never read or write `flake.lock` | `flake.lock` is byte-identical after every Vendomat command. `nix flake update <input>` works unchanged |
-| `GEN-013` | The generator MUST write a direct follows edge for each authored input that declares `nixpkgs`; a one-node graph is required only when each authored transitive input follows its parent | The PV-04 A → B → C fixtures produce three nodes with only the consumer edge and one when B and C follow their parents |
-| `GEN-014` | A consumer shell MUST evaluate, build, and enter with Vendomat absent when invoked with the pinned devenv integration's required `--impure` root discovery | In the PV-05 fixture, `nix develop --impure --no-write-lock-file` and the shell build pass with a sanitized PATH; pure entry is recorded as a failure |
+| `GEN-008` | Vendomat MUST never read or write `flake.lock` | `flake.lock` is byte-identical after every Vendomat command, including when it is unreadable. `nix flake update <input>` works unchanged |
+| `GEN-013` | *Superseded by `GEN-021`.* The generator wrote a follows edge for each authored input that declares `nixpkgs`. It cannot know that without fetching the input | — |
+| `GEN-014` | *Superseded by `GEN-019`.* A consumer shell had to evaluate, build, and enter with Vendomat absent, using `--impure`. Vendomat no longer generates a shell | — |
+| `GEN-015` | `inputs` MUST carry exactly one entry per distinct name in `[inputs]` and `[passthrough]`. The generator MUST add no input of its own: no `devenv`, no `nixpkgs`, and no Vendomat input | PV-14: Nix reads `inputs` from the generated file with `nix eval --file`; the names equal the registry names |
+| `GEN-016` | `outputs` MUST be the fixed bridge `outputs = inputs: import ./flake-outputs.nix inputs;`. It MUST reference no Vendomat input, output, or library | PV-13 F1 and PV-14: the generated file equals the candidate that passed on Nix. The check reads input names, never the header text |
+| `GEN-017` | The generator MUST NOT scan, filter, or import any module face of any input. A module is used only when the project file names it | The generated body has no `devenvModules`, `nixosModules`, `homeManagerModules`, or `filterAttrs`. PV-13 F3 and F4: an unselected face has no effect; a selected face is inactive until enabled |
+| `GEN-018` | `sync` MUST fail, naming `flake-outputs.nix`, before any write when that file is missing. `sync` MUST NOT open, read, or write it | `sync` with the file missing writes nothing. With the file unreadable (mode 0), `sync` succeeds and the file is unchanged |
+| `GEN-019` | A project output selected through the generated flake MUST evaluate and build with no Vendomat input and no Vendomat command on `PATH`. The gate needs no `--impure` and no generated shell | PV-14: with a `PATH` holding only `nix` and `git`, and `--option substituters ""`, the package builds and `nix flake show` lists no `devShells` |
+| `GEN-020` | The generated file MUST NOT name any transitive input. A `follows` edge names a direct input as its child | PV-14: a source flake that declares its own `nixpkgs` adds no input to the generated file, and the lock still holds that node |
+| `GEN-021` | The generator MUST write `<child>.inputs.nixpkgs.follows = "nixpkgs";` for each `[follows]` pair and no other edge. One shared `nixpkgs` node needs every authored flake in the chain to follow its parent; this holds for a controlled graph only | PV-13 F7: 4, 3, 1, and 2 nodes for the four chain shapes; PV-14: the generated edge gives one node and no warning. A child with no `nixpkgs` draws a Nix warning, which is the owner's cue to remove the entry |
+| `GEN-022` | The generator MUST NOT emit `devShells`, `devenv.lib.mkShell`, or a `devenv` input. A project MAY define its own shell in its outputs file; it owns that shell and its `devenv.root` setting | PV-13 F2: `nix flake show` lists only the outputs the project file defines |
 
-**Rationale for `GEN-013`.** `follows` is flake metadata, read before evaluation, so a Nix function cannot add it after locking. A direct edge controls only that input. Every authored transitive flake must follow its parent before one node is assured. PV-04 proves this rule for a controlled three-level fixture, not for arbitrary inputs.
+**Rationale for `GEN-021`.** `follows` is flake metadata, read before evaluation, so a Nix function cannot add it after locking. A direct edge controls only that input. Every authored transitive flake must follow its parent before one node is assured. PV-04 and PV-13 prove this rule for controlled three-level fixtures, not for arbitrary inputs. The registry states each edge because the generator does not fetch inputs. Nix warns about an edge on a child with no `nixpkgs`, is silent about an edge on a non-flake input, and fails on a missing target. `REG-014` covers the silent case.
 
-**Rationale for `GEN-004` and `GEN-014`.** Flake evaluation is hermetic: a flake's `outputs` can reach only what its own `inputs` declare, so a system-installed Nix library is unreachable from a consumer. Writing the block inline keeps Vendomat out of the consumer inputs. The pinned devenv fixture requires `--impure` for shell root discovery; this flag is part of the tested command. Changing the template means re-running `sync`, not bumping an input.
+**Rationale for `GEN-016` to `GEN-019`.** Flake evaluation is hermetic: a flake's `outputs` can reach only what its own `inputs` declare, so a system-installed command cannot supply a Nix library to a project. The owner decided that Vendomat is installed on the host (`DEL-006`, `DEL-007`) and generates no shell. The bridge hands the resolved inputs to a file the project owns. The project decides what to build and which modules to use. PV-05 tested an earlier generated devenv shell; its `--impure` finding applies to that shell only and stays as dated history. The superseding decision is in `prelim-verification/DECISIONS.md`.
 
-**Rationale for `GEN-003` and `GEN-008`.** Everything below the direct inputs belongs to Nix: the
+**Rationale for `GEN-020` and `GEN-008`.** Everything below the direct inputs belongs to Nix: the
 transitive walk, deduplication, cycle detection, and exact revisions, all recorded in `flake.lock`.
 Vendomat selects nothing.
 
@@ -201,7 +247,7 @@ resolver: version ranges to tags to revisions, a transitive walk, deduplication,
 and a generated `devenv.yaml` lock.
 
 None of it is built. Consumers are flake-backed, so Nix performs every one of those jobs and owns
-`flake.lock`. The generator writes direct inputs only — see `GEN-001` to `GEN-008`.
+`flake.lock`. The generator writes direct inputs only — see `GEN-005` to `GEN-008` and `GEN-015` to `GEN-022`.
 
 Two consequences, both recorded so they are not rediscovered:
 
@@ -271,7 +317,7 @@ Two consequences, both recorded so they are not rediscovered:
 | `MOD-009` | A hand-written face MUST remain possible beside a generated one | An input may export a hand-written module for one face and generated modules for the others |
 | `MOD-010` | Generated install paths and `extra` definitions MUST use native module merging so list additions are preserved | The PV-07 fixture retains both `hello` and `ripgrep` in each enabled face |
 
-| `PROJ-001` to `PROJ-006` | *Withdrawn 2026-10-08.* `mkProject` was a Vendomat library function, which made every consumer depend on Vendomat as a flake input. The block is now inlined by the generator: see `GEN-004` and `GEN-010` to `GEN-012`, with the shell command in `GEN-014` | — |
+| `PROJ-001` to `PROJ-006` | *Withdrawn 2026-10-08.* `mkProject` was a Vendomat library function, which made every consumer depend on Vendomat as a flake input. The generated flake now bridges to a project-owned file: see `GEN-016`, `GEN-017`, and `GEN-019`. Cross-references repaired 2026-10-08 | — |
 
 ---
 
@@ -299,7 +345,8 @@ Two consequences, both recorded so they are not rediscovered:
 | `ISO-003` | An editor variant MUST set `wrapRc = true` | The variant ignores the owner's configuration directory |
 | `ISO-004` | An editor variant that must not share state MUST set `NVIM_APPNAME` | Its shada, swap, and undo files live under their own directory |
 | `ISO-005` | Enabling a variant MUST change no setting of the daily tool | Run both; each keeps its own configuration and state |
-| `ISO-006` | Ordinary project entry and accepted output execution MUST need no Vendomat process and no cache | Deny both; the shell enters and the output runs |
+| `ISO-006` | *Superseded by `ISO-007`.* Ordinary project entry and accepted output execution needed no Vendomat process and no cache. The check assumed a generated shell | — |
+| `ISO-007` | Executing an accepted project output MUST need no Vendomat process and no private cache. A project shell, if any, owns its own entry command | Deny the Vendomat command and every substituter; a locally buildable output still evaluates and builds (PV-14) |
 
 ---
 
@@ -308,12 +355,16 @@ Two consequences, both recorded so they are not rediscovered:
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `DEL-001` | *Superseded by `DEL-006`.* The CLI is not part of the shared boot core | — |
-| `DEL-002` | No consumer MUST declare Vendomat as a flake input | `rg -c vendomat` over every generated `flake.nix` returns 0 |
+| `DEL-002` | *Superseded by `DEL-008`.* No consumer declared Vendomat as a flake input. The check, `rg -c vendomat`, matched the required header | — |
 | `DEL-003` | A repository that **authors** modules MAY declare Vendomat as a flake input, for `mkModules` | Its flake names the input; a consumer of it does not inherit that dependency |
 | `DEL-004` | `fromToml` and `fromInventory` MUST be reached through `nix-meta`'s own Vendomat input, declared once | No machine file imports them by absolute path |
-| `DEL-005` | Ordinary project entry and accepted output execution MUST need no Vendomat process, package, or input | See `GEN-014` and `ISO-006` |
+| `DEL-005` | *Superseded by `DEL-009`.* It pointed to `GEN-014` and `ISO-006`, which assumed a generated shell | — |
 | `DEL-006` | The shared machine core MUST boot without the Vendomat CLI; a host MAY add the CLI in a later host delta | PV-11 core VM boots with no `vendomat` command; separate host-delta configuration evaluates the CLI package |
 | `DEL-007` | The CLI package MUST be selected as `packages.<system>.vendomat`; `.default` MUST NOT be used as the CLI package | PV-11 resolves `.default` to `vendomat-wheelhouse` and `.vendomat` to `vendomat-0.4.6` |
+| `DEL-008` | No consumer MUST declare Vendomat as a flake input | Read the `inputs` of every generated `flake.nix` with Nix and the root inputs of its `flake.lock`; neither holds `vendomat`. Do not search the header text |
+| `DEL-009` | Executing an accepted project output MUST need no Vendomat process, package, or input | See `GEN-019` and `ISO-007` |
+| `DEL-010` | A host that installs the CLI MUST make `vendomat` reachable from an existing project shell, and the project MUST NOT add Vendomat to its flake or devenv files to get it | **Not yet proved.** It needs a disposable host fixture with the CLI in a host delta (fixture F8). PV-13 and PV-14 do not cover it |
+| `DEL-011` | The CLI MUST NOT be installed through devenv or the shared boot core. A host delta installs it | Inspect the V5 host and project configurations: no devenv module provides the CLI. The V4 `modules/devenv.nix` is provenance and is replaced before fleet acceptance |
 
 **Rationale.** Three delivery paths because there are three different consumers: a person running a
 command, a flake evaluating a function, and a generated file that must depend on nothing.
@@ -352,7 +403,10 @@ Every failure names the input, the file, or the option path it concerns.
 | Unknown input name requested | Non-zero; names the input and lists known names |
 | Dependency cycle | Nix reports it during locking; Vendomat does not duplicate the check |
 | Dirty store working tree | Non-zero for that input only; other inputs proceed |
-| Hand-written `flake.nix` present | Non-zero; names the file; leaves it untouched |
+| Hand-written `flake.nix` present | Non-zero (exit 1); names the file; leaves it untouched |
+| `flake-outputs.nix` missing | Non-zero (exit 2); names the file; writes nothing |
+| Invalid registry entry or `[follows]` pair | Non-zero (exit 2); names the file, the table, and the entry; writes nothing |
+| `follows` edge on a child with no `nixpkgs` | Nix warns at lock time; Vendomat does not fetch the child to check |
 | Unresolvable package name in a host TOML | Evaluation error; names the key and the name |
 | Option defined in both TOML and Nix | Native option type merges equal scalars and lists; an incompatible scalar conflict names the option path |
 | Build failure in one input | That input reports failed; others proceed |
@@ -375,6 +429,10 @@ Each was observed on the pinned tools. The design depends on them. None is a gat
 | `NAT-007` | The flake delivery form evaluates impurely by default | Observed 2026-10-06 |
 | `NAT-008` | `nix build --out-link` creates an indirect garbage-collection root | To observe |
 | `NAT-009` | devenv Machines transfers with `nix copy --to ssh://` and does not substitute through Attic | Upstream documentation |
+| `NAT-010` | Nix 2.34.7 rejects `ref` and `rev` as input attributes beside a string `url` (`unexpected flake input attribute 'ref'`). The query form `?ref=…&rev=…` locks both values | PV-13 |
+| `NAT-011` | `nix flake lock` does not evaluate `outputs`. A missing project file fails at evaluation | PV-13 F6 |
+| `NAT-012` | Nix cannot see an untracked file in a Git-backed flake and says so. A new `flake.lock` is added as intent-to-add, and the tree reads dirty until it is recorded | PV-13 F5 |
+| `NAT-013` | A `follows` override on a child with no such input draws a warning. The same override on a `flake = false` input is ignored with no message. A missing target is an error | PV-13 F7 |
 
 `NAT-009` is why system activation runs through `nixos-rebuild`, which substitutes normally.
 
@@ -384,16 +442,17 @@ Each was observed on the pinned tools. The design depends on them. None is a gat
 
 Two tests. Both run on one machine.
 
-**A. An input reaches a project with no local build.**
+**A. An input reaches a project output with no local build.**
 
-1. In a project that has never used Vendomat, add one line to `vendomat.toml`.
-2. Run `vendomat sync`.
-3. Enter the shell and run the library's command.
+1. In a project that has never used Vendomat, write `flake-outputs.nix` and add one line to `vendomat.toml`.
+2. Run `vendomat sync`, and track both Nix files in Git.
+3. Lock the flake and build the selected output: `nix build .#packages.<system>.default`.
 
-Pass: the generated `flake.nix` names only the direct input, `flake.lock` carries every transitive
-input at an exact revision, and the shell works with Vendomat absent using
-`nix develop --impure --no-write-lock-file`. Record the graph's `nixpkgs` nodes. Require one node
-only when every authored input in the tested graph follows its parent.
+Pass: the generated `flake.nix` names only the direct inputs and no `devenv`, `flake.lock` carries
+every transitive input at an exact revision, and the output builds with Vendomat absent from the
+flake and from `PATH`. Record the graph's `nixpkgs` nodes. Require one node only when every authored
+input in the tested graph follows its parent. A project that wants a shell defines it in its own
+outputs file and owns its entry command.
 
 **B. A setting reaches a machine from TOML.**
 

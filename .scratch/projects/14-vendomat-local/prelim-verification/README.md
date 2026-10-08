@@ -22,10 +22,13 @@ need tracked fixtures. Do not treat a passing disposable fixture as a passed imp
 requirement.
 
 The evidence supports a remote source URL as the fleet default, explicit local Nix input overrides,
-a one-node `nixpkgs` goal only for controlled graphs, `nix develop --impure` for the pinned devenv
-shell, native option-type merging, optional module faces, a Gitman commit between `diff` and
+a one-node `nixpkgs` goal only for controlled graphs, native option-type merging, optional module faces, a Gitman commit between `diff` and
 `apply`, and a Nix-only machine core without the CLI. These interfaces remain proposed until the
 tracked implementation fixtures pass.
+
+**Update 2026-10-08:** the `--impure` shell is no longer a Vendomat contract. Vendomat generates no
+shell (see [DECISIONS.md](DECISIONS.md)). PV-13 and PV-14 pass the project-output interface and the
+generator in isolation. PV-15 records that no private source host exists.
 
 ## Evidence locations
 

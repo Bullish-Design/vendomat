@@ -1,5 +1,11 @@
 # V5 library rewrite kickoff prompt
 
+> **Stale as of 2026-10-08. Do not paste or follow this prompt.** It is not in the reading order of
+> `.scratch/CURRENT.md`. It describes an inline generated `outputs` block, a generated devenv shell,
+> and `GEN-001` to `GEN-014`, which the project-output decision supersedes. It also cites 141
+> requirement IDs; the specification now holds 171. Use `SPEC-V5.md`, `GUIDE-V5.md` Step 8, and
+> `prelim-verification/DECISIONS.md`. The text below stays as provenance.
+
 Paste everything below the line into a clean session.
 
 This covers the **library**: the Nix functions and the Python command line. It needs no disk work,
