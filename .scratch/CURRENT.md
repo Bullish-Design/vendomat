@@ -8,7 +8,7 @@ points here. When the active project changes, change this file and not `AGENTS.m
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 183 requirement IDs in its tables, 141 active, 31 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
+2. `SPEC-V5.md` — normative. 185 requirement IDs in its tables, 142 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 
@@ -37,9 +37,10 @@ Still blocked, each by evidence:
   signatures cannot be read without privilege. The owner runs the scan.
 - **Step 2, 3, and 10 (PV-09):** a cold VM reaches the private route and meets HTTP 401 without a
   credential. The owner chooses how the installer gets the pull credential.
-- **Step 6.3 and Step 8 acceptance:** the collection service changes `server`, and no fetch from
-  `framework` over the tailnet has run. PV-16 and PV-17 tested loopback only. SSH key login to
-  `server` is not set up.
+- **Step 6.3 and Step 8 acceptance:** the daemon settings are proved on two NixOS test machines
+  (PV-18) and sit in a `nix-meta` lane, `source-collection`, that is described but not landed or
+  switched. The owner lands it and runs `sudo nixos-rebuild switch`. No fetch from `framework` over
+  the tailnet has run, and key login from `framework` to `server` is untested.
 - **`DEL-010`:** no fixture yet shows the host-installed CLI reachable from a project shell.
 
 The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not

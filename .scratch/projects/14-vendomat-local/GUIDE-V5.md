@@ -480,36 +480,51 @@ done
 
 ## 6.3 The source collection
 
-**Blocked until the machine steps are authorized.** This changes `server`. Nothing here has run there.
+**Prepared, not switched.** The change sits in a `nix-meta` lane named `source-collection`
+(described, not landed, built in an isolated workspace). Switching `server` needs the owner's
+`sudo`.
 
 The collection is one directory of repositories, `/home/andrew/vendor/<repo>`, on `server`. It holds
 the owner's released tags. Nix reads it at evaluation, and the owner and agents read it for context.
 Attic never holds it (`STORE-008`, `STORE-012`).
 
-- **Read.** A read-only `git daemon` bound to the tailnet address, with base path
-  `/home/andrew/vendor`. Inputs use `git://server/<repo>?ref=refs/tags/<tag>`. PV-16 tested this on
-  loopback with Nix 2.34.7. The daemon sleeps when idle: 0 CPU ticks in 20 seconds and 1.8 MB of
-  memory. Any device on the tailnet can read it; a Tailscale ACL can narrow that.
-- **Write.** CI pushes only release tags, over SSH (`STORE-011`). Each library's devenv release task
-  tags `v<semver>` and pushes that tag to `ssh://andrew@server/home/andrew/vendor/<repo>`. Create
-  each repository once on `server`. A normal repository accepts a tag push and refuses a push to its
-  checked-out branch. Key login from the pushing machine to `server` is required. SSH from `server` to
-  itself failed on 2026-10-08, so set the keys up first.
+What the lane changes in `machines/server.nix`:
+
+- **Read.** `services.gitDaemon` serves `/home/andrew/vendor` read only, as user `andrew`, on port
+  9418. Port 9418 opens on `tailscale0` only (`[ 22 8077 9418 ]`). Inputs use
+  `git://server/<repo>?ref=refs/tags/<tag>`. The daemon serves a repository only when it has
+  `.git/git-daemon-export-ok`, so `pydantic` and `silverbullet` in the same directory stay private
+  (`STORE-015`). Idle, it sleeps (PV-16, PV-18).
+- **Write.** CI pushes release tags over SSH to `ssh://andrew@server/home/andrew/vendor/<repo>`. Git
+  alone would also accept a branch push, so each repository gets a `pre-receive` hook that refuses
+  anything outside `refs/tags/` and refuses to move a tag (`STORE-014`). `scripts/collection-add
+  <repo>` creates a repository with the hook and the export marker.
 - **Working tree.** After a push, move the working tree to the newest tag when it is clean, so agents
   read current files (`STORE-013`). Not built.
 - **Builder.** Step 6.2 reads the newest `v<semver>` tag from the same directory. The source path is
   identical whether Nix fetches by `git://` or by a local `file://` URL (PV-17), so consumers
   substitute the builder's outputs.
 
-Verify, when authorized:
+Apply, as the owner:
 
 ```sh
-# on framework, in a project whose vendomat.toml names a tag in the collection
-nix flake lock
+cd ~/Documents/Projects/nix-meta
+# land the source-collection lane with Gitman, then:
+sudo nixos-rebuild switch --flake .#server
+scripts/collection-add <repo>        # once per repository, on server
+```
+
+Then, from `framework`:
+
+```sh
+ssh server true                                  # key login for release pushes
+git push ssh://andrew@server/home/andrew/vendor/<repo> v1.0.0
+nix flake lock                                   # in a project whose vendomat.toml names the tag
 nix build .#packages.x86_64-linux.default
 ```
 
-**Stop if:** the fetch from `framework` fails, or a consumer builds what the builder already built.
+**Stop if:** key login to `server` fails, the fetch from `framework` fails, or a consumer builds what
+the builder already built.
 
 # Step 7 — install `server` fresh on the 4 TB drive
 
@@ -619,7 +634,8 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Question | Blocks |
 | --- | --- |
 | Does a fetch from `framework` to the collection on `server` work over the tailnet? (PV-16 and PV-17 tested loopback only) | Step 8 acceptance |
-| Who sets up SSH key login from the pushing machine to `server`? SSH from `server` to itself failed on 2026-10-08 | Step 6.3 release pushes |
+| Does key login from `framework` to `server` work for release pushes? (SSH from `server` to itself failed on 2026-10-08; `framework` was not tested) | Step 6.3 release pushes |
+| When does the owner land and switch the `source-collection` lane? | Step 6.3 |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
 | When can an authorized read-only signature scan unblock PV-02? (PV-02 addendum: the owner runs the scan) | Step 0 |
 

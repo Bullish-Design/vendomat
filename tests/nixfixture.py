@@ -119,7 +119,9 @@ def nixpkgs_nodes(lock: dict) -> list[str]:
 
 
 def gitman(args: list[str], cwd: Path) -> Result:
-    result = run(["gitman", *args], cwd)
+    """Run Gitman. Set ``VENDOMAT_GITMAN`` to a build whose CLI the fixtures know (init, seed, start,
+    describe, land, repair, release), for example while the sibling checkout is mid-rewrite."""
+    result = run([os.environ.get("VENDOMAT_GITMAN", "gitman"), *args], cwd)
     assert result.returncode == 0, f"gitman {' '.join(args)} failed: {result.stdout}{result.stderr}"
     return result
 

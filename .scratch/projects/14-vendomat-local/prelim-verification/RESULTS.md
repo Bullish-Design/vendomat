@@ -25,6 +25,7 @@ verification results.
 | PV-15 | Reframed: no Git host existed, and the framing was wrong. The host is `server`; see the addendum | [Source host](results/PV-15.md) | [Blocker report](/home/andrew/.local/state/vendomat/v5/2026-10-08/blockers/REPORT.md) |
 | PV-16 | Passed fixture: a read-only `git daemon` serves a tagged release to Nix; an idle daemon costs 0 CPU; SSH to self is not set up | [Collection transport](results/PV-16.md) | [Probe](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/05-daemon-idle-and-pins-i1.log) |
 | PV-17 | Passed fixture: `vendomat sync` with the collection, the tag pin, and the reference-copy flags; loopback only | [Generator with the collection](results/PV-17.md) | [Opt-in gate](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/forge-e2e-run1.log) |
+| PV-18 | Passed fixture: the server settings, the push rules, and a Nix fetch on two NixOS machines; the `nix-meta` lane is not switched | [Collection on two machines](results/PV-18.md) | [Run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/06-collection-vm-run3.log) |
 
 ## Readiness and blockers
 
@@ -65,12 +66,12 @@ pins a tag. These changes follow PV-16 and PV-17.
 | Requirement change | Supporting fixture |
 | --- | --- |
 | Add `REG-016` (forge URL), `REG-017` (tag pin), `REG-018` (`mirror`), `REG-019` (`keep`), `REG-020` (`backup`). Supersede `REG-015` with `REG-021` | PV-16 pin forms; PV-17 unit and Nix tests |
-| Add `STORE-008` (collection), `STORE-011` (release push), `STORE-012` (no Attic dependency). Supersede `STORE-002` with `STORE-009` and `STORE-004` with `STORE-010`. Add `STORE-013` | PV-16 and PV-17 for `STORE-008` and `STORE-012`; the rest are not yet built |
+| Add `STORE-008` (collection), `STORE-011` (release push), `STORE-012` (no Attic dependency). Supersede `STORE-002` with `STORE-009` and `STORE-004` with `STORE-010`. Add `STORE-013`. Later: supersede `STORE-011` with `STORE-014` (tag-only hook) and add `STORE-015` (export marker, no push over `git://`) | PV-16 and PV-17 for `STORE-008` and `STORE-012`; PV-18 for `STORE-014` and `STORE-015`; the rest are not yet built |
 
-The specification now defines 183 requirement IDs in its tables: 141 active, 31 superseded, 10
-withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 202 IDs are preserved. It
+The specification now defines 185 requirement IDs in its tables: 142 active, 32 superseded, 10
+withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 204 IDs are preserved. It
 lists 17 native fact IDs. The inventory found no duplicate and no broken successor link
-([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory-3.log)).
+([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory-4.log)).
 
 ## Changed requirement IDs (preliminary session, 2026-10-08 morning)
 

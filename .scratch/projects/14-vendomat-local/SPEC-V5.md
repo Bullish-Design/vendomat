@@ -21,11 +21,15 @@ supersedes `REG-015`, `STORE-002`, and `STORE-004`. The evidence is
 [PV-16](./prelim-verification/results/PV-16.md) (transport and idle cost) and
 [PV-17](./prelim-verification/results/PV-17.md) (generator with the collection).
 
+**Later on 2026-10-08:** a two-machine NixOS test ([PV-18](./prelim-verification/results/PV-18.md))
+showed that Git alone does not keep branches out of the collection. `STORE-014` and `STORE-015` add
+the hook and the per-repository export rule, and `STORE-014` supersedes `STORE-011`.
+
 **Earlier PV-12 update (superseded by the count below):** 153 requirement IDs were defined in the tables below; 126 were active.
 
-**Current count:** 183 requirement IDs are defined in the tables below: 141 active, 31 superseded, 10
+**Current count:** 185 requirement IDs are defined in the tables below: 142 active, 32 superseded, 10
 withdrawn, and 1 narrowed. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2, so
-202 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
+204 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
 fixture result does not pass an implementation requirement.
 
 ## How to use this document
@@ -303,8 +307,10 @@ the two phases.
 | `STORE-008` | The collection MUST be one set of repositories on the collection host (`server`), at `/home/andrew/vendor/<repo>`, served read-only to the tailnet over `git://`. The serving process MUST sleep when idle | PV-16: a loopback `git daemon` serves a tagged repository to Nix 2.34.7, and idle it used 0 CPU ticks in 20 seconds. A fetch from `framework` over the tailnet is **not yet tested** |
 | `STORE-009` | `sync` MUST clone a missing `keep` or `mirror` entry and fetch an existing one. It MUST NOT clone any other entry | **Not yet built.** A fixture lists the clones after `sync` |
 | `STORE-010` | The collection MUST be rebuildable from the authoring repositories by pushing their release tags again. A `mirror` copy and a `keep` clone MUST be caches: deleting one and re-running `sync` restores it | **Not yet built.** Delete a collection repository, push its tags again, and compare the tag lists |
-| `STORE-011` | Only release tags MUST enter the collection. CI pushes them over SSH. Unreleased work and branches MUST NOT enter | **Not yet built.** Push a branch and get a refusal; push a tag and see it in the collection |
+| `STORE-011` | *Superseded by `STORE-014`.* Only release tags entered the collection, but nothing enforced it: Git refuses only a push to the checked-out branch | — |
 | `STORE-012` | No Vendomat step MAY require a source path to be present in Attic. Evaluation takes source from the collection or from upstream | PV-17: a consumer locks and evaluates with only the collection configured and no Attic |
+| `STORE-014` | Only new release tags MUST enter the collection. A `pre-receive` hook in each repository MUST refuse any ref outside `refs/tags/` and MUST refuse to update or delete an existing tag. CI pushes tags over SSH | PV-18, two NixOS machines: a tag push is accepted; a branch push and a moved tag are refused with a message; the repository ends with its tags and no branch. A real push from `framework` is **not yet tested** |
+| `STORE-015` | The daemon MUST serve a repository only when it carries `.git/git-daemon-export-ok`. It MUST NOT accept a push over `git://`. Port 9418 MUST be open on the tailnet interface only | PV-18: an unmarked repository is not served and a marked one is; a push over `git://` fails; the firewall opens the port on the inner interface only. In nix-meta the evaluated `tailscale0` ports are `[22,8077,9418]`. **Not switched on `server`** |
 | `STORE-013` | A collection repository's working tree MUST show its newest release tag by version order, so the owner and agents can read it. A hook or `sync` refreshes it and MUST NOT touch a tree with uncommitted changes (`STORE-003`) | **Not yet built.** Push a newer tag; the files on disk match it |
 
 ---

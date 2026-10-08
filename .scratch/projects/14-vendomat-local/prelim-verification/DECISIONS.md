@@ -62,6 +62,9 @@ wrong, and its addendum says so.
 | Reading on other machines | `vendomat path <name>` prints the locked tree as a store path. `keep = true` keeps a persistent clone. | Owner | `REG-019`; `CLI-007` stays | The store step |
 | Backup URL | An optional `backup` per entry. Vendomat uses it only when the owner asks, because Nix cannot fail over between two URLs. | Owner | `REG-020` | An explicit command |
 | Store rules | `STORE-002` becomes `STORE-009`, and `STORE-004` becomes `STORE-010`, because the collection is the owner's source and not a cache. A working tree shows the newest release (`STORE-013`). | Owner | `STORE-009` to `STORE-013` | The store step |
+| Tag-only pushes | Git refuses only a push to the checked-out branch, so each repository carries a `pre-receive` hook: new tags only, and a tag never moves. | [PV-18](results/PV-18.md) | `STORE-014` supersedes `STORE-011` | None |
+| Per-repository export | The daemon serves a repository only when it has `.git/git-daemon-export-ok`. `/home/andrew/vendor` already holds other clones. Port 9418 opens on `tailscale0` only. | PV-18 | `STORE-015` | Switch `server` (the owner) |
+| `nix-meta` change | The daemon settings and `scripts/collection-add` sit in a `nix-meta` lane, `source-collection`. Described, not landed, not switched. | PV-18 | None | The owner lands the lane and runs `sudo nixos-rebuild switch` |
 | `sync` | `vendomat sync` is V5-only. The knowledge installer is gone from it, because the library is being rewritten from scratch. | Owner | None | The old `vendor-sync` script in `modules/devenv.nix` now fails |
 
 ## Open owner choices (recommendation first)
@@ -69,4 +72,5 @@ wrong, and its addendum says so.
 1. ~~Private source host.~~ Closed above: `server`, over `git://`.
 2. **Installer credential delivery** (blocks Step 10, [PV-09 addendum](results/PV-09.md)). Recommend a root-only, pull-only, short-lived credential file copied from the installer medium to `/run` and passed with `--option netrc-file`. Consequence: the medium holds a secret.
 3. **Drive scan** (blocks Step 0, [PV-02 addendum](results/PV-02.md)). Recommend that the owner runs the read-only `wipefs --no-act`, `sfdisk --dump`, and `blkid -p` with their own sudo, and saves the output.
-4. **SSH key login to `server`** (blocks release pushes in Step 6.3). SSH from `server` to itself failed on 2026-10-08. Set up key login from each pushing machine.
+4. **Land and switch the `nix-meta` lane** (Step 6.3). Needs your `sudo`.
+5. **SSH key login from `framework` to `server`** (release pushes). SSH from `server` to itself failed on 2026-10-08; `framework` was not tested.
