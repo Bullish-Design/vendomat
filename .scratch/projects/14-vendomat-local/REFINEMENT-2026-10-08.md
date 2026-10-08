@@ -57,8 +57,10 @@ inventory change. Vendomat must not silently select a different drive with the s
 | Shared TEAM SSD | `ata-TEAM_TM8PS7002T_TPBF2308070030300443` | `C24C954D4C953CDB` |
 
 These values were read on `server` on 2026-10-08. Confirm them on the machine before any disk
-operation. The new target has no partition table or filesystem yet. The current system occupies
-the 512 GB drive and remains a boot fallback.
+operation. PV-02 confirmed the target ID, model, serial, exact size, lack of visible partitions or
+mounts in `lsblk`, and that the current system occupies the 512 GB drive. `wipefs --no-act` was
+denied, so the target's partition-table and signature state is unknown. Do not call the target
+bare. The 512 GB installation remains the boot fallback.
 
 ## Bootstrap rule
 
@@ -72,6 +74,11 @@ also verify that the target is not the drive backing the running root or boot fi
 missing identifier or any mismatch stops the operation. The command must use the stable
 identifier, never a kernel-assigned device name.
 
+PV-02's disposable checker rejected ten injected unsafe conditions, and its matching fixture
+passed. The real target checker failed closed because it could not read partition-table and
+signature data. That synthetic result does not unblock Step 0. An authorized read-only scan and a
+reviewed checker remain required.
+
 After formatting, Vendomat records the actual UUIDs and generates NixOS `fileSystems` entries
 that use `/dev/disk/by-uuid/`. It verifies each UUID resolves to the expected drive before an
 install or switch. A data service must require its declared mount so a missing disk cannot
@@ -80,12 +87,18 @@ silently redirect writes into the root filesystem.
 The Attic service continues to use its old disk during the first boot. Move its data only after
 the new root works. Its path then comes from `vendomat.paths.attic`.
 
+PV-09 found that the private `vendomat` cache has retention 0 and is served through a tailnet-only
+`/attic` route. The host-local endpoint fetched a closure into an empty alternate Nix store, but the
+installer route and pull credential were not proven. Do not move Attic data or claim a cold install
+until a disposable installer fixture passes.
+
 ## What this changes in the draft
 
-The current V5 guide's Step 0 is withdrawn. It names `/dev/nvme0n1` as the empty 4 TB target.
-On 2026-10-08, that name belongs to the running 512 GB system. Do not run its partition or
-format commands. Replace that step with a new, reviewed install procedure before disk work.
+The current V5 guide's Step 0 is withdrawn. It names `/dev/nvme0n1` as the empty 4 TB target. On
+2026-10-08, that name belongs to the running 512 GB system. Do not run its partition or format
+commands. Replace that step with a new, reviewed install procedure before disk work.
 
-The first small proof should resolve the four observed hardware identifiers, match each one to
-the expected filesystem UUIDs, and fail when an identity is absent or mismatched. It does not
-need to format a disk.
+The first small proof should resolve the four observed hardware identifiers, match each one to the
+expected filesystem UUIDs, and fail when an identity is absent or mismatched. It does not need to
+format a disk. Step 0 remains blocked until the real target's signatures and partition table can be
+read without writing to it.

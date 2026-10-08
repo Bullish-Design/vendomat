@@ -7,6 +7,10 @@
 `PATH-*` and `DISK-*` requirements. The in-place server conversion is replaced by a fresh install
 on the 4 TB drive: see `BOOT-021` to `BOOT-024`.
 
+**PV-12 update:** 153 requirement IDs are defined in the tables below; 126 are active. The 19
+withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2. Nine `NAT-*` entries are facts,
+not requirements. A preliminary fixture result does not pass an implementation requirement.
+
 ## How to use this document
 
 A requirement is satisfied when its **Verify** column runs and passes. Nothing else satisfies it.
@@ -36,7 +40,8 @@ A requirement is satisfied when its **Verify** column runs and passes. Nothing e
 Native declarations and locks select. devenv composes. Nix builds and substitutes. Attic stores and
 signs. NixOS and Home Manager activate. Version control keeps history.
 
-Vendomat resolves versions to revisions, writes generated files, keeps clones, and reports.
+Vendomat writes the direct-input registry and generated `flake.nix`, manages optional source
+checkouts, and reports. Nix resolves revisions and owns `flake.lock`.
 
 Vendomat owns no durable state. The cache belongs to Attic. The store is a cache of git remotes.
 `.vend/` holds out-links. The build record belongs to the builder.
@@ -51,29 +56,30 @@ Hand-edited. One file per consumer.
 
 ```toml
 [inputs]
-loci-nvim = {}
-nvim-core = {}
+loci-nvim = { url = "git+https://<remote-host>/andrew/loci.nvim" }
+nvim-core = { url = "git+https://<remote-host>/andrew/nvim-core" }
 telescope = { url = "github:Bullish-Design/telescope.nvim/patched-0.1.8", flake = false }
-gitman    = { ref = "refs/tags/v0.10.0" }
+gitman    = { url = "git+https://<remote-host>/andrew/gitman", ref = "refs/tags/v0.10.0" }
 
 [passthrough]
 nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling" }
 ```
 
-An empty table means "the clone at `~/vendor/<name>`, default ref". Keys `url`, `ref`, `rev`, and
-`flake` pass through to the generated flake input verbatim.
+The remote host values are placeholders. Keys `url`, `ref`, `rev`, and `flake` pass through to the
+generated flake input verbatim. Select a local checkout with an explicit Nix input override.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `REG-001` | The file MUST have one `[inputs]` table. Each key is an input name | Parse a valid file; parse a file with two `[inputs]` tables and get an error |
 | `REG-002` | An input name MUST match `[a-z0-9][a-z0-9-]*` | `Nvim_Review` is rejected, naming the key |
-| `REG-003` | A value MUST be a table. An empty table means the clone at `~/vendor/<name>` at its default ref | An integer or string value is rejected, naming the key |
+| `REG-003` | *Superseded by `REG-010`.* An empty table used the clone at `~/vendor/<name>` at its default ref | — |
 | `REG-004` | *Withdrawn 2026-10-08.* Version constraints are gone. Nix owns revision selection through `flake.lock` | — |
 | `REG-005` | A table MAY carry `url`, `ref`, `rev`, or `flake`. Each passes through to the generated flake input verbatim | Each appears unchanged in `flake.nix` |
 | `REG-006` | An unknown key in an input table MUST be an error naming the key | `{ revision = "…" }` is rejected and names `revision` |
 | `REG-007` | The file MUST list only directly requested inputs | After `sync`, the registry is byte-identical |
 | `REG-008` | `[passthrough]` entries MUST be copied verbatim into the generated `inputs:` | `nixpkgs` appears in the output unchanged |
 | `REG-009` | No command other than `add` and `remove` MUST write the registry | `sync`, `update`, `status` leave it byte-identical |
+| `REG-010` | Each input MUST name a portable source URL; a local checkout MUST be selected by an explicit Nix input override | An empty input table fails; a remote URL is emitted; an override selects another source without rewriting the lock when lock writes are disabled |
 
 ## 1.2 Generated `flake.nix`
 
@@ -110,10 +116,10 @@ Written by `vendomat sync`. Never hand-edited. `flake.lock` is **not** generated
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `GEN-001` | `inputs` MUST carry one entry per registry entry, plus `nixpkgs` and `devenv` | A registry of two inputs yields four entries |
-| `GEN-002` | Every generated input except `nixpkgs` MUST carry `inputs.nixpkgs.follows = "nixpkgs"` | `nix flake metadata --json` shows one `nixpkgs` node |
+| `GEN-002` | *Superseded by `GEN-013`.* Direct follows declarations alone do not guarantee one transitive `nixpkgs` node | — |
 | `GEN-003` | The generated file MUST name **only** direct registry entries. No transitive input may appear | An input whose repo needs two others still yields one entry |
 | `GEN-004` | The `outputs` block MUST be written inline and MUST NOT reference Vendomat | `rg -c vendomat flake.nix` returns 0 |
-| `GEN-009` | A consumer MUST evaluate, enter its shell, and build with Vendomat absent from the system | Remove the Vendomat package from `PATH` and from the store; `nix develop` and `nix build` still succeed |
+| `GEN-009` | *Superseded by `GEN-014`.* The proposed pure shell command fails with pinned devenv when `devenv.root` is unset | — |
 | `GEN-010` | The inline `outputs` block MUST import `devenvModules.default` from every input that exposes one | Add a registry entry; its options appear after `sync` with no other edit |
 | `GEN-011` | An input without `devenvModules.default` MUST be skipped, not an error | `nixpkgs`, `devenv`, and a `flake = false` input are all ignored |
 | `GEN-012` | An auto-imported module MUST activate nothing | After `sync`, no package is installed and no service runs until `enable` is true |
@@ -121,15 +127,12 @@ Written by `vendomat sync`. Never hand-edited. `flake.lock` is **not** generated
 | `GEN-006` | Output MUST be byte-identical for an unchanged registry | Run `sync` twice; `cmp` reports no difference |
 | `GEN-007` | `sync` MUST refuse to overwrite a `flake.nix` that has no generated header, and name the file | A hand-written flake is left untouched; the command exits non-zero |
 | `GEN-008` | Vendomat MUST never read or write `flake.lock` | `flake.lock` is byte-identical after every Vendomat command. `nix flake update <input>` works unchanged |
+| `GEN-013` | The generator MUST write a direct follows edge for each authored input that declares `nixpkgs`; a one-node graph is required only when each authored transitive input follows its parent | The PV-04 A → B → C fixtures produce three nodes with only the consumer edge and one when B and C follow their parents |
+| `GEN-014` | A consumer shell MUST evaluate, build, and enter with Vendomat absent when invoked with the pinned devenv integration's required `--impure` root discovery | In the PV-05 fixture, `nix develop --impure --no-write-lock-file` and the shell build pass with a sanitized PATH; pure entry is recorded as a failure |
 
-**Rationale for `GEN-002`.** `follows` is flake metadata, read before evaluation, so no Nix function
-can produce it. Without it each input locks its own `nixpkgs`; `rolling` moves, so two inputs locked
-a week apart split the closure. Writing those lines is the only reason the generator exists.
+**Rationale for `GEN-013`.** `follows` is flake metadata, read before evaluation, so a Nix function cannot add it after locking. A direct edge controls only that input. Every authored transitive flake must follow its parent before one node is assured. PV-04 proves this rule for a controlled three-level fixture, not for arbitrary inputs.
 
-**Rationale for `GEN-004` and `GEN-009`.** Flake evaluation is hermetic: a flake's `outputs` can
-reach only what its own `inputs` declare, so a system-installed Nix library is unreachable from a
-consumer. Writing the block inline is therefore the only way a consumer can depend on nothing but
-`nixpkgs` and `devenv`. Changing the template means re-running `sync`, not bumping an input.
+**Rationale for `GEN-004` and `GEN-014`.** Flake evaluation is hermetic: a flake's `outputs` can reach only what its own `inputs` declare, so a system-installed Nix library is unreachable from a consumer. Writing the block inline keeps Vendomat out of the consumer inputs. The pinned devenv fixture requires `--impure` for shell root discovery; this flag is part of the tested command. Changing the template means re-running `sync`, not bumping an input.
 
 **Rationale for `GEN-003` and `GEN-008`.** Everything below the direct inputs belongs to Nix: the
 transitive walk, deduplication, cycle detection, and exact revisions, all recorded in `flake.lock`.
@@ -147,23 +150,28 @@ Vendomat selects nothing.
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `SYS-001` | The file MUST have one `[options]` table. Each key is a dotted NixOS or Home Manager option path | A key that is not a real option path fails evaluation, naming the path |
-| `SYS-002` | `fromToml` MUST convert each key to a nested attribute set and combine with `lib.mkMerge` | Evaluating the host config shows each value at its option path |
-| `SYS-003` | A list of bare strings in a package-valued option MUST resolve each name to `pkgs.<name>` | `["ripgrep"]` evaluates to the ripgrep derivation |
+| `SYS-002` | *Superseded by `SYS-008`.* A bare `lib.mkMerge` value is not a module item | — |
+| `SYS-003` | *Superseded by `SYS-009`.* Resolving every string list as packages corrupts ordinary string-list options | — |
 | `SYS-004` | An unresolvable package name MUST be an error naming the key and the name | `["ripgrepp"]` fails and names both |
-| `SYS-005` | A setting defined in both the TOML and a Nix module MUST be an evaluation error | Define `time.timeZone` in both; evaluation reports conflicting definitions |
+| `SYS-005` | *Superseded by `SYS-010`.* Duplicate definitions follow each option type's native merge rules | — |
 | `SYS-006` | The TOML MUST NOT express a function, a conditional, an interpolation, or a reference to another option | Those stay in a `.nix` file; the converter has no mechanism for them |
 | `SYS-007` | A scalar, a string, a boolean, an integer, and a list of scalars MUST round-trip | Each type evaluates to the same value it was written as |
+| `SYS-008` | `fromToml` MUST return a valid NixOS module and convert dotted keys to nested options | Import `{ config = fromToml file; }` with the PV-06 fixture; all supported values evaluate |
+| `SYS-009` | Package-name conversion MUST apply only to explicit package-valued option paths; ordinary string lists MUST remain strings | Resolve `environment.systemPackages` names and preserve `users.users.*.extraGroups` in the PV-06 fixture |
+| `SYS-010` | TOML and Nix definitions MUST use native option-type merge behavior; no blanket duplicate rejection is added | Equal scalar definitions merge, unequal scalar definitions fail, and list definitions merge as the option type specifies |
 
 ## 1.4 The input contract
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `INP-001` | An input MUST have a `devenv.yaml` whose `inputs:` names its needs | The resolver reads it without a second declaration file |
-| `INP-002` | An input that exports modules MUST export `devenvModules.default`, `nixosModules.default`, and `homeManagerModules.default` | Each attribute evaluates alone |
+| `INP-001` | *Superseded by `INP-008`.* Flake-backed inputs declare dependencies in their own `flake.nix`; `devenv.yaml` is not the dependency contract | — |
+| `INP-002` | *Superseded by `INP-007`.* An input need not export module faces it does not implement | — |
 | `INP-003` | An input that exports a buildable output MUST export `packages.<system>.<name>` | `nix build .#<name> --json` returns `drvPath` and an output path |
 | `INP-004` | A core input MUST export `lib`, a function | `nix eval .#lib --apply builtins.isFunction` returns true |
 | `INP-005` | An input MUST declare its released versions as git tags of the form `v<semver>` | `git tag --list` shows them |
 | `INP-006` | Importing any face MUST activate nothing until `enable` is true | Import with no options; no package is installed and no service runs |
+| `INP-007` | An input MAY export only the supported subset of devenv, NixOS, and Home Manager module faces | PV-07's census and fixture show face-specific outputs; evaluate each exported face alone |
+| `INP-008` | A flake-backed input MUST declare dependencies in its own flake inputs; Vendomat MUST NOT require `devenv.yaml` for dependency resolution | Inspect the A → B → C lock graph; transitive inputs appear through native flake declarations |
 
 ---
 
@@ -212,6 +220,8 @@ Two consequences, both recorded so they are not rediscovered:
 | `STORE-003` | `sync` MUST NOT change a working tree that has uncommitted changes. It MUST report instead | Dirty the tree; `sync` reports and exits non-zero for that input only |
 | `STORE-004` | The store MUST be a cache: deleting it and re-running `sync` MUST restore it | `rm -rf ~/vendor && vendomat sync` reproduces the same resolution |
 | `STORE-005` | A `rev` or path pin to a sibling checkout MUST be used in place and never copied | The resolved url names the sibling path |
+| `STORE-006` | Generated inputs MUST use a portable remote URL by default; absolute `git+file` paths MUST NOT be the fleet default | Generate a consumer with remote source declarations and evaluate it after moving the consumer checkout |
+| `STORE-007` | A local source checkout MUST be selected by an explicit input override; `VENDOMAT_SOURCE_ROOT` alone MUST NOT alter an existing flake or lock | Apply an input override and compare lock hashes; setting only the environment variable leaves both unchanged |
 
 ---
 
@@ -222,11 +232,12 @@ Two consequences, both recorded so they are not rediscovered:
 | `CACHE-001` | The consumer module MUST add the cache as a substituter and its public key as trusted | `nix show-config` on a consumer lists both |
 | `CACHE-002` | The push credential MUST NOT appear in a tracked file, a store path, or a log | Grep every tracked file, the closure, and the logs; none found |
 | `CACHE-003` | A pull-only credential MUST be refused on push | The attempt reports a permission error |
-| `CACHE-004` | A push MUST NOT drop a path obtained from an upstream cache | Seed a path from a public cache; it is present in the cache after the push |
+| `CACHE-004` | *Superseded by `CACHE-009`.* Attic 0.1.0 skips upstream-sourced paths during push | — |
 | `CACHE-005` | A path never pushed MUST report absent, never a false success | `nix path-info --store <cache>` returns null for it |
 | `CACHE-006` | `attic watch-store` MUST run on every machine that builds | The unit is active on each builder |
 | `CACHE-007` | A cold consumer MUST obtain a cached output with no local build | At step 10, on the newly installed laptop with `--max-jobs 0`, every path substitutes across Tailscale. This is collected, not gated: see `BOOT-019` |
 | `CACHE-008` | The NAR hash of a cache-served output MUST equal the hash recorded at build | Compare both; they are equal |
+| `CACHE-009` | The builder MUST report an upstream skip, and consumers MUST keep the source cache as a substituter when a path is absent from the private cache | PV-10 records `in upstream` and private-cache absence; a cold consumer confirms fallback through the upstream substituter |
 
 ---
 
@@ -255,11 +266,12 @@ Two consequences, both recorded so they are not rediscovered:
 | `MOD-004` | `packages` MUST be `cfg: pkgs: [ derivation ]` | A non-function value is rejected |
 | `MOD-005` | The three faces MUST install to `packages`, `environment.systemPackages`, and `home.packages` | Each face writes only its own path |
 | `MOD-006` | `extra` MUST be `cfg: pkgs: { <face> = <module content>; }` | A `nixos` key reaches only the NixOS face |
-| `MOD-007` | `extra` MUST merge recursively with the install path | An `extra.nixos` setting under `environment` does not clobber `environment.systemPackages` |
+| `MOD-007` | *Superseded by `MOD-010`.* Recursive attribute update replaces package lists | — |
 | `MOD-008` | An `extra` key for a face MUST NOT appear in the other faces | A devenv `tasks` entry is absent from the NixOS and Home Manager faces |
 | `MOD-009` | A hand-written face MUST remain possible beside a generated one | An input may export a hand-written module for one face and generated modules for the others |
+| `MOD-010` | Generated install paths and `extra` definitions MUST use native module merging so list additions are preserved | The PV-07 fixture retains both `hello` and `ripgrep` in each enabled face |
 
-| `PROJ-001` to `PROJ-006` | *Withdrawn 2026-10-08.* `mkProject` was a Vendomat library function, which made every consumer depend on Vendomat as a flake input. The block is now inlined by the generator: see `GEN-004` and `GEN-009` to `GEN-012` | — |
+| `PROJ-001` to `PROJ-006` | *Withdrawn 2026-10-08.* `mkProject` was a Vendomat library function, which made every consumer depend on Vendomat as a flake input. The block is now inlined by the generator: see `GEN-004` and `GEN-010` to `GEN-012`, with the shell command in `GEN-014` | — |
 
 ---
 
@@ -273,7 +285,8 @@ Two consequences, both recorded so they are not rediscovered:
 | `CORE-004` | Variants of one core MUST share every common store path | `nix-store -qR` on two variants; the shared set covers the core closure |
 | `CORE-005` | A variant's own store content MUST be limited to its wrapper, its configuration, and its own additions | Measure the closure difference between the core and the variant; record the bytes |
 | `CORE-006` | A core change rebuilds every variant | Change the core; every variant's output path changes. This is accepted, not avoided |
-| `CORE-007` | A variant MUST name its core in its own `devenv.yaml`, so the resolver deduplicates it | Two variants of one core resolve to one core entry |
+| `CORE-007` | *Superseded by `CORE-008`.* A core dependency belongs in a flake input, not `devenv.yaml` | — |
+| `CORE-008` | A variant MUST name its core in its own flake inputs; Nix owns the transitive lock edges | Two variants name the same core input; inspect the resulting flake lock |
 
 ---
 
@@ -294,11 +307,13 @@ Two consequences, both recorded so they are not rediscovered:
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `DEL-001` | The command line MUST be system-installed through the machine core | `command -v vendomat` resolves on both machines with no project shell entered |
+| `DEL-001` | *Superseded by `DEL-006`.* The CLI is not part of the shared boot core | — |
 | `DEL-002` | No consumer MUST declare Vendomat as a flake input | `rg -c vendomat` over every generated `flake.nix` returns 0 |
 | `DEL-003` | A repository that **authors** modules MAY declare Vendomat as a flake input, for `mkModules` | Its flake names the input; a consumer of it does not inherit that dependency |
 | `DEL-004` | `fromToml` and `fromInventory` MUST be reached through `nix-meta`'s own Vendomat input, declared once | No machine file imports them by absolute path |
-| `DEL-005` | Ordinary project entry and accepted output execution MUST need no Vendomat process, package, or input | See `GEN-009` and `ISO-006` |
+| `DEL-005` | Ordinary project entry and accepted output execution MUST need no Vendomat process, package, or input | See `GEN-014` and `ISO-006` |
+| `DEL-006` | The shared machine core MUST boot without the Vendomat CLI; a host MAY add the CLI in a later host delta | PV-11 core VM boots with no `vendomat` command; separate host-delta configuration evaluates the CLI package |
+| `DEL-007` | The CLI package MUST be selected as `packages.<system>.vendomat`; `.default` MUST NOT be used as the CLI package | PV-11 resolves `.default` to `vendomat-wheelhouse` and `.vendomat` to `vendomat-0.4.6` |
 
 **Rationale.** Three delivery paths because there are three different consumers: a person running a
 command, a flake evaluating a function, and a generated file that must depend on nothing.
@@ -323,6 +338,7 @@ command, a flake evaluating a function, and a generated file that must depend on
 | `CLI-012` | `apply` MUST refuse when a host file has uncommitted changes, unless forced | Dirty the file; the command refuses and names it |
 | `CLI-013` | `rollback` MUST select the prior system generation | The active generation changes to the previous one |
 | `CLI-014` | `status` MUST report an input whose store revision is ahead of its locked revision as drifted | The drift is named. Nothing is updated automatically; the owner runs `nix flake update <input>` |
+| `CLI-015` | `diff` MUST compare the last committed host TOML with the current host TOML; `apply` runs only after the host file is committed unless explicitly forced | In the PV-08 fixture, `set → diff → Gitman commit → apply` restores a clean tracked state; inspect the three changed evaluated values |
 
 ---
 
@@ -338,7 +354,7 @@ Every failure names the input, the file, or the option path it concerns.
 | Dirty store working tree | Non-zero for that input only; other inputs proceed |
 | Hand-written `flake.nix` present | Non-zero; names the file; leaves it untouched |
 | Unresolvable package name in a host TOML | Evaluation error; names the key and the name |
-| Option defined in both TOML and Nix | Evaluation error; names the option path |
+| Option defined in both TOML and Nix | Native option type merges equal scalars and lists; an incompatible scalar conflict names the option path |
 | Build failure in one input | That input reports failed; others proceed |
 | Cache path absent | Reports absent; never a success |
 
@@ -351,11 +367,11 @@ Each was observed on the pinned tools. The design depends on them. None is a gat
 | ID | Fact | Evidence |
 | --- | --- | --- |
 | `NAT-001` | `git+file://…?rev=` locks a real revision and NAR hash | 2026-10-07, Nix 2.34.7 |
-| `NAT-002` | Dotted-path TOML converts to nested NixOS options; bare strings resolve to `pkgs.<name>` | 2026-10-07 |
+| `NAT-002` | Dotted-path TOML can convert to nested NixOS options; package values require option-specific resolution | PV-06, NixOS fixture |
 | `NAT-003` | devenv has no `aliases` option. `scripts` sort first on `PATH` by `meta.priority` | devenv `fe20b5c`, `src/modules/top-level.nix:353` |
-| `NAT-004` | `attic push` drops upstream-sourced paths unless the filter is cleared | Observed 2026-10-07 |
+| `NAT-004` | Attic 0.1.0 skips a path present in an upstream cache during push | PV-10, disposable Attic 0.1.0 fixture |
 | `NAT-005` | The Nixpkgs and Home Manager Neovim wrappers default to `--suffix PATH` | Observed 2026-10-06 |
-| `NAT-006` | devenv merges an imported `devenv.yaml` only for local paths inside the git root | Observed 2026-10-06 |
+| `NAT-006` | Historical observation: devenv merges an imported `devenv.yaml` only for local paths inside the git root. This is not part of the V5 dependency contract. | Observed 2026-10-06 |
 | `NAT-007` | The flake delivery form evaluates impurely by default | Observed 2026-10-06 |
 | `NAT-008` | `nix build --out-link` creates an indirect garbage-collection root | To observe |
 | `NAT-009` | devenv Machines transfers with `nix copy --to ssh://` and does not substitute through Attic | Upstream documentation |
@@ -375,14 +391,16 @@ Two tests. Both run on one machine.
 3. Enter the shell and run the library's command.
 
 Pass: the generated `flake.nix` names only the direct input, `flake.lock` carries every transitive
-input at an exact revision, `nix flake metadata --json` shows one `nixpkgs` node, the command runs,
-and the build log shows no local compilation.
+input at an exact revision, and the shell works with Vendomat absent using
+`nix develop --impure --no-write-lock-file`. Record the graph's `nixpkgs` nodes. Require one node
+only when every authored input in the tested graph follows its parent.
 
 **B. A setting reaches a machine from TOML.**
 
 1. `vendomat set programs.nvimReview.enable true`
-2. `vendomat diff` reports the option delta.
-3. `vendomat apply`.
+2. `vendomat diff` reports the delta from the last committed host file to the current file.
+3. Commit the host TOML through Gitman.
+4. `vendomat apply`.
 
 Pass: the delta names only that option, the rebuild succeeds, and the command is on the machine.
 
@@ -403,12 +421,12 @@ provenance, not a base.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `BOOT-001` | A machine core MUST evaluate and boot with no Vendomat process and no Vendomat Python | `nixos-rebuild build-vm` on the core alone; the VM boots and accepts a login |
+| `BOOT-001` | A machine core MUST evaluate and boot with no Vendomat process and no Vendomat Python | PV-11 test VM boots, accepts a user login, and has no Vendomat command |
 | `BOOT-002` | The core MUST carry cache access, so a freshly installed machine substitutes before anything else runs | `nix show-config` on first boot lists the substituter and the trusted key |
 | `BOOT-003` | The core MUST hold only what every machine needs | Remove any core element; at least one machine fails to boot or becomes unreachable |
 | `BOOT-004` | *Superseded by `BOOT-021` to `BOOT-023`.* `nixos-rebuild test` was the in-place mechanism. The fallback is now a second bootable drive | — |
 | `BOOT-005` | *Superseded by `BOOT-021`.* Written for an in-place conversion with generation rollback | — |
-| `BOOT-006` | The core MUST boot in a virtual machine before it reaches `server` | `nixos-rebuild build-vm` boots and accepts a login |
+| `BOOT-006` | The core MUST boot in a virtual machine before it reaches `server` | PV-11 QEMU test VM boots and passes its user and service checks |
 | `BOOT-007` | *Withdrawn 2026-10-07.* A blast-radius conversion order assumed several machines. `nixosConfigurations` holds only `server` | — |
 | `BOOT-011` | *Superseded by `BOOT-022`.* Written for an in-place conversion | — |
 | `BOOT-012` | A cold-consumer claim MUST be verified in a virtual machine with an empty store, not an isolated store on the build host | Every closure path substitutes in the virtual machine with local builds disabled |
@@ -416,7 +434,7 @@ provenance, not a base.
 | `BOOT-014` | *Superseded by `BOOT-018`.* Written when the laptop was the proving ground | — |
 | `BOOT-015` | *Narrowed by `BOOT-019`.* The laptop still supplies the proof, but as a by-product | — |
 | `BOOT-018` | Every build step MUST run on `server`. The laptop MUST NOT be a prerequisite for any step | Steps 1 to 9 complete with the laptop absent |
-| `BOOT-019` | The laptop install MUST require no local build | `nix path-info` on its closure before install shows every path present in the cache; the install log shows no compilation |
+| `BOOT-019` | The laptop install MUST require no local build | A cold installer VM with its real route, trust key, credential, and source obtains every closure path with `--max-jobs 0`; the install log shows no compilation |
 | `BOOT-020` | A step MUST NOT depend on the laptop's reachability | No verify command in the guide names the laptop before step 10 |
 | `BOOT-021` | The 512 GB installation MUST stay independently bootable, with its own EFI System Partition, until the new root has run reliably | Boot each drive from the firmware menu in turn; each reports its own root filesystem UUID |
 | `BOOT-022` | The new system MUST be built on the running old system and installed as a prebuilt closure | The install log shows no build. `nixos-install` is given `--system`, `--closure`, or `--store-path` |
@@ -425,24 +443,23 @@ provenance, not a base.
 | `BOOT-016` | An element that only one machine needs MUST be a delta, never part of the core | Remove it from the core; both machines still boot and stay reachable |
 | `BOOT-017` | A fan-out claim MUST name the machines it covers | A build on either machine is shown present in the cache and substitutable by the other |
 | `BOOT-008` | A converted machine MUST reach every capability it had before conversion | Compare the installed command set and the active services before and after; name every removal |
-| `BOOT-009` | No conversion step MUST depend on Vendomat Python | Steps 1 to 6 of the build order run with the CLI absent |
+| `BOOT-009` | No conversion step MUST depend on Vendomat Python | Steps 1 to 6 of the build order run with the CLI absent; PV-11 is only the VM fixture |
 | `BOOT-010` | A converted input MUST produce the same result as the tree it replaces, or name the difference | Build both; compare the output set. `nv` is the first case |
 
 **`BOOT-018` rationale.** `framework` has been unreachable since 2026-10-07. An earlier attempt at
 this proof stalled for exactly that reason: its gate required a host nobody could reach. No V5 step
 may inherit that dependency. `server` builds everything; a virtual machine is the pre-flight check (`BOOT-006`).
 
-**`BOOT-021` to `BOOT-024` rationale.** The 4 TB drive becomes a fresh installation with its own
-EFI System Partition. Two separate EFI System Partitions keep the installations independent: a
-failed install cannot damage the running system's bootloader, and a generation rollback is no
-longer the fallback — a whole second drive is. `atticd` runs only on the old system, so the new
-system is built there, where the cache and a warm store already are, and installed as a prebuilt
-closure. The install then copies locally and needs no substituter.
+**`BOOT-021` to `BOOT-024` rationale.** The 4 TB drive is planned as a fresh installation with its own
+ EFI System Partition. Two separate EFI System Partitions keep the installations independent: a
+ failed install cannot damage the running system's bootloader, and a generation rollback is no
+ longer the fallback — a whole second drive is. `atticd` runs only on the old system, so the new
+ system could be built there and installed as a prebuilt closure, but PV-09 has not proved that the
+ installer can reach the private cache or obtain that closure. This part remains blocked.
 
-**`BOOT-019` rationale.** By step 10, `server` has built and pushed every closure the laptop needs.
-The install is a download. The cold-consumer proof is then collected as a by-product of an install
-that had to happen anyway, rather than chased as a gate. An earlier attempt made it a gate and
-stalled on an unreachable host.
+**`BOOT-019` rationale.** A warm host store or cache listing does not prove a cold installer route.
+PV-09 fetched a canary into an isolated store on `server`, but the cold VM or installer test remains
+required.
 
 **`BOOT-016` rationale.** `server` is headless and the laptop is graphical. That difference is what
 keeps the core honest: `atticd` and the builder are `server` deltas; Hyprland, power management, and

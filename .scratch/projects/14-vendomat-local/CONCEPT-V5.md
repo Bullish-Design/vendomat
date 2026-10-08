@@ -9,31 +9,31 @@ the new 4 TB boot drive plan. It supersedes the storage move and in-place server
 
 ## Purpose
 
-One owner runs three machines and about forty small repositories. Nix and devenv can already
-compose all of it. Writing that composition by hand is the cost.
+One owner maintains two intended machines and many small repositories. Nix and devenv can already
+compose them. Writing that composition by hand is the cost.
 
-Vendomat removes the hand-writing. You declare what you want in a flat list and a table of
-settings. Vendomat works out the rest of the graph, pins it, builds it once, and serves it to every
-machine from one cache.
+Vendomat records direct inputs and host settings. Nix resolves flake inputs and owns
+`flake.lock`. A builder can publish outputs to Attic. A cache hit avoids a local build while the
+object is available; collection or deletion can require a later rebuild.
 
 ## The claim
 
 Three statements, each testable:
 
-1. You declare inputs one level deep. Vendomat resolves the whole transitive graph.
+1. You declare direct inputs. Each flake declares its own inputs, and Nix resolves the transitive graph.
 2. You configure a machine in TOML. No hand-written Nix for anything declarative.
-3. Any build that happens once happens once. Every other machine substitutes it.
+3. A cache hit can serve another machine. Missing or collected paths may need a rebuild.
 
 ## Three layers
 
 | Layer | Who writes it | Contents |
 | --- | --- | --- |
 | Yours | You | `vendomat.toml`, `<host>.toml`, `devenv.nix` |
-| Generated | `vendomat sync` | `devenv.yaml` with exact revisions |
+| Generated | `vendomat sync` | A self-contained `flake.nix` with direct inputs and inline outputs |
 | Native | Nix, devenv, NixOS, Home Manager | Merging, conflict detection, substitution, activation |
 
-You never edit the generated layer. You never write merge logic: the NixOS module system does that,
-and a conflict is an evaluation error rather than a silent overwrite.
+You never edit the generated layer. The NixOS module system merges values by option type. Equal
+scalar definitions can coalesce, lists can merge, and conflicting scalars fail evaluation.
 
 ## Vocabulary
 
@@ -128,18 +128,24 @@ nix-meta/
 
 ## `vendomat.toml` — the flat list
 
-Direct inputs only. An empty table means the clone at `~/vendor/<name>` at its default ref.
+Direct inputs only. Each fleet input names a portable remote flake URL. A local checkout is used
+with an explicit Nix input override. `VENDOMAT_SOURCE_ROOT` alone does not change an existing flake
+or lock.
 
 ```toml
 [inputs]
-nvim-review = {}
-knappy      = {}
-gitman      = { ref = "refs/tags/v0.10.0" }
+nvim-review = { url = "git+https://<remote-host>/andrew/nvim-review" }
+knappy      = { url = "git+https://<remote-host>/andrew/knappy" }
+gitman      = { url = "git+https://<remote-host>/andrew/gitman", ref = "refs/tags/v0.10.0" }
 ```
+
+The remote host values above are placeholders. PV-03 did not identify the future host for private
+repositories.
 
 There is no `needs` table and no version range. Each input's own flake declares its own inputs, and
 Nix resolves the graph into `flake.lock`. You never restate another repository's dependencies, and
-Vendomat never chooses a revision.
+Vendomat never chooses a revision. PV-03 showed that a `git+file` lock needs the source at the same
+absolute path; do not generate such a URL as the fleet default.
 
 ## `machines/desktop.toml` — the declarative settings
 
@@ -155,8 +161,7 @@ Every key is a real NixOS or Home Manager option path. Nothing is invented.
 
 "nix.settings.max-jobs"      = 8
 "nix.settings.trusted-users" = ["andrew"]
-"nix.settings.extra-substituters" =
-  ["https://server.tail770f47.ts.net/attic/vendomat"]
+"nix.settings.extra-substituters" = ["https://<tailnet-host>/attic/vendomat"]
 "nix.settings.extra-trusted-public-keys" =
   ["vendomat:SRJCMEnuScYDRmGId+o9nkXn+MaLpQvDTHs5AfnRQgA="]
 
@@ -164,7 +169,7 @@ Every key is a real NixOS or Home Manager option path. Nothing is invented.
 
 "programs.atuin.enable" = true
 "programs.atuin.settings.sync_address" =
-  "https://server.tail770f47.ts.net/atuin"
+  "https://<tailnet-host>/atuin"
 "programs.atuin.settings.filter_mode" = "host"
 
 "programs.zsh.shellAliases.ll" = "ls -la"
@@ -175,8 +180,9 @@ Every key is a real NixOS or Home Manager option path. Nothing is invented.
 "programs.nvimReview.maxLength" = 100
 ```
 
-A bare string in a package list resolves to `pkgs.<name>`. Everything else passes through as
-written.
+Package-name conversion applies only to explicit package-valued option paths. Ordinary string
+lists, such as `users.users.andrew.extraGroups`, remain strings. Other Nix values belong in a `.nix`
+module.
 
 ## `machines/desktop.nix` — the remainder
 
@@ -190,7 +196,6 @@ option. Those stay in Nix. So does hardware and so do secrets.
     ./hardware/desktop.nix
     ../profiles/secrets.nix
     (vendomat.lib.fromToml ./desktop.toml)
-    vendomat.nixosModules.fromManifest
   ];
 
   users.users.andrew = {
@@ -203,8 +208,9 @@ option. Those stay in Nix. So does hardware and so do secrets.
 }
 ```
 
-`fromToml` converts the table above into real options. `fromManifest` reads the resolved input set
-and installs what this host asked for.
+`fromToml` converts the table above into a valid NixOS module. Nix option types handle merging. The
+fixture showed equal scalar definitions can merge, lists can append, and unequal scalar values
+fail. Package conversion must use an explicit option-path allowlist.
 
 ## `lib/fromToml.nix` — the converter, in full
 
@@ -212,24 +218,31 @@ and installs what this host asked for.
 { lib, pkgs }: file:
 let
   toml = builtins.fromTOML (builtins.readFile file);
-  resolve = v:
-    if builtins.isList v && builtins.all builtins.isString v
-    then map (n: pkgs.${n} or n) v else v;
+  packageOptions = [ "environment.systemPackages" ];
+  resolve = path: value:
+    if builtins.elem path packageOptions
+       && builtins.isList value
+       && builtins.all builtins.isString value
+    then map (name: pkgs.${name} or (throw "unknown package ${name} at ${path}")) value
+    else value;
 in
-lib.mkMerge (lib.mapAttrsToList
-  (path: value: lib.setAttrByPath (lib.splitString "." path) (resolve value))
-  toml.options)
+{ config = lib.mkMerge (lib.mapAttrsToList
+  (path: value: lib.setAttrByPath (lib.splitString "." path) (resolve path value))
+  toml.options); }
 ```
 
-Ten lines. `mkMerge` keeps the module system's conflict detection intact, so a setting defined both
-in TOML and in Nix fails loudly.
+This example omits the required explicit package-path allowlist and is schematic. The returned
+value must be a valid module. Nix option types decide how repeated definitions merge.
 
 ## Applying it
 
 ```sh
 vendomat set services.openssh.enable true   # writes the TOML
-vendomat diff                               # shows the real option delta
-vendomat apply                              # drives nixos-rebuild switch
+vendomat diff                               # compares the committed file with the working file
+gitman start host-settings
+gitman describe -m "Update host settings"
+gitman land
+vendomat apply                              # runs only after the tracked change is committed
 vendomat rollback
 ```
 
@@ -264,13 +277,16 @@ notes-sidebar
 
 ## `vendomat.toml` — what you write
 
-Direct inputs only. Four lines.
+Direct inputs only. Two named inputs.
 
 ```toml
 [inputs]
-loci-nvim = {}
-nvim-core = {}
+loci-nvim = { url = "git+https://<remote-host>/andrew/loci.nvim" }
+nvim-core = { url = "git+https://<remote-host>/andrew/nvim-core" }
 ```
+
+The remote host values are placeholders. Use an explicit Nix input override to test a local
+checkout; a local source path is not the fleet default.
 
 ## `flake.nix` — generated
 
@@ -282,9 +298,9 @@ nvim-core = {}
     nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
     devenv.url = "github:cachix/devenv";
     devenv.inputs.nixpkgs.follows = "nixpkgs";
-    loci-nvim.url = "git+file:///home/andrew/vendor/loci.nvim";
+    loci-nvim.url = "git+https://<remote-host>/andrew/loci.nvim";
     loci-nvim.inputs.nixpkgs.follows = "nixpkgs";
-    nvim-core.url = "git+file:///home/andrew/vendor/nvim-core";
+    nvim-core.url = "git+https://<remote-host>/andrew/nvim-core";
     nvim-core.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -304,8 +320,9 @@ nvim-core = {}
 }
 ```
 
-`fsdantic`, `knappy`, `loci-core`, and the telescope fork appear nowhere in either file you can
-see. They appear in `flake.lock`, which **Nix** writes.
+Nested inputs appear through the inputs declared by authored flakes and in `flake.lock`, which
+**Nix** writes. A consumer's follows edge alone does not force arbitrary nested inputs to share one
+`nixpkgs` node.
 
 **Vendomat is not an input here.** The `outputs` block is written inline by the generator, so a
 consumer depends on `nixpkgs` and `devenv` and nothing else. Delete Vendomat from the machine and
@@ -313,8 +330,8 @@ every consumer still evaluates, enters its shell, and builds. Flake evaluation i
 flake's `outputs` can only reach what its own `inputs` declare, so a system-installed Nix library
 would be unreachable. Inlining is what makes the independence real rather than nominal.
 
-The `auto` binding imports the devenv module of every input that exposes one, so adding an input to
-`vendomat.toml` is the only step needed to use it.
+The `auto` binding imports the devenv module of every input that exposes one. Enter and build the
+shell with `nix develop --impure`; the pinned devenv fixture failed under pure root discovery.
 
 ## `devenv.nix` — what you write
 
@@ -328,10 +345,10 @@ The `auto` binding imports the devenv module of every input that exposes one, so
 
 ## Why the flake is generated, and the lock is not
 
-`inputs.<name>.inputs.nixpkgs.follows` is flake **metadata**. Nix reads it before any evaluation, so
-no Nix function can produce it. Without it, each input locks its own `nixpkgs`; `rolling` moves, so
-two inputs locked a week apart evaluate two different Nixpkgs and the closure splits. The generator
-writes those lines. That is the only reason it exists.
+`inputs.<name>.inputs.nixpkgs.follows` is flake **metadata**. Nix reads it before evaluation, so
+the generator writes those edges for each direct input. The PV-04 fixture showed that a direct
+edge does not change nested inputs: every authored flake must follow its parent before one node is
+assured. Keep the one-node target for a controlled graph; do not claim it for arbitrary inputs.
 
 Everything downstream of the direct inputs belongs to Nix. It walks the transitive graph,
 deduplicates, detects cycles, and writes `flake.lock` with exact revisions. Vendomat never reads or
@@ -343,18 +360,19 @@ Three paths, each for one reason.
 
 | Part | Delivery | Why |
 | --- | --- | --- |
-| The command line | System-installed through the machine core | It is a tool you run, like git. No project should depend on it |
+| The command line | Explicit host delta, outside the shared boot core | A broken CLI package must not block the shared core |
 | `mkModules`, `paths` | A flake input of the ~20 repositories that **author** modules | A Nix function must be reachable from the evaluating flake's own inputs |
 | `fromToml`, `fromInventory` | A flake input of `nix-meta` only | Used by machine configuration, declared once |
 | The consumer `outputs` block | Written inline by the generator | A consumer must evaluate with Vendomat absent |
 
-An author of a library declares `inputs.vendomat`. A consumer of one declares nothing.
+An author of a library declares `inputs.vendomat` only when it needs Vendomat module helpers. A
+consumer of one declares no Vendomat input.
 
 ## How each kind of dependency arrives
 
 | Kind | Mechanism |
 | --- | --- |
-| A personal library | a registry entry; its own flake declares its own inputs |
+| A personal library | a registry entry with a portable remote URL; its own flake declares its own inputs |
 | A vendored fork of a non-flake project | a registry entry with `flake = false`; it arrives as a source tree |
 | A package already in Nixpkgs | no entry at all — `pkgs.zellij` |
 
@@ -364,7 +382,8 @@ a consumer having supplied a name for it.
 
 # Worked example: authoring one of your own inputs
 
-Four lines produce all three native faces.
+The helper returns all three native faces as a convenience. A flake exports only the faces it
+supports.
 
 ```nix
 # knappy/flake.nix
@@ -374,11 +393,12 @@ let
     packages = cfg: pkgs: [ self.packages.${pkgs.system}.default ];
   };
 in {
-  devenvModules.default      = modules.devenv;
-  nixosModules.default       = modules.nixos;
-  homeManagerModules.default = modules.homeManager;
+  devenvModules.default = modules.devenv;
 }
 ```
+
+The PV-07 candidate scan found 14 of 18 module providers with one face and one provider with all
+three.
 
 Options land at `knappy.*` under devenv and `programs.knappy.*` under NixOS and Home Manager.
 
@@ -468,40 +488,39 @@ change. Vendomat never silently selects a different drive with the same role.
 | Part | Role | Where |
 | --- | --- | --- |
 | Cache | One private Attic cache over Tailscale | `server`, 4TB NVMe |
-| Source store | Git clones of every input | `~/vendor/<name>` |
-| Generator | Registry to a self-contained `flake.nix`: inputs, `follows` lines, and an inline `outputs` block | `vendomat sync` |
+| Source store | Optional Git clones for local work; remote URLs are the fleet default | `~/vendor/<name>` |
+| Generator | Registry to a self-contained `flake.nix`: direct inputs, applicable `follows` lines, and an inline `outputs` block | `vendomat sync` |
 | Graph and lock | Transitive closure, dedupe, cycles, exact revisions | Nix, in `flake.lock` |
 | Builder | Builds each input on a new tag | `server`, systemd timer |
 | Push | `attic watch-store` | every machine |
 
 ## Why builds are fast
 
-The builder builds each input **separately** when its tag lands. Each closure reaches the cache on
-its own. A project that assembles twelve inputs substitutes twelve ready closures and compiles
-nothing. Nothing new implements this. It follows from one derivation per input and one cache.
+The builder builds each input **separately** when its tag lands. Each closure can reach the cache
+on its own. A project may substitute available paths. If a path is missing or collected, the
+requester needs another substituter or a builder with its source and derivation.
 
 Every target is `x86_64-linux` and the builder is `x86_64-linux`. One build serves every machine.
 No matrix and no cross-compilation.
 
 ## Publication is ambient
 
-There is no publish operation and no retain operation. The builder builds. `watch-store` pushes.
-Other machines substitute on demand. The build log and its exit status are the durable record of
-what was checked against which bytes, so Vendomat writes no receipt.
+There is no Vendomat publish or retain operation. The builder builds and `watch-store` uploads new
+paths. Attic retention controls time-based collection. Production reports retention 0; an isolated
+Attic 0.1.0 fixture removed an object with one-second retention and kept one with zero retention.
+This does not guarantee permanent availability.
 
 ## Durable state
 
-**Vendomat owns none.** The cache belongs to Attic. `~/vendor` is a cache of git remotes. `.vend/`
-holds out-links from `nix build --out-link`, which are indirect garbage-collection roots, so
-retention needs no Vendomat code. The build record belongs to CI. Every class is native-owned or
-regenerable.
+**Vendomat owns none.** The cache belongs to Attic. Local clones can be restored from their remote.
+Nix store paths can be collected. An out-link may root a build output, but that behavior needs a
+pinned fixture before it can support a retention guarantee. A build log records an attempt; it does
+not prove the cache still has the output.
 
 ## Authority
 
 Native declarations and locks select. devenv composes. Nix builds and substitutes. Attic stores and
 signs. NixOS and Home Manager activate. Version control keeps history.
-
-Vendomat resolves versions to revisions, writes generated files, keeps clones, and reports.
 
 Vendomat selects nothing. It writes the list of direct inputs into a flake and stops. Nix resolves
 the graph and owns `flake.lock`. There is no second lock, no version solver, and no revision that
@@ -530,12 +549,12 @@ Vendomat chose.
 - `paths.nix` — the `vendomat.paths` option and its environment export (25)
 - `fromInventory.nix` — generate `fileSystems` from the recorded UUIDs (25)
 - `module.nix` — consumer module: substituter, key, credential path, `.vend/` out-links, `explore` (40)
-- `fromManifest.nix` — install what this host resolved (25)
 
 **Shell, about 50 lines**
 
-- `preflight.sh` — resolve declared drive identities and refuse an unsafe target. Shell, not Nix:
-  it must run before any evaluation, from an installer, with no root.
+- A reviewed read-only preflight must check identity, ancestry, mounts, partition tables, and
+  signatures. PV-02's synthetic checker passed its injected cases, but the real target scan remains
+  blocked by read permissions. Do not use the guide's `PREFLIGHT PASS` claim.
 
 **NixOS, about 70 lines in `nix-meta`**
 
@@ -549,18 +568,19 @@ Each was run on the pinned tools. The design depends on them.
 | Fact | Observed |
 | --- | --- |
 | `git+file://…?rev=` locks a real revision and NAR hash | 2026-10-07, Nix 2.34.7 |
-| Dotted-path TOML converts to nested NixOS options, with package names resolved | 2026-10-07 |
+| Dotted-path TOML values work under a NixOS module wrapper; package-name conversion needs an explicit option-path allowlist | PV-06 |
 | devenv has no `aliases` option; `scripts` sort first on `PATH` by `meta.priority` | devenv `fe20b5c`, `src/modules/top-level.nix:353` |
-| `attic push` drops upstream-sourced paths unless the filter is cleared | 2026-10-07 |
+| Attic 0.1.0 skips an upstream-signed `hello` path during push and leaves it absent in the private fixture cache | PV-10 |
 | Neovim wrappers default to `--suffix PATH`, so a command needs its absolute store path | 2026-10-06 |
-| devenv merges an imported `devenv.yaml` only for local paths inside the git root | 2026-10-06 |
 | devenv supports a flake-backed consumer first-class: it ships `flake-module.nix`, `templates/flake`, and exports `lib.mkShell` | devenv `fe20b5c` |
 | A kernel device name moves between boots: `/dev/nvme0n1` was the empty 4 TB drive on 2026-10-07 and the running 512 GB system on 2026-10-08 | 2026-10-08 |
-| All four declared `/dev/disk/by-id/` identifiers and all four filesystem UUIDs resolve on `server` | 2026-10-08 |
-| `nixos-install` accepts `--system`, `--closure`, and `--store-path`, so a prebuilt toplevel installs with no build | 2026-10-08, `nixos-install(8)` |
+| The four declared hardware IDs and filesystem UUID owners match the read-only `lsblk` inventory on `server` | PV-02 |
+| The 4 TB target has no partitions or mounts in `lsblk`; signature and partition-table status remain unknown because `wipefs --no-act` lacked permission | PV-02 |
+| A cold alternate store on `server` fetched 121 paths from private Attic; the cold installer VM route remains untested | PV-09 |
+| A NixOS test VM booted without the Vendomat CLI; Tailscale had no external network in the test | PV-11 |
+| `nixos-install` documents `--system`, `--closure`, and `--store-path` | Upstream manual; not a Vendomat fixture |
 
-The `devenv.yaml` merge limit is why consumers are flake-backed rather than composed through
-`devenv.yaml`: flake inputs do not pass through that file, so the limit does not apply.
+Consumer dependencies live in native flake inputs. V5 does not create a second dependency file.
 
 ## Boundaries
 
@@ -572,25 +592,21 @@ replace the NixOS module system; it feeds it.
 
 # Build order
 
-The 2026-10-08 refinement changes the server bootstrap: build a new boot and root filesystem on
-the 4 TB drive, and keep the 512 GB installation intact. Rewrite the guide's install steps before
-running them. The sequence below is the earlier draft for the remaining library work.
+**Readiness on 2026-10-08: blocked.** No V5 implementation step has run. PV-02 could not read
+the target signature or partition table, and PV-09 did not prove a cold installer route. Do not
+start Step 0 or disk work. Treat the sequence below as a proposed order, not permission to run it.
 
-**Starting state: a bare repository. All work happens on `server`.** The laptop (`framework`) is a
-switchover at the end, not a proving ground.
+**Starting state: a bare repository. Planned build host: `server`.** The laptop (`framework`) is
+unreachable. No step may depend on it before its own installation.
 
 `nix-meta/flake.nix:289` records that the earlier `wsl` and `desktop` hosts were retired. `server`
 is the only live host and it runs `atticd` and the builder.
 
-## Server builds. Framework collects.
+## Build on server. Verify a cold installer separately.
 
-Every build step runs on `server`. By the time the laptop is
-installed, `server` has already built and pushed every closure it needs. The laptop's install is
-therefore a download, not a build.
-
-That makes the laptop switchover both cheap and the cold-consumer proof — which an earlier attempt
-could not obtain, because it required an unreachable host — collected as a by-product rather than
-chased as a gate.
+The intended builder runs on `server`. A warm store, cache listing, or earlier build does not prove
+that a cold installer can fetch a closure. PV-09 fetched a canary into an empty alternate store on
+`server`, but the installer route and credential path remain open.
 
 A virtual machine stays the pre-flight check: `nixos-rebuild build-vm` boots the core with an empty
 store before `server` is touched.
@@ -608,15 +624,15 @@ Anything only one machine needs is a delta. The core is what both need to boot a
 | Step | Work | Needs Python | Result |
 | --- | --- | --- | --- |
 | 1 | The machine core | No | One module both machines share |
-| 2 | Cache access inside the core | No | A new machine substitutes from first boot |
+| 2 | Cache access inside the core | No | Proposed; the private cache route is unresolved |
 | 3 | `nixos-rebuild build-vm` on the core | No | The core boots with an empty store |
 | 4 | `mkModules` and `fromToml` in `lib/` | No | Four-line inputs; TOML host settings |
 | 5 | Split `nvim-core` out of `nix-nvim` | No | The core-and-delta shape proved |
 | 6 | `attic watch-store` and the builder on `server` | No | Every build reaches the cache |
-| 7 | Install `server` fresh on the 4 TB drive, built on the old system | No | One machine on the new pattern |
-| 8 | `registry`, `resolve`, `emit` | Yes | `vendomat sync` writes `devenv.yaml` |
+| 7 | Install `server` fresh on the 4 TB drive | No | Blocked by PV-02 and PV-09 |
+| 8 | `registry` and `generate` | Yes | `vendomat sync` writes `flake.nix`; Nix owns `flake.lock` |
 | 9 | `systemcfg`: `set`, `get`, `diff`, `apply`, `rollback` | Yes | `server` configured from TOML |
-| 10 | Install `framework` | No | A warm cache serves it; `CACHE-007` falls out |
+| 10 | Install `framework` | No | A cold installer test must pass `CACHE-007` first |
 
 Steps 1 to 7 need no Python. The whole Nix layer stands up before any Vendomat tooling exists, so
 broken tooling can never stop a machine booting.
@@ -628,19 +644,21 @@ System Partition. The 512 GB installation stays untouched and independently boot
 fallback is a whole second drive rather than a generation. Choose between them in the firmware boot
 menu, and leave the boot order alone until the new root has run reliably.
 
-The new system is built on the running old system, where `atticd` and a warm store already are,
-then installed as a prebuilt closure. The install copies locally and needs no substituter.
+The design proposes building the new system on the running old system and installing a prebuilt
+closure. PV-09 has not proved that this installer can obtain the closure. Do not assume a local
+copy or working substituter until a disposable installer fixture passes.
 
 Attic keeps its current disk through first boot. It moves only after the new root works, and its
 location then comes from `vendomat.paths.attic`.
 
 ## Done looks like
 
-From a project that has never used Vendomat: add one line to `vendomat.toml`, run `vendomat sync`,
-enter the shell, and use the library with no local build.
+From a project that has never used Vendomat: add a direct input with a portable source URL, run
+`vendomat sync`, enter with `nix develop --impure`, and use the library. A no-build result remains
+conditional on each required store path being present in a usable substituter.
 
-Then: `vendomat set programs.nvimReview.enable true`, `vendomat diff`, `vendomat apply`, and the
-command is on the machine.
+Then: `vendomat set`, `vendomat diff`, commit the host TOML through Gitman, and run `vendomat apply`.
+PV-08 supports this state sequence; it does not prove switch or rollback behavior.
 
 Two tests, one afternoon, one machine.
 
@@ -648,9 +666,9 @@ Two tests, one afternoon, one machine.
 
 | Item | State |
 | --- | --- |
-| New system drive | 4 TB WD Blue, `nvme-eui.e8238fa6bf530001001b448b4fbe837d`, bare as of 2026-10-08. Its root and EFI UUIDs do not exist yet. One EFI System Partition plus one root partition. Keep the 512 GB drive bootable |
+| New system drive | 4 TB WD Blue, stable ID `nvme-eui.e8238fa6bf530001001b448b4fbe837d`, serial `25459R800917`, size 4,000,787,030,016 bytes. `lsblk` showed no partition, mount, or filesystem UUID. `wipefs --no-act` was denied, so signature and partition-table status is unknown. Step 0 is blocked. |
 | `sudo` | Works at `/run/wrappers/bin/sudo`. This shell's `PATH` finds the non-setuid copy first |
-| Substituter URL | `https://server.tail770f47.ts.net/attic/vendomat` is the expected shape. Confirm it once |
-| Cache growth | **Decided 2026-10-08:** set cache retention to 90 days and keep `nix.gc` at `--delete-older-than 30d`. The 4 TB root holds both `/nix/store` and the Attic objects, which are near-duplicates, and neither collector frees the other. A still-wanted path is re-pushed by the next build. Apply before step 7.8 |
+| Substituter URL | Tailscale Serve exposes a tailnet-only `/attic` route. The prefixed API path works, but `attic use` drops the prefix. A cold installer cannot yet access the private route or credential. PV-09 blocks installer use. |
+| Cache retention | Production Attic reports retention 0. `server` runs weekly Nix GC with `--delete-older-than 14d`. An isolated Attic 0.1.0 fixture showed zero skips time-based collection and one second removes an object. Do not change production retention or promise indefinite availability. |
 | Editor configuration | `nvim-review`'s baked rc is two lines. An exploring editor needs more |
 | Converted trees | The earlier preserved-surface rule is withdrawn: every machine is reconfigured, so the current paths are replaced. `BOOT-010` keeps the one obligation — a converted input must match the tree it replaces, or name the difference |

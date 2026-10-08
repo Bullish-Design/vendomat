@@ -1,40 +1,37 @@
 # V5 preliminary verification
 
-**State:** Planned. No spike in this directory has passed. No V5 implementation step has run.
+**State:** verification complete on 2026-10-08. V5 implementation is **not ready**. No
+implementation step has run. The detailed row-by-row result is in [RESULTS.md](RESULTS.md).
 
-This directory prepares the checks that must precede the V5 implementation. It is a work plan,
-not an amendment to the V5 specification. The parent directory remains the authority until
-evidence supports a documented change.
+This directory records the checks that ran before implementation. It does not amend the authority
+by itself. Current design authority remains:
 
-## Read order
+1. [`../CONCEPT-V5.md`](../CONCEPT-V5.md) — design and examples.
+2. [`../SPEC-V5.md`](../SPEC-V5.md) — normative requirements and Verify commands.
+3. [`../GUIDE-V5.md`](../GUIDE-V5.md) — proposed steps, blocked at Step 0 and private-cache installer access.
+4. [`../REFINEMENT-2026-10-08.md`](../REFINEMENT-2026-10-08.md) — drive identity and storage plan.
+5. [`../../CURRENT.md`](../../CURRENT.md) — active state and blockers.
+6. [`../KICKOFF-V5.md`](../KICKOFF-V5.md) — implementation status and conditions before work starts.
 
-1. Read [`../CONCEPT-V5.md`](../CONCEPT-V5.md) for the intended shape.
-2. Read [`../SPEC-V5.md`](../SPEC-V5.md) for the active requirement IDs.
-3. Read [`../GUIDE-V5.md`](../GUIDE-V5.md) for the proposed commands.
-4. Read [`../REFINEMENT-2026-10-08.md`](../REFINEMENT-2026-10-08.md) for paths and drive identity.
-5. Read [`SPIKES.md`](SPIKES.md) for the questions, fixtures, and pass conditions.
-6. Read [`EVIDENCE.md`](EVIDENCE.md) before recording a result.
-7. Use [`KICKOFF.md`](KICKOFF.md) to start the verification session.
+## Readiness
 
-`../KICKOFF-V5.md` starts implementation. Do not use it for preliminary verification.
+PV-02 blocks Step 0 because the physical target's partition-table and signature state is unknown.
+PV-09 blocks a fresh installer because the private cache route, trust key, pull credential, and
+source are unavailable before first boot. Source generation and several integration contracts also
+need tracked fixtures. Do not treat a passing disposable fixture as a passed implementation
+requirement.
 
-## Boundaries
+The evidence supports a remote source URL as the fleet default, explicit local Nix input overrides,
+a one-node `nixpkgs` goal only for controlled graphs, `nix develop --impure` for the pinned devenv
+shell, native option-type merging, optional module faces, a Gitman commit between `diff` and
+`apply`, and a Nix-only machine core without the CLI. These interfaces remain proposed until the
+tracked implementation fixtures pass.
 
-- Run disposable Nix fixtures and read-only checks now. Keep physical disk writes for a later,
-  reviewed install procedure.
-- Do not run `nixos-rebuild switch`, `nixos-install`, `parted`, `mkfs`, or production cache
-  retention changes during this work.
-- A virtual machine or disposable disk image may receive writes. Identify the image explicitly.
-- Keep raw logs under `~/.local/state/vendomat/v5/prelim-verification/<date>/`.
-- Use Gitman for every version-control action. Use Testee for repository verification.
-- Keep observations, inferences, and proposed changes separate.
+## Evidence locations
 
-## Outcome
+Keep raw command output outside the repository under
+`~/.local/state/vendomat/v5/prelim-verification/<date>/`. Each result links the exact raw logs and
+states any missing command transcript. Do not put credentials or tokens in this directory.
 
-The work is ready for implementation when every P0 spike has a result, every blocker has an
-owner or a resolution, and the concept, specification, guide, and kickoff agree. A result can
-pass, fail, or remain blocked. A documented upstream fact cannot count as a passed fixture.
-
-The final report must name the exact limits of the concept. It must state which guarantees were
-weakened, which mechanisms changed, and which requirements were superseded. Preserve all existing
-requirement IDs.
+Use Gitman for version control. Use Testee for repository verification. Keep every requirement ID;
+add a fresh ID when a claim changes.

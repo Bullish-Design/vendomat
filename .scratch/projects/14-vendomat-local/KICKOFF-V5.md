@@ -1,140 +1,51 @@
 # V5 implementation kickoff prompt
 
-Paste everything below the line into a clean session.
+**Status on 2026-10-08: blocked. Do not start V5 implementation steps 0 to 10.** The preliminary
+verification is recorded in [prelim-verification/RESULTS.md](./prelim-verification/RESULTS.md).
+This file is not a green light to start Step 0.
 
----
-
-Start the Vendomat V5 implementation. Work in `/home/andrew/Documents/Projects/vendomat`.
-
-## Read these first, in this order
+## Read first
 
 All in `.scratch/projects/14-vendomat-local/`:
 
-1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 141 requirement IDs, each with a Verify column.
-3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
-4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
+1. `../../CURRENT.md` — active state and blockers.
+2. `prelim-verification/RESULTS.md` — all spike outcomes and remaining proof.
+3. `SPEC-V5.md` — normative requirements. It lists 153 requirement IDs in its tables; 126 are active. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain preserved.
+4. `CONCEPT-V5.md` — design and examples.
+5. `GUIDE-V5.md` — proposed commands. It is blocked at Step 0 and installer cache access.
+6. `REFINEMENT-2026-10-08.md` — drive identity and storage plan.
 
-## Authority
+`AGENTS.md` points to `.scratch/CURRENT.md`. Closed projects and V4 records are history.
 
-`AGENTS.md` holds durable rules and points at `.scratch/CURRENT.md`, which names this project as
-active. The four documents listed above are the only authority for this work. Treat anything in
-`docs/` or in another `.scratch/projects/` directory as history unless one of those four cites it.
+## Current blockers
 
-## What V5 is, in four sentences
+- **PV-02, Step 0:** the target's stable ID, model, serial, and exact size matched the inventory. `lsblk` showed no partitions or mounts. `wipefs --no-act` was denied, so the partition-table and signature state is unknown. The target is not proven bare. Do not partition, format, install, or call Step 0 passed.
+- **PV-09, cache bootstrap:** an empty alternate store on `server` fetched a 121-path closure from the host-local Attic endpoint. No cold installer VM ran. The cache is private and the Tailscale Serve route is tailnet-only under `/attic`; `attic use` drops that prefix. The host Nix configuration has no private key or pull credential.
+- **PV-03, source paths:** a locked `git+file` URL needs a source Git repository at the same absolute path. Moving the consumer checkout alone works; moving or omitting the source fails, even with the public cache. An explicit Nix input override selects another path without changing the lock when writes are disabled. `VENDOMAT_SOURCE_ROOT` alone has no effect on an existing flake or lock. Fleetwide local URLs are not portable.
 
-Vendomat makes the owner's projects resolvable by local path and already built. You declare inputs
-one level deep in `vendomat.toml`; Vendomat generates a `flake.nix` naming only those direct inputs,
-and Nix resolves the transitive graph into `flake.lock`. Machine settings
-live in dotted-path TOML converted to real NixOS options. One Attic cache over Tailscale means
-nothing builds twice.
+## Decisions supported by fixtures
 
-Vendomat owns no durable state. Native tools do the merging, conflict detection, substitution, and
-activation.
+- Nix declares and resolves flake inputs and owns `flake.lock`. Vendomat does not implement a resolver, manifest, `devenv.yaml` dependency list, or `fromManifest` loader.
+- The one-`nixpkgs` result is a controlled-graph goal. A consumer follows edge alone left three nodes; each authored nested flake must follow its parent for the tested graph to use one node.
+- The pinned devenv shell failed under pure root discovery and passed with `nix develop --impure`. Keep `--impure` in consumer checks unless a later fixture proves another root mechanism.
+- A TOML converter must return a valid NixOS module. Resolve package names only for explicit package-valued option paths. Native Nix option types merge equal scalars and lists; incompatible scalars fail.
+- `mkModules` uses native module merging to preserve package lists. An authored flake exports only the module faces it supports.
+- The host edit sequence is `set → diff → Gitman commit → apply`. `diff` compares the last committed host TOML with the current file. Switch, dirty-file refusal, force, and rollback still need a disposable VM test.
+- The shared machine core boots in a disposable NixOS test VM without the Vendomat CLI. The VM had no external network, so the test did not prove tailnet reachability. Install the CLI only in a later host delta with `packages.<system>.vendomat`; `.default` is the wheelhouse.
+- Production Attic reports retention 0. A disposable Attic 0.1.0 test showed that time-based GC with one-second retention removed an object; retention 0 excluded the fixture cache from time-based GC. `server` runs weekly Nix GC with a 14-day age rule. These are not promises of permanent cache availability.
 
-## Ground truth as of 2026-10-08
+## Conditions before implementation
 
-**Safety — read before any disk command.**
+1. Obtain an authorized read-only scan of the 4 TB target's partition table and signatures. Review a fail-closed checker against the real inventory and all injected mismatch cases.
+2. Choose and test a portable source route for private flakes, plus an explicit local override behavior.
+3. Choose how an installer obtains the cache route, trust key, pull credential, and source before first boot. Prove the complete closure transfer in a cold disposable VM or image with local builds disabled.
+4. Reconcile `.scratch/CURRENT.md` and this kickoff after those results. Keep each old requirement ID and add a new ID when its claim changes.
 
-- `/dev/nvme0n1` is the **running 512 GB system**: `/boot`, swap, and `/` (`nvme0n1p3[/@]`).
-  On 2026-10-07 that same name was the empty 4 TB drive. **Never partition or format by kernel
-  device name.** Use `/dev/disk/by-id/`.
-- The 4 TB target is `nvme-eui.e8238fa6bf530001001b448b4fbe837d` (today `/dev/nvme1n1`), bare: no
-  partition table, no filesystem, no mount.
-- `sudo` is at `/run/wrappers/bin/sudo`. The copy first on `PATH` is not setuid and fails with a
-  misleading message. This is not a broken system.
+## Work rules
 
-**Fleet.** `server` (Dell Precision 5820, headless, `x86_64-linux`) is the only live host and runs
-`atticd` and the builder. The laptop `framework` (`x86_64-linux`) is installed last, in step 10, and
-has been unreachable since 2026-10-07. **No step before 10 may depend on it** (`BOOT-018`,
-`BOOT-020`). `nix-meta/flake.nix:289` records that the earlier `wsl` and `desktop` hosts were
-retired; `nixosConfigurations` holds only `server`.
-
-**Drive inventory.** All four identifiers and all four filesystem UUIDs resolved on 2026-10-08.
-
-| Logical name | Hardware identifier | Filesystem UUID |
-| --- | --- | --- |
-| `new-system`, WD Blue SN5100 4 TB | `nvme-eui.e8238fa6bf530001001b448b4fbe837d` | none yet |
-| `previous-system`, NX-512 512 GB | `nvme-NX-512_2280_0040141310300` | root `e6b180fa-534a-4b71-aff8-f9fe2e6d0834`, EFI `0086-EC69` |
-| `backup`, WD Green (Attic + restic) | `wwn-0x50014ee2adca73d5` | `21488349-01cb-4efe-9d21-a72f74a908e0` |
-| `shared`, TEAM SSD | `ata-TEAM_TM8PS7002T_TPBF2308070030300443` | `C24C954D4C953CDB` |
-
-**Pins and cache.**
-
-| Item | Value |
-| --- | --- |
-| Nix | 2.34.7 |
-| devenv | 2.4.0+b904dcb |
-| Attic | server and client `attic-0-unstable-2026-06-26` |
-| Cache | `vendomat`, private, priority 20, retention 0 |
-| Cache key | `vendomat:SRJCMEnuScYDRmGId+o9nkXn+MaLpQvDTHs5AfnRQgA=` |
-| Attic listen | `127.0.0.1:8089`, Tailscale Serve at `/attic` |
-| Canary path | `/nix/store/l6imh86vz9ic4cmyikisxszrrfvs7ab8-nvim-review-editor` — already in the cache. Use it to test whether the cache answers |
-
-**Existing trees.** `src/vendomat/` (3,926 lines) is the current code surface. It is **provenance,
-not a base.** V5 starts from a bare source tree in this repository; the git history stays.
-`nvim-review` and `nix-nvim` are real repositories in `~/Documents/Projects/` that V5 converts.
-
-## Your scope for this session: steps 0 to 3
-
-Stop at the end of step 3. Those four steps write to **no disk** and activate **nothing**.
-
-**Step 0 — drive identity preflight.** Write and run the read-only preflight from `GUIDE-V5.md`
-§0.2. It resolves every declared identifier and UUID, then refuses the target if it backs `/`,
-`/boot`, `/nix`, or `/home`, or carries a filesystem, partition table, or mount. Then run the two
-deliberate failure tests: point it at the running system's drive and at the WD Green, and confirm
-both abort naming the reason. Satisfies `DISK-001` to `DISK-005`.
-
-**Step 1 — the machine core.** Write `core/default.nix`. It holds only what both machines need to
-boot and be reachable. `atticd`, the builder, and restic are `server` deltas; Hyprland, power
-management, and wifi are laptop deltas. Use `lib.mkDefault` for any value a host may override.
-Satisfies `BOOT-001`, `BOOT-003`, `BOOT-016`.
-
-**Step 2 — cache access inside the core.** First confirm the substituter URL; it is unverified.
-Then add the substituter, the trusted key, and `netrc-file`. The pull token comes from sops,
-root-only, and must never enter a tracked file or a store path. Satisfies `BOOT-002`, `CACHE-001`,
-`CACHE-002`.
-
-**Step 3 — prove the core in a virtual machine.** Add a throwaway `vmtest` host,
-`nixos-rebuild build-vm`, boot it, and confirm it reaches a login with the substituter configured.
-Satisfies `BOOT-006`.
-
-## Rules
-
-- Open one Gitman lane per step. Never run raw `git` or `jj`.
-- Verify with `devenv shell -- testee verify --mode quick`. Do not call pytest or ruff directly.
-- A requirement is satisfied when its Verify column runs and passes. A document never satisfies a
-  requirement. There are no phases and no gates — each step has one **Stop if** condition.
-- Do not write any Python this session. Steps 1 to 7 need none, deliberately: the Nix layer must
-  stand alone so broken tooling can never stop a machine booting (`BOOT-009`).
-- Record each step's date, commands, and result. Keep raw logs in
-  `~/.local/state/vendomat/v5/<date>/`.
-- Preserve every requirement ID. Never reuse or renumber one. Mark a changed requirement
-  *Superseded by* a new ID; do not edit it in place. When you supersede one, grep for duplicates —
-  `BOOT-004` and `BOOT-011` both carried the same claim and only one was caught the first time.
-- If a fixture disproves the specification, update the specification, the guide, and the concept
-  together. Do not leave the three disagreeing.
-
-## Do not
-
-- Partition or format anything this session. Step 0 is read-only.
-- Touch the 512 GB drive. It is the fallback and must stay independently bootable (`BOOT-021`).
-- Move the Attic data. It stays on the WD Green disk until after the new root boots (step 7.8).
-- Re-open settled decisions: publication is ambient with no receipt;
-  Vendomat selects no revision and never touches `flake.lock`; the command line is system-installed
-  and no consumer declares Vendomat as a flake input; `server` is installed fresh on the 4 TB drive
-  rather than converted in place; the laptop comes last.
-
-## Open questions — ask, do not invent
-
-| Question | Blocks |
-| --- | --- |
-| Is the substituter URL `https://server.tail770f47.ts.net/attic/vendomat`? | Step 2 |
-| Confirm 90-day Attic retention and `nix.gc --delete-older-than 30d`? Recorded as decided; apply before step 7.8 | Step 7.8 |
-| Does the laptop keep the name `framework`? | Step 10 |
-
-## First reply
-
-Before you write anything: list the requirement IDs you intend to satisfy in this session, name the
-files you will create, and state the one thing you will check before each disk-adjacent command.
-Then begin with step 0.
+- Route every version-control action through Gitman. Do not run raw `git` or `jj`.
+- Run `devenv shell -- testee verify --mode quick` as the normal repository gate. Use the opt-in end-to-end gate for Nix module, toolchain, or consumer integration changes.
+- Do not call pytest, ruff, or ty directly.
+- Keep raw logs under `~/.local/state/vendomat/v5/prelim-verification/<date>/` and secrets out of logs and tracked files.
+- Do not change production cache settings, move Attic data, or write to a physical disk without a reviewed procedure and evidence that unblocks the specific step.
+- A fixture, upstream document, or proposal is not an implementation pass.

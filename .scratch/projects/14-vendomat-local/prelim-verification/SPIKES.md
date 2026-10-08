@@ -1,6 +1,6 @@
 # V5 preliminary spikes
 
-**State:** Planned. No row is a passed requirement. `PV-*` names a spike, not a V5 requirement.
+**State:** Complete as an investigation on 2026-10-08. No row passes an implementation requirement. `PV-*` names a spike, not a V5 requirement. See [RESULTS.md](RESULTS.md).
 
 Run these before V5 implementation. Use the current concept, specification, guide, and storage
 refinement as inputs. A result must state the exact pinned tools and actual fixture output.
@@ -12,20 +12,21 @@ Treat every new command and interface as proposed until the fixture runs.
 the affected feature starts. Record a failure or infrastructure gap as blocked. Do not call it
 passed because an upstream document describes the mechanism.
 
-| Spike | Priority | Main question | Related requirements |
-| --- | --- | --- | --- |
-| PV-01 | P0 | Which active claims disagree? | All active IDs; `RES-*`, `EMIT-*`, `PROJ-*` |
-| PV-02 | P0 | Does disk preflight reject every unsafe target? | `DISK-001` to `DISK-007`, `BOOT-021` to `BOOT-024` |
-| PV-03 | P0 | Can another host evaluate a lock with local source URLs? | `STORE-*`, `GEN-001`, `GEN-008`, `BOOT-019` |
-| PV-04 | P0 | What does the flake graph really share? | `GEN-002`, `GEN-003`, `GEN-008`, `CORE-007` |
-| PV-05 | P0 | Can a consumer work without Vendomat? | `GEN-004`, `GEN-009` to `GEN-012`, `DEL-002`, `DEL-005` |
-| PV-06 | P0 | Can host TOML preserve option types and conflict policy? | `SYS-001` to `SYS-007` |
-| PV-07 | P0 | Does `mkModules` merge additions and activate only on enable? | `MOD-001` to `MOD-009`, `INP-002`, `INP-006` |
-| PV-08 | P0 | Can `set → diff → apply` reach a defined state? | `CLI-009` to `CLI-013` |
-| PV-09 | P0 | Can a fresh installer reach every needed cache path? | `CACHE-001`, `CACHE-007`, `BOOT-002`, `BOOT-019` |
-| PV-10 | P1 | What can the cache and retention policy promise? | `CACHE-004` to `CACHE-008`, `BUILD-001` to `BUILD-008` |
-| PV-11 | P0 | Does the Nix-only machine core stand without the CLI? | `BOOT-001`, `BOOT-006`, `BOOT-009`, `DEL-001` |
-| PV-12 | P0 | Are the final documents and launch conditions consistent? | Every changed ID |
+| Spike | Priority | Main question | Related requirements | Result |
+| --- | --- | --- | --- | --- |
+| PV-01 | P0 | Which active claims disagree? | All active IDs; `RES-*`, `EMIT-*`, `PROJ-*` | Failed audit; reconciled in PV-12 |
+| PV-02 | P0 | Does disk preflight reject every unsafe target? | `DISK-001` to `DISK-007`, `BOOT-021` to `BOOT-024` | Blocked: signature and partition-table scan denied |
+| PV-03 | P0 | Can another host evaluate a lock with local source URLs? | `STORE-*`, `GEN-001`, `GEN-008`, `BOOT-019` | Failed: source path must remain at locked absolute URL |
+| PV-04 | P0 | What does the flake graph really share? | `GEN-002`, `GEN-003`, `GEN-008`, `CORE-007` | Passed controlled graph fixture |
+| PV-05 | P0 | Can a consumer work without Vendomat? | `GEN-004`, `GEN-009` to `GEN-012`, `DEL-002`, `DEL-005` | Failed pure shell; impure fixture passed |
+| PV-06 | P0 | Can host TOML preserve option types and conflict policy? | `SYS-001` to `SYS-007` | Failed current converter; native merge contract recorded |
+| PV-07 | P0 | Does `mkModules` merge additions and activate only on enable? | `MOD-001` to `MOD-009`, `INP-002`, `INP-006` | Failed `recursiveUpdate`; native merge fixture passed |
+| PV-08 | P0 | Can `set → diff → apply` reach a defined state? | `CLI-009` to `CLI-013` | Failed current sequence; commit-boundary sequence defined |
+| PV-09 | P0 | Can a fresh installer reach every needed cache path? | `CACHE-001`, `CACHE-007`, `BOOT-002`, `BOOT-019` | Blocked: no cold installer route |
+| PV-10 | P1 | What can the cache and retention policy promise? | `CACHE-004` to `CACHE-008`, `BUILD-001` to `BUILD-008` | Passed isolated Attic fixture; no permanence guarantee |
+| PV-11 | P0 | Does the Nix-only machine core stand without the CLI? | `BOOT-001`, `BOOT-006`, `BOOT-009`, `DEL-001` | Passed disposable VM; core excludes CLI |
+| PV-12 | P0 | Are the final documents and launch conditions consistent? | Every changed ID | Passed reconciliation; both Testee gates passed; launch remains blocked |
+
 
 ## PV-01 — active claim audit
 

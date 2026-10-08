@@ -8,7 +8,7 @@ points here. When the active project changes, change this file and not `AGENTS.m
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 142 requirement IDs, each with a Verify column.
+2. `SPEC-V5.md` — normative. 153 requirement IDs in its tables, 126 active; 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 
@@ -16,10 +16,14 @@ Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 ### State
 
-No V5 step has run. The implementation starts at step 0, a read-only drive identity preflight.
+Updated 2026-10-08 after the V5 preliminary verification. No V5 implementation step has run.
+Step 0 is blocked: PV-02 could not read the 4 TB target's partition table or signatures. PV-09 also
+blocked installer cache access. Do not start implementation or disk work until the relevant P0
+blockers are resolved. See [preliminary results](projects/14-vendomat-local/prelim-verification/RESULTS.md).
 
-Steps 1 to 7 need no Python, deliberately: the Nix layer must stand alone so a broken resolver can
-never stop a machine booting.
+The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not
+prove production boot or tailnet reachability. The CLI belongs in a later host delta. The generator
+and consumer contract remain proposed until the tracked fixtures pass.
 
 ## Superseded
 

@@ -1,4 +1,6 @@
-# V5 preliminary verification kickoff prompt
+# V5 preliminary verification session record
+
+**State:** run completed on 2026-10-08; V5 implementation remains blocked. Do not use this file as a new-session green light. Read [RESULTS.md](RESULTS.md) and [`../KICKOFF-V5.md`](../KICKOFF-V5.md) for current status.
 
 Paste the text below the line into a new working session.
 
@@ -29,7 +31,7 @@ cache, restore, installer, or machine proof.
 The four parent documents are current authority. This directory proposes checks. Closed
 projects and V4 documents are history, except where current authority cites an observation.
 
-## Starting state
+## Starting observations
 
 As recorded on 2026-10-08, no V5 step has run. `server` is the active build host. The 4 TB
 WD Blue target is a proposed new boot drive. Its stable hardware ID is
@@ -83,7 +85,9 @@ remaining limits for local source paths, transitive `nixpkgs`, private cache sta
 retention. Say whether Step 0 can safely begin. Say whether any later implementation step
 still needs a design decision.
 
-## First response
+## Continuation
 
-Briefly name the P0 spikes, the files you expect to write, and the read-only checks you will
-perform before any disk-adjacent fixture. Then begin the audit.
+Read [RESULTS.md](RESULTS.md) first. The main unresolved blockers are the target signature and
+partition-table scan (PV-02) and the cold installer cache route (PV-09). No V5 implementation step
+has run. Do not begin Step 0 until the physical scan passes and the guide has a reviewed
+fail-closed preflight.
