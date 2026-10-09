@@ -114,7 +114,9 @@ def test_the_core_roster_builds_and_reports_its_provenance():
     manifest = json.loads((closure / "share" / "vendomat" / "toolchain.json").read_text())
     assert manifest["roster"] == "core"
     assert manifest["python"] == "3.13"
-    assert set(manifest["tools"]) == {"repoman", "copyroom", "docman", "gitman", "templateer", "agentman"}
+    assert set(manifest["tools"]) == {
+        "repoman", "copyroom", "docman", "gitman", "templateer", "agentman", "pyjutsu",
+    }
     for tool in manifest["tools"].values():
         # Acceptance: two consumers with identical locks resolve to the SAME store paths,
         # which is only meaningful if the manifest names them.
@@ -126,7 +128,7 @@ def test_every_roster_command_resolves_into_the_nix_store():
     out = _nix("build", ".#repoman-toolchain-core", "--no-link", "--print-out-paths").stdout.strip().splitlines()[-1]
     # buildPythonApplication leaves `.<name>-wrapped` siblings; only the real commands
     # are on PATH, so only they can collide.
-    expected = {"copyroom", "docman", "gitman", "repoman", "templateer", "agentman"}
+    expected = {"copyroom", "docman", "gitman", "repoman", "templateer", "agentman", "pyjutsu"}
     binaries = sorted(p.name for p in (Path(out) / "bin").iterdir() if p.name in expected)
     # `demo` is copyroom's second console script. It is a generic name and no part of the
     # manager contract; left in, it would be the roster's first collision.

@@ -44,7 +44,7 @@
       flake = false;
     };
     copyroom = {
-      url = "git+https://github.com/Bullish-Design/copyroom?ref=refs/tags/v0.7.7";
+      url = "git+https://github.com/Bullish-Design/copyroom?ref=refs/tags/v0.8.0";
       flake = false;
     };
     docman = {
@@ -167,6 +167,21 @@
             doCheck = false;
           };
 
+          # pyjutsu's `pyjutsu` command (guarded publication), exposed as a roster tool so a
+          # login shell resolves it from the store. CopyRoom calls it by absolute path.
+          pyjutsu-cli = pkgs.runCommand "pyjutsu-cli" {
+            version = pyjutsu-version;
+            passthru = {
+              commands = [ "pyjutsu" ];
+              pythonVersion = pkgs.python313.pythonVersion;
+              lockVersions = { pyjutsu = pyjutsu-version; };
+              uvVersions = { pyjutsu = pyjutsu-version; };
+            };
+          } ''
+            mkdir -p $out/bin
+            ln -s ${pyjutsu-package}/bin/pyjutsu $out/bin/pyjutsu
+          '';
+
           # Face D — the roster. Added one tool at a time (CONCEPT 03 §6): a tool is
           # supported only once its package builds, its command resolves to /nix/store,
           # and its doctor runs. Evaluating is not supporting.
@@ -205,6 +220,19 @@
             pname = "copyroom";
             src = inputs.copyroom;
             excludeScripts = [ "demo" ];
+            # copyroom's uv.lock names templateer as an editable path (`../templateer_v2`),
+            # a developer convenience that does not exist in a store source. Build it from
+            # the tag-pinned templateer input instead; the lock pins the same 0.4.1.
+            overlays = [
+              (final: prev: {
+                templateer = prev.templateer.overrideAttrs (old: {
+                  src = inputs.templateer;
+                  # An editable-path lock entry records no build requirements.
+                  nativeBuildInputs = (old.nativeBuildInputs or [ ])
+                    ++ final.resolveBuildSystem { hatchling = [ ]; };
+                });
+              })
+            ];
           };
           docman-uv2nix-cli = mkUv2nixCli { pname = "docman"; src = inputs.docman; };
           gitman-uv2nix-cli = mkUv2nixCli { pname = "gitman"; src = inputs.gitman; };
@@ -230,6 +258,7 @@
               gitman = gitman-uv2nix-cli;
               templateer = templateer-uv2nix-cli;
               agentman = agentman-uv2nix-cli;
+              pyjutsu = pyjutsu-cli;
             };
           };
           devman-dagu = pkgs.callPackage "${inputs.devman}/nix/dagu.nix" { };
