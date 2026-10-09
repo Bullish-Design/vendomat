@@ -74,7 +74,7 @@ imports: [ ./.vendomat ]          # written by `vendomat sync`; declares every i
 { inputs, ... }: {
   imports = [ inputs.vendomat.devenvModules.default ];
   vendomat.cache = { push = true; name = "vendomat"; };
-  knappy.enable = true;            # a library face, imported automatically
+  vendomat.libs.knappy.enable = true;   # built from knappy's description
 }
 ```
 
@@ -82,7 +82,7 @@ The module does this:
 
 | Function | How | Evidence |
 | --- | --- | --- |
-| Imports every library's devenv face | Each flake input's `devenvModules.default`, except Vendomat itself, `devenv`, `nixpkgs`, and non-flake inputs. A face does nothing until `enable = true` | Agent K Q1: identical shell derivation with nothing enabled |
+| Builds every library's module | From each input's `vendomat` description; a hand-written `devenvModules.default` where no description exists. Skips Vendomat itself, `devenv`, `nixpkgs`, and non-flake inputs. Nothing changes until `vendomat.libs.<name>.enable = true` | The input scan: agent K Q1. Building from a description: agent L |
 | Refuses an unpinned input | An **assertion** reads `devenv.lock`: every git node must name `refs/tags/…`. A task cannot stop shell entry | Agents I Q5, K Q2 |
 | Pushes outputs to Attic | `vendomat.cache.push` adds a `vendomat:push` task and a `vendomat-push` script | Agent K Q3 (stand-in `attic`) |
 | Exposes input store paths | `vendomat.inputPaths`, and a JSON output whose closure holds every input source | Agent K Q4 |
@@ -123,15 +123,35 @@ With nothing changed it costs about 0.35 s. The fragment adds no measurable time
 One rule needs care: a workspace `devenv.yaml` or `devenv.local.yaml` entry for the same input replaces
 the generated entry entirely, including its `follows`. `vendomat sync` warns about it.
 
-## 4. Library faces
+## 4. Libraries describe themselves; Vendomat builds the modules
 
-A **face** is a library's module for one target: devenv (`devenvModules.default`), NixOS
-(`nixosModules.default`), or Home Manager (`homeManagerModules.default`). A library exports only the
-faces it supports. Each face declares `<name>.enable`, default false, and changes nothing until enabled.
-Each face must evaluate alone, and its options must not collide with another face.
+A library does not write modules and does not depend on Vendomat. It exports a plain description:
 
-The `mkModules` helper (V5 `MOD-*`) is built now and exported as `lib.mkModules`. A library MAY still
-write a face by hand (`MOD-009`). Every face, from the helper or by hand, passes the same check.
+```nix
+# knappy/flake.nix: no vendomat input
+vendomat = {
+  name = "knappy";
+  packages = pkgs: [ self.packages.${pkgs.system}.default ];
+  options = lib: { port = lib.mkOption { type = lib.types.port; default = 8080; }; };
+  service = { pkgs, cfg }: { exec = "knappy serve --port ${toString cfg.port}"; };
+};
+```
+
+The Vendomat module reads every input's description and builds the module for each target: the devenv
+module in a workspace, and the NixOS and Home Manager modules in `nix-systems`. All options sit under
+one path in every target:
+
+```nix
+vendomat.libs.knappy = { enable = true; port = 8080; };   # workspace: package in the shell
+vendomat.libs.knappy.service.enable = true;               # nix-systems: also run the daemon
+```
+
+Each built module does nothing until `enable = true`. A library may still write a module by hand
+instead, under the same `vendomat.libs.<name>` path. A fix to the builder reaches every library through
+the Vendomat version each workspace already pins.
+
+This replaces the V5 `mkModules` helper, which each library would have called, so each library would
+have had to declare Vendomat as an input. The builder now lives inside the module.
 
 ## 5. Source and cache
 
@@ -242,11 +262,11 @@ that imports one module.
 
 1. ~~Where the Vendomat command runs from.~~ Decided 2026-10-09: a host launcher runs the version each
    workspace pins, or the host release outside a workspace (SPEC `DEL-017`).
-2. ~~`mkModules`.~~ Decided 2026-10-09: build the helper now, as `lib.mkModules` (SPEC `MOD-011`).
+2. ~~`mkModules`.~~ Decided 2026-10-09: libraries export a description; the Vendomat module builds
+   the modules (SPEC `DESC-001`, `MOD-013`, `VMOD-013`, `VMOD-014`).
 3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Owner 2026-10-09: defer
    until `nix-systems` has run; leaning toward keeping it as a layer inside `nix-systems`.
-4. **Face option paths:** `<name>.*` under devenv and `programs.<name>.*` under NixOS and Home Manager,
-   or one path everywhere.
+4. ~~Face option paths.~~ Decided 2026-10-09: `vendomat.libs.<name>.*` in every target (SPEC `FACE-005`).
 5. ~~Home Manager placement.~~ Decided 2026-10-09: inside the NixOS role (SPEC `MACH-012`).
 6. ~~nixpkgs channel and pin owner.~~ Decided 2026-10-09: plain nixos-unstable; each Vendomat release
    carries one tested revision (SPEC `MACH-013`).

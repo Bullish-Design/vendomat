@@ -47,7 +47,7 @@
 | `CLI-001` | Superseded | `CLI-017` |
 | `CLI-011`, `CLI-012`, `CLI-013` | Superseded | `MACH-005`: activation and rollback through devenv Machines |
 | `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-001` to `SYS-010` | Deferred | Owner 2026-10-09: decide after `nix-systems` has run; leaning toward keeping TOML as a layer inside `nix-systems` |
-| `MOD-001` to `MOD-010` | Active again (owner 2026-10-09: build the helper now) | `MOD-007` stays superseded by `MOD-010`. `MOD-002` (option paths) waits for `FACE-004`. New: `MOD-011`, `MOD-012` |
+| `MOD-001` to `MOD-010` | Partly superseded (owner 2026-10-09: Vendomat builds the modules from a library description) | `MOD-001` → `DESC-001`; `MOD-002` → `FACE-005`; `MOD-007` stays superseded by `MOD-010`. `MOD-003` to `MOD-006` and `MOD-008` to `MOD-010` stay active and apply to the modules Vendomat builds |
 | `BOOT-008`, `BOOT-010` | Withdrawn 2026-10-09 | Blank slate: no capability parity and no tree comparison |
 | `BOOT-009` | Withdrawn 2026-10-09 | No conversion step exists. `BOOT-001` keeps the core free of Vendomat |
 | `BOOT-022` | Superseded | `MACH-008`: install with devenv Machines from the running `server` |
@@ -78,7 +78,7 @@
 | --- | --- | --- |
 | `VMOD-001` | Every workspace and `nix-systems` MUST import `inputs.vendomat.devenvModules.default`. The `vendomat` input MUST pin a release tag in the collection | The lock's `vendomat` node has `original.ref = refs/tags/…`; the shell has the module's options (agent K Q8) |
 | `VMOD-002` | A face that the module imports but that is not enabled MUST NOT change the shell derivation | `devenv build shell` gives the same store path with and without the import (agent K Q1) |
-| `VMOD-003` | The module MUST import `devenvModules.default` of every flake input except Vendomat itself (matched by `outPath`), `devenv`, `nixpkgs`, `self`, and any input without that attribute. It MUST wrap each with `lib.setDefaultModuleLocation "inputs.<name>.devenvModules.default"` | Agent K Q1: no recursion; skipped inputs are skipped; an option clash names both inputs |
+| `VMOD-003` | *Superseded by `VMOD-013` (2026-10-09).* The module imported each input's `devenvModules.default` | — |
 | `VMOD-004` | A check that must stop shell entry MUST be an assertion. A task MAY report a warning | A failing assertion makes `devenv shell -- true` exit non-zero; a failing task does not (agents I Q5, K Q2) |
 | `VMOD-005` | The module MUST assert that every git node in `devenv.lock`, direct or transitive, has `original.ref` under `refs/tags/` and a 40-hex `locked.rev`. `vendomat.check.enable = false` MUST turn the check off | A branch ref stops the shell and names the node; the option turns it off (agent K Q2) |
 | `VMOD-006` | Every Vendomat command that builds or pushes MUST run the same checks first, because devenv does not evaluate assertions for `devenv build` or `devenv eval` | `vendomat push` with a branch ref in the lock exits non-zero and pushes nothing |
@@ -88,6 +88,8 @@
 | `VMOD-010` | Host and user defaults MUST use `profiles.hostname.<host>` and `profiles.user.<user>` with `lib.mkDefault`, so a workspace can override them | The defaults apply on the named host; a workspace value wins (agent K Q6) |
 | `VMOD-011` | The module MUST own `machines.<host>.nixos`. The owner MUST write `vendomat.inventory.<host>.nixos`. Any other definition of `machines.<host>.nixos` MUST fail evaluation, naming the host | Agent K Q7: a direct definition fails with "is also defined outside vendomat.inventory" |
 | `VMOD-012` | For each host, the module MUST assert: every `disko.devices.disk.*.device` is a `/dev/disk/by-id/` path listed in the inventory with role `install-target`; no `fileSystems.*.device` uses `by-partlabel` or a kernel name | `devenv build machines.<host>.build.nixos` fails on each bad layout with a named message and passes on a good one (agent K Q7) |
+| `VMOD-013` | The module MUST build a devenv module from each flake input's `vendomat` description (`DESC-001`) and import it. For an input with no description, it MUST import the input's hand-written `devenvModules.default`, if any. An input with both MUST be an error naming it. Vendomat itself, `devenv`, `nixpkgs`, and `self` are skipped | Fixture: a described library, a hand-written library, and one with both (agent L) |
+| `VMOD-014` | In `nix-systems`, the module MUST build the NixOS and Home Manager modules from the same descriptions and add them to each host through the inventory. Home Manager modules go into `home-manager.users.<user>` (`MACH-012`) | `devenv build machines.<host>.build.nixos` with a described library: inert until enabled; enabled installs it and, with `service.enable`, starts its unit (agent L) |
 
 ---
 
@@ -113,12 +115,16 @@
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `FACE-001` | A library MUST export each face it supports at `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default`, and no other face (`INP-007`) | `nix flake show` of the library |
+| `FACE-001` | *Superseded by `FACE-006` (2026-10-09).* A library exported its faces as flake modules | — |
 | `FACE-002` | Each face MUST declare `<name>.enable`, default false, and change nothing until it is true (`INP-006`) | The library's check evaluates each face alone and compares the result with and without the import |
 | `FACE-003` | Each library's verification MUST evaluate every exported face alone | The library's Testee gate runs the check |
-| `MOD-011` | `mkModules` MUST be exported as `lib.mkModules` from the Vendomat flake. A library that uses it declares Vendomat as a flake input (`DEL-003`) | `nix eval <vendomat>#lib.mkModules --apply builtins.isFunction` is true |
-| `MOD-012` | Every face that `mkModules` returns MUST pass `FACE-002` and `FACE-003` | The helper's own tests evaluate each returned face alone, enabled and disabled |
-| `FACE-004` | *Proposed, open decision.* Options land at `<name>.*` under devenv and `programs.<name>.*` under NixOS and Home Manager | Decided by the owner |
+| `MOD-011` | *Superseded by `MOD-013` (2026-10-09).* The helper was exported to libraries as `lib.mkModules` | — |
+| `MOD-012` | *Superseded by `MOD-013` (2026-10-09).* | — |
+| `MOD-013` | The module builder MUST live inside the Vendomat module, never in a library. Libraries MUST NOT need a Vendomat input to be described. Every module it builds MUST pass `FACE-002` and `FACE-003` | A described library's `flake.lock` has no `vendomat` node; the built modules pass the face check (agent L) |
+| `DESC-001` | *Proposed until agent L's fixture passes.* A library's `vendomat` description is an attribute set: `name` (string); `packages` (`pkgs: [ derivation ]`); optional `options` (`lib: { <name> = mkOption …; }`); optional `service` (`{ pkgs, cfg }: { exec; … }` for a daemon); optional `extra` (`{ cfg, pkgs, lib }: { devenv ? {}; nixos ? {}; homeManager ? {}; }`). It MUST use only `pkgs` and `lib` passed in, never a Vendomat function | Agent L fixture |
+| `FACE-004` | *Decided 2026-10-09, see `FACE-005`.* Option paths | — |
+| `FACE-005` | Every module that Vendomat builds, and every hand-written face, MUST put its options under `vendomat.libs.<name>.*` in all three targets: `enable` (default false), the library's own options, and `service.enable` for a daemon in NixOS or Home Manager | Evaluate each target; the options exist only at that path |
+| `FACE-006` | A library SHOULD export a `vendomat` description (`DESC-001`). It MAY instead export hand-written `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default` that follow `FACE-005` (`MOD-009`) | `nix flake show` of the library |
 
 ---
 
@@ -159,7 +165,8 @@
 | `DEL-014` | *Decided 2026-10-09, see `DEL-017`.* Where the `vendomat` command runs from | — |
 | `DEL-017` | The host MUST install a small `vendomat` launcher, not the full command. Inside a workspace, the launcher MUST run the Vendomat build that the workspace's `devenv.lock` pins, found in the store by its NAR hash, with no network when the build is present. Outside a workspace, it MUST run the host's pinned release. The module MUST NOT put a second `vendomat` on the shell `PATH`. The direnv hook (`PRE-009`) MUST call the launcher | Two workspaces that pin different tags each report their own version; with the network off and the builds present, both still run; outside a workspace the host release runs |
 | `DEL-015` | *Superseded by `DEL-018` (2026-10-09).* The flake exported the package and the module only | — |
-| `DEL-018` | The Vendomat flake MUST export `packages.<system>.vendomat`, `devenvModules.default`, and `lib.mkModules`, and MUST have `nixpkgs` as its only input | `nix flake show`; `tests/test_repo_shape.py` |
+| `DEL-018` | *Superseded by `DEL-019` (2026-10-09).* The flake also exported `lib.mkModules` | — |
+| `DEL-019` | The Vendomat flake MUST export `packages.<system>.vendomat` and `devenvModules.default`, and MUST have `nixpkgs` as its only input. It exports no library helper | `nix flake show`; `tests/test_repo_shape.py` |
 | `DEL-016` | `nix-systems` MUST reach every Vendomat Nix function through its own `vendomat` input | No machine file names a Vendomat path |
 | `GEN-023` | The generator MUST NOT emit `devShells`, `devenv.lib.mkShell`, or a `devenv` input in `flake.nix`. A workspace shell MUST be a devenv project that uses the devenv target | `nix flake show` lists only the project's outputs |
 | `CLI-017` | *Superseded by `CLI-021` (2026-10-09).* The surface lacked `bump` | — |
@@ -209,9 +216,10 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 87 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 2 `MOD`, 13 `MACH`, 2 `SEC`,
-1 `DISK`, 1 `CACHE`, 6 `DEL`, 1 `GEN`, 5 `CLI`, and 21 `NAT` facts. `DEL-015` and `CLI-017` are
-superseded within this draft. `DEL-014` is decided by `DEL-017`.
+V6 defines 94 new IDs: 8 `DVN`, 14 `VMOD`, 10 `PRE`, 1 `REG`, 6 `FACE`, 3 `MOD`, 1 `DESC`, 13 `MACH`,
+2 `SEC`, 1 `DISK`, 1 `CACHE`, 7 `DEL`, 1 `GEN`, 5 `CLI`, and 21 `NAT` facts. Within this draft,
+`VMOD-003`, `FACE-001`, `MOD-011`, `MOD-012`, `DEL-015`, `DEL-018`, and `CLI-017` are superseded, and
+`DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`. `DEL-014` is decided by `DEL-017`.
 `FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
 defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, and `SYS-*` IDs. The active `MOD-*` IDs
 return to scope.
