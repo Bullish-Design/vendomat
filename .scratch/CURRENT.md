@@ -28,9 +28,9 @@ prints a locked input's store path. A real run on `server` moved `devman` to `v0
 other clones alone, and a `keep` clone of `devman` over the live daemon worked ([PV-21](projects/14-vendomat-local/prelim-verification/results/PV-21.md)). No `mirror` entry ran on
 `server`. A push-time hook for the tree refresh exists in `hooks/collection-post-receive` and passes its
 fixtures (`STORE-023`). It is installed on the live `devman` ([PV-22](projects/14-vendomat-local/prelim-verification/results/PV-22.md)). The `collection-add` change that installs it
-for new repositories is landed and pushed in `nix-meta` `main` (`1629188`). `server` still has the system `vendomat` 0.4.4; the
-0.4.6 package builds and works against the live collection, and the owner must bump the pin, add the
-host delta, and switch. `STORE-010`, the release task, and the explicit use of `backup` are not built.
+for new repositories is landed and pushed in `nix-meta` `main` (`1629188`). `server` still has the system `vendomat` 0.4.4. `vendomat` 0.5.0 is released on `main`
+([PV-23](projects/14-vendomat-local/prelim-verification/results/PV-23.md)). The `nix-meta` lane `vendomat-0-5-0` pins it, evaluates, and dry-builds 12 small derivations; the owner
+lands it and switches. No new host delta is needed. `STORE-010`, the release task, and the explicit use of `backup` are not built.
 
 Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
 `packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated
