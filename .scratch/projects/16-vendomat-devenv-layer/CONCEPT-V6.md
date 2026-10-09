@@ -82,7 +82,7 @@ The module does this:
 
 | Function | How | Evidence |
 | --- | --- | --- |
-| Builds every library's module | From each input's `vendomat` description; a hand-written `devenvModules.default` where no description exists. Skips Vendomat itself, `devenv`, `nixpkgs`, and non-flake inputs. Nothing changes until `vendomat.libs.<name>.enable = true` | The input scan: agent K Q1. Building from a description: agent L |
+| Builds every library's module | From each input's `vendomat` description; a hand-written `devenvModules.default` where no description exists. Skips Vendomat itself, `devenv`, `nixpkgs`, and non-flake inputs. Nothing changes until `vendomat.libs.<name>.enable = true` | Agents K Q1 and L: identical shell and system derivations with nothing enabled |
 | Refuses an unpinned input | An **assertion** reads `devenv.lock`: every git node must name `refs/tags/…`. A task cannot stop shell entry | Agents I Q5, K Q2 |
 | Pushes outputs to Attic | `vendomat.cache.push` adds a `vendomat:push` task and a `vendomat-push` script | Agent K Q3 (stand-in `attic`) |
 | Exposes input store paths | `vendomat.inputPaths`, and a JSON output whose closure holds every input source | Agent K Q4 |
@@ -131,7 +131,7 @@ A library does not write modules and does not depend on Vendomat. It exports a p
 # knappy/flake.nix: no vendomat input
 vendomat = {
   name = "knappy";
-  packages = pkgs: [ self.packages.${pkgs.system}.default ];
+  packages = pkgs: [ self.packages.${pkgs.stdenv.hostPlatform.system}.default ];
   options = lib: { port = lib.mkOption { type = lib.types.port; default = 8080; }; };
   service = { pkgs, cfg }: { exec = "knappy serve --port ${toString cfg.port}"; };
 };
@@ -263,7 +263,7 @@ that imports one module.
 1. ~~Where the Vendomat command runs from.~~ Decided 2026-10-09: a host launcher runs the version each
    workspace pins, or the host release outside a workspace (SPEC `DEL-017`).
 2. ~~`mkModules`.~~ Decided 2026-10-09: libraries export a description; the Vendomat module builds
-   the modules (SPEC `DESC-001`, `MOD-013`, `VMOD-013`, `VMOD-014`).
+   the modules (SPEC `DESC-002`, `MOD-013`, `VMOD-013`, `VMOD-014`; proven by agent L).
 3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Owner 2026-10-09: defer
    until `nix-systems` has run; leaning toward keeping it as a layer inside `nix-systems`.
 4. ~~Face option paths.~~ Decided 2026-10-09: `vendomat.libs.<name>.*` in every target (SPEC `FACE-005`).

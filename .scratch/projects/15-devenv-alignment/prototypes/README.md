@@ -13,3 +13,6 @@ devenv 2.4.0. The agent report in `../raw/` gives the commands and results.
 | `check_pins.py` | Tag-pin check over `devenv.yaml` and the whole `devenv.lock` | Agent H |
 | `lockpath.nix` | Store path of a locked input, offline | Agent H |
 | `devenv-pin-check.py` | Fleet scan of devenv module pins and `require_version` | Agent G |
+| `vendomat-module-described.nix` | The module with the builder: devenv, NixOS, and Home Manager modules built from each input's `vendomat` description | Agent L |
+| `library-description-example.nix` | A library flake with a `vendomat` description and no Vendomat input | Agent L |
+| `face-check.sh` | The inertness check: shell, NixOS, and Home Manager derivations with and without a library | Agent L |

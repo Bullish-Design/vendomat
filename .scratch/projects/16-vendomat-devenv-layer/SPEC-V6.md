@@ -88,8 +88,9 @@
 | `VMOD-010` | Host and user defaults MUST use `profiles.hostname.<host>` and `profiles.user.<user>` with `lib.mkDefault`, so a workspace can override them | The defaults apply on the named host; a workspace value wins (agent K Q6) |
 | `VMOD-011` | The module MUST own `machines.<host>.nixos`. The owner MUST write `vendomat.inventory.<host>.nixos`. Any other definition of `machines.<host>.nixos` MUST fail evaluation, naming the host | Agent K Q7: a direct definition fails with "is also defined outside vendomat.inventory" |
 | `VMOD-012` | For each host, the module MUST assert: every `disko.devices.disk.*.device` is a `/dev/disk/by-id/` path listed in the inventory with role `install-target`; no `fileSystems.*.device` uses `by-partlabel` or a kernel name | `devenv build machines.<host>.build.nixos` fails on each bad layout with a named message and passes on a good one (agent K Q7) |
-| `VMOD-013` | The module MUST build a devenv module from each flake input's `vendomat` description (`DESC-001`) and import it. For an input with no description, it MUST import the input's hand-written `devenvModules.default`, if any. An input with both MUST be an error naming it. Vendomat itself, `devenv`, `nixpkgs`, and `self` are skipped | Fixture: a described library, a hand-written library, and one with both (agent L) |
-| `VMOD-014` | In `nix-systems`, the module MUST build the NixOS and Home Manager modules from the same descriptions and add them to each host through the inventory. Home Manager modules go into `home-manager.users.<user>` (`MACH-012`) | `devenv build machines.<host>.build.nixos` with a described library: inert until enabled; enabled installs it and, with `service.enable`, starts its unit (agent L) |
+| `VMOD-013` | The module MUST build a devenv module from each flake input's `vendomat` description (`DESC-002`) and import it. For an input with no description, it MUST import the input's hand-written `devenvModules.default`, if any. An input with both MUST be an error naming it. Two inputs with the same `name` MUST be an error naming both. Vendomat itself, `devenv`, `nixpkgs`, and `self` are skipped | Agent L Q1, Q3: identical shell derivation when disabled; both error messages |
+| `VMOD-014` | In `nix-systems`, the module MUST build the NixOS module from each description and add it to each host through the inventory. The NixOS module MUST add the Home Manager module through `home-manager.sharedModules` when the host imports `home-manager.nixosModules.home-manager` (`MACH-012`). Host-side values go in `vendomat.inventory.<host>.nixos` as `vendomat.libs.<name>.*`; user-side values as `home-manager.users.<user>.vendomat.libs.<name>.*` | Agent L Q4: disabled gives an identical toplevel; enabled installs the package, the system unit, and the user unit. **Open:** the units running on a VM |
+| `VMOD-015` | *To build.* The module MUST also import a library's hand-written `nixosModules.default` and `homeManagerModules.default` into each host, as it does for described libraries | A hand-written NixOS face is present on a host build |
 
 ---
 
@@ -108,6 +109,7 @@
 | `PRE-008` | `sync` MUST judge a lock update by the lock contents and the error text, never by the exit status of `devenv update` | An unreachable input makes `sync` exit non-zero, though `devenv update` exits 0 (`NAT-026`) |
 | `PRE-009` | A `use_vendomat` direnv function MUST re-sync only when the digest is stale, then run `use devenv` | Agent I Q6: about 0.35 s with no change |
 | `PRE-010` | The fragment MUST add no measurable time to a warm shell entry and at most 100 ms to a full evaluation | Agent I Q7: 0.173 s against 0.175 s warm; +65 ms full |
+| `PRE-011` | `sync` MUST replace generated files atomically with a new modification time, and MUST clear `.devenv` evaluation state when the inputs change | Agent L Q3 saw a stale result after swapping same-size, same-mtime `devenv.yaml` files with `.devenv` kept. Cause UNPROVEN |
 
 ---
 
@@ -118,10 +120,13 @@
 | `FACE-001` | *Superseded by `FACE-006` (2026-10-09).* A library exported its faces as flake modules | — |
 | `FACE-002` | Each face MUST declare `<name>.enable`, default false, and change nothing until it is true (`INP-006`) | The library's check evaluates each face alone and compares the result with and without the import |
 | `FACE-003` | Each library's verification MUST evaluate every exported face alone | The library's Testee gate runs the check |
+| `FACE-007` | The inertness check MUST compare the shell, NixOS toplevel, and Home Manager generation derivations with and without the library, on a workspace that sets none of the library's options | `../15-devenv-alignment/prototypes/face-check.sh`: PASS for a described library, FAIL for a leaky hand-written module (agent L Q6) |
 | `MOD-011` | *Superseded by `MOD-013` (2026-10-09).* The helper was exported to libraries as `lib.mkModules` | — |
 | `MOD-012` | *Superseded by `MOD-013` (2026-10-09).* | — |
 | `MOD-013` | The module builder MUST live inside the Vendomat module, never in a library. Libraries MUST NOT need a Vendomat input to be described. Every module it builds MUST pass `FACE-002` and `FACE-003` | A described library's `flake.lock` has no `vendomat` node; the built modules pass the face check (agent L) |
-| `DESC-001` | *Proposed until agent L's fixture passes.* A library's `vendomat` description is an attribute set: `name` (string); `packages` (`pkgs: [ derivation ]`); optional `options` (`lib: { <name> = mkOption …; }`); optional `service` (`{ pkgs, cfg }: { exec; … }` for a daemon); optional `extra` (`{ cfg, pkgs, lib }: { devenv ? {}; nixos ? {}; homeManager ? {}; }`). It MUST use only `pkgs` and `lib` passed in, never a Vendomat function | Agent L fixture |
+| `DESC-001` | *Superseded by `DESC-002` (2026-10-09), after agent L's fixture.* The proposed description shape | — |
+| `DESC-002` | A library's `vendomat` description MUST be an attribute set with: `name` (string, required; a missing name fails and names the input); `packages` (`pkgs: [ derivation ]`; use `pkgs.stdenv.hostPlatform.system` to select the library's package); optional `options` (`lib: { … }`, which MUST NOT define `enable` or `service`); optional `service` (`{ pkgs, cfg }: { exec = "<command>"; }`; only `exec` is read); optional `extra` (`{ cfg, pkgs, lib }: { devenv ? {}; nixos ? {}; homeManager ? {}; }`, plain configuration, applied only when enabled). It MUST use only the `pkgs` and `lib` passed in | Agent L: `../15-devenv-alignment/prototypes/library-description-example.nix`; the library's lock holds only `nixpkgs` |
+| `DESC-003` | The builder MUST run a service's `exec` through a `<name>-start` script that puts the library's packages on `PATH`. In devenv, an enabled library with a `service` gets `processes.<name>` with no second switch; in NixOS and Home Manager, `service.enable` (effective only with `enable`) adds a system or user unit | Agent L Q1, Q4: `ExecStart` is the start script; the process ran under `devenv up` |
 | `FACE-004` | *Decided 2026-10-09, see `FACE-005`.* Option paths | — |
 | `FACE-005` | Every module that Vendomat builds, and every hand-written face, MUST put its options under `vendomat.libs.<name>.*` in all three targets: `enable` (default false), the library's own options, and `service.enable` for a daemon in NixOS or Home Manager | Evaluate each target; the options exist only at that path |
 | `FACE-006` | A library SHOULD export a `vendomat` description (`DESC-001`). It MAY instead export hand-written `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default` that follow `FACE-005` (`MOD-009`) | `nix flake show` of the library |
@@ -205,6 +210,8 @@ disko v1.13.0 unless noted. None is a gate.
 | `NAT-036` | A `follows` deeper than one level is dropped without a message | `lib.rs:116-154`; agent H Q1 |
 | `NAT-037` | devenv 2.4.0 `machines install` hangs at the first `nix copy` when the machine has install payloads; `a5fd551a` fixes it | Agent G Q5b |
 | `NAT-038` | Plain `github:NixOS/nixpkgs` inputs let the fork CLI enter a shell with no network; `devenv-nixpkgs` does not | Agent J Q4 |
+| `NAT-039` | `nix flake check` warns "unknown flake output 'vendomat'" for a described library and still passes | Agent L Q2 |
+| `NAT-040` | Described libraries cost about 40 ms of shell evaluation when disabled (0, 2, 10 libraries: 1143, 1181, 1187 ms); 10 enabled libraries add about 400 ms to the shell and to a NixOS evaluation | Agent L Q7 |
 
 ---
 
@@ -216,10 +223,10 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 94 new IDs: 8 `DVN`, 14 `VMOD`, 10 `PRE`, 1 `REG`, 6 `FACE`, 3 `MOD`, 1 `DESC`, 13 `MACH`,
-2 `SEC`, 1 `DISK`, 1 `CACHE`, 7 `DEL`, 1 `GEN`, 5 `CLI`, and 21 `NAT` facts. Within this draft,
-`VMOD-003`, `FACE-001`, `MOD-011`, `MOD-012`, `DEL-015`, `DEL-018`, and `CLI-017` are superseded, and
-`DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`. `DEL-014` is decided by `DEL-017`.
+V6 defines 101 new IDs: 8 `DVN`, 15 `VMOD`, 11 `PRE`, 1 `REG`, 7 `FACE`, 3 `MOD`, 3 `DESC`, 13 `MACH`,
+2 `SEC`, 1 `DISK`, 1 `CACHE`, 7 `DEL`, 1 `GEN`, 5 `CLI`, and 23 `NAT` facts. Within this draft,
+`VMOD-003`, `FACE-001`, `MOD-011`, `MOD-012`, `DESC-001`, `DEL-015`, `DEL-018`, and `CLI-017` are
+superseded, and `DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`. `DEL-014` is decided by `DEL-017`.
 `FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
 defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, and `SYS-*` IDs. The active `MOD-*` IDs
 return to scope.
