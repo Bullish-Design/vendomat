@@ -26,7 +26,8 @@ verification results.
 | PV-16 | Passed fixture: a read-only `git daemon` serves a tagged release to Nix; an idle daemon costs 0 CPU; SSH to self is not set up | [Collection transport](results/PV-16.md) | [Probe](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/05-daemon-idle-and-pins-i1.log) |
 | PV-17 | Passed fixture: `vendomat sync` with the collection, the tag pin, and the reference-copy flags; loopback only | [Generator with the collection](results/PV-17.md) | [Opt-in gate](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/forge-e2e-run1.log) |
 | PV-18 | Passed fixture: the server settings, the push rules, and a Nix fetch on two NixOS machines; the `nix-meta` lane is not switched | [Collection on two machines](results/PV-18.md) | [Run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/06-collection-vm-run3.log) |
-| PV-19 | Passed for the read transport: `git ls-remote git://server/devman` works from `framework` (owner-reported; output not captured) | [Fetch from framework](results/PV-19.md) | — |
+| PV-19 | Passed for the read transport, owner-reported: `git ls-remote git://server/devman` works from `framework`. A later addendum records two more owner-reported checks (`nix flake lock` plus a build, `ssh server true`); output was not captured and the source of the built outputs was not verified | [Fetch from framework](results/PV-19.md) | — |
+| PV-20 | Passed fixtures: `sync` with `keep`, `mirror`, `--dry-run`, and `--collection`; `vendomat path`. Real run on `server`: `devman` refreshed to `v0.7.0`, other clones unchanged. No `keep` or `mirror` ran on `server` | [The store step](results/PV-20.md) | [Real run](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-real/real-run.txt) |
 
 ## Readiness and blockers
 
@@ -69,10 +70,21 @@ pins a tag. These changes follow PV-16 and PV-17.
 | Add `REG-016` (forge URL), `REG-017` (tag pin), `REG-018` (`mirror`), `REG-019` (`keep`), `REG-020` (`backup`). Supersede `REG-015` with `REG-021` | PV-16 pin forms; PV-17 unit and Nix tests |
 | Add `STORE-008` (collection), `STORE-011` (release push), `STORE-012` (no Attic dependency). Supersede `STORE-002` with `STORE-009` and `STORE-004` with `STORE-010`. Add `STORE-013`. Later: supersede `STORE-011` with `STORE-014` (tag-only hook) and add `STORE-015` (export marker, no push over `git://`) | PV-16 and PV-17 for `STORE-008` and `STORE-012`; PV-18 for `STORE-014` and `STORE-015`; the rest are not yet built |
 
-The specification now defines 185 requirement IDs in its tables: 142 active, 32 superseded, 10
-withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 204 IDs are preserved. It
-lists 17 native fact IDs. The inventory found no duplicate and no broken successor link
+The specification defined 185 requirement IDs in its tables at that point: 142 active, 32 superseded,
+10 withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 204 IDs were preserved.
+It lists 17 native fact IDs. The inventory found no duplicate and no broken successor link
 ([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/spec-inventory-4.log)).
+
+## The store step (2026-10-08, fourth session)
+
+| Requirement change | Supporting fixture |
+| --- | --- |
+| Add `STORE-016` to `STORE-022` (order and exit codes, clone rules, mirror, pinned tag, Git calls, dry run, newest release) and `CLI-016` (`path` data source). Supersede nothing. `STORE-009`, `STORE-013`, and `CLI-007` get a Verify | PV-20 unit tests, Nix tests, and the real run on `server` |
+
+The specification now defines 193 requirement IDs in its tables: 150 active, 32 superseded, 10
+withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 212 IDs are preserved. The
+inventory found no duplicate and no broken successor link
+([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-real/spec-inventory.log)).
 
 ## Changed requirement IDs (preliminary session, 2026-10-08 morning)
 

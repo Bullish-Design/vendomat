@@ -34,9 +34,12 @@ class GenerateError(Exception):
 
 @dataclass(frozen=True)
 class SyncResult:
+    """``changed`` says the file differs from the new text. A dry run reports it and writes nothing."""
+
     path: Path
     changed: bool
     inputs: int
+    registry: Registry
 
 
 def tool_version() -> str:
@@ -82,10 +85,11 @@ def _stanza(source: Source) -> list[str]:
     return lines
 
 
-def sync_flake(root: Path, tool: str | None = None) -> SyncResult:
+def sync_flake(root: Path, tool: str | None = None, *, dry_run: bool = False) -> SyncResult:
     """Generate ``flake.nix`` in ``root``.
 
-    Every check runs before the first write, so a refusal leaves the tree untouched.
+    Every check runs before the first write, so a refusal leaves the tree untouched. With
+    ``dry_run`` the checks run and nothing is written.
     """
 
     registry_path = root / REGISTRY_FILE
@@ -116,12 +120,12 @@ def sync_flake(root: Path, tool: str | None = None) -> SyncResult:
     text = render(registry, tool or tool_version())
     new = text.encode()
     if flake.exists() and flake.read_bytes() == new:
-        return SyncResult(flake, changed=False, inputs=len(registry.sources))
-
-    scratch = flake.with_name(f".{FLAKE_FILE}.vendomat-tmp")
-    scratch.write_bytes(new)
-    os.replace(scratch, flake)
-    return SyncResult(flake, changed=True, inputs=len(registry.sources))
+        return SyncResult(flake, changed=False, inputs=len(registry.sources), registry=registry)
+    if not dry_run:
+        scratch = flake.with_name(f".{FLAKE_FILE}.vendomat-tmp")
+        scratch.write_bytes(new)
+        os.replace(scratch, flake)
+    return SyncResult(flake, changed=True, inputs=len(registry.sources), registry=registry)
 
 
 def _has_header(flake: Path) -> bool:

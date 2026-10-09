@@ -18,7 +18,7 @@ import hashlib
 import json
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
@@ -60,6 +60,17 @@ class Source:
     mirror: bool = False
     keep: bool = False
     backup: str | None = None
+    #: The directory name of a clone under the source root: the ``repo`` key, else the input name.
+    repo: str = ""
+
+    @property
+    def tag(self) -> str | None:
+        """The pinned tag without ``refs/tags/``, or ``None`` when the URL pins none."""
+
+        ref = _query_value(self.url, "ref")
+        if ref is None or not ref.startswith(TAG_PREFIX) or ref == TAG_PREFIX:
+            return None
+        return ref[len(TAG_PREFIX) :]
 
 
 @dataclass(frozen=True)
@@ -116,16 +127,7 @@ def parse_registry(text: str, where: str = "vendomat.toml") -> Registry:
 
 
 def _with_follows(source: Source, follows: tuple[str, ...]) -> Source:
-    return Source(
-        name=source.name,
-        url=source.url,
-        flake=source.flake,
-        follows=follows,
-        in_forge=source.in_forge,
-        mirror=source.mirror,
-        keep=source.keep,
-        backup=source.backup,
-    )
+    return replace(source, follows=follows)
 
 
 def _forge(where: str, raw: object) -> str | None:
@@ -202,6 +204,7 @@ def _entry(where: str, table: str, name: str, entry: object, forge: str | None) 
         mirror=mirror,
         keep=keep,
         backup=backup,
+        repo=repo or name,
     )
 
 

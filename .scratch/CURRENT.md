@@ -8,7 +8,7 @@ points here. When the active project changes, change this file and not `AGENTS.m
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 185 requirement IDs in its tables, 142 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
+2. `SPEC-V5.md` — normative. 193 requirement IDs in its tables, 150 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 
@@ -16,11 +16,17 @@ Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 ### State
 
-Updated 2026-10-08, second session. The V5 machine steps have not run. Step 8, the registry and
+Updated 2026-10-08, fourth session (the store step). The V5 machine steps have not run. Step 8, the registry and
 generator, ran in isolation under the owner's authorization, and its fixtures pass: the project-output
 interface on pinned Nix ([PV-13](projects/14-vendomat-local/prelim-verification/results/PV-13.md)) and
 the real `vendomat sync` output ([PV-14](projects/14-vendomat-local/prelim-verification/results/PV-14.md)).
 This is not fleet acceptance.
+
+The store step is built and passes its fixtures ([PV-20](projects/14-vendomat-local/prelim-verification/results/PV-20.md)):
+`vendomat sync` handles `keep`, `mirror`, `--dry-run`, and `--collection`, and `vendomat path <name>`
+prints a locked input's store path. A real run on `server` moved `devman` to `v0.7.0` and left the
+other clones alone. No `keep` or `mirror` entry ran on `server`. A push-time hook for the tree
+refresh, `STORE-010`, the release task, and the explicit use of `backup` are not built.
 
 Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
 `packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated
@@ -39,9 +45,10 @@ Still blocked, each by evidence:
   credential. The owner chooses how the installer gets the pull credential.
 - **Step 8 acceptance:** Step 6.3 is done. The daemon settings were proved on two NixOS test machines
   (PV-18), landed in `nix-meta` (`6cfcba5`, not pushed to origin), and switched on `server`. The
-  collection holds `devman` at `v0.7.0`, and the owner reports `git ls-remote git://server/devman`
-  works from `framework` (PV-19). A Nix lock and build on `framework`, and key login from `framework`
-  to `server` for release pushes, are untested.
+  collection holds `devman` at `v0.7.0`. The owner reports from `framework` that `git ls-remote
+  git://server/devman` works, that `nix flake lock` plus a build against the collection works, and
+  that `ssh server true` works (PV-19). All three are owner-reported and not observed here. I did not
+  verify that any output came from Attic. A tag push from `framework` is untested.
 - **`DEL-010`:** no fixture yet shows the host-installed CLI reachable from a project shell.
 
 The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not

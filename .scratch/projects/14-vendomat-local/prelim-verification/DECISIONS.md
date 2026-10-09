@@ -67,6 +67,23 @@ wrong, and its addendum says so.
 | `nix-meta` change | The daemon settings and `scripts/collection-add` sit in a `nix-meta` lane, `source-collection`. Described, not landed, not switched. | PV-18 | None | The owner lands the lane and runs `sudo nixos-rebuild switch` |
 | `sync` | `vendomat sync` is V5-only. The knowledge installer is gone from it, because the library is being rewritten from scratch. | Owner | None | The old `vendor-sync` script in `modules/devenv.nix` now fails |
 
+## Decisions of 2026-10-08, fourth session: the store step
+
+The owner set these rules in the task. The design choices below them follow from the code and the
+fixtures in [PV-20](results/PV-20.md). No existing ID is superseded.
+
+| Topic | Decision | Evidence | Requirement changes | Remaining work |
+| --- | --- | --- | --- | --- |
+| `sync` order | Write `flake.nix` first, then do the store work. A store failure leaves the flake written. Exit 1 for a refused entry, 2 for a Git failure. | Owner; PV-20 | Add `STORE-016` | None |
+| Clone rules | Directory is `$VENDOMAT_SOURCE_ROOT` or `~/vendor`, then the repo name. A directory with an `origin` gets a tag fetch. A directory with no `origin` is the collection's own repository and is skipped. A directory that is not a Git repository is refused. | Owner; PV-20 | Add `STORE-017`. `STORE-009` stays and now has a Verify | None |
+| Mirror | `mirror` acts only with `sync --collection`. It gets no marker and no hook. | Owner; PV-20 | Add `STORE-018` | A `mirror` run on `server` |
+| Pinned tag in the tree | A `keep` or `mirror` clone shows its pinned tag as a detached checkout when clean. Two projects with different tags share one clone; the last `sync` wins; `path` stays exact. | Owner; PV-20 | Add `STORE-019` | None |
+| Git calls | Subprocess, explicit arguments, `GIT_TERMINAL_PROMPT=0`, a timeout. A URL scheme outside git, http(s), ssh, and file is refused, so an `ext::` URL cannot run a command. A password in a URL never reaches a message. | Design choice; PV-20 | Add `STORE-020` | None |
+| Dry run | `--dry-run` writes nothing, including `flake.nix`. It still reads Git state, so it reports a dirty tree. | Owner; PV-20 | Add `STORE-021` | None |
+| Newest release | `sync --collection` checks out the newest tag by version order in each repository with the hook or the marker. The checkout is detached, so a clean tree is possible on an unborn branch. A side effect is that the daemon now advertises `HEAD` for `devman`. Tags are unchanged. | Owner; PV-20 | Add `STORE-022`. `STORE-013` stays; a push-time hook is not built | Decide whether a push-time hook is wanted |
+| `path` | Ask Nix with `nix flake archive --json --no-write-lock-file`. Do not read the lock. `--dry-run` still prints paths, so it is not used. A `path:` input inside the project has no path and is an error. | Owner; PV-20 | Add `CLI-016`. `CLI-007` stays | None |
+| Owner-reported checks | The owner reports that `nix flake lock` plus a build against the collection, and `ssh server true`, passed from `framework`. They are recorded as owner-reported. Nobody verified where the outputs came from. | Owner; [PV-19](results/PV-19.md) | None | Observed evidence from `framework` |
+
 ## Open owner choices (recommendation first)
 
 1. ~~Private source host.~~ Closed above: `server`, over `git://`.

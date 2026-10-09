@@ -12,7 +12,7 @@ All in `.scratch/projects/14-vendomat-local/`:
 
 1. `../../CURRENT.md` — active state and blockers.
 2. `prelim-verification/RESULTS.md` — all spike outcomes and remaining proof.
-3. `SPEC-V5.md` — normative requirements. It lists 185 requirement IDs in its tables; 142 are active. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain preserved.
+3. `SPEC-V5.md` — normative requirements. It lists 193 requirement IDs in its tables; 150 are active. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain preserved.
 4. `CONCEPT-V5.md` — design and examples.
 5. `GUIDE-V5.md` — proposed commands. Step 8 may run in isolation; Step 0 and installer cache access stay blocked.
 6. `REFINEMENT-2026-10-08.md` — drive identity and storage plan.

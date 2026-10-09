@@ -25,11 +25,18 @@ supersedes `REG-015`, `STORE-002`, and `STORE-004`. The evidence is
 showed that Git alone does not keep branches out of the collection. `STORE-014` and `STORE-015` add
 the hook and the per-repository export rule, and `STORE-014` supersedes `STORE-011`.
 
+**Store step, fourth session of 2026-10-08:** `vendomat sync` now acts on `keep` and `mirror`, and
+the collection host moves each collection repository to its newest tag. `vendomat path <name>` prints
+a locked input's store path. This adds `STORE-016` to `STORE-022` and `CLI-016`. It supersedes
+nothing: `STORE-009`, `STORE-013`, and `CLI-007` keep their claims, and the new IDs state the rules
+that build them. The evidence is [PV-20](./prelim-verification/results/PV-20.md). The release task,
+`STORE-010`, and the explicit use of `backup` are not built.
+
 **Earlier PV-12 update (superseded by the count below):** 153 requirement IDs were defined in the tables below; 126 were active.
 
-**Current count:** 185 requirement IDs are defined in the tables below: 142 active, 32 superseded, 10
+**Current count:** 193 requirement IDs are defined in the tables below: 150 active, 32 superseded, 10
 withdrawn, and 1 narrowed. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2, so
-204 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
+212 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
 fixture result does not pass an implementation requirement.
 
 ## How to use this document
@@ -105,8 +112,9 @@ is third-party code from upstream. Every `[inputs]` entry pins a tag (`REG-017`)
 with an explicit Nix input override.
 
 `mirror`, `keep`, and `backup` never reach the generated flake. `mirror = true` keeps a reading copy
-of a third-party repository in the collection and leaves the input URL alone. `keep = true` keeps a
-persistent clone on each machine that runs `sync`. `backup` records a second URL that the owner
+of a third-party repository in the collection and leaves the input URL alone. `sync --collection`,
+run on `server`, makes the copy. `keep = true` keeps a persistent clone on each machine that runs
+`sync`. Both clones show the tag the entry pins (`STORE-016` to `STORE-019`). `backup` records a second URL that the owner
 applies by hand. nixpkgs and devenv are never mirrored or kept: they are huge.
 
 `[passthrough]` holds infrastructure inputs such as `nixpkgs`. Each entry needs its own `url`, takes
@@ -134,8 +142,8 @@ states the edge.
 | `REG-015` | *Superseded by `REG-021`.* A top-level table other than `[inputs]`, `[passthrough]`, and `[follows]` was an error. `[forge]` now exists | — |
 | `REG-016` | An `[inputs]` entry with no `url` MUST resolve to `<forge url>/<repo>`, with `repo` defaulting to the entry name. An entry with no `url` and no `[forge]` table, a `[forge]` table with a query or an unknown key, an entry that sets both `repo` and `url`, and a `[passthrough]` entry with no `url` MUST each be an error | Unit tests. PV-17: `sync` writes `git://127.0.0.1:<port>/lib-a?ref=refs/tags/v1.0.0`, and Nix locks and evaluates it through a loopback `git daemon` |
 | `REG-017` | Every `[inputs]` entry MUST pin a tag: `ref` is `refs/tags/<tag>`, or the URL query carries it. `rev` MAY be added as a second guard. A branch, a `rev` alone, or no pin MUST be an error. A `path:` URL and a `[passthrough]` entry are exempt | Unit tests name the entry. PV-16: Nix accepts a tag, a tag with a rev, and a rev alone over `git://`, so the rule is Vendomat policy; an unpinned URL did not resolve on the fixture repository |
-| `REG-018` | `mirror = true` MUST be allowed only on an `[inputs]` entry that has its own `url`. It marks a reading copy in the collection and MUST NOT change the input URL. The registry MUST reject `mirror` on a `[passthrough]` entry, on a forge entry, and on `nixpkgs` or `devenv` | Unit tests: each rejection names the entry, and `flake.nix` is byte-identical with and without the flag. **The copy itself is not yet built** (`STORE-009`) |
-| `REG-019` | `keep = true` MUST be allowed only on an `[inputs]` entry other than `nixpkgs` and `devenv`. It asks each machine that runs `sync` to hold a persistent clone | Unit tests for the shape and the rejections. **The clone is not yet built** (`STORE-009`) |
+| `REG-018` | `mirror = true` MUST be allowed only on an `[inputs]` entry that has its own `url`. It marks a reading copy in the collection and MUST NOT change the input URL. The registry MUST reject `mirror` on a `[passthrough]` entry, on a forge entry, and on `nixpkgs` or `devenv` | Unit tests: each rejection names the entry, and `flake.nix` is byte-identical with and without the flag. The copy is built: `sync --collection` makes it (`STORE-018`). Unit tests cover it. PV-20 ran no mirror on `server` |
+| `REG-019` | `keep = true` MUST be allowed only on an `[inputs]` entry other than `nixpkgs` and `devenv`. It asks each machine that runs `sync` to hold a persistent clone | Unit tests for the shape and the rejections. The clone is built (`STORE-009`, `STORE-016` to `STORE-019`). Unit tests, and a Nix test over `git://`. PV-20 ran no `keep` on `server` |
 | `REG-020` | `backup` MUST be an optional URL on any entry. It MUST NOT appear in the generated flake. Vendomat MUST use it only when the owner asks | Unit tests: the generated flake and its digest are identical with and without `backup`. **The explicit use is not yet built** |
 | `REG-021` | A top-level table other than `[forge]`, `[inputs]`, `[passthrough]`, and `[follows]` MUST be an error naming it. `[inputs]` MUST be present | A `[follow]` typo is rejected instead of dropped |
 
@@ -305,13 +313,20 @@ the two phases.
 | `STORE-006` | Generated inputs MUST use a portable remote URL by default; absolute `git+file` paths MUST NOT be the fleet default | Generate a consumer with remote source declarations and evaluate it after moving the consumer checkout |
 | `STORE-007` | A local source checkout MUST be selected by an explicit input override; `VENDOMAT_SOURCE_ROOT` alone MUST NOT alter an existing flake or lock | Apply an input override and compare lock hashes; setting only the environment variable leaves both unchanged |
 | `STORE-008` | The collection MUST be one set of repositories on the collection host (`server`), at `/home/andrew/vendor/<repo>`, served read-only to the tailnet over `git://`. The serving process MUST sleep when idle | PV-16: a loopback `git daemon` serves a tagged repository to Nix 2.34.7, and idle it used 0 CPU ticks in 20 seconds. The owner reports that `git ls-remote git://server/devman` works from `framework` ([PV-19](./prelim-verification/results/PV-19.md)); a Nix lock and build there are **not yet tested** |
-| `STORE-009` | `sync` MUST clone a missing `keep` or `mirror` entry and fetch an existing one. It MUST NOT clone any other entry | **Not yet built.** A fixture lists the clones after `sync` |
+| `STORE-009` | `sync` MUST clone a missing `keep` or `mirror` entry and fetch an existing one. It MUST NOT clone any other entry | Built. Unit tests list the clones after `sync`; an entry with neither flag leaves the source root absent. The rules are in `STORE-016` to `STORE-021`. `mirror` acts only under `--collection` (`STORE-018`) |
 | `STORE-010` | The collection MUST be rebuildable from the authoring repositories by pushing their release tags again. A `mirror` copy and a `keep` clone MUST be caches: deleting one and re-running `sync` restores it | **Not yet built.** Delete a collection repository, push its tags again, and compare the tag lists |
 | `STORE-011` | *Superseded by `STORE-014`.* Only release tags entered the collection, but nothing enforced it: Git refuses only a push to the checked-out branch | — |
 | `STORE-012` | No Vendomat step MAY require a source path to be present in Attic. Evaluation takes source from the collection or from upstream | PV-17: a consumer locks and evaluates with only the collection configured and no Attic |
 | `STORE-014` | Only new release tags MUST enter the collection. A `pre-receive` hook in each repository MUST refuse any ref outside `refs/tags/` and MUST refuse to update or delete an existing tag. CI pushes tags over SSH | PV-18, two NixOS machines: a tag push is accepted; a branch push and a moved tag are refused with a message; the repository ends with its tags and no branch. A real push from `framework` is **not yet tested** |
 | `STORE-015` | The daemon MUST serve a repository only when it carries `.git/git-daemon-export-ok`. It MUST NOT accept a push over `git://`. Port 9418 MUST be open on the tailnet interface only | PV-18: an unmarked repository is not served and a marked one is; a push over `git://` fails; the firewall opens the port on the inner interface only. In nix-meta the evaluated `tailscale0` ports are `[22,8077,9418]`. **Not switched on `server`** |
-| `STORE-013` | A collection repository's working tree MUST show its newest release tag by version order, so the owner and agents can read it. A hook or `sync` refreshes it and MUST NOT touch a tree with uncommitted changes (`STORE-003`) | **Not yet built.** Push a newer tag; the files on disk match it |
+| `STORE-013` | A collection repository's working tree MUST show its newest release tag by version order, so the owner and agents can read it. A hook or `sync` refreshes it and MUST NOT touch a tree with uncommitted changes (`STORE-003`) | Built for `sync --collection` (`STORE-022`). A push-time hook is **not built**. Unit tests: a newer tag moves the files on disk. PV-20: `devman` on `server` went from no files to `v0.7.0` |
+| `STORE-016` | `sync` MUST write `flake.nix` before any store work. A store problem MUST NOT stop or undo that write, and the other entries MUST continue. The exit status MUST be 0 when every entry is fine, 1 when an entry is refused (a dirty tree, a directory that is not a Git repository), and 2 when Git fails (an unreachable remote, a timeout, a missing tag) | Unit tests: one bad entry among three; the command writes `flake.nix`, exits 2 for a failed clone, and exits 1 for a dirty clone while it updates the next entry |
+| `STORE-017` | The clone directory MUST be `$VENDOMAT_SOURCE_ROOT` (default `~/vendor`) plus the repository name: the `repo` key, else the input name. A `keep` forge entry MUST clone `<forge url>/<repo>`. A `keep` or `mirror` third-party entry MUST clone its own `url` without the query. A directory that is a Git repository with an `origin` MUST get a tag fetch. A Git repository with no `origin` is the collection's own repository: `sync` MUST skip it and say so. A directory that is not a Git repository MUST be refused and left untouched. A `path:` input and any URL scheme other than git, http, https, ssh, and file MUST NOT be cloned | Unit tests for each case. A `git://` clone of a repository that holds a tag and no branch works. PV-20 |
+| `STORE-018` | `mirror` MUST act only with `sync --collection`. Without it, `sync` MUST print "mirror skipped: not the collection host" and copy nothing. A mirror MUST NOT receive the export marker or the `pre-receive` hook | Unit tests: the skipped message and no source root; with the flag, the clone holds neither file |
+| `STORE-019` | The working tree of a `keep` or `mirror` clone MUST show the tag its entry pins, as a detached checkout, when the tree is clean. Known limit: two projects that pin different tags share one clone, and the last `sync` wins. `vendomat path` stays exact, because Nix selects the source by the lock | Unit tests: a first clone, a fetch of a newer tag, a branch checkout that becomes detached, and a no-op rerun. The Nix test checks the clone over `git://` |
+| `STORE-020` | `sync` MUST run `git` as a subprocess with explicit arguments, `GIT_TERMINAL_PROMPT=0`, and a timeout. No message MAY carry a credential from a URL | Unit tests: the environment value, a reported timeout, and a URL with a password that does not appear in the message |
+| `STORE-021` | `sync --dry-run` MUST print the planned actions and change nothing: no `flake.nix`, no clone, no fetch, no checkout. It MUST report a dirty tree or a non-Git directory that a real run would refuse | Unit tests and a command test. PV-20: the dry run on `server` left every file as it was |
+| `STORE-022` | With `sync --collection`, `sync` MUST check out the newest tag by version order (`git for-each-ref --sort=-v:refname refs/tags`) as a detached checkout in each directory of the source root that has `.git/hooks/pre-receive` or `.git/git-daemon-export-ok`, when its tree is clean. It MUST work when the branch is unborn. It MUST leave every other directory and every tag alone | Unit tests: an unborn branch that holds a tag, `v0.10.0` ahead of `v0.9.0`, a dirty tree, a repository with neither file. PV-20: `devman` on `server`; `pydantic` and `silverbullet` unchanged |
 
 ---
 
@@ -425,7 +440,7 @@ command, a flake evaluating a function, and a generated file that must depend on
 | `CLI-004` | A read command MUST NOT change a lock, a registry, or a selection | Files are byte-identical after every read command |
 | `CLI-005` | `status` MUST report, per input: the registry entry, the revision in `flake.lock`, the store revision, and cache presence | All four fields appear for each input |
 | `CLI-006` | *Withdrawn 2026-10-08.* `nix flake update <input>` performs this. Vendomat adds no wrapper | — |
-| `CLI-007` | `path <name>` MUST print the store path of that input | The path exists |
+| `CLI-007` | `path <name>` MUST print the store path of that input | The path exists. Built; see `CLI-016` |
 | `CLI-008` | `explore <name>` MUST run the dedicated editor with that repo's root as the working directory | The editor opens there |
 | `CLI-009` | `set <path> <value>` MUST write only the host TOML | No other file changes |
 | `CLI-010` | `diff` MUST evaluate the host configuration before and after and report the option delta | A single changed option produces a one-entry delta |
@@ -434,6 +449,7 @@ command, a flake evaluating a function, and a generated file that must depend on
 | `CLI-013` | `rollback` MUST select the prior system generation | The active generation changes to the previous one |
 | `CLI-014` | `status` MUST report an input whose store revision is ahead of its locked revision as drifted | The drift is named. Nothing is updated automatically; the owner runs `nix flake update <input>` |
 | `CLI-015` | `diff` MUST compare the last committed host TOML with the current host TOML; `apply` runs only after the host file is committed unless explicitly forced | In the PV-08 fixture, `set → diff → Gitman commit → apply` restores a clean tracked state; inspect the three changed evaluated values |
+| `CLI-016` | `path <name>` MUST take the path from Nix: `nix flake archive --json --no-write-lock-file`, field `inputs.<name>.path`. It MUST NOT read `flake.lock`. It MUST accept `--json`. It MUST NOT change `flake.lock`, `vendomat.toml`, or `flake.nix`. An unknown name MUST be an error (exit 1) that names the input and lists the direct inputs. An input that Nix keeps inside the project source, such as a `path:` input, MUST be an error (exit 1) that says so | Nix tests on pinned Nix over `git://`: the path equals the `outPath` that Nix evaluates; the lock is byte-identical, or absent when it was absent; the unknown-input and `path:` cases. PV-20: `nix flake archive --dry-run` prints the same paths, so `--dry-run` hides nothing |
 
 ---
 
@@ -446,7 +462,10 @@ Every failure names the input, the file, or the option path it concerns.
 | Unparseable registry | Non-zero; names the file and the line |
 | Unknown input name requested | Non-zero; names the input and lists known names |
 | Dependency cycle | Nix reports it during locking; Vendomat does not duplicate the check |
-| Dirty store working tree | Non-zero for that input only; other inputs proceed |
+| Dirty store working tree | Non-zero (exit 1) for that input only; other inputs proceed |
+| `keep` or `mirror` clone fails (unreachable remote, timeout, missing tag) | Non-zero (exit 2) for that entry; `flake.nix` is already written; other entries proceed |
+| A directory in the source root is not a Git repository | Non-zero (exit 1); names the directory; leaves it untouched |
+| `path` names an unknown input | Non-zero (exit 1); names the input and lists the direct inputs |
 | Hand-written `flake.nix` present | Non-zero (exit 1); names the file; leaves it untouched |
 | `[inputs]` entry without a tag pin | Non-zero (exit 2); names the entry and shows `ref = "refs/tags/<tag>"`; writes nothing |
 | Entry with no `url` and no `[forge]` table | Non-zero (exit 2); names the entry; writes nothing |

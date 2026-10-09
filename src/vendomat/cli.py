@@ -12,6 +12,7 @@ is never installed into the consumer's venv and has no ``repoman.lock`` entry.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from .checks import format_self_check, self_check_exit, vendor_checks
 from .deps import read_deps, read_resolved_versions
 from .generate import GenerateError, sync_flake
 from .install import LIB_PREFIX
+from .locate import LocateError, input_path
 from .plane import (
     GenerationStore,
     PlaneError,
@@ -42,6 +44,7 @@ from .plane import (
 from .publish import PublishError, install_hook, pre_push, publish_preview, refresh_lock
 from .publish import materialize as materialize_files
 from .sources import SourceError, source_checks, source_status, sync_sources
+from .store import exit_code, source_root, sync_store
 from .wheels import WheelError, publish_wheel
 
 app = typer.Typer(
@@ -640,21 +643,63 @@ def vendor_doctor(
 @app.command()
 def sync(
     root: str | None = typer.Option(None, "--root", help="Project directory (defaults to the current directory)."),
+    collection: bool = typer.Option(
+        False,
+        "--collection",
+        help="Run on the collection host: copy `mirror` entries and check out each repository's newest tag.",
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the planned actions and change nothing."),
 ) -> None:
-    """Write the project ``flake.nix`` from ``vendomat.toml``.
+    """Write the project ``flake.nix`` from ``vendomat.toml``, then keep and mirror sources.
 
-    ``sync`` leaves ``flake.lock`` and ``flake-outputs.nix`` alone: Nix owns the lock and the
-    project owns its outputs. It refuses to overwrite a ``flake.nix`` that has no generated header.
+    ``sync`` writes ``flake.nix`` first. A store failure never undoes it. ``keep`` entries get a
+    clone under ``$VENDOMAT_SOURCE_ROOT`` (default ``~/vendor``) that shows the pinned tag. ``mirror``
+    entries act only with ``--collection``. ``sync`` leaves ``flake.lock`` and ``flake-outputs.nix``
+    alone: Nix owns the lock and the project owns its outputs. It refuses to overwrite a
+    ``flake.nix`` that has no generated header, and it never touches a clone with uncommitted changes.
     """
 
     project = Path(root) if root is not None else Path.cwd()
     try:
-        result = sync_flake(project)
+        result = sync_flake(project, dry_run=dry_run)
     except GenerateError as exc:
         typer.echo(f"vendomat sync: {exc}", err=True)
         raise typer.Exit(code=exc.code) from exc
-    verb = "wrote" if result.changed else "unchanged"
+    if result.changed:
+        verb = "would write" if dry_run else "wrote"
+    else:
+        verb = "unchanged"
     typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
+
+    outcomes = sync_store(result.registry, root=source_root(), collection=collection, dry_run=dry_run)
+    for outcome in outcomes:
+        typer.echo(f"vendomat sync: {outcome.line()}", err=not outcome.ok)
+    code = exit_code(outcomes)
+    if code:
+        failed = sum(1 for outcome in outcomes if not outcome.ok)
+        typer.echo(f"vendomat sync: {failed} source problem(s); flake.nix is not affected", err=True)
+        raise typer.Exit(code=code)
+
+
+@app.command("path")
+def path_command(
+    name: str = typer.Argument(..., help="A direct input of the project flake."),
+    root: str | None = typer.Option(None, "--root", help="Project directory (defaults to the current directory)."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON."),
+) -> None:
+    """Print the store path of the locked source of a direct input.
+
+    Nix names the path (``nix flake archive``). The command writes neither ``flake.lock`` nor
+    ``vendomat.toml``.
+    """
+
+    project = Path(root) if root is not None else Path.cwd()
+    try:
+        found = input_path(project, name)
+    except LocateError as exc:
+        typer.echo(f"vendomat path: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
+    typer.echo(json.dumps({"name": name, "path": found}) if json_output else found)
 
 
 def _add_vendor_root(flag: str | None) -> Path:

@@ -47,9 +47,14 @@ pytestmark = needs_nix_fixture
 _ENTRY = "from vendomat.cli import main; main()"
 
 
-def vendomat_sync(root: Path) -> subprocess.CompletedProcess[str]:
+def vendomat(args: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     """Run the real CLI entry point in a fresh interpreter."""
-    return subprocess.run([sys.executable, "-c", _ENTRY, "sync", "--root", str(root)], capture_output=True, text=True)
+    full_env = {**os.environ, **(env or {})}
+    return subprocess.run([sys.executable, "-c", _ENTRY, *args], capture_output=True, text=True, env=full_env)
+
+
+def vendomat_sync(root: Path) -> subprocess.CompletedProcess[str]:
+    return vendomat(["sync", "--root", str(root)])
 
 
 def sha(path: Path) -> str:
@@ -284,6 +289,110 @@ def test_forge_entry_fetches_over_git_and_keeps_working_after_the_daemon_stops(
     offline = nix(["eval", "--raw", ".#lib.marker"], project)
     assert offline.returncode == 0, offline.stderr
     assert offline.stdout == "lib-a-v1"
+
+
+def _forge_project(tmp_path: Path, port: int, entry: str) -> Path:
+    project = tmp_path / "project"
+    write(project / "vendomat.toml", f'[forge]\nurl = "git://127.0.0.1:{port}"\n\n[inputs]\n{entry}\n')
+    write(project / "flake-outputs.nix", "inputs: { lib.src = inputs.lib-a.outPath; }\n")
+    init_repo(project, "forge project")
+    return project
+
+
+def test_keep_clones_over_git_and_the_clone_shows_the_pinned_tag(
+    collection: tuple[Path, int, subprocess.Popen[bytes]], tmp_path: Path
+):
+    _base, port, _daemon = collection
+    project = _forge_project(tmp_path, port, 'lib-a = { ref = "refs/tags/v1.0.0", keep = true }')
+    clones = tmp_path / "clones"
+
+    first = vendomat(["sync", "--root", str(project)], {"VENDOMAT_SOURCE_ROOT": str(clones)})
+    assert first.returncode == 0, first.stderr
+    clone = clones / "lib-a"
+    assert (clone / "flake.nix").read_text() == '{ outputs = _: { marker = "lib-a-v1"; }; }\n'
+    assert run(["git", "describe", "--tags", "--exact-match", "HEAD"], clone).stdout.strip() == "v1.0.0"
+    assert run(["git", "symbolic-ref", "-q", "HEAD"], clone).returncode != 0
+
+    again = vendomat(["sync", "--root", str(project)], {"VENDOMAT_SOURCE_ROOT": str(clones)})
+    assert again.returncode == 0, again.stderr
+    assert "lib-a: unchanged" in again.stdout
+
+
+def test_path_prints_the_locked_source_and_changes_neither_the_lock_nor_the_registry(
+    collection: tuple[Path, int, subprocess.Popen[bytes]], tmp_path: Path
+):
+    _base, port, _daemon = collection
+    project = _forge_project(tmp_path, port, 'lib-a = { ref = "refs/tags/v1.0.0" }')
+    synced(project)
+
+    # Before any lock exists: Nix resolves in memory and writes nothing.
+    early = vendomat(["path", "lib-a", "--root", str(project)])
+    assert early.returncode == 0, early.stderr
+    assert not (project / "flake.lock").exists()
+
+    assert nix(["flake", "lock"], project).returncode == 0
+    save(project, "lock", "record the lock Nix wrote")
+    before = {name: sha(project / name) for name in ("flake.lock", "vendomat.toml", "flake.nix", "flake-outputs.nix")}
+
+    found = vendomat(["path", "lib-a", "--root", str(project)])
+    assert found.returncode == 0, found.stderr
+    path = found.stdout.strip()
+    assert path == early.stdout.strip()
+    assert (Path(path) / "flake.nix").read_text() == '{ outputs = _: { marker = "lib-a-v1"; }; }\n'
+    locked = nix(["eval", "--raw", ".#lib.src"], project)
+    assert locked.returncode == 0, locked.stderr
+    assert path == locked.stdout
+
+    as_json = vendomat(["path", "lib-a", "--json", "--root", str(project)])
+    assert json.loads(as_json.stdout) == {"name": "lib-a", "path": path}
+    assert {name: sha(project / name) for name in before} == before
+
+
+def test_path_names_an_unknown_input_and_lists_the_known_ones(
+    collection: tuple[Path, int, subprocess.Popen[bytes]], tmp_path: Path
+):
+    _base, port, _daemon = collection
+    project = _forge_project(tmp_path, port, 'lib-a = { ref = "refs/tags/v1.0.0" }')
+    synced(project)
+
+    result = vendomat(["path", "lib-b", "--root", str(project)])
+
+    assert result.returncode == 1
+    assert "unknown input 'lib-b'" in result.stderr
+    assert "known inputs: lib-a" in result.stderr
+
+
+def test_path_reports_a_path_input_that_has_no_store_path_of_its_own(project: Path):
+    synced(project)
+
+    result = vendomat(["path", "plain", "--root", str(project)])
+
+    assert result.returncode == 1
+    assert "no store path of its own" in result.stderr
+    assert not (project / "flake.lock").exists()
+
+
+def test_path_asks_for_sync_when_there_is_no_flake(tmp_path: Path):
+    result = vendomat(["path", "lib-a", "--root", str(tmp_path)])
+
+    assert result.returncode == 2
+    assert "vendomat sync" in result.stderr
+
+
+def test_archive_dry_run_prints_the_same_paths_as_archive(
+    collection: tuple[Path, int, subprocess.Popen[bytes]], tmp_path: Path
+):
+    """A fact about the pinned Nix that `path` relies on: `--dry-run` does not hide input paths (PV-20)."""
+    _base, port, _daemon = collection
+    project = _forge_project(tmp_path, port, 'lib-a = { ref = "refs/tags/v1.0.0" }')
+    synced(project)
+    base = ["flake", "archive", "--json", "--no-write-lock-file", "."]
+
+    real = nix(base, project)
+    dry = nix([*base, "--dry-run"], project)
+
+    assert real.returncode == 0 and dry.returncode == 0, real.stderr + dry.stderr
+    assert json.loads(dry.stdout)["inputs"]["lib-a"]["path"] == json.loads(real.stdout)["inputs"]["lib-a"]["path"]
 
 
 def test_nix_version_is_the_pinned_one():
