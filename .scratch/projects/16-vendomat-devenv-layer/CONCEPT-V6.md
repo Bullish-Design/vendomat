@@ -130,8 +130,8 @@ A **face** is a library's module for one target: devenv (`devenvModules.default`
 faces it supports. Each face declares `<name>.enable`, default false, and changes nothing until enabled.
 Each face must evaluate alone, and its options must not collide with another face.
 
-The `mkModules` helper (V5 `MOD-*`) is deferred. Write faces by hand to the convention, and build the
-helper when three libraries repeat the same shape.
+The `mkModules` helper (V5 `MOD-*`) is built now and exported as `lib.mkModules`. A library MAY still
+write a face by hand (`MOD-009`). Every face, from the helper or by hand, passes the same check.
 
 ## 5. Source and cache
 
@@ -242,8 +242,13 @@ that imports one module.
 
 1. ~~Where the Vendomat command runs from.~~ Decided 2026-10-09: a host launcher runs the version each
    workspace pins, or the host release outside a workspace (SPEC `DEL-017`).
-2. **`mkModules`:** the convention now and the helper later is recommended (`FACE-*`, `MOD-*` deferred).
-3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Not discussed since the
-   move to Machines. Deferred.
+2. ~~`mkModules`.~~ Decided 2026-10-09: build the helper now, as `lib.mkModules` (SPEC `MOD-011`).
+3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Owner 2026-10-09: defer
+   until `nix-systems` has run; leaning toward keeping it as a layer inside `nix-systems`.
 4. **Face option paths:** `<name>.*` under devenv and `programs.<name>.*` under NixOS and Home Manager,
    or one path everywhere.
+5. **Home Manager placement:** a separate Machines role, or inside the NixOS role. Open.
+6. **nixpkgs channel and pin owner.** Open.
+
+Decided 2026-10-09 and written into the spec: runtime secrets with sops-nix (`SEC-001`); a
+`vendomat bump` fleet command (`CLI-020`).

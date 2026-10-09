@@ -46,8 +46,8 @@
 | `CACHE-001` | Superseded | `CACHE-010`: the host core sets the substituter |
 | `CLI-001` | Superseded | `CLI-017` |
 | `CLI-011`, `CLI-012`, `CLI-013` | Superseded | `MACH-005`: activation and rollback through devenv Machines |
-| `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-001` to `SYS-010` | Deferred | Host settings in TOML: open decision |
-| `MOD-001` to `MOD-010` | Deferred | `FACE-001` to `FACE-004` now; the helper later |
+| `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-001` to `SYS-010` | Deferred | Owner 2026-10-09: decide after `nix-systems` has run; leaning toward keeping TOML as a layer inside `nix-systems` |
+| `MOD-001` to `MOD-010` | Active again (owner 2026-10-09: build the helper now) | `MOD-007` stays superseded by `MOD-010`. `MOD-002` (option paths) waits for `FACE-004`. New: `MOD-011`, `MOD-012` |
 | `BOOT-008`, `BOOT-010` | Withdrawn 2026-10-09 | Blank slate: no capability parity and no tree comparison |
 | `BOOT-009` | Withdrawn 2026-10-09 | No conversion step exists. `BOOT-001` keeps the core free of Vendomat |
 | `BOOT-022` | Superseded | `MACH-008`: install with devenv Machines from the running `server` |
@@ -116,6 +116,8 @@
 | `FACE-001` | A library MUST export each face it supports at `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default`, and no other face (`INP-007`) | `nix flake show` of the library |
 | `FACE-002` | Each face MUST declare `<name>.enable`, default false, and change nothing until it is true (`INP-006`) | The library's check evaluates each face alone and compares the result with and without the import |
 | `FACE-003` | Each library's verification MUST evaluate every exported face alone | The library's Testee gate runs the check |
+| `MOD-011` | `mkModules` MUST be exported as `lib.mkModules` from the Vendomat flake. A library that uses it declares Vendomat as a flake input (`DEL-003`) | `nix eval <vendomat>#lib.mkModules --apply builtins.isFunction` is true |
+| `MOD-012` | Every face that `mkModules` returns MUST pass `FACE-002` and `FACE-003` | The helper's own tests evaluate each returned face alone, enabled and disabled |
 | `FACE-004` | *Proposed, open decision.* Options land at `<name>.*` under devenv and `programs.<name>.*` under NixOS and Home Manager | Decided by the owner |
 
 ---
@@ -136,6 +138,13 @@
 | `MACH-010` | Before disko runs, the preflight MUST check on the target: the `by-id` path resolves; model, serial, and size match the inventory; `wipefs --no-act` and `blkid -p` show no signature; the disk does not back `/` or `/boot`; nothing is mounted under `/mnt`; `.machines/<host>/facter.json` is committed. Any mismatch or unknown result MUST stop it. Implements `DISK-002` and `DISK-003` | A fixture injects each mismatch; no write runs. The real scan on `server` (PV-02) |
 | `MACH-011` | `framework` MUST be installed from `server` with `devenv machines install`, with its own facter report | A VM fixture first |
 
+## Secrets
+
+| ID | Requirement | Verify |
+| --- | --- | --- |
+| `SEC-001` | Host runtime secrets MUST use sops-nix, with encrypted files in `nix-systems`. Each host's age key MUST be placed at install by `install.secrets` (`MACH-007`) | A VM: a service reads its decrypted secret after install and after a deploy; no secret value is in the store |
+| `SEC-002` | *Proposed.* Workspaces SHOULD read the same encrypted files through SecretSpec's SOPS provider | A workspace fixture resolves one secret from a sops-nix file |
+
 ---
 
 # 6. Disks, cache, delivery, command line
@@ -147,10 +156,13 @@
 | `DEL-013` | A library's flake outputs MUST evaluate and build with no Vendomat input and no Vendomat command. A workspace MAY depend on the Vendomat module | `GEN-019`'s check, run on a library only |
 | `DEL-014` | *Decided 2026-10-09, see `DEL-017`.* Where the `vendomat` command runs from | — |
 | `DEL-017` | The host MUST install a small `vendomat` launcher, not the full command. Inside a workspace, the launcher MUST run the Vendomat build that the workspace's `devenv.lock` pins, found in the store by its NAR hash, with no network when the build is present. Outside a workspace, it MUST run the host's pinned release. The module MUST NOT put a second `vendomat` on the shell `PATH`. The direnv hook (`PRE-009`) MUST call the launcher | Two workspaces that pin different tags each report their own version; with the network off and the builds present, both still run; outside a workspace the host release runs |
-| `DEL-015` | The Vendomat flake MUST export `packages.<system>.vendomat` and `devenvModules.default`, and MUST have `nixpkgs` as its only input | `nix flake show`; `tests/test_repo_shape.py` |
+| `DEL-015` | *Superseded by `DEL-018` (2026-10-09).* The flake exported the package and the module only | — |
+| `DEL-018` | The Vendomat flake MUST export `packages.<system>.vendomat`, `devenvModules.default`, and `lib.mkModules`, and MUST have `nixpkgs` as its only input | `nix flake show`; `tests/test_repo_shape.py` |
 | `DEL-016` | `nix-systems` MUST reach every Vendomat Nix function through its own `vendomat` input | No machine file names a Vendomat path |
 | `GEN-023` | The generator MUST NOT emit `devShells`, `devenv.lib.mkShell`, or a `devenv` input in `flake.nix`. A workspace shell MUST be a devenv project that uses the devenv target | `nix flake show` lists only the project's outputs |
-| `CLI-017` | The surface MUST be `sync`, `path`, `check`, `push`, and `machine install`. Deferred commands (`set`, `get`, `unset`, `diff`) MAY return later | `--help` lists exactly the built commands |
+| `CLI-017` | *Superseded by `CLI-021` (2026-10-09).* The surface lacked `bump` | — |
+| `CLI-021` | The surface MUST be `sync`, `path`, `check`, `push`, `bump`, and `machine install`. Deferred commands (`set`, `get`, `unset`, `diff`) MAY return later | `--help` lists exactly the built commands |
+| `CLI-020` | `bump` MUST update every workspace under a root to a given Vendomat tag and fork revision, re-run `sync`, run each repository's verify gate, and report each result. It MUST default to a dry run that changes nothing | A dry run reports and leaves every file unchanged; a real run on a fixture fleet moves each pin and reports one failing gate |
 | `CLI-018` | `path <name>` MUST also work in a devenv workspace, from `devenv.lock`, with no network | The `lockpath.nix` method gives the same path as `vendomat.inputPaths` (agent H Q5) |
 | `CLI-019` | `check` MUST run the pin check, the devenv version check, and the fragment check, and MUST name each problem | Each injected problem is named; a clean workspace exits 0 |
 
@@ -195,7 +207,9 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 78 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 11 `MACH`, 1 `DISK`,
-1 `CACHE`, 5 `DEL`, 1 `GEN`, 3 `CLI`, and 21 `NAT` facts. `DEL-014` is decided by `DEL-017`.
+V6 defines 85 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 2 `MOD`, 11 `MACH`, 2 `SEC`,
+1 `DISK`, 1 `CACHE`, 6 `DEL`, 1 `GEN`, 5 `CLI`, and 21 `NAT` facts. `DEL-015` and `CLI-017` are
+superseded within this draft. `DEL-014` is decided by `DEL-017`.
 `FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
-defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-*`, and `MOD-*` IDs.
+defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, and `SYS-*` IDs. The active `MOD-*` IDs
+return to scope.
