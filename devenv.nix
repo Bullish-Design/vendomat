@@ -3,15 +3,70 @@
 # This shell is for developing the command. The installed `vendomat` is a host program; a project
 # never imports it (DEL-006, DEL-007).
 #
-# Run every in-repo command through here: `devenv shell -- testee verify --mode quick`.
+# Run the gate from the repository root with the host wrapper: `testee verify --full`.
+# Run other in-repo commands through here: `devenv shell -- <command>`.
 { pkgs, lib, config, inputs, ... }:
 
+let
+  # The Testee module and the Testee package come from the same pinned tag. Keep this tag equal
+  # to the `testee` source tag in pyproject.toml and to the host `testee` wrapper version.
+  testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
+  venvBin = "${config.devenv.state}/venv/bin";
+in
 {
-  # Verification entrypoints (testee:quick/detailed/ci + enterTest) — the *man-family
-  # verify interface. Route checks through `testee verify`, not pytest/ruff directly.
+  # Verification entrypoints (testee:quick, testee:full, testee:doctor, testee:report, and
+  # enterTest). They call the host `testee` wrapper. Route checks through `testee verify`, not
+  # pytest/ruff directly.
   imports = [
+    testeeFlake.devenvModules.default
     ./nix/testee.nix
   ];
+
+  testee.package = testeeFlake.packages.${pkgs.stdenv.hostPlatform.system}.testee;
+
+  # The checks. `quick` is ruff and ruff-format; `full` adds ty and pytest. Tools come from the
+  # uv venv (the `dev` group in pyproject.toml), so each argv holds an absolute path.
+  testee.checks = {
+    ruff = {
+      argv = [ "${venvBin}/ruff" "check" "--output-format" "json" "." ];
+      profiles = [ "quick" "full" ];
+      structured = { parser = "ruff-json"; file = "ruff.stdout.log"; };
+    };
+    ruff-format = {
+      argv = [ "${venvBin}/ruff" "format" "--check" "." ];
+      profiles = [ "quick" "full" ];
+    };
+    ty = {
+      argv = [ "${venvBin}/ty" "check" "--python" "${venvBin}/python" "src" "tests" ];
+      profiles = [ "full" ];
+    };
+    pytest = {
+      argv = [
+        "${pkgs.bash}/bin/bash"
+        "-c"
+        ''${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/pytest.junit.xml"''
+      ];
+      profiles = [ "full" ];
+      structured = { parser = "junit-xml"; file = "pytest.junit.xml"; };
+    };
+    # Opt-in end-to-end check. It builds real consumer shells with Nix, so no profile selects it
+    # and it is not required. Run it with `testee check e2e`. The Testee shell drops the host
+    # PATH and HOME, so the argv sets VENDOMAT_E2E, HOME, and a nix on PATH itself.
+    e2e = {
+      argv = [
+        "${pkgs.bash}/bin/bash"
+        "-c"
+        ''
+          export HOME="$(eval echo "~$(id -un)")" VENDOMAT_E2E=1 PATH="${pkgs.nix}/bin:$PATH"
+          ${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/e2e.junit.xml"
+        ''
+      ];
+      profiles = [ "e2e" ];
+      required = false;
+      timeout_s = 1800;
+      structured = { parser = "junit-xml"; file = "e2e.junit.xml"; };
+    };
+  };
 
   # https://devenv.sh/basics/
   env.PROJ = "vendomat";
@@ -20,8 +75,10 @@
   dotenv.disableHint = true;
 
   # https://devenv.sh/packages/
+  # The Testee shell drops the host PATH, so the tests need git (and `git daemon`) here.
   packages = [
     pkgs.uv
+    pkgs.git
   ];
 
   # Local gitman checkout, a sibling of this repository. It runs in its own .venv.

@@ -3,10 +3,11 @@
 The fixtures run pinned Nix against a disposable consumer. They need the network once to
 fetch the pinned Nixpkgs, then use the local fetcher cache. They are opt-in:
 
-    VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick
+    testee check e2e
 
 Set ``VENDOMAT_FIXTURE_LOGS`` to a directory outside the repository to keep every command,
-its exit status, and its output. A fixture never writes a credential.
+its exit status, and its output. A fixture never writes a credential. The Testee shell drops host
+variables, so the variable reaches the fixtures only if the `e2e` check in `devenv.nix` sets it.
 """
 
 from __future__ import annotations

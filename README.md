@@ -65,6 +65,10 @@ The specification, the concept, and the guide are in
 ## Verify
 
 ```bash
-devenv shell -- testee verify --mode quick
-VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick   # also builds real consumers with Nix
+testee verify --full    # ruff, ruff-format, ty, pytest
+testee verify           # quick: ruff and ruff-format
+testee check e2e        # opt-in: also builds real consumers with Nix
 ```
+
+Testee 0.5.0 runs these checks from `devenv.nix`. Run `testee` from the repository root. It opens its
+own devenv shell.

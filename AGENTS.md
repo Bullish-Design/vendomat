@@ -18,13 +18,18 @@ select dependencies. NixOS and Home Manager own activation. Attic owns cached ob
 ## Working here
 
 ```bash
-devenv shell -- testee verify --mode quick
-VENDOMAT_E2E=1 devenv shell -- testee verify --mode quick
+testee verify --full
+testee check e2e
 ```
 
-Run the first command as the normal gate. Run the second when a change affects the Nix module,
-toolchain, or consumer integration. A pull request needs a green Testee verification. The
-end-to-end test stays opt-in because it builds a real consumer shell.
+Run the first command from the repository root as the normal gate. Run `testee verify` for a quick
+check. Run the second command when a change affects the Nix module, toolchain, or consumer
+integration. A pull request needs a green `testee verify --full`. The end-to-end check stays
+opt-in because it builds a real consumer shell. The checks live in `devenv.nix` as
+`testee.checks`.
+
+The `testee` wrapper starts before devenv and opens its own clean devenv shell. Do not wrap it in
+`devenv shell`.
 
 Do not call pytest, ruff, or ty directly. This repository verifies through Testee.
 
