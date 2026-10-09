@@ -27,8 +27,11 @@ The store step is built and passes its fixtures ([PV-20](projects/14-vendomat-lo
 prints a locked input's store path. A real run on `server` moved `devman` to `v0.7.0` and left the
 other clones alone, and a `keep` clone of `devman` over the live daemon worked ([PV-21](projects/14-vendomat-local/prelim-verification/results/PV-21.md)). No `mirror` entry ran on
 `server`. A push-time hook for the tree refresh exists in `hooks/collection-post-receive` and passes its
-fixtures (`STORE-023`); it is not installed on `server`. `STORE-010`, the release task, and the explicit
-use of `backup` are not built.
+fixtures (`STORE-023`). It is installed on the live `devman` ([PV-22](projects/14-vendomat-local/prelim-verification/results/PV-22.md)). The `collection-add` change that installs it
+for new repositories sits in an unlanded `nix-meta` lane, `collection-post-receive`; unbookmarked work in
+the main `nix-meta` checkout blocks the land. `server` still has the system `vendomat` 0.4.4; the
+0.4.6 package builds and works against the live collection, and the owner must bump the pin, add the
+host delta, and switch. `STORE-010`, the release task, and the explicit use of `backup` are not built.
 
 Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
 `packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated
