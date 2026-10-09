@@ -26,6 +26,7 @@ verification results.
 | PV-16 | Passed fixture: a read-only `git daemon` serves a tagged release to Nix; an idle daemon costs 0 CPU; SSH to self is not set up | [Collection transport](results/PV-16.md) | [Probe](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/05-daemon-idle-and-pins-i1.log) |
 | PV-17 | Passed fixture: `vendomat sync` with the collection, the tag pin, and the reference-copy flags; loopback only | [Generator with the collection](results/PV-17.md) | [Opt-in gate](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/forge-e2e-run1.log) |
 | PV-18 | Passed fixture: the server settings, the push rules, and a Nix fetch on two NixOS machines; the `nix-meta` lane is not switched | [Collection on two machines](results/PV-18.md) | [Run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/06-collection-vm-run3.log) |
+| PV-19 | Passed for the read transport: `git ls-remote git://server/devman` works from `framework` (owner-reported; output not captured) | [Fetch from framework](results/PV-19.md) | — |
 
 ## Readiness and blockers
 

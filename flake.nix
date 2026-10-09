@@ -31,7 +31,7 @@
     # For local iteration, override this input with `--override-input pyjutsu
     # git+file:///path/to/Pyjutsu`.
     pyjutsu = {
-      url = "git+https://github.com/Bullish-Design/Pyjutsu?ref=refs/tags/v0.22.0";
+      url = "git+https://github.com/Bullish-Design/Pyjutsu?ref=refs/tags/v0.23.0";
       flake = false;
     };
 

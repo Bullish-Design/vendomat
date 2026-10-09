@@ -37,10 +37,11 @@ Still blocked, each by evidence:
   signatures cannot be read without privilege. The owner runs the scan.
 - **Step 2, 3, and 10 (PV-09):** a cold VM reaches the private route and meets HTTP 401 without a
   credential. The owner chooses how the installer gets the pull credential.
-- **Step 6.3 and Step 8 acceptance:** the daemon settings are proved on two NixOS test machines
-  (PV-18) and sit in a `nix-meta` lane, `source-collection`, that is described but not landed or
-  switched. The owner lands it and runs `sudo nixos-rebuild switch`. No fetch from `framework` over
-  the tailnet has run, and key login from `framework` to `server` is untested.
+- **Step 8 acceptance:** Step 6.3 is done. The daemon settings were proved on two NixOS test machines
+  (PV-18), landed in `nix-meta` (`6cfcba5`, not pushed to origin), and switched on `server`. The
+  collection holds `devman` at `v0.7.0`, and the owner reports `git ls-remote git://server/devman`
+  works from `framework` (PV-19). A Nix lock and build on `framework`, and key login from `framework`
+  to `server` for release pushes, are untested.
 - **`DEL-010`:** no fixture yet shows the host-installed CLI reachable from a project shell.
 
 The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not

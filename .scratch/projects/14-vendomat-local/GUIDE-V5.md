@@ -633,7 +633,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 
 | Question | Blocks |
 | --- | --- |
-| Does a fetch from `framework` to the collection on `server` work over the tailnet? (PV-16 and PV-17 tested loopback only) | Step 8 acceptance |
+| Does `nix flake lock` plus a build on `framework` work against the collection, with outputs from Attic? (`git ls-remote` from `framework` works: PV-19) | Step 8 acceptance |
 | Does key login from `framework` to `server` work for release pushes? (SSH from `server` to itself failed on 2026-10-08; `framework` was not tested) | Step 6.3 release pushes |
 | When does the owner land and switch the `source-collection` lane? | Step 6.3 |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
