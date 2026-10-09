@@ -37,7 +37,7 @@
 | --- | --- | --- |
 | `DEL-008` | Superseded | `VMOD-001`: every workspace imports the Vendomat module |
 | `DEL-009`, `GEN-019`, `ISO-007` | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
-| `DEL-010`, `DEL-011` | Superseded | `DEL-014` (open owner decision) |
+| `DEL-010`, `DEL-011` | Superseded | `DEL-017`: a host launcher runs each workspace's pinned Vendomat |
 | `DEL-012` | Superseded | `DEL-015`: the Vendomat flake also exports the devenv module |
 | `DEL-004` | Superseded | `DEL-016`: `nix-meta` is retired |
 | `GEN-022` | Superseded | `GEN-023`: a workspace shell is a devenv project |
@@ -145,7 +145,8 @@
 | `DISK-008` | A disko layout MUST preset partition GUIDs (`uuid`) and filesystem UUIDs (`extraArgs = ["-U" …]` for ext4, `["-i" …]` for vfat), MUST mount by UUID, and MUST use a disk attribute name unique on the host | `lib.testLib.makeDiskoTest` boots with the preset UUIDs (agent E Q1); `VMOD-012` passes |
 | `CACHE-010` | The host core MUST set the Attic substituter and its public key in `nix.settings` | `nix config show` lists both on each host; the machine `nix.conf` equals a plain NixOS build (agent G Q5a) |
 | `DEL-013` | A library's flake outputs MUST evaluate and build with no Vendomat input and no Vendomat command. A workspace MAY depend on the Vendomat module | `GEN-019`'s check, run on a library only |
-| `DEL-014` | *Open owner decision.* Where the `vendomat` command runs from: system-wide, per workspace, or both | Decided by the owner |
+| `DEL-014` | *Decided 2026-10-09, see `DEL-017`.* Where the `vendomat` command runs from | — |
+| `DEL-017` | The host MUST install a small `vendomat` launcher, not the full command. Inside a workspace, the launcher MUST run the Vendomat build that the workspace's `devenv.lock` pins, found in the store by its NAR hash, with no network when the build is present. Outside a workspace, it MUST run the host's pinned release. The module MUST NOT put a second `vendomat` on the shell `PATH`. The direnv hook (`PRE-009`) MUST call the launcher | Two workspaces that pin different tags each report their own version; with the network off and the builds present, both still run; outside a workspace the host release runs |
 | `DEL-015` | The Vendomat flake MUST export `packages.<system>.vendomat` and `devenvModules.default`, and MUST have `nixpkgs` as its only input | `nix flake show`; `tests/test_repo_shape.py` |
 | `DEL-016` | `nix-systems` MUST reach every Vendomat Nix function through its own `vendomat` input | No machine file names a Vendomat path |
 | `GEN-023` | The generator MUST NOT emit `devShells`, `devenv.lib.mkShell`, or a `devenv` input in `flake.nix`. A workspace shell MUST be a devenv project that uses the devenv target | `nix flake show` lists only the project's outputs |
@@ -194,7 +195,7 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 77 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 11 `MACH`, 1 `DISK`,
-1 `CACHE`, 4 `DEL`, 1 `GEN`, 3 `CLI`, and 21 `NAT` facts. Two are open decisions (`DEL-014`,
-`FACE-004`). No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
+V6 defines 78 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 11 `MACH`, 1 `DISK`,
+1 `CACHE`, 5 `DEL`, 1 `GEN`, 3 `CLI`, and 21 `NAT` facts. `DEL-014` is decided by `DEL-017`.
+`FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
 defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-*`, and `MOD-*` IDs.

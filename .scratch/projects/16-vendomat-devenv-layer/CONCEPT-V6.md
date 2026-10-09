@@ -240,7 +240,8 @@ that imports one module.
 
 ## Open decisions
 
-1. **Where the Vendomat command runs from** (decision 3, 2026-10-09). See SPEC `DEL-014`.
+1. ~~Where the Vendomat command runs from.~~ Decided 2026-10-09: a host launcher runs the version each
+   workspace pins, or the host release outside a workspace (SPEC `DEL-017`).
 2. **`mkModules`:** the convention now and the helper later is recommended (`FACE-*`, `MOD-*` deferred).
 3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Not discussed since the
    move to Machines. Deferred.
