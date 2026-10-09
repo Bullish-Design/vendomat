@@ -670,7 +670,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Question | Blocks |
 | --- | --- |
 | Did the outputs of the `framework` build come from Attic? (The owner reports `git ls-remote`, `nix flake lock` plus a build, and `ssh server true` as passed from `framework`: PV-19, owner-reported, not observed. No log shows where the outputs came from.) | Step 8 acceptance, `CACHE-007` |
-| Does the system `vendomat` 0.5.0 on `server` (switched 2026-10-09, PV-24) reach a devenv project shell of another repository? In this repository's shell the project's own venv build comes first on `PATH` | `DEL-010` |
+| How does the V4 consumer module (`modules/devenv.nix`) stop running `vendomat install-hook` on a V5 `vendomat.toml`? The system command is reachable from project shells (PV-25), but shell entry prints a V4 error for a V5 registry. Replace or guard the module before a real repository adopts V5 | `DEL-011` |
 | Does a tag push from `framework` to `server` work? (`ssh server true` passed, owner-reported. A push was not reported. SSH from `server` to itself failed on 2026-10-08) | Step 6.3 release pushes |
 | When does the owner land and switch the `source-collection` lane? | Step 6.3 |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |

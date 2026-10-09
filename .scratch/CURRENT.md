@@ -52,7 +52,7 @@ Still blocked, each by evidence:
   git://server/devman` works, that `nix flake lock` plus a build against the collection works, and
   that `ssh server true` works (PV-19). All three are owner-reported and not observed here. I did not
   verify that any output came from Attic. A tag push from `framework` is untested.
-- **`DEL-010`:** no fixture yet shows the host-installed CLI reachable from a project shell.
+- **`DEL-010`:** proved on two fixture shapes on `server` ([PV-25](projects/14-vendomat-local/prelim-verification/results/PV-25.md)); not run in an existing repository's shell or on `framework`. The V4 consumer module prints an `install-hook` error on a V5 `vendomat.toml` (`DEL-011` open).
 
 The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not
 prove production boot or tailnet reachability. See
