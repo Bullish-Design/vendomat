@@ -670,7 +670,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Question | Blocks |
 | --- | --- |
 | Did the outputs of the `framework` build come from Attic? (The owner reports `git ls-remote`, `nix flake lock` plus a build, and `ssh server true` as passed from `framework`: PV-19, owner-reported, not observed. No log shows where the outputs came from.) | Step 8 acceptance, `CACHE-007` |
-| When does the owner land the `nix-meta` lane `vendomat-0-5-0` (pin `vendomat` at 0.5.0; no new host delta is needed) and switch `server`? `server` still has `vendomat` 0.4.4, with no `path` (PV-22, PV-23) | `DEL-006`, `DEL-007`, `DEL-010` |
+| When does the owner switch `server` to `nix-meta` `main` (`a8bba69`, which pins `vendomat` 0.5.0; no new host delta is needed)? `server` still has `vendomat` 0.4.4, with no `path` (PV-22, PV-23) | `DEL-006`, `DEL-007`, `DEL-010` |
 | Does a tag push from `framework` to `server` work? (`ssh server true` passed, owner-reported. A push was not reported. SSH from `server` to itself failed on 2026-10-08) | Step 6.3 release pushes |
 | When does the owner land and switch the `source-collection` lane? | Step 6.3 |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
