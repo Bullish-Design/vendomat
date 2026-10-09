@@ -5,12 +5,9 @@ node in `flake.lock` must be reachable from any machine, not only the declared o
 Repos consume vendomat by published tag and inherit its whole lock; a `file:///home/...`
 pin in here exists on exactly one machine and fails everywhere else.
 
-Face D raises the stakes. Each roster manager is another source input, so the number of
-inputs that can leak grows with the roster rather than staying at one.
-
 For local iteration, override an input at the command line instead of editing the file:
 
-    nix build .#gitman --override-input gitman git+file:///path/to/gitman
+    nix build .#vendomat --override-input nixpkgs git+file:///path/to/nixpkgs
 """
 
 from __future__ import annotations
@@ -57,21 +54,3 @@ def test_every_first_party_input_is_pinned_to_a_tag():
         ref = locked.get("ref", "")
         assert ref.startswith("refs/tags/"), f"input {name!r} is pinned to {ref!r}, not a release tag"
         assert locked.get("rev"), f"input {name!r} has no locked rev"
-
-
-def test_agentman_inferference_source_is_locked_to_the_contract_tag():
-    lock = json.loads((ROOT / "flake.lock").read_text())
-    node = lock["nodes"]["agentman-inferference"]
-    assert node["locked"].get("ref") == "refs/tags/v0.3.0"
-
-
-def test_the_roster_inputs_match_the_packages_they_build():
-    # A roster tool is only as pinned as its input. If a manager is added to the roster
-    # without its own input, it would silently build from whatever else is in scope.
-    flake = (ROOT / "flake.nix").read_text()
-    lock = json.loads((ROOT / "flake.lock").read_text())
-    for tool in ("repoman", "copyroom", "docman", "gitman", "agentman"):
-        assert tool in lock["nodes"], f"roster tool {tool!r} has no locked input"
-        assert f"src = inputs.{tool};" in flake, f"roster tool {tool!r} does not build from its input"
-    assert "inferference = prev.inferference.overrideAttrs" in flake
-    assert "src = inputs.agentman-inferference;" in flake

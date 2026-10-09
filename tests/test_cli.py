@@ -1,15 +1,16 @@
-"""Smoke tests for the vendomat CLI shape + the 0/1/2/3 exit-code contract (M0)."""
+"""The command surface and the exit-status contract (CLI-001, CLI-002)."""
 
 from __future__ import annotations
 
-import json
-
+import typer.main
 from typer.testing import CliRunner
 
-from vendomat.cli import _catalog_root, _global_source_root, app
-from vendomat.plane import GenerationStore, RenderedBundle, digest_bytes
+from vendomat.cli import app
 
 runner = CliRunner()
+
+#: The commands `CLI-001` allows. A command appears here only when it is built.
+BUILT = {"sync", "path"}
 
 
 def test_help_exits_zero():
@@ -19,211 +20,26 @@ def test_help_exits_zero():
 
 
 def test_no_args_shows_help():
-    # no_args_is_help=True → Typer prints usage instead of erroring on a bare invocation.
     result = runner.invoke(app, [])
     assert "Usage" in result.stdout
 
 
-def test_plane_show_states_its_projection_mode(tmp_path):
-    """§7, project 038: Vendomat only ever produces plane projections, and it
-    says so explicitly rather than leaving the mode implicit."""
-    generation: dict[str, object] = {
-        "generation": 1,
-        "devman_runtime": "test",
-        "renderer_digest": digest_bytes(b"renderer"),
-        "policy_digest": digest_bytes(b"policy"),
-        "dagu_digest": digest_bytes(b"dagu"),
-        "toolchain_digest": digest_bytes(b"toolchain"),
-        "contract_schema": 1,
-    }
-    record: dict[str, object] = {
-        "project": "fixture",
-        "manifest_digest": digest_bytes(b"manifest"),
-        "policy_digest": generation["policy_digest"],
-        "plane_generation": 1,
-        "renderer_digest": generation["renderer_digest"],
-        "source_digest": digest_bytes(b"steps: []\n"),
-        "overlay_digest": None,
-        "contract_schema": 1,
-    }
-    bundle = RenderedBundle(
-        project="fixture",
-        generation=generation,
-        record=record,
-        files={
-            "projects/fixture/workflows/check.yaml": b"steps: []\n",
-            "projects/fixture/projection.json": (json.dumps(record) + "\n").encode(),
-        },
-        links={"dags/fixture.check.yaml": "../projects/fixture/workflows/check.yaml"},
-        sources={},
-    )
-    state_dir = tmp_path / "plane"
-    GenerationStore(state_dir).build([bundle], dagu="true", activate=True)
-
-    result = runner.invoke(app, ["plane", "show", "devman", "--state-dir", str(state_dir)])
-
-    assert result.exit_code == 0
-    assert "projection mode: plane" in result.output
+def test_the_surface_is_the_built_v5_commands_and_nothing_else():
+    group = typer.main.get_command(app)
+    assert set(getattr(group, "commands", {})) == BUILT
 
 
-def test_plane_update_exposes_prune_and_retention():
-    # Project 039: removing a project is explicit (`--prune`), and old generations are
-    # retained with a bound so a rollback stays possible.
-    result = runner.invoke(app, ["plane", "update", "--help"])
-
-    assert result.exit_code == 0
-    assert "--prune" in result.stdout
-    assert "--keep" in result.stdout
+def test_an_unknown_command_is_invalid_usage():
+    assert runner.invoke(app, ["plane", "show"]).exit_code == 2
 
 
-def test_plane_plan_exposes_prune_without_retention():
-    result = runner.invoke(app, ["plane", "plan", "--help"])
-
-    assert result.exit_code == 0
-    assert "--prune" in result.stdout
-
-
-def test_doctor_clean_repo_exits_zero(tmp_path, monkeypatch):
-    # An empty repo has no knowledge installed → nothing to flag → exit 0.
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    result = runner.invoke(app, ["doctor"])
-    assert result.exit_code == 0
-    assert "self-check" in result.stdout
-
-
-def test_add_drafts_into_local_vendor(tmp_path, monkeypatch):
-    # `add` authors into <repo>/vendor; ghost-lib isn't installed → degrades to TODO stubs, exit 0.
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    result = runner.invoke(app, ["add", "ghost-lib"])
-    assert result.exit_code == 0
-    assert "dep-ghost-lib" not in result.stdout  # entry name is the lib, not the dep- skill name
-    entry = tmp_path / "vendor" / "libs" / "ghost-lib"
-    assert (entry / "SKILL.md").is_file()
-    assert (entry / "meta.toml").is_file()
-    assert (entry / "notes.md").is_file()
-
-
-def test_add_refuses_existing_entry_without_force(tmp_path, monkeypatch):
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-    assert runner.invoke(app, ["add", "ghost-lib"]).exit_code == 0
-    # Second run without --force is a domain refusal (exit 1); --force succeeds.
-    assert runner.invoke(app, ["add", "ghost-lib"]).exit_code == 1
-    assert runner.invoke(app, ["add", "ghost-lib", "--force"]).exit_code == 0
-
-
-def test_add_respects_vendor_root_flag(tmp_path, monkeypatch):
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path / "elsewhere"))
-    target = tmp_path / "authored"
-    result = runner.invoke(app, ["add", "ghost-lib", "--vendor-root", str(target)])
-    assert result.exit_code == 0
-    assert (target / "libs" / "ghost-lib" / "SKILL.md").is_file()
-
-
-def test_materialize_rewrites_consumer_manifest_sources(tmp_path, monkeypatch):
-    (tmp_path / "vendomat.toml").write_text(
-        '[[replacement]]\nfiles = ["pyproject.toml"]\n'
-        'local = "path:vendor/widgets"\n'
-        'github = "git+https://github.com/acme/widgets.git@v1"\n'
-    )
-    (tmp_path / "pyproject.toml").write_text('source = "path:vendor/widgets"\n')
-    monkeypatch.setenv("DEVENV_ROOT", str(tmp_path))
-
-    result = runner.invoke(app, ["materialize", "github"])
-
-    assert result.exit_code == 0
-    assert "updated 1 file" in result.stdout
-    assert "git+https://github.com/acme/widgets.git@v1" in (tmp_path / "pyproject.toml").read_text()
-
-
-def test_vendor_group_help_exposes_required_commands():
-    result = runner.invoke(app, ["vendor", "--help"])
-
-    assert result.exit_code == 0
-    assert "sync" in result.stdout
-    assert "status" in result.stdout
-    assert "doctor" in result.stdout
-
-
-def test_vendor_source_root_defaults_to_home_vendor(tmp_path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.delenv("VENDOMAT_SOURCE_ROOT", raising=False)
-
-    assert _global_source_root(None) == tmp_path / "vendor"
-
-
-def test_vendor_catalog_root_reuses_nix_vendor_root_environment(tmp_path, monkeypatch):
-    vendor_root = tmp_path / "vendomat-store-source/vendor"
-    monkeypatch.setenv("VENDOMAT_VENDOR_ROOT", str(vendor_root))
-    monkeypatch.delenv("VENDOMAT_CATALOG_ROOT", raising=False)
-
-    assert _catalog_root(None) == vendor_root.parent
-
-
-def test_vendor_sync_help_exposes_global_source_root():
-    result = runner.invoke(app, ["vendor", "sync", "--help"])
-
-    assert result.exit_code == 0
-    assert "--source-root" in result.stdout
-    assert "~/vendor" in result.stdout
-
-
-def test_vendor_doctor_uses_shared_exit_contract_for_missing_project(tmp_path):
-    vendomat_root = tmp_path / "vendomat"
-    catalog = vendomat_root / "vendor/python"
-    catalog.mkdir(parents=True)
-    (catalog / "knappy.toml").write_text(
-        "[package]\n"
-        'name = "knappy"\n'
-        'kind = "project"\n'
-        'repository = "https://github.com/Bullish-Design/knappy"\n'
-        f'rev = "{"1" * 40}"\n\n'
-        "[local]\n"
-        'path = "../knappy"\n'
-    )
-    consumer = tmp_path / "consumer"
-    consumer.mkdir()
-    (consumer / "pyproject.toml").write_text('[project]\ndependencies = ["knappy"]\n')
-
-    result = runner.invoke(
-        app,
-        [
-            "vendor",
-            "doctor",
-            "--repo-root",
-            str(consumer),
-            "--vendomat-root",
-            str(vendomat_root),
-            "--source-root",
-            str(tmp_path / "global-vendor"),
-        ],
-    )
-
+def test_sync_without_a_registry_names_the_file_and_exits_two(tmp_path):
+    result = runner.invoke(app, ["sync", "--root", str(tmp_path)])
     assert result.exit_code == 2
-    assert "missing" in result.stdout
+    assert "vendomat.toml" in result.output
 
 
-def test_vendor_sync_malformed_catalog_is_infra_error(tmp_path):
-    vendomat_root = tmp_path / "vendomat"
-    catalog = vendomat_root / "vendor/python"
-    catalog.mkdir(parents=True)
-    (catalog / "broken.toml").write_text("not = [valid")
-    consumer = tmp_path / "consumer"
-    consumer.mkdir()
-    (consumer / "pyproject.toml").write_text('[project]\ndependencies = ["pydantic"]\n')
-
-    result = runner.invoke(
-        app,
-        [
-            "vendor",
-            "sync",
-            "--repo-root",
-            str(consumer),
-            "--vendomat-root",
-            str(vendomat_root),
-            "--source-root",
-            str(tmp_path / "global-vendor"),
-        ],
-    )
-
+def test_path_without_a_flake_asks_for_sync(tmp_path):
+    result = runner.invoke(app, ["path", "lib-a", "--root", str(tmp_path)])
     assert result.exit_code == 2
-    assert "catalog" in result.stderr.lower()
+    assert "vendomat sync" in result.output

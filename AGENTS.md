@@ -49,11 +49,14 @@ Use Gitman for every version-control action. Do not run raw `git` or `jj`.
 ## Repository layout
 
 - `.scratch/CURRENT.md`: the active project and its authority documents.
-- `.scratch/projects/`: numbered project directories. Older numbers are history and provenance,
-  never current authority.
-- `flake.nix`, `lib/`, `modules/`, `src/vendomat/`, `vendor/`: the existing code surface.
-- `tests/`: Python checks, Nix checks, and consumer fixtures.
-- `docs/`: records and guides. Check `.scratch/CURRENT.md` before treating any of them as current.
+- `.scratch/projects/`: numbered project directories. Older numbers are closed history.
+- `flake.nix`: one input (`nixpkgs`), one output (`packages.<system>.vendomat`).
+- `src/vendomat/`: `registry.py`, `generate.py`, `store.py`, `locate.py`, `cli.py`.
+- `hooks/`: the collection `post-receive` hook.
+- `tests/`: Python checks, Nix checks, and fixtures.
+
+The repository holds V5 and nothing else. `tests/test_repo_shape.py` fails when V4 code, a V4
+directory, or a second flake input comes back.
 
 ## Host facts
 

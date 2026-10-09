@@ -33,11 +33,15 @@ that build them. The evidence is [PV-20](./prelim-verification/results/PV-20.md)
 day adds `STORE-023`, a push-time hook for the tree refresh ([PV-21](./prelim-verification/results/PV-21.md)).
 The release task, `STORE-010`, and the explicit use of `backup` are not built.
 
+**V4 removal, 2026-10-09:** the owner ruled that V4 stays nowhere. `DEL-012` adds the rule for this
+repository, and [PV-26](./prelim-verification/results/PV-26.md) records the purge. V5 provides no
+backward compatibility. The system is aligned to V5 instead.
+
 **Earlier PV-12 update (superseded by the count below):** 153 requirement IDs were defined in the tables below; 126 were active.
 
-**Current count:** 194 requirement IDs are defined in the tables below: 151 active, 32 superseded, 10
+**Current count:** 195 requirement IDs are defined in the tables below: 152 active, 32 superseded, 10
 withdrawn, and 1 narrowed. The 19 withdrawn `RES-*` and `EMIT-*` IDs remain listed in section 2, so
-213 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
+214 IDs are preserved in all. Seventeen `NAT-*` entries are facts, not requirements. A preliminary
 fixture result does not pass an implementation requirement.
 
 ## How to use this document
@@ -425,7 +429,8 @@ the two phases.
 | `DEL-008` | No consumer MUST declare Vendomat as a flake input | Read the `inputs` of every generated `flake.nix` with Nix and the root inputs of its `flake.lock`; neither holds `vendomat`. Do not search the header text |
 | `DEL-009` | Executing an accepted project output MUST need no Vendomat process, package, or input | See `GEN-019` and `ISO-007` |
 | `DEL-010` | A host that installs the CLI MUST make `vendomat` reachable from an existing project shell, and the project MUST NOT add Vendomat to its flake or devenv files to get it | PV-25, on `server` with the system `vendomat` 0.5.0: a bare devenv project shell and a shell that imports the central consumer module both resolve `vendomat` to the system command and to no other, with `path` and the new `sync` flags. `devenv shell --clean` drops the system `PATH`, so it finds none. **Not run in an existing repository's shell, and not on `framework`.** The V4 consumer module prints an `install-hook` error on a V5 `vendomat.toml` (`DEL-011` open) |
-| `DEL-011` | The CLI MUST NOT be installed through devenv or the shared boot core. A host delta installs it | Inspect the V5 host and project configurations: no devenv module provides the CLI. The V4 `modules/devenv.nix` is provenance and is replaced before fleet acceptance |
+| `DEL-011` | The CLI MUST NOT be installed through devenv or the shared boot core. A host delta installs it | Inspect the V5 host and project configurations: no devenv module provides the CLI. `vendomat` 0.6.0 on `main` has no devenv module (PV-26). **Open:** `nix-meta` still pins `vendomat` `d5a90f0`, and the installed command (0.5.0) still comes with the V4 consumer module, which eleven overlays import |
+| `DEL-012` | The `vendomat` repository MUST hold V5 only: its library holds only V5 modules, it has no V4 directory (`vendor/`, `modules/`, `lib/`, `docs/`, `examples/`), its flake has `nixpkgs` as its only input and `packages.<system>.vendomat` as its only output, and its package needs only `typer`. The command surface is the built subset of `CLI-001` | `tests/test_repo_shape.py` and `tests/test_cli.py` fail when any of these returns. PV-26: `vendomat` 0.6.0 builds, `--help` lists `sync` and `path` only, and `nix flake show` lists `packages` only |
 
 **Rationale.** Three delivery paths because there are three different consumers: a person running a
 command, a flake evaluating a function, and a generated file that must depend on nothing.
@@ -549,7 +554,7 @@ core is recorded.
 # 12. Bootstrap and conversion
 
 Vendomat starts from a bare repository. Every machine is reconfigured. The existing trees are
-provenance, not a base.
+replaced, not extended.
 
 | ID | Requirement | Verify |
 | --- | --- | --- |

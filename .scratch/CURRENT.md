@@ -37,7 +37,7 @@ Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by 
 `flake.lock`. Vendomat tracks two things: build outputs, which Attic holds, and source, which one
 collection on `server` holds. Nix reads personal inputs from that collection over `git://`, CI pushes
 release tags to it, and every input pins a tag. Attic never needs to hold source. The library is
-being rewritten from scratch around the V5 concept; old code is provenance. See
+aligned to the V5 concept; V4 is removed, not kept. See
 [DECISIONS.md](projects/14-vendomat-local/prelim-verification/DECISIONS.md). PV-05 stays as history.
 
 Still blocked, each by evidence:
@@ -58,6 +58,27 @@ The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That
 prove production boot or tailnet reachability. See
 [results](projects/14-vendomat-local/prelim-verification/RESULTS.md).
 
+## V4 removal backlog (outside the `vendomat` repository)
+
+The owner ruled on 2026-10-09: V4 stays nowhere, V5 gives no backward compatibility, and the rest of
+the system is aligned to V5. `vendomat` `main` is purged ([PV-26](projects/14-vendomat-local/prelim-verification/results/PV-26.md)).
+The `nix-meta` pin keeps the old code alive on the machine until the items below are done. Each item
+names its V5 answer. None keeps V4 behavior.
+
+| # | V4 leftover | V5 answer | Needs first |
+| --- | --- | --- | --- |
+| 1 | `nix-meta` pins `vendomat` at `d5a90f0`. `profiles/developer.nix:16` takes the login-shell tools from `repoman-toolchain-core`. `machines/server.nix:68` imports `nixosModules.default`, which installs the CLI and the V4 consumer module | Each tool is its own flake input of `nix-meta`, listed in its registry and enabled in the host TOML. A host delta installs `packages.<system>.vendomat` only. Repin to 0.6.0 or later | Items 2 and 3 |
+| 2 | `gitman`, `copyroom`, `docman`, `templateer`, `agentman`, `pyjutsu` have no `flake.nix`. The old `vendomat` flake built them with a shared uv2nix builder | Each tool authors its own flake (`packages.<system>.default`, and a module through `mkModules` when it has one). The uv2nix builder becomes a Python core input that exports `lib` (the `nvim-core` pattern), outside `vendomat`. Compare each build with today's (`BOOT-010`). `pyjutsu` exports its own wheel | The Python core |
+| 3 | `repoman` reads `REPOMAN_TOOLCHAIN_BIN` from the Vendomat closure | `repoman` finds its managers on the host `PATH`, or from its own inputs | Item 2 |
+| 4 | Eleven central overlays import the V4 consumer module: `eventic`, `llgym`, `loci-core`, `argentic`, `poddantic`, `flora`, `loci.nvim`, `flora-qc`, `shellij`, `nix-secrets`, `pyllij` | Remove the import line. Keep the `devman` link lines. A project that needs a native wheel lists the owning repository as an input | Item 2 for the Python repositories |
+| 5 | Eleven repositories hold a V4-format `vendomat.toml`: `argentic`, `eventic`, `flora`, `flora-core`, `loci-core`, `loci.nvim`, `nix-nvim`, `poddantic`, `pyllij`, `repoman`, `shellij`. The V5 reader rejects them | Delete each. A repository gets a V5 `vendomat.toml` only when it becomes a flake-backed project or author | None |
+| 6 | `linkman` declares `vendomat` as a devenv input at `v0.4.3` | Remove the input and the `vendomat/modules` import | None |
+| 7 | The machine plane. The Dagu service on `server` reads its registry from `~/.local/state/vendomat/devman/active` (generation 4), set in `nix-meta` `profiles/devman.nix` | Not part of V5. NixOS generations give the atomic switch and the rollback. `devman`'s flake supplies the renderer, Dagu, and the runtime, and already validates workflows in a Nix check. `devman` exports a function that renders a registry from project inputs; `nix-meta` sets `registryDir` to that store path. Workflows then follow released tags. A local checkout uses an explicit input override. Until then the live Dagu keeps reading generation 4, which is immutable | A `devman` change |
+| 8 | Documents that name V4 commands: `repoman` README and changelog, `devman/USER.md` section 2.7, `mancore/CONCEPT.md`, `pyjutsu/nix/pyjutsu.nix` | Rewrite to V5 | Items 1 and 7 |
+| 9 | `.scratch/projects/09-*` to `13-*`, which the V5 documents cite by name | Remove after the citations are inlined or dropped | Last |
+
+Item 2 has no requirement IDs yet: the V5 documents name a Python core and do not specify it.
+
 ## Superseded
 
 `.scratch/projects/09-*` through `13-*` and the `docs/V4_*.md` records are closed history. They
@@ -67,9 +88,8 @@ its own terminal note.
 
 ## Inherited facts that still hold
 
-- The code at version 0.4.4 serves the current surface: the wheel build, the dependency knowledge
-  commands, and the toolchain in `src/vendomat/`, `vendor/`, `lib/`, and `modules/devenv.nix`.
-  V5 treats it as **provenance, not a base.** The git history stays.
+- `vendomat` `main` holds V5 only (0.6.0, `DEL-012`). The V4 code is in Git history and in the
+  revision `nix-meta` still pins (`d5a90f0`). Nothing reads it for direction.
 - Eleven central overlays, ten local-checkout overlays, and one flake-input consumer use the
   current paths. Every machine is reconfigured, so those paths are replaced. `BOOT-010` carries the
   one obligation: a converted input must produce the same result as the tree it replaces, or name

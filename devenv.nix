@@ -1,12 +1,9 @@
-# vendomat's own dev shell — a *man-shaped Python project (Typer CLI + pytest + ruff).
+# vendomat's own dev shell: a Python project (Typer CLI, pytest, ruff, ty).
 #
-# vendomat ships two faces over one vendor/ data area: Face A (native-wheel artifacts, the
-# flake.nix half) and Face B (per-dependency knowledge skills, this Python package). This shell
-# is for developing the package itself; it imports nothing from vendomat's own consumer module
-# (vendor.*) because vendomat has no native dependencies of its own.
+# This shell is for developing the command. The installed `vendomat` is a host program; a project
+# never imports it (DEL-006, DEL-007).
 #
-# Run every in-repo command through here: `devenv shell -- pytest`, `devenv shell -- ruff …`,
-# `devenv shell -- vendomat doctor`.
+# Run every in-repo command through here: `devenv shell -- testee verify --mode quick`.
 { pkgs, lib, config, inputs, ... }:
 
 {
@@ -14,8 +11,6 @@
   # verify interface. Route checks through `testee verify`, not pytest/ruff directly.
   imports = [
     ./nix/testee.nix
-    # Shared RepoMan command closure (gitman). Reads the machine manifest; the default is store mode.
-    ./modules/devenv.nix
   ];
 
   # https://devenv.sh/basics/
@@ -51,7 +46,7 @@
 
   enterShell = ''
     # Only announce in an interactive terminal; stay silent when a command captures stdout
-    # (e.g. an agent running `devenv shell -- vendomat doctor`).
+    # (e.g. an agent running `devenv shell -- vendomat path <name>`).
     if [ -t 1 ]; then
       echo "vendomat devenv"
       python --version
