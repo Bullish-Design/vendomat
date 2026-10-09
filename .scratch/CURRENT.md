@@ -8,7 +8,7 @@ points here. When the active project changes, change this file and not `AGENTS.m
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 193 requirement IDs in its tables, 150 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
+2. `SPEC-V5.md` — normative. 194 requirement IDs in its tables, 151 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 
@@ -25,8 +25,10 @@ This is not fleet acceptance.
 The store step is built and passes its fixtures ([PV-20](projects/14-vendomat-local/prelim-verification/results/PV-20.md)):
 `vendomat sync` handles `keep`, `mirror`, `--dry-run`, and `--collection`, and `vendomat path <name>`
 prints a locked input's store path. A real run on `server` moved `devman` to `v0.7.0` and left the
-other clones alone. No `keep` or `mirror` entry ran on `server`. A push-time hook for the tree
-refresh, `STORE-010`, the release task, and the explicit use of `backup` are not built.
+other clones alone, and a `keep` clone of `devman` over the live daemon worked ([PV-21](projects/14-vendomat-local/prelim-verification/results/PV-21.md)). No `mirror` entry ran on
+`server`. A push-time hook for the tree refresh exists in `hooks/collection-post-receive` and passes its
+fixtures (`STORE-023`); it is not installed on `server`. `STORE-010`, the release task, and the explicit
+use of `backup` are not built.
 
 Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
 `packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated

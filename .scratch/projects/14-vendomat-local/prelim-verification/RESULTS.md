@@ -28,6 +28,7 @@ verification results.
 | PV-18 | Passed fixture: the server settings, the push rules, and a Nix fetch on two NixOS machines; the `nix-meta` lane is not switched | [Collection on two machines](results/PV-18.md) | [Run 3](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/06-collection-vm-run3.log) |
 | PV-19 | Passed for the read transport, owner-reported: `git ls-remote git://server/devman` works from `framework`. A later addendum records two more owner-reported checks (`nix flake lock` plus a build, `ssh server true`); output was not captured and the source of the built outputs was not verified | [Fetch from framework](results/PV-19.md) | — |
 | PV-20 | Passed fixtures: `sync` with `keep`, `mirror`, `--dry-run`, and `--collection`; `vendomat path`. Real run on `server`: `devman` refreshed to `v0.7.0`, other clones unchanged. No `keep` or `mirror` ran on `server` | [The store step](results/PV-20.md) | [Real run](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-real/real-run.txt) |
+| PV-21 | Passed fixtures: the push-time hook (8 tests). Real run on `server`: a `keep` clone of `devman` over the live daemon, and the skip of the collection's own repository. The hook is not installed on `server` | [The push-time hook and the keep run](results/PV-21.md) | [Keep run](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-keep/real.txt) |
 
 ## Readiness and blockers
 
@@ -81,10 +82,14 @@ It lists 17 native fact IDs. The inventory found no duplicate and no broken succ
 | --- | --- |
 | Add `STORE-016` to `STORE-022` (order and exit codes, clone rules, mirror, pinned tag, Git calls, dry run, newest release) and `CLI-016` (`path` data source). Supersede nothing. `STORE-009`, `STORE-013`, and `CLI-007` get a Verify | PV-20 unit tests, Nix tests, and the real run on `server` |
 
-The specification now defines 193 requirement IDs in its tables: 150 active, 32 superseded, 10
-withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 212 IDs are preserved. The
+The specification defined 193 requirement IDs in its tables at the end of the store step: 150 active, 32
+superseded, 10 withdrawn, and 1 narrowed. With the 19 withdrawn resolver and emitter IDs, 212 IDs were preserved. The
 inventory found no duplicate and no broken successor link
 ([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-real/spec-inventory.log)).
+
+The push-time hook adds `STORE-023` (PV-21). The count is then 194 IDs: 151 active, 32 superseded, 10
+withdrawn, and 1 narrowed; 213 with the withdrawn resolver and emitter IDs
+([log](/home/andrew/.local/state/vendomat/v5/2026-10-08/logs/store-keep/spec-inventory.log)).
 
 ## Changed requirement IDs (preliminary session, 2026-10-08 morning)
 

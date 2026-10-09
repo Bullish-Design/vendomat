@@ -503,8 +503,9 @@ What the lane changes in `machines/server.nix`:
   <repo>` creates a repository with the hook and the export marker.
 - **Working tree.** `vendomat sync --collection` moves each collection repository to its newest tag
   when its tree is clean, so agents read current files (`STORE-013`, `STORE-022`). It runs on
-  `server`. A push-time hook for the same job is not built. The checkout is detached, so after the
-  first run the daemon also advertises `HEAD` (PV-20).
+  `server`. `hooks/collection-post-receive` does the same job at push time (`STORE-023`, [PV-21](./prelim-verification/results/PV-21.md)). It passes its
+  fixtures. `collection-add` does not install it yet, and no repository on `server` has it. The checkout
+  is detached, so after the first run the daemon also advertises `HEAD` (PV-20).
 - **Builder.** Step 6.2 reads the newest `v<semver>` tag from the same directory. The source path is
   identical whether Nix fetches by `git://` or by a local `file://` URL (PV-17), so consumers
   substitute the builder's outputs.
@@ -656,7 +657,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | --- | --- |
 | Step 0 and physical target | Blocked: partition-table and signature scans were not available |
 | Consumer source portability | Absolute `git+file` paths failed (PV-03). The decided route is the collection on `server` over `git://`; a loopback fixture and the generator pass (PV-16, PV-17). The owner reports a fetch from `framework` (PV-19, not observed) |
-| Store step | Passed fixtures: `keep`, `mirror`, the collection refresh, and `path` (PV-20). The real run on `server` refreshed `devman` to `v0.7.0` and left the other clones alone. No `keep` or `mirror` ran on `server` |
+| Store step | Passed fixtures: `keep`, `mirror`, the collection refresh, `path` (PV-20), and the push-time hook (PV-21). Real runs on `server`: `devman` refreshed to `v0.7.0` and the other clones left alone; a `keep` clone of `devman` over the live daemon (PV-21). No `mirror` ran on `server`; the hook is not installed |
 | Consumer output | PV-13 and PV-14 passed: the bridge, `[follows]`, and `sync` output work on pinned Nix. There is no generated shell; PV-05's `--impure` result is history |
 | TOML and module merge | Current examples failed; successor contracts are recorded in `SPEC-V5.md` |
 | Cache and retention | Isolated fixture passed; cold installer remains blocked |
@@ -668,7 +669,7 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Question | Blocks |
 | --- | --- |
 | Did the outputs of the `framework` build come from Attic? (The owner reports `git ls-remote`, `nix flake lock` plus a build, and `ssh server true` as passed from `framework`: PV-19, owner-reported, not observed. No log shows where the outputs came from.) | Step 8 acceptance, `CACHE-007` |
-| Does a push-time hook, or only `sync --collection`, keep the collection trees current? (`sync --collection` works: PV-20) | `STORE-013` |
+| When does the owner install the push-time hook? Add it to `collection-add` in `nix-meta` and copy it into `devman` (`hooks/collection-post-receive`; fixtures pass: PV-21) | `STORE-023` |
 | Does a tag push from `framework` to `server` work? (`ssh server true` passed, owner-reported. A push was not reported. SSH from `server` to itself failed on 2026-10-08) | Step 6.3 release pushes |
 | When does the owner land and switch the `source-collection` lane? | Step 6.3 |
 | How does a fresh installer obtain the private cache credential and route before first boot? (PV-09 addendum: the owner chooses) | Steps 2, 3, and 10 |
