@@ -504,8 +504,8 @@ What the lane changes in `machines/server.nix`:
 - **Working tree.** `vendomat sync --collection` moves each collection repository to its newest tag
   when its tree is clean, so agents read current files (`STORE-013`, `STORE-022`). It runs on
   `server`. `hooks/collection-post-receive` does the same job at push time (`STORE-023`, [PV-21](./prelim-verification/results/PV-21.md)). It passes its
-  fixtures and is installed on `devman` ([PV-22](./prelim-verification/results/PV-22.md)). `collection-add --hooks <repo>` installs or refreshes it; that change sits in an unlanded
-  `nix-meta` lane. The checkout
+  fixtures and is installed on `devman` ([PV-22](./prelim-verification/results/PV-22.md)). `collection-add --hooks <repo>` installs or refreshes it, and `collection-add <repo>` installs it
+  for a new repository (`nix-meta` `main` `1629188`). The checkout
   is detached, so after the first run the daemon also advertises `HEAD` (PV-20).
 - **Builder.** Step 6.2 reads the newest `v<semver>` tag from the same directory. The source path is
   identical whether Nix fetches by `git://` or by a local `file://` URL (PV-17), so consumers
@@ -670,7 +670,6 @@ step has run. The current guide is blocked at Step 0 and at the private-cache in
 | Question | Blocks |
 | --- | --- |
 | Did the outputs of the `framework` build come from Attic? (The owner reports `git ls-remote`, `nix flake lock` plus a build, and `ssh server true` as passed from `framework`: PV-19, owner-reported, not observed. No log shows where the outputs came from.) | Step 8 acceptance, `CACHE-007` |
-| When does the owner land the `nix-meta` lane `collection-post-receive`? Landing is blocked by unbookmarked work in the main `nix-meta` checkout (PV-22). Then a new collection repository gets the hook | `STORE-023` |
 | When does the owner bump the `vendomat` pin in `nix-meta`, add the host delta, and switch `server`? `server` still has `vendomat` 0.4.4, with no `path` (PV-22) | `DEL-006`, `DEL-007`, `DEL-010` |
 | Does a tag push from `framework` to `server` work? (`ssh server true` passed, owner-reported. A push was not reported. SSH from `server` to itself failed on 2026-10-08) | Step 6.3 release pushes |
 | When does the owner land and switch the `source-collection` lane? | Step 6.3 |
