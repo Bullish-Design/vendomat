@@ -38,18 +38,23 @@
 | `DEL-008` | Superseded | `VMOD-001`: every workspace imports the Vendomat module |
 | `DEL-009`, `GEN-019`, `ISO-007` | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
 | `DEL-010`, `DEL-011` | Superseded | `DEL-017`: a host launcher runs each workspace's pinned Vendomat |
-| `DEL-012` | Superseded | `DEL-015`: the Vendomat flake also exports the devenv module |
+| `DEL-012` | Superseded | `DEL-019`: the Vendomat flake also exports the devenv module (the chain is `DEL-015`, `DEL-018`, `DEL-019`) |
+| `DEL-003` | Superseded | `MOD-013`: no `mkModules` helper exists, so no library needs a Vendomat input |
 | `DEL-004` | Superseded | `DEL-016`: `nix-meta` is retired |
 | `GEN-022` | Superseded | `GEN-023`: a workspace shell is a devenv project |
-| `GEN-017` | Kept | It covers the flake target only. The module imports faces (`VMOD-003`), not the generator |
+| `GEN-017` | Kept | It covers the flake target only. The module builds faces from descriptions (`VMOD-013`), not the generator |
 | `REG-021` | Superseded | `REG-022`: adds `[imports]` and `[targets]` |
 | `CACHE-001` | Superseded | `CACHE-010`: the host core sets the substituter |
-| `CLI-001` | Superseded | `CLI-017` |
+| `CLI-001` | Superseded | `CLI-021` (the chain is `CLI-017`, `CLI-021`) |
 | `CLI-011`, `CLI-012`, `CLI-013` | Superseded | `MACH-005`: activation and rollback through devenv Machines |
+| `CLI-005`, `CLI-008` | Deferred | Not built in V5 0.6.0 and not in `CLI-021`. Decide with `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015` |
 | `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, `SYS-001` to `SYS-010` | Deferred | Owner 2026-10-09: decide after `nix-systems` has run; leaning toward keeping TOML as a layer inside `nix-systems` |
-| `MOD-001` to `MOD-010` | Partly superseded (owner 2026-10-09: Vendomat builds the modules from a library description) | `MOD-001` → `DESC-001`; `MOD-002` → `FACE-005`; `MOD-007` stays superseded by `MOD-010`. `MOD-003` to `MOD-006` and `MOD-008` to `MOD-010` stay active and apply to the modules Vendomat builds |
+| `MOD-001`, `MOD-002` | Superseded (owner 2026-10-09: Vendomat builds the modules from a library description) | `MOD-001` → `DESC-002` (through `DESC-001`); `MOD-002` → `FACE-005` |
+| `MOD-004`, `MOD-006` | Superseded | `DESC-002`: `packages` is `pkgs: [ derivation ]` and `extra` is `{ cfg, pkgs, lib }: { devenv; nixos; homeManager }` |
+| `MOD-003`, `MOD-005`, `MOD-008` to `MOD-010` | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
 | `BOOT-008`, `BOOT-010` | Withdrawn 2026-10-09 | Blank slate: no capability parity and no tree comparison |
 | `BOOT-009` | Withdrawn 2026-10-09 | No conversion step exists. `BOOT-001` keeps the core free of Vendomat |
+| `BOOT-019` | Superseded | `BOOT-026`: no laptop install exists; Framework is adopted in place |
 | `BOOT-022` | Superseded | `MACH-008`: install with devenv Machines from the running `server` |
 | `DISK-005` | Superseded | `DISK-008`: UUIDs are declared before formatting |
 | `NAT-006` | Superseded | `NAT-018` |
@@ -69,6 +74,7 @@
 | `DVN-006` | Attic MUST hold the fork's build. A host with Attic configured MUST build nothing to install it | `nix build --dry-run` of the fork package on a cold host lists no derivation to build |
 | `DVN-007` | Each upstream bump MUST run the bump checklist: changes under `devenv-nix-backend/bootstrap/`, `machines.rs`, and `latest-version`; PR #3244 state; the `isRelease` hook; the `require_version` matrix; the offline test; the version string | The bump log records each item (list: agent J Q6) |
 | `DVN-008` | A workspace MUST enter its shell with the collection unreachable and an empty fetcher cache, when the store holds every locked source and nixpkgs is a plain `github:NixOS/nixpkgs` input | Fork CLI exits 0; stock 2.4.0 exits 1 at `resolve-lock.nix:89` (agent J Q4) |
+| `DVN-009` | *Proposed.* The patched `devenv machines install` MUST refuse a host whose mode is `adopt-existing` at the start of the command, before SSH, payload preparation, kexec, facter, disko, install, or reboot, for every `--phases` selection and every `--disko-mode` | A phase-matrix fixture: each call exits non-zero and a tripwire target sees no contact |
 
 ---
 
@@ -87,10 +93,11 @@
 | `VMOD-009` | `vendomat.paths` MUST be `attrsOf str`, default from `/etc/vendomat/paths.json`, and MUST export `VENDOMAT_PATH_<NAME>`. A missing file MUST give `{}`. Implements `PATH-001` to `PATH-004` | The shell shows the variables (agent K Q5). **Open:** the real host file |
 | `VMOD-010` | Host and user defaults MUST use `profiles.hostname.<host>` and `profiles.user.<user>` with `lib.mkDefault`, so a workspace can override them | The defaults apply on the named host; a workspace value wins (agent K Q6) |
 | `VMOD-011` | The module MUST own `machines.<host>.nixos`. The owner MUST write `vendomat.inventory.<host>.nixos`. Any other definition of `machines.<host>.nixos` MUST fail evaluation, naming the host | Agent K Q7: a direct definition fails with "is also defined outside vendomat.inventory" |
-| `VMOD-012` | For each host, the module MUST assert: every `disko.devices.disk.*.device` is a `/dev/disk/by-id/` path listed in the inventory with role `install-target`; no `fileSystems.*.device` uses `by-partlabel` or a kernel name | `devenv build machines.<host>.build.nixos` fails on each bad layout with a named message and passes on a good one (agent K Q7) |
+| `VMOD-012` | *Superseded by `VMOD-016` (2026-10-09).* For each host, the module asserted that every disko disk is an `install-target` `by-id` path and that no filesystem device uses `by-partlabel` or a kernel name | — |
 | `VMOD-013` | The module MUST build a devenv module from each flake input's `vendomat` description (`DESC-002`) and import it. For an input with no description, it MUST import the input's hand-written `devenvModules.default`, if any. An input with both MUST be an error naming it. Two inputs with the same `name` MUST be an error naming both. Vendomat itself, `devenv`, `nixpkgs`, and `self` are skipped | Agent L Q1, Q3: identical shell derivation when disabled; both error messages |
-| `VMOD-014` | In `nix-systems`, the module MUST build the NixOS module from each description and add it to each host through the inventory. The NixOS module MUST add the Home Manager module through `home-manager.sharedModules` when the host imports `home-manager.nixosModules.home-manager` (`MACH-012`). Host-side values go in `vendomat.inventory.<host>.nixos` as `vendomat.libs.<name>.*`; user-side values as `home-manager.users.<user>.vendomat.libs.<name>.*` | Agent L Q4: disabled gives an identical toplevel; enabled installs the package, the system unit, and the user unit. **Open:** the units running on a VM |
+| `VMOD-014` | In `nix-systems`, the module MUST build the NixOS module from each description and add it to each host through the inventory. The NixOS module MUST add the Home Manager module through `home-manager.sharedModules` when the host imports `home-manager.nixosModules.home-manager` (`MACH-017`). Host-side values go in `vendomat.inventory.<host>.nixos` as `vendomat.libs.<name>.*`; user-side values as `home-manager.users.<user>.vendomat.libs.<name>.*` | Agent L Q4: disabled gives an identical toplevel; enabled installs the package, the system unit, and the user unit. **Open:** the units running on a VM |
 | `VMOD-015` | *To build.* The module MUST also import a library's hand-written `nixosModules.default` and `homeManagerModules.default` into each host, as it does for described libraries | A hand-written NixOS face is present on a host build |
+| `VMOD-016` | *Proposed (machine-path research 2026-10-09).* Each inventory host MUST set `mode` to `fresh-install` or `adopt-existing`, and the mode MUST reach the machine metadata that `DVN-009` reads. In `fresh-install` mode, every `disko.devices.disk.*.device` MUST be an `install-target` `by-id` path of the inventory, and no `keep` or `existing-system` disk MAY be a disko device. In `adopt-existing` mode, there MUST be no `disko.devices.disk`, no `install-target`, and at least one `existing-system` disk. In both modes, no `fileSystems.*.device` MAY use `by-partlabel` or a kernel name, unless the filesystem is virtual, mapped, or temporary. `vendomat.check.enable = false` MUST NOT disable these assertions | `devenv build machines.<host>.build.nixos` fails on each bad layout with a named message and passes on a good one, in both modes (direct NixOS build fixtures) |
 
 ---
 
@@ -129,7 +136,7 @@
 | `DESC-003` | The builder MUST run a service's `exec` through a `<name>-start` script that puts the library's packages on `PATH`. In devenv, an enabled library with a `service` gets `processes.<name>` with no second switch; in NixOS and Home Manager, `service.enable` (effective only with `enable`) adds a system or user unit | Agent L Q1, Q4: `ExecStart` is the start script; the process ran under `devenv up` |
 | `FACE-004` | *Decided 2026-10-09, see `FACE-005`.* Option paths | — |
 | `FACE-005` | Every module that Vendomat builds, and every hand-written face, MUST put its options under `vendomat.libs.<name>.*` in all three targets: `enable` (default false), the library's own options, and `service.enable` for a daemon in NixOS or Home Manager | Evaluate each target; the options exist only at that path |
-| `FACE-006` | A library SHOULD export a `vendomat` description (`DESC-001`). It MAY instead export hand-written `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default` that follow `FACE-005` (`MOD-009`) | `nix flake show` of the library |
+| `FACE-006` | A library SHOULD export a `vendomat` description (`DESC-002`). It MAY instead export hand-written `devenvModules.default`, `nixosModules.default`, or `homeManagerModules.default` that follow `FACE-005` (`MOD-009`) | `nix flake show` of the library |
 
 ---
 
@@ -137,26 +144,37 @@
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `MACH-001` | `nix-systems` MUST be a devenv project that defines `machines.server` and `machines.framework` through `vendomat.inventory`, with one shared core module and one delta module per host | `devenv machines info` lists both; `devenv build machines.<host>.build.nixos` succeeds (agent G Q2) |
-| `MACH-002` | Machines and workspaces MUST use a plain `github:NixOS/nixpkgs/<rev>` of nixos-unstable, not `devenv-nixpkgs` | The lock's `nixpkgs` node is `NixOS/nixpkgs`; `DVN-008` passes |
-| `MACH-003` | `nix-systems` MUST declare `disko`, and `home-manager` when a host has a Home Manager role. Each host MUST commit `.machines/<host>/facter.json` or set `hardware.facter = null` | The build fails without them (agent G Q2) and passes with them |
+| `MACH-001` | *Superseded by `MACH-023` (2026-10-09).* `nix-systems` MUST be a devenv project that defines `machines.server` and `machines.framework` through `vendomat.inventory`, with one shared core module and one delta module per host | — |
+| `MACH-002` | *Superseded by `MACH-019` (2026-10-09).* Machines and workspaces MUST use a plain `github:NixOS/nixpkgs/<rev>` of nixos-unstable, not `devenv-nixpkgs` | — |
+| `MACH-003` | *Superseded by `MACH-015` (2026-10-09).* `nix-systems` MUST declare `disko`, and `home-manager` when a host has a Home Manager role. Each host MUST commit `.machines/<host>/facter.json` or set `hardware.facter = null` | — |
 | `MACH-004` | Each host MUST accept the owner's deploy key for root, key-only (`PermitRootLogin prohibit-password`, no password login). devenv MUST run as the owner, not as root | A self-deploy as the owner to `root@localhost` succeeds (agents F Q5, G Q4) |
 | `MACH-005` | Activation, status, and rollback MUST use `devenv machines plan`, `deploy`, `apply`, `status`, and `rollback`. Vendomat MUST NOT wrap them | Agent G Q3 |
 | `MACH-006` | Every host MUST set `deploy.healthCheck`. Every service MUST start cleanly; a host MUST NOT be deployed while a unit is failed | `systemctl --failed` is empty before a deploy; a failing health check rolls back (agent G Q3) |
 | `MACH-007` | A host with install payloads (`install.secrets`, `install.extraFiles`, `install.encryptionKeys`) MUST be installed with a CLI that carries `a5fd551a`. An `install.extraFiles` key MUST NOT contain a dot | Agent G Q5b. **Open:** a runtime install with the fork CLI |
-| `MACH-008` | `server` MUST be installed on the 4 TB drive by `vendomat machine install server`: the preflight (`MACH-010`), then `devenv machines install server --phases disko,install` with the default disko mode, from the running `server` to `root@localhost`. It MUST refuse `--disko-mode format` and `mount`, and MUST unmount `/mnt` afterwards | VM: the old disk's partition table, ESP files, and NVRAM unchanged; the new disk boots alone (agent F Q2). **Open:** the real hardware |
+| `MACH-008` | `server` MUST be installed on the 4 TB drive by `vendomat machine install server`: the preflight (`MACH-016`), then `devenv machines install server --phases disko,install` with the default disko mode, from the running `server` to `root@localhost`. It MUST refuse `--disko-mode format` and `mount`, and MUST unmount `/mnt` afterwards | VM: the old disk's partition table, ESP files, and NVRAM unchanged; the new disk boots alone (agent F Q2). **Open:** the real hardware |
 | `MACH-009` | The first install MUST set `boot.loader.efi.canTouchEfiVariables = false`. The new system MUST be tried once with `efibootmgr -C` and `efibootmgr -n`. It MUST become the default only after it has run reliably | VM (agent F Q4). **Open:** the real firmware keeps the entry and honours `BootNext` |
-| `MACH-010` | Before disko runs, the preflight MUST check on the target: the `by-id` path resolves; model, serial, and size match the inventory; `wipefs --no-act` and `blkid -p` show no signature; the disk does not back `/` or `/boot`; nothing is mounted under `/mnt`; `.machines/<host>/facter.json` is committed. Any mismatch or unknown result MUST stop it. Implements `DISK-002` and `DISK-003` | A fixture injects each mismatch; no write runs. The real scan on `server` (PV-02) |
-| `MACH-011` | `framework` MUST be installed from `server` with `devenv machines install`, with its own facter report | A VM fixture first |
-| `MACH-012` | On `server` and `framework`, Home Manager MUST run inside the NixOS role (`home-manager.nixosModules.home-manager`), so a system rollback also restores the home configuration. A separate `machines.<host>.home-manager` role is only for a host that does not run NixOS | A VM: deploy a home change, roll back, and the old home generation is active again |
-| `MACH-013` | nixpkgs MUST be plain `github:NixOS/nixpkgs` on nixos-unstable. Each Vendomat release MUST carry one tested nixpkgs revision as the default `nixpkgs` input that `sync` writes; a workspace MAY override it, and `sync` MUST report the override | The fragment's `nixpkgs` URL equals the release's revision; an override is reported |
+| `MACH-010` | *Superseded by `MACH-016` (2026-10-09).* Before disko runs, the preflight MUST check on the target: the `by-id` path resolves; model, serial, and size match the inventory; `wipefs --no-act` and `blkid -p` show no signature; the disk does not back `/` or `/boot`; nothing is mounted under `/mnt`; `.machines/<host>/facter.json` is committed. Any mismatch or unknown result MUST stop it. Implements `DISK-002` and `DISK-003` | — |
+| `MACH-011` | *Superseded by `MACH-014` (2026-10-09).* `framework` MUST be installed from `server` with `devenv machines install`, with its own facter report | — |
+| `MACH-012` | *Superseded by `MACH-017` (2026-10-09).* On `server` and `framework`, Home Manager MUST run inside the NixOS role (`home-manager.nixosModules.home-manager`), so a system rollback also restores the home configuration. A separate `machines.<host>.home-manager` role is only for a host that does not run NixOS | — |
+| `MACH-013` | *Superseded by `MACH-018` (2026-10-09).* nixpkgs MUST be plain `github:NixOS/nixpkgs` on nixos-unstable. Each Vendomat release MUST carry one tested nixpkgs revision as the default `nixpkgs` input that `sync` writes; a workspace MAY override it, and `sync` MUST report the override | — |
+| `MACH-014` | *Proposed.* A host in `adopt-existing` mode MUST be adopted in place with `devenv machines plan` and `apply`, or `deploy` with a host name. No `install`, `kexec`, `facter`, `disko`, `nixos-install`, or `reboot` phase MAY run for it | An adoption VM: partition table, GUIDs, UUIDs, mounts, and selected data hashes match before and after; the new generation boots and rolls back (`fixtures/VM-TEST-PLAN.md` A1) |
+| `MACH-015` | *Proposed.* Every NixOS role MUST pin a `disko` input, because Machines evaluation imports its module. An adopted host MUST declare no `disko.devices.disk`. Each host MUST commit `.machines/<host>/facter.json`, or set `hardware.facter = null` and keep its existing hardware module | Direct NixOS builds of one fresh and one adopted fixture host pass; adding a disko disk to the adopted host fails |
+| `MACH-016` | *Proposed.* Before disko, a `fresh-install` host MUST pass every check that `MACH-010` named. An adopted host MUST compare its live hardware, layout, mounts, keys, boot files, and data hashes, read-only, with the approved baseline, and MUST NOT need a blank disk. Both MUST stop on an unknown result | A fixture injects each mismatch for each mode; no write runs |
+| `MACH-017` | *Proposed.* On `server`, Home Manager MUST run inside the NixOS role (`home-manager.nixosModules.home-manager`) from the first install. On an adopted host, it MUST move into the NixOS role only in a later generation, after a lossless standalone-to-embedded VM cutover that keeps the revision and the state version, and the standalone profile MUST stay until the owner accepts the new role | A VM: deploy a home change, roll back, and the old managed links return; an occupied unmanaged file is not overwritten (`A10`, `A11`) |
+| `MACH-018` | *Proposed.* A Vendomat release MAY carry one tested `nixpkgs` revision as the default for a new workspace. A workspace MAY override it, and `sync` MUST report the override. An adoption MUST pin the host's current effective revision and MUST postpone every package, service, and state migration to a later change | The fragment's `nixpkgs` URL equals the release's revision; an override is reported; an adoption plan lists no unapproved package or service change |
+| `MACH-019` | *Proposed.* Machines and workspaces MUST use a plain `github:NixOS/nixpkgs/<rev>` input, not `devenv-nixpkgs`. A fresh host uses the release's tested revision. An adopted host MAY use its exact legacy revision in a separately locked adoption workspace that still imports the Vendomat module | The lock's `nixpkgs` node is `NixOS/nixpkgs`; `DVN-008` passes; the adoption lock equals the baseline revision |
+| `MACH-020` | *Proposed.* Before the first apply to an adopted host, the host MUST accept the owner's deploy public key for root, key-only, through its existing configuration route, and the controller MUST pin its SSH host key. `apply` MUST refuse when root SSH is unverified | A VM with the key missing refuses; with the key present, `ssh -o BatchMode=yes` succeeds against the pinned host key (`A7`) |
+| `MACH-021` | *Proposed; the Step 1 fixture defines the contract.* The patched `devenv machines install` MUST refuse a `fresh-install` host unless a target-side preflight has just passed, bound to the host, the target identity, and the `install-target` disks. A missing, stale, mismatched, or malformed result MUST refuse before any target write | A fixture runs the direct CLI for each case and sees a non-zero exit and no target write |
+| `MACH-022` | *Proposed.* Before a deploy, `systemctl --failed` on the target MUST be empty, and critical user units MUST be healthy, or the failure MUST be resolved and named in the reviewed plan | A VM with a pre-failed unit is refused by the gate; a bypass shows the native rollback failing (`A9`) |
+| `MACH-023` | *Proposed.* `nix-systems` MUST be a devenv project that defines `machines.server` through `vendomat.inventory`, with one shared core module and one delta module per host. `machines.framework` MUST be defined through `vendomat.inventory` in `nix-systems` or in a temporary adoption workspace that has its own lock and imports the same module, and never in both | `devenv machines info` lists each host once; `devenv build machines.<host>.build.nixos` succeeds |
 
 ## Secrets
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `SEC-001` | Host runtime secrets MUST use sops-nix, with encrypted files in `nix-systems`. Each host's age key MUST be placed at install by `install.secrets` (`MACH-007`) | A VM: a service reads its decrypted secret after install and after a deploy; no secret value is in the store |
+| `SEC-001` | *Superseded by `SEC-003` (2026-10-09).* Host runtime secrets MUST use sops-nix, with encrypted files in `nix-systems`. Each host's age key MUST be placed at install by `install.secrets` (`MACH-007`) | — |
 | `SEC-002` | *Proposed.* Workspaces SHOULD read the same encrypted files through SecretSpec's SOPS provider | A workspace fixture resolves one secret from a sops-nix file |
+| `SEC-003` | *Proposed.* Host runtime secrets MUST use sops-nix, with encrypted files in `nix-systems`. A fresh host MAY receive its age key through `install.secrets` with a CLI that carries `a5fd551a`. An adopted host MUST keep its existing age or host identity, with no install phase, and MUST decrypt after a deploy and after a reboot. No plaintext MAY enter the store | A VM: a service reads its decrypted secret after install or adoption, after a deploy, and after a reboot; no secret value is in the store (`A8`) |
 
 ---
 
@@ -164,7 +182,8 @@
 
 | ID | Requirement | Verify |
 | --- | --- | --- |
-| `DISK-008` | A disko layout MUST preset partition GUIDs (`uuid`) and filesystem UUIDs (`extraArgs = ["-U" …]` for ext4, `["-i" …]` for vfat), MUST mount by UUID, and MUST use a disk attribute name unique on the host | `lib.testLib.makeDiskoTest` boots with the preset UUIDs (agent E Q1); `VMOD-012` passes |
+| `DISK-008` | *Superseded by `DISK-009` (2026-10-09).* A disko layout MUST preset partition GUIDs (`uuid`) and filesystem UUIDs (`extraArgs = ["-U" …]` for ext4, `["-i" …]` for vfat), MUST mount by UUID, and MUST use a disk attribute name unique on the host | — |
+| `DISK-009` | *Proposed.* A fresh disko layout MUST preset partition GUIDs and filesystem UUIDs (`extraArgs = ["-U" …]` for ext4, `["-i" …]` for vfat), MUST mount by UUID, and MUST use a disk attribute name unique on the host. An adopted host MUST keep its observed GUIDs, UUIDs, filesystem types, ESP, and unlock and mount paths | `lib.testLib.makeDiskoTest` boots with the preset UUIDs; the adoption VM compares GPT and UUIDs before and after |
 | `CACHE-010` | The host core MUST set the Attic substituter and its public key in `nix.settings` | `nix config show` lists both on each host; the machine `nix.conf` equals a plain NixOS build (agent G Q5a) |
 | `DEL-013` | A library's flake outputs MUST evaluate and build with no Vendomat input and no Vendomat command. A workspace MAY depend on the Vendomat module | `GEN-019`'s check, run on a library only |
 | `DEL-014` | *Decided 2026-10-09, see `DEL-017`.* Where the `vendomat` command runs from | — |
@@ -174,6 +193,7 @@
 | `DEL-019` | The Vendomat flake MUST export `packages.<system>.vendomat` and `devenvModules.default`, and MUST have `nixpkgs` as its only input. It exports no library helper | `nix flake show`; `tests/test_repo_shape.py` |
 | `DEL-016` | `nix-systems` MUST reach every Vendomat Nix function through its own `vendomat` input | No machine file names a Vendomat path |
 | `GEN-023` | The generator MUST NOT emit `devShells`, `devenv.lib.mkShell`, or a `devenv` input in `flake.nix`. A workspace shell MUST be a devenv project that uses the devenv target | `nix flake show` lists only the project's outputs |
+| `BOOT-026` | *Proposed.* A Framework deploy MUST build nothing on the laptop. The controller or the builder on `server` builds, the plan copies the closure, and no format or install step runs | The deploy log and the builder log show no compilation on the target |
 | `CLI-017` | *Superseded by `CLI-021` (2026-10-09).* The surface lacked `bump` | — |
 | `CLI-021` | The surface MUST be `sync`, `path`, `check`, `push`, `bump`, and `machine install`. Deferred commands (`set`, `get`, `unset`, `diff`) MAY return later | `--help` lists exactly the built commands |
 | `CLI-020` | `bump` MUST update every workspace under a root to a given Vendomat tag and fork revision, re-run `sync`, run each repository's verify gate, and report each result. It MUST default to a dry run that changes nothing | A dry run reports and leaves every file unchanged; a real run on a fixture fleet moves each pin and reports one failing gate |
@@ -223,10 +243,12 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 101 new IDs: 8 `DVN`, 15 `VMOD`, 11 `PRE`, 1 `REG`, 7 `FACE`, 3 `MOD`, 3 `DESC`, 13 `MACH`,
-2 `SEC`, 1 `DISK`, 1 `CACHE`, 7 `DEL`, 1 `GEN`, 5 `CLI`, and 23 `NAT` facts. Within this draft,
-`VMOD-003`, `FACE-001`, `MOD-011`, `MOD-012`, `DESC-001`, `DEL-015`, `DEL-018`, and `CLI-017` are
-superseded, and `DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`. `DEL-014` is decided by `DEL-017`.
-`FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
-defers the active `CLI-009`, `CLI-010`, `CLI-014`, `CLI-015`, and `SYS-*` IDs. The active `MOD-*` IDs
-return to scope.
+`LEDGER-V6.md` holds the exact counts and is generated from this file. At the last generation V6 defined
+116 IDs: 9 `DVN`, 16 `VMOD`, 1 `REG`, 11 `PRE`, 7 `FACE`, 3 `MOD`, 3 `DESC`, 23 `MACH`, 3 `SEC`, 2 `DISK`,
+1 `CACHE`, 7 `DEL`, 1 `GEN`, 1 `BOOT`, 5 `CLI`, and 23 `NAT` facts. Sixteen are proposed and one is to build.
+
+Within this draft, `VMOD-003`, `VMOD-012`, `FACE-001`, `MOD-011`, `MOD-012`, `DESC-001`, `MACH-001`,
+`MACH-002`, `MACH-003`, `MACH-010`, `MACH-011`, `MACH-012`, `MACH-013`, `SEC-001`, `DISK-008`, `DEL-015`,
+`DEL-018`, and `CLI-017` are superseded. `DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`.
+No new ID reuses a V5 ID. Section 0 names 50 V5 IDs: it supersedes, narrows, withdraws, defers, or keeps
+each one. The active `MOD-*` IDs that `DESC-002` does not replace return to scope.

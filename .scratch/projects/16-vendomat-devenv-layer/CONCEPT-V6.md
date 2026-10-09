@@ -187,15 +187,13 @@ nix-systems/
   imports = [ inputs.vendomat.devenvModules.default ];
 
   vendomat.inventory.server = {
-    nixos.imports = [ ./nixos/core.nix ./nixos/server.nix ];
+    mode = "fresh-install";          # or "adopt-existing" (SPEC VMOD-016)
+    nixos.imports = [ ./nixos/core.nix ./nixos/server.nix ];  # Home Manager runs inside the NixOS role
     disks.newsys  = { byId = "/dev/disk/by-id/nvme-eui.e8238fa6bf530001001b448b4fbe837d"; role = "install-target"; };
     disks.oldsys  = { byId = "/dev/disk/by-id/nvme-NX-512_2280_0040141310300"; role = "keep"; };
   };
 
-  machines.server = {
-    target.host = "root@localhost";
-    home-manager = import ./home/andrew.nix;
-  };
+  machines.server.target.host = "root@localhost";
 }
 ```
 
@@ -206,7 +204,8 @@ nix-systems/
 - **Access:** root accepts the owner's deploy key, key-only. devenv runs as `andrew`, not root.
 - **Services:** every service must start cleanly. One failed unit fails the whole deploy, and a unit
   that failed before the deploy makes the rollback fail (`NAT-034`).
-- **Home Manager** is not rolled back by `devenv machines rollback`.
+- **Home Manager** inside the NixOS role rolls back with the system. A standalone `machines.<host>.home-manager`
+  role does not. Mutable user data never rolls back.
 
 ## 7. Installing `server` on the 4 TB drive
 
@@ -235,6 +234,29 @@ All of this ran in a QEMU VM with two NVMe disks and persistent NVRAM: the old d
 ESP files, and NVRAM entries stayed unchanged, and the new disk booted alone (agents E, F). The real
 firmware's handling of NVRAM entries and one-time boot is not yet proven.
 
+## 8. Two machine modes
+
+Each inventory host has one `mode`. It decides the lifecycle, and no module infers it from an empty
+disk layout.
+
+| Mode | Host | Disk install | Native commands that run |
+| --- | --- | --- | --- |
+| `fresh-install` | `server` | Yes, on the `install-target` disk only, after the preflight | `machines install` through `vendomat machine install`, then `plan`, `apply`, `status`, `rollback` |
+| `adopt-existing` | `framework` | Never | `info`, `check`, `plan`, `apply`, `deploy <host>`, `status`, `rollback` |
+
+A disk has a role: `install-target` (fresh hosts only), `keep` (a protected disk on either host), or
+`existing-system` (the disk that holds an adopted host's root or boot filesystem).
+
+- The patched devenv refuses `machines install` for an adopted host before any SSH contact, for every
+  `--phases` selection and every `--disko-mode` (`DVN-009`). The Vendomat wrapper is a second guard.
+- The patched devenv refuses `machines install` for a fresh host unless a target-bound preflight has
+  just passed (`MACH-021`).
+- The first `framework` generation keeps the host's exact nixpkgs revision, Home Manager revision, and
+  state versions. It lives in a temporary workspace with its own lock when the pin differs from
+  `server`'s (`MACH-018`, `MACH-019`, `MACH-023`).
+- Root and a sudo-capable operator can still run `disko` or `nixos-install` by hand. No evaluation
+  check stops that. The guards cover the supported patched command.
+
 ## Authority
 
 devenv composes, locks, and activates. Nix builds and substitutes. disko partitions. Attic stores.
@@ -256,7 +278,7 @@ that imports one module.
 | 3 | `nix-systems`: core, `server` and `framework` deltas, Home Manager, inventory, disko layout; prove it in VMs (disko test, a Machines deploy to a VM) | Layout and deploy in a VM (agent G) |
 | 4 | Install `server` on the 4 TB drive; boot it once; make it the default after it runs reliably | Route proven in a VM (agent F) |
 | 5 | Convert workspaces: module, registry, pinned devenv | Pin scan written (agent G) |
-| 6 | Install `framework` from `server` | Not started |
+| 6 | Adopt `framework` in place with `plan` and `apply`; no disk install (`MACH-014`, `MACH-023`) | Research only; no adoption VM has run |
 
 ## Open decisions
 
@@ -267,9 +289,9 @@ that imports one module.
 3. **Host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Owner 2026-10-09: defer
    until `nix-systems` has run; leaning toward keeping it as a layer inside `nix-systems`.
 4. ~~Face option paths.~~ Decided 2026-10-09: `vendomat.libs.<name>.*` in every target (SPEC `FACE-005`).
-5. ~~Home Manager placement.~~ Decided 2026-10-09: inside the NixOS role (SPEC `MACH-012`).
+5. ~~Home Manager placement.~~ Decided 2026-10-09: inside the NixOS role (SPEC `MACH-017`, which supersedes `MACH-012`).
 6. ~~nixpkgs channel and pin owner.~~ Decided 2026-10-09: plain nixos-unstable; each Vendomat release
-   carries one tested revision (SPEC `MACH-013`).
+   carries one tested revision (SPEC `MACH-018` and `MACH-019`, which supersede `MACH-013` and `MACH-002`).
 
 Decided 2026-10-09 and written into the spec: runtime secrets with sops-nix (`SEC-001`); a
 `vendomat bump` fleet command (`CLI-020`).
