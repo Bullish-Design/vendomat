@@ -247,8 +247,9 @@ that imports one module.
    until `nix-systems` has run; leaning toward keeping it as a layer inside `nix-systems`.
 4. **Face option paths:** `<name>.*` under devenv and `programs.<name>.*` under NixOS and Home Manager,
    or one path everywhere.
-5. **Home Manager placement:** a separate Machines role, or inside the NixOS role. Open.
-6. **nixpkgs channel and pin owner.** Open.
+5. ~~Home Manager placement.~~ Decided 2026-10-09: inside the NixOS role (SPEC `MACH-012`).
+6. ~~nixpkgs channel and pin owner.~~ Decided 2026-10-09: plain nixos-unstable; each Vendomat release
+   carries one tested revision (SPEC `MACH-013`).
 
 Decided 2026-10-09 and written into the spec: runtime secrets with sops-nix (`SEC-001`); a
 `vendomat bump` fleet command (`CLI-020`).

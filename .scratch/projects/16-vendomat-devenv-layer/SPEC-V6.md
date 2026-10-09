@@ -137,6 +137,8 @@
 | `MACH-009` | The first install MUST set `boot.loader.efi.canTouchEfiVariables = false`. The new system MUST be tried once with `efibootmgr -C` and `efibootmgr -n`. It MUST become the default only after it has run reliably | VM (agent F Q4). **Open:** the real firmware keeps the entry and honours `BootNext` |
 | `MACH-010` | Before disko runs, the preflight MUST check on the target: the `by-id` path resolves; model, serial, and size match the inventory; `wipefs --no-act` and `blkid -p` show no signature; the disk does not back `/` or `/boot`; nothing is mounted under `/mnt`; `.machines/<host>/facter.json` is committed. Any mismatch or unknown result MUST stop it. Implements `DISK-002` and `DISK-003` | A fixture injects each mismatch; no write runs. The real scan on `server` (PV-02) |
 | `MACH-011` | `framework` MUST be installed from `server` with `devenv machines install`, with its own facter report | A VM fixture first |
+| `MACH-012` | On `server` and `framework`, Home Manager MUST run inside the NixOS role (`home-manager.nixosModules.home-manager`), so a system rollback also restores the home configuration. A separate `machines.<host>.home-manager` role is only for a host that does not run NixOS | A VM: deploy a home change, roll back, and the old home generation is active again |
+| `MACH-013` | nixpkgs MUST be plain `github:NixOS/nixpkgs` on nixos-unstable. Each Vendomat release MUST carry one tested nixpkgs revision as the default `nixpkgs` input that `sync` writes; a workspace MAY override it, and `sync` MUST report the override | The fragment's `nixpkgs` URL equals the release's revision; an override is reported |
 
 ## Secrets
 
@@ -207,7 +209,7 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-V6 defines 85 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 2 `MOD`, 11 `MACH`, 2 `SEC`,
+V6 defines 87 new IDs: 8 `DVN`, 12 `VMOD`, 10 `PRE`, 1 `REG`, 4 `FACE`, 2 `MOD`, 13 `MACH`, 2 `SEC`,
 1 `DISK`, 1 `CACHE`, 6 `DEL`, 1 `GEN`, 5 `CLI`, and 21 `NAT` facts. `DEL-015` and `CLI-017` are
 superseded within this draft. `DEL-014` is decided by `DEL-017`.
 `FACE-004` is open. No new ID reuses a V5 ID. Section 0 supersedes 17 V5 IDs, narrows 3, withdraws 3, and
