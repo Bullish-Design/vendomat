@@ -1,0 +1,73 @@
+{
+  "kind": "synthetic policy model; NOT a real devenv or VM test",
+  "cases": [
+    {
+      "name": "adoption-plan",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "name": "adoption-deploy",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "name": "adoption-install-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "fresh-install-blank",
+      "expected": true,
+      "actual": true,
+      "pass": true
+    },
+    {
+      "name": "fresh-install-signed",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "fresh-keep-device-protected",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "adoption-disko-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "adoption-install-role-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "adoption-kernel-mount-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "fresh-no-target-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    },
+    {
+      "name": "duplicate-disk-role-denied",
+      "expected": false,
+      "actual": false,
+      "pass": true
+    }
+  ],
+  "passed": 11,
+  "total": 11
+}

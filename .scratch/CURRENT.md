@@ -1,15 +1,18 @@
 # Current project
 
-**Updated:** 2026-10-08. This file names the active project. `AGENTS.md` holds durable rules and
+**Updated:** 2026-10-09. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
 ## Draft under owner review: project 16 — Vendomat V6, the devenv layer
 
-`.scratch/projects/16-vendomat-devenv-layer/`: `CONCEPT-V6.md` and `SPEC-V6.md` (2026-10-09). Every
+`.scratch/projects/16-vendomat-devenv-layer/`: `CONCEPT-V6.md`, `SPEC-V6.md`, `GUIDE-V6.md`, and
+`RESEARCH-2026-10-09-MACHINE-PATHS.md` (2026-10-09). Every
 workspace imports a pinned Vendomat devenv module; a pre-resolver writes a `.vendomat/` inputs fragment;
 one patched release build of devenv runs everywhere; a new `nix-systems` repository uses devenv
-Machines; `server` is installed fresh on the 4 TB drive. The evidence is project 15
-(`.scratch/projects/15-devenv-alignment/`). Until the owner accepts V6, project 14 below stays the
+Machines; `server` is installed fresh on the 4 TB drive, then the existing Framework system is
+adopted without a disk install. The evidence is project 15
+(`.scratch/projects/15-devenv-alignment/`) and the project 16 machine-path research. The latter
+has a test plan but no executed adoption VM. Until the owner accepts V6, project 14 below stays the
 authority, and V5 IDs are not yet marked superseded in `SPEC-V5.md`.
 
 ## Active: project 14 — Vendomat V5
