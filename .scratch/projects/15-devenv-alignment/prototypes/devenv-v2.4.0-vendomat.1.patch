@@ -1,0 +1,235 @@
+From 79604b3478d4876c662e35635bac7ca7f35f6616 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Domen=20Ko=C5=BEar?= <domen@dev.si>
+Date: Thu, 8 Oct 2026 09:32:52 +0200
+Subject: [PATCH 1/4] fix(machines): allow Nix SSH connection handshake (#3255)
+
+Fixes #3254
+
+(cherry picked from commit a5fd551a9a4a47532ccf2bd4f62fb48f37893947)
+---
+ CHANGELOG.md                  |  4 ++++
+ devenv/src/devenv/machines.rs | 41 ++++++++++++++++++++++++++++++-----
+ 2 files changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7f21c80e..b371d293 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## 2.4.1 (unreleased)
+ 
++### Bug Fixes
++
++- Fixed `devenv machines install` hanging while uploading store paths when no SSH connection was already open ([#3254](https://github.com/cachix/devenv/issues/3254)).
++
+ ## 2.4.0 (2026-09-24)
+ 
+ ### Bug Fixes
+diff --git a/devenv/src/devenv/machines.rs b/devenv/src/devenv/machines.rs
+index db68f997..c5ceca8c 100644
+--- a/devenv/src/devenv/machines.rs
++++ b/devenv/src/devenv/machines.rs
+@@ -1122,11 +1122,22 @@ fn target_secretspec_installer_script(
+ /// Build the `NIX_SSHOPTS` env var value used by `nix copy`. Nix parses this
+ /// as a shell-style word list, so preserve every argv token's boundary.
+ fn nix_ssh_opts_env(user_opts: &[String]) -> String {
+-    ssh_opts_argv(user_opts)
+-        .iter()
+-        .map(|token| shell_quote(token))
+-        .collect::<Vec<_>>()
+-        .join(" ")
++    // Nix waits for this local command to signal that SSH is connected. Pin
++    // both settings before the install policy and configured options because
++    // OpenSSH uses the first value. Direct SSH commands retain the policy's
++    // PermitLocalCommand=no; only Nix's fixed handshake is allowed here.
++    [
++        "-o",
++        "PermitLocalCommand=yes",
++        "-o",
++        "LocalCommand=echo started",
++    ]
++    .into_iter()
++    .map(String::from)
++    .chain(ssh_opts_argv(user_opts))
++    .map(|token| shell_quote(&token))
++    .collect::<Vec<_>>()
++    .join(" ")
+ }
+ 
+ /// One row in the `devenv machines info` table. Columns follow the
+@@ -3560,10 +3571,28 @@ mod tests {
+         let env = nix_ssh_opts_env(&user);
+         assert_eq!(
+             env,
+-            r#"'-o' 'ProxyCommand=ssh -W %h:%p bastion' '-i' '/tmp/team'\''s identity' '-o' 'StrictHostKeyChecking=accept-new' '-o' 'ConnectTimeout=10'"#
++            r#"'-o' 'PermitLocalCommand=yes' '-o' 'LocalCommand=echo started' '-o' 'ProxyCommand=ssh -W %h:%p bastion' '-i' '/tmp/team'\''s identity' '-o' 'StrictHostKeyChecking=accept-new' '-o' 'ConnectTimeout=10'"#
+         );
+     }
+ 
++    #[test]
++    fn nix_ssh_handshake_overrides_sensitive_install_policy_and_custom_local_command() {
++        let user = vec![
++            "-o".to_string(),
++            "LocalCommand=touch /tmp/unwanted".to_string(),
++        ];
++        let configured = sensitive_install_ssh_opts(&user);
++        let env = nix_ssh_opts_env(&configured);
++        assert!(env.starts_with("'-o' 'PermitLocalCommand=yes' '-o' 'LocalCommand=echo started' "));
++        assert!(env.contains("'StrictHostKeyChecking=yes'"));
++        assert!(env.contains("'ClearAllForwardings=yes'"));
++        assert!(env.contains("'SendEnv=-*'"));
++
++        let direct = ssh_opts_argv(&configured);
++        assert!(direct.iter().any(|opt| opt == "PermitLocalCommand=no"));
++        assert!(!direct.iter().any(|opt| opt == "PermitLocalCommand=yes"));
++    }
++
+     #[cfg(target_os = "linux")]
+     #[tokio::test]
+     async fn install_file_receiver_supports_root_and_replaces_only_after_complete_payload() {
+-- 
+2.54.0
+
+
+From c579260ecdbf65722008dfe5ad1bfd638fc9c786 Mon Sep 17 00:00:00 2001
+From: domenkozar <126339+domenkozar@users.noreply.github.com>
+Date: Sat, 26 Sep 2026 00:19:50 +0000
+Subject: [PATCH 2/4] Update latest devenv version
+
+(cherry picked from commit a5c34429421e077df6f8f133e502617bedc22206)
+---
+ src/modules/latest-version | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/modules/latest-version b/src/modules/latest-version
+index a6254504..9183195a 100644
+--- a/src/modules/latest-version
++++ b/src/modules/latest-version
+@@ -1 +1 @@
+-2.3.1
+\ No newline at end of file
++2.4.0
+\ No newline at end of file
+-- 
+2.54.0
+
+
+From 2db2969ce6fea4ad2f6c9873bddeaf11f8e55c82 Mon Sep 17 00:00:00 2001
+From: Allsimon <simon.allegraud@gmail.com>
+Date: Thu, 1 Oct 2026 11:24:40 +0200
+Subject: [PATCH 3/4] fix(bootstrap): reuse locked inputs already in the store
+
+resolve-lock.nix fetched every locked input with builtins.fetchTree, which
+only short-circuits to the narHash store path for inputs marked `__final`,
+an attribute it refuses from Nix code. A source the store already held was
+thus fetched again, and `devenv shell` failed whenever the input's remote
+was unreachable.
+
+Derive the store path from the locked narHash and use it when it exists,
+building the same attributes fetchTree returns from the locked ones.
+
+(cherry picked from commit 86b798f1e69781a5da68b7bcfc3691aad537e935)
+---
+ CHANGELOG.md                                  |  1 +
+ devenv-nix-backend/bootstrap/resolve-lock.nix | 44 ++++++++++++++++++-
+ 2 files changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b371d293..38b2730b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,7 @@
+ ### Bug Fixes
+ 
+ - Fixed `devenv machines install` hanging while uploading store paths when no SSH connection was already open ([#3254](https://github.com/cachix/devenv/issues/3254)).
++- Locked git, GitHub, GitLab, SourceHut, and tarball inputs whose source is already in the Nix store are now used from the store instead of fetched again, so `devenv shell` keeps working when the input's remote is unreachable.
+ 
+ ## 2.4.0 (2026-09-24)
+ 
+diff --git a/devenv-nix-backend/bootstrap/resolve-lock.nix b/devenv-nix-backend/bootstrap/resolve-lock.nix
+index 392c5b3b..bcf9c68c 100644
+--- a/devenv-nix-backend/bootstrap/resolve-lock.nix
++++ b/devenv-nix-backend/bootstrap/resolve-lock.nix
+@@ -87,8 +87,50 @@ let
+               && builtins.substring 0 1 (resolvedLocked.path or "") == "/";
+ 
+             fetchedSource = builtins.fetchTree (node.info or { } // removeAttrs resolvedLocked [ "dir" ]);
++
++            # fetchTree only reuses the store path of an input marked `__final`, which
++            # it refuses from Nix code, so it would refetch a source the store holds.
++            storedPath =
++              builtins.unsafeDiscardStringContext
++                (derivation {
++                  name = "source";
++                  system = "builtin";
++                  builder = "builtin:fetchurl";
++                  outputHashMode = "recursive";
++                  outputHash = locked.narHash;
++                }).outPath;
++            isStored =
++              builtins.elem (locked.type or null) [
++                "git"
++                "github"
++                "gitlab"
++                "sourcehut"
++                "tarball"
++              ]
++              && locked ? narHash
++              && builtins.pathExists storedPath;
++            storedSource =
++              builtins.intersectAttrs {
++                lastModified = null;
++                narHash = null;
++                rev = null;
++                revCount = null;
++              } locked
++              // {
++                outPath = builtins.appendContext storedPath { ${storedPath}.path = true; };
++              }
++              // (
++                if locked ? lastModified then
++                  { lastModifiedDate = formatSecondsSinceEpoch locked.lastModified; }
++                else
++                  { }
++              )
++              // (if locked ? rev then { shortRev = builtins.substring 0 7 locked.rev; } else { })
++              // (if locked.type == "git" then { submodules = locked.submodules or false; } else { });
+           in
+-          if isLivePath then
++          if isStored then
++            storedSource
++          else if isLivePath then
+             {
+               # Keep fetchTree's public metadata available to flakes that use
+               # self.narHash or self.lastModified. These inherited values stay
+-- 
+2.54.0
+
+
+From fe687140e0db8a0ada57021543521fdbd5422bac Mon Sep 17 00:00:00 2001
+From: Agent J <j@example.invalid>
+Date: Fri, 9 Oct 2026 15:03:11 -0400
+Subject: [PATCH 4/4] vendomat: build the devenv CLI as a release
+ (DEVENV_IS_RELEASE=true)
+
+---
+ flake.nix | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/flake.nix b/flake.nix
+index 615e89ff..cf2281ca 100644
+--- a/flake.nix
++++ b/flake.nix
+@@ -205,6 +205,8 @@
+           rustToolchain = pkgs.rust-bin.stable.latest.default;
+           workspace = pkgs.callPackage ./nix/workspace.nix {
+             inherit gitRev;
++            # vendomat: mark this build as a release so require_version: true is enforced.
++            isRelease = true;
+             rustc = rustToolchain;
+             cargo = rustToolchain;
+           };
+-- 
+2.54.0
+

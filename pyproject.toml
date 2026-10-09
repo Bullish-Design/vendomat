@@ -67,6 +67,8 @@ include = ["src", "tests"]
 line-length = 120
 target-version = "py313"
 src = ["src"]
+# Like ty above: .scratch/ holds research prototypes, not package code.
+extend-exclude = [".scratch"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
