@@ -246,8 +246,18 @@ these. Every defect below is closed in a rerun (`evidence/step-7.md`) except whe
 | G1 | The module accepted an `install-target` that shares a by-id with a `keep` disk | fixed in `main`; fixture added |
 | C1 | **A direct `devenv machines install server` with default phases ran `kexec` before the preflight** | fixed in fork `v2.4.0-vendomat.2` (`DVN-010`): refused before any contact; 72 unit tests, 39 CLI cases, and a VM step |
 | C2 | The CLI hid the failed check names | fixed in the same fork commit |
-| F1 | `git-daemon` failed on a fresh install (no `/home/andrew/vendor`), so the first deploy rolled back | fixed in `nix-systems` `main` (`tmpfiles`) |
-| F2 | Dagu user units also started for root | fixed in `nix-systems` `main` (`ConditionUser`) |
+| F1 | `git-daemon` failed on a fresh install (no `/home/andrew/vendor`), so the first deploy rolled back | fixed in `nix-systems` `main` (`tmpfiles`); rerun: the first deploy of the unmodified role succeeded with 0 failed units |
+| F2 | Dagu user units also started for root | fixed in `nix-systems` `main` (`ConditionUser`); rerun: root's `dagu` is inactive, `ConditionResult=no`, the owner's is active |
 | F4 | SSH is open on every interface, against the comment | comment corrected; **owner decision**: `services.openssh.openFirewall = false` |
 
 The wrapper `vendomat machine install` always passes `--phases disko,install`. A direct call with `kexec` or `reboot` beside `disko` or `install` is refused by the fork before any contact.
+
+## 13. What the last reruns left open
+
+- The Step 6 core and Machines-flow runner (`nix-systems/tests/run`) was **not** rerun with fork `.2`
+  because the disk guard stopped it (unallocated space reached 1 MiB when two image builds ran at once).
+  The Step 7 harness ran the same Machines flow with fork `.2`. Run `tests/run` once, alone, before
+  the review closes.
+- The disk of this host is the limit for more VM work: about 8 unreferenced 2.6 GiB `nixos-disk-image`
+  paths and 12,485 dead store paths wait for `nix-collect-garbage`, and btrfs has no unallocated space.
+  No cutover step needs them.
