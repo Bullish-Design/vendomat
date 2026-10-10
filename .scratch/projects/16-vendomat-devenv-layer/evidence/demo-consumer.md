@@ -9,7 +9,7 @@ The demo is `Bullish-Design/vendomat-demo`, private, with source tag `v0.1.0` at
 `9b8896da7d6a07fb905759a007a07c8e45f68e4d`. Templateer 0.4.1 created its root
 `devenv.nix` and `devenv.yaml`. Its `sources/vendomat` snapshot came from Vendomat commit
 `89bedc9dffb253fb3fe0464cb1e4b6824560a5f9`. The host used Nix 2.34.7 and stock devenv
-2.4.0+b904dcb. The corrected local Vendomat 0.6.0 package was
+2.4.0+b904dcb and Testee 0.5.1. The corrected local Vendomat 0.6.0 package was
 `/nix/store/p5iy1jfkggsk5i3nm5jh8si1149s3vjk-vendomat-0.6.0`.
 
 | Command | Expected | Actual |
