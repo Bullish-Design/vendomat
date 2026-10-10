@@ -65,6 +65,7 @@ KNAPPY = """\
 HAND = """\
 {
   outputs = { self }: {
+    vendomat = { name = "hand"; faces = "hand"; };
     devenvModules.default = { config, lib, ... }: {
       options.vendomat.libs.hand.enable = lib.mkEnableOption "hand";
       config = lib.mkIf config.vendomat.libs.hand.enable { env.HAND_FACE = "devenv"; };
@@ -82,11 +83,19 @@ CLASH = """\
 { outputs = { self }: { vendomat = { name = "knappy"; packages = pkgs: [ ]; }; }; }
 """
 
-#: Both a description and a hand-written face.
+#: A hand-written marker that also carries description keys.
 BOTH = """\
 { outputs = { self }: {
-  vendomat = { name = "both"; packages = pkgs: [ ]; };
+  vendomat = { name = "both"; faces = "hand"; packages = pkgs: [ ]; };
   devenvModules.default = { ... }: { };
+}; }
+"""
+
+#: Modules with no marker: Vendomat must not import them, whatever they declare.
+UNMARKED = """\
+{ outputs = { self }: {
+  nixosModules.default = { lib, ... }: { options.vendomat.libs.knappy.enable = lib.mkEnableOption "clash"; };
+  devenvModules.default = { lib, ... }: { options.vendomat.libs.knappy.enable = lib.mkEnableOption "clash"; };
 }; }
 """
 
@@ -105,6 +114,7 @@ LIBRARIES = {
     "hand": HAND,
     "clash": CLASH,
     "both": BOTH,
+    "unmarked": UNMARKED,
     "noname": NONAME,
     "badkey": BADKEY,
     "ownenable": OWNENABLE,
@@ -326,7 +336,7 @@ def test_a_hand_written_face_works_without_a_description(ws_factory):
     "libs, message",
     [
         (["knappy", "clash"], "two inputs use the same library name"),
-        (["both"], "export both a `vendomat` description and a hand-written face"),
+        (["both"], "marks hand-written faces and also exports packages"),
         (["noname"], "exports a vendomat description with no `name`"),
         (["badkey"], "unknown description key(s) colour"),
         (["ownenable"], "must not define `enable` or `service`"),
@@ -338,6 +348,14 @@ def test_a_bad_description_stops_evaluation_and_names_the_input(ws_factory, libs
     done = ws.eval("shell.drvPath")
     assert done.returncode != 0
     assert message in done.stderr, done.stderr[-1500:]
+
+
+def test_an_unmarked_flake_with_modules_is_never_imported(ws_factory):
+    ws = ws_factory(["knappy", "unmarked"])
+    ws.write_nix(adopt())
+    # The unmarked flake declares the same option path as knappy. Importing it would be a conflict.
+    assert ws.value(SHELL).endswith(".drv")
+    assert ws.value(TOPLEVEL).endswith(".drv")
 
 
 # --- Machine guard (VMOD-011, VMOD-016) ----------------------------------------------------------

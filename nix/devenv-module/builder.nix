@@ -15,15 +15,35 @@ let
     (n: i: !(lib.elem n skipNames) && (i.outPath or null) != self.outPath)
     inputs;
 
-  hasDescription = i: i ? vendomat;
+  # A hand-written library marks itself `vendomat = { name = "<name>"; faces = "hand"; }`. Only a marked
+  # input has its `devenvModules.default`, `nixosModules.default`, and `homeManagerModules.default`
+  # imported (VMOD-018). A flake that merely exports `nixosModules.default` is never imported: such a
+  # module need not follow FACE-005, and it may declare options that a host imports by hand.
+  isMarkedHand = i: (i ? vendomat) && (i.vendomat.faces or null) == "hand";
+  hasDescription = i: (i ? vendomat) && !(isMarkedHand i);
   hasDevenvFace = i: (i ? devenvModules) && (i.devenvModules ? default);
   hasNixosFace = i: (i ? nixosModules) && (i.nixosModules ? default);
   hasHomeFace = i: (i ? homeManagerModules) && (i.homeManagerModules ? default);
-  hasHandFace = i: hasDevenvFace i || hasNixosFace i || hasHomeFace i;
 
   described = lib.filterAttrs (_: hasDescription) candidates;
-  bothKinds = lib.attrNames (lib.filterAttrs (_: i: hasDescription i && hasHandFace i) candidates);
-  handWritten = lib.filterAttrs (_: i: hasHandFace i && !hasDescription i) candidates;
+  markedHand = lib.filterAttrs (_: isMarkedHand) candidates;
+
+  handKeys = [ "name" "faces" ];
+  checkedHand = lib.mapAttrs
+    (n: i:
+      let
+        d = i.vendomat;
+        extra = lib.subtractLists handKeys (lib.attrNames d);
+      in
+      if !(d ? name) then
+        throw "vendomat: input '${n}' marks hand-written faces with no `name`."
+      else if !(builtins.isString d.name && validName d.name) then
+        throw "vendomat: input '${n}': name ${builtins.toJSON d.name} must match [a-z][a-z0-9-]*."
+      else if extra != [ ] then
+        throw "vendomat: input '${n}' (library '${d.name}') marks hand-written faces and also exports ${lib.concatStringsSep ", " extra}. Export a description or hand-written faces, not both."
+      else d)
+    markedHand;
+  handWritten = markedHand;
 
   allowedKeys = [ "name" "packages" "options" "service" "extra" ];
 
@@ -46,13 +66,13 @@ let
 
   checkedAll = lib.mapAttrs (n: i: checked n i.vendomat) described;
 
-  byName = lib.groupBy (x: x.name) (lib.mapAttrsToList (n: d: { input = n; name = d.name; }) checkedAll);
+  byName = lib.groupBy (x: x.name) (
+    (lib.mapAttrsToList (n: d: { input = n; name = d.name; }) checkedAll)
+    ++ (lib.mapAttrsToList (n: d: { input = n; name = d.name; }) checkedHand));
   clashes = lib.filterAttrs (_: l: lib.length l > 1) byName;
 
   validated =
-    if bothKinds != [ ] then
-      throw "vendomat: input(s) ${lib.concatMapStringsSep ", " (n: "'${n}'") bothKinds} export both a `vendomat` description and a hand-written face (devenvModules, nixosModules, or homeManagerModules `.default`). Export one."
-    else if clashes != { } then
+    if clashes != { } then
       throw "vendomat: two inputs use the same library name:\n${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: l: "  name '${name}': inputs ${lib.concatMapStringsSep ", " (x: "'${x.input}'") l}") clashes)}"
     else checkedAll;
 
@@ -140,7 +160,7 @@ let
   loc = n: what: m: lib.setDefaultModuleLocation "inputs.${n}.${what}" m;
 in
 {
-  inherit built handWritten;
+  inherit built handWritten checkedHand;
 
   # Module lists for `imports` (devenv) and for each host (NixOS).
   devenvImports =

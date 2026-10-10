@@ -13,7 +13,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 62, proposed 15, to build 0, superseded 18, decided 2) | 97 |
+| V6 IDs defined (active 61, proposed 15, to build 0, superseded 20, decided 2) | 98 |
 | V6 `NAT-*` facts | 25 |
 | V5 IDs that section 0 names | 51 |
 
@@ -139,7 +139,7 @@ withdrew it, and V6 adds nothing.
 | `GEN-014` | superseded | Closed in V5 |  |
 | `GEN-015` | active | Kept | V5 text applies |
 | `GEN-016` | active | Kept | V5 text applies |
-| `GEN-017` | active | Kept | It covers the flake target only. The module builds faces from descriptions (`VMOD-013`), not the generator |
+| `GEN-017` | active | Kept | It covers the flake target only. The module builds faces from descriptions (`VMOD-018`), not the generator |
 | `GEN-018` | active | Kept | V5 text applies |
 | `GEN-019` | active | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
 | `GEN-020` | active | Kept | V5 text applies |
@@ -375,7 +375,7 @@ withdrew it, and V6 adds nothing.
 | `SEC-003` | proposed |  |  |
 | `VMOD-001` | active | `DEL-008` |  |
 | `VMOD-002` | active |  |  |
-| `VMOD-003` | superseded |  | by `VMOD-013` |
+| `VMOD-003` | superseded |  | by `VMOD-013`, `VMOD-018` |
 | `VMOD-004` | active |  |  |
 | `VMOD-005` | active |  |  |
 | `VMOD-006` | active |  |  |
@@ -385,11 +385,12 @@ withdrew it, and V6 adds nothing.
 | `VMOD-010` | active |  |  |
 | `VMOD-011` | active |  |  |
 | `VMOD-012` | superseded |  | by `VMOD-016` |
-| `VMOD-013` | active | `GEN-017` |  |
+| `VMOD-013` | superseded |  | by `VMOD-018`, `DESC-002` |
 | `VMOD-014` | active |  |  |
-| `VMOD-015` | active |  |  |
+| `VMOD-015` | superseded |  | by `VMOD-018` |
 | `VMOD-016` | proposed |  |  |
 | `VMOD-017` | active |  |  |
+| `VMOD-018` | active | `GEN-017` |  |
 
 ## Reserved and never adopted
 
