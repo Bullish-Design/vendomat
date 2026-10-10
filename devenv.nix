@@ -9,7 +9,7 @@
 
 let
   # The Testee module and the Testee package come from the same pinned tag. Keep this tag equal
-  # to the `testee` source tag in pyproject.toml and to the host `testee` wrapper version.
+  # to the host `testee` wrapper version. The uv venv does not carry Testee.
   testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
   venvBin = "${config.devenv.state}/venv/bin";
 in

@@ -28,8 +28,9 @@ integration. A pull request needs a green `testee verify --full`. The end-to-end
 opt-in because it builds a real consumer shell. The checks live in `devenv.nix` as
 `testee.checks`.
 
-The `testee` wrapper starts before devenv and opens its own clean devenv shell. Do not wrap it in
-`devenv shell`.
+The `testee` wrapper is the host program `~/.nix-profile/bin/testee`. It starts before devenv and
+opens its own clean devenv shell. Do not wrap it in `devenv shell`. The uv dependency graph and the
+venv do not carry Testee.
 
 Do not call pytest, ruff, or ty directly. This repository verifies through Testee.
 

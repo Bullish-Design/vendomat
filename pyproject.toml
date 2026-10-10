@@ -17,27 +17,15 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Testee 0.5.0 runs the checks declared in devenv.nix (`testee.checks`). It does not bring
-# pytest, ruff, or ty with it, so this group names them. Run `testee verify` (or the testee:*
-# devenv tasks), not pytest/ruff directly.
-# vendomat is not repoman-managed, so testee is depended on directly rather than installed
-# by repoman-sync the way roster-managed repos get it.
+# Testee 0.5.0 runs the checks declared in devenv.nix (`testee.checks`). Testee is the host
+# wrapper (`~/.nix-profile/bin/testee`). It starts before devenv, so this group does not carry it.
+# The checks need pytest, ruff, and ty, so this group names them. Run `testee verify` (or the
+# testee:* devenv tasks), not pytest/ruff directly.
 dev = [
-  "testee",
   "pytest",
   "ruff",
   "ty",
 ]
-
-[tool.uv.sources]
-# A git tag, not `path = "../testee"`. testee is not on PyPI, so uv needs a source, and a
-# RELATIVE path resolves beside whatever directory the clone happens to sit in — a fresh
-# clone's `uv sync` then fails with "Distribution not found". Commit the portable shape.
-#
-# There is no local override for this line: uv refuses a `sources` table in uv.toml
-# ("`sources` is only applicable in the context of a project"). Keep this tag equal to the
-# tag that pins the Testee module and package in devenv.nix and to the host `testee` wrapper.
-testee = { git = "https://github.com/Bullish-Design/testee", tag = "v0.5.0" }
 
 [project.scripts]
 vendomat = "vendomat.cli:main"
