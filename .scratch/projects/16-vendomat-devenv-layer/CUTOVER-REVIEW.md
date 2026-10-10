@@ -97,8 +97,8 @@ alternative is to move both mountpoints out of `/mnt` in the running system firs
 
 | Item | Value |
 | --- | --- |
-| Patched devenv fork | commit `972624027d5788c0590e4b9f09bd3c3fbc53adb4`, tag `v2.4.0-vendomat.1`, upstream `v2.4.0` = `b904dcb51fe48c30db250038241507f60752f222` |
-| Patched CLI | `devenv 2.4.0+9726240`, `/nix/store/6djw5w3sil4c0s8z0dvaqcq832y4cfvb-devenv-wrapped-2.4.0` |
+| Patched devenv fork | commit `e2acb5b02b8627602e223128a082ecfd024850ab`, tag `v2.4.0-vendomat.2` (`.1`, commit `972624027d5788c0590e4b9f09bd3c3fbc53adb4`, is superseded: defect C1), upstream `v2.4.0` = `b904dcb51fe48c30db250038241507f60752f222` |
+| Patched CLI | `devenv 2.4.0+e2acb5b`, `/nix/store/3mfmgg65mf08h7rhwd7w4f2vvcr9ia9i-devenv-wrapped-2.4.0` |
 | nixpkgs | `e7439b6b14ad3cc35d05608ebca9bce01a25f5f8` |
 | disko | `de5708739256238fb912c62f03988815db89ec9a` (v1.13.0) |
 | Home Manager | `6b88c12cc6d234de4888f5d21076fb11199d0844` |
@@ -187,7 +187,7 @@ reviewed this package. Stop at the first unexpected output.
 18. `systemctl --failed` is empty; `ssh -o BatchMode=yes root@server true` works; password login is refused. `# NOT RUN`
 19. `sudo cat /run/secrets/tailscale-auth-key >/dev/null` succeeds; no secret value is in `/nix/store`. `# NOT RUN`
 20. `tailscale status`; `git ls-remote git://server/devman`; `curl -sI https://server.tail770f47.ts.net/attic/vendomat/nix-cache-info`. `# NOT RUN`
-21. `vendomat --version`; `devenv version` prints `2.4.0+9726240`; `devenv machines status server`. `# NOT RUN`
+21. `vendomat --version`; `devenv version` prints `2.4.0+e2acb5b`; `devenv machines status server`. `# NOT RUN`
 
 ## 9. Health checks
 
@@ -233,10 +233,10 @@ these. The install must not run until each is closed and its fixture reruns.
 | W2 | The wrapper unmounted `/mnt` after a refusal | fixed in `main` |
 | W3 | The new swap stayed active after the install | fixed in `main` (`swapoff` of the install-target's swap) |
 | G1 | The module accepted an `install-target` that shares a by-id with a `keep` disk | fixed in `main`; fixture added |
-| C1 | **A direct `devenv machines install server` with default phases ran `kexec` before the preflight** | fix requested: fork `v2.4.0-vendomat.2` (`DVN-010`). Until then, never run the direct command |
-| C2 | The CLI hid the failed check names | same fork change |
+| C1 | **A direct `devenv machines install server` with default phases ran `kexec` before the preflight** | fixed in fork `v2.4.0-vendomat.2` (`DVN-010`): refused before any contact; 72 unit tests, 39 CLI cases, and a VM step |
+| C2 | The CLI hid the failed check names | fixed in the same fork commit |
 | F1 | `git-daemon` failed on a fresh install (no `/home/andrew/vendor`), so the first deploy rolled back | fixed in `nix-systems` `main` (`tmpfiles`) |
 | F2 | Dagu user units also started for root | fixed in `nix-systems` `main` (`ConditionUser`) |
 | F4 | SSH is open on every interface, against the comment | comment corrected; **owner decision**: `services.openssh.openFirewall = false` |
 
-Until C1 is closed, use only `vendomat machine install`, which always passes `--phases disko,install`.
+The wrapper `vendomat machine install` always passes `--phases disko,install`. A direct call with `kexec` or `reboot` beside `disko` or `install` is refused by the fork before any contact.

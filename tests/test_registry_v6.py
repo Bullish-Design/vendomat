@@ -59,11 +59,11 @@ def test_an_import_directory_must_stay_inside_the_input(directory):
 def test_the_dir_key_becomes_a_url_query_parameter():
     text = (
         BASE
-        + '\ndevenv-src = { url = "git://server/devenv", ref = "refs/tags/v2.4.0-vendomat.1", dir = "src/modules" }\n'
+        + '\ndevenv-src = { url = "git://server/devenv", ref = "refs/tags/v2.4.0-vendomat.2", dir = "src/modules" }\n'
     )
     registry = parse_registry(text)
     url = {s.name: s.url for s in registry.sources}["devenv-src"]
-    assert url == "git://server/devenv?ref=refs/tags/v2.4.0-vendomat.1&dir=src/modules"
+    assert url == "git://server/devenv?ref=refs/tags/v2.4.0-vendomat.2&dir=src/modules"
 
 
 def test_an_unknown_table_names_the_allowed_tables():
