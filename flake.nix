@@ -3,7 +3,7 @@
 
   # The only input. Vendomat packages no one else's tools: every tool is its own flake input of
   # the machine or project that wants it.
-  inputs.nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
 
   outputs = { self, nixpkgs }:
     let
@@ -11,6 +11,9 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
     in
     {
+      # The devenv module (DEL-019). A workspace imports `inputs.vendomat.devenvModules.default`.
+      devenvModules.default = import ./nix/devenv-module self;
+
       # The command line. A host delta installs it as `packages.<system>.vendomat` (DEL-006, DEL-007).
       # There is no `default`: `.default` must not name the CLI package.
       packages = forAllSystems (pkgs: {

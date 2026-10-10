@@ -9,7 +9,7 @@ VM is not new V6 runtime proof. Raw logs sit under `~/.local/state/vendomat/v6/2
 | G0 | Authority ledger | PASS | [LEDGER-V6.md](../LEDGER-V6.md), [step-0.md](step-0.md) | Ledger check passes in `testee verify --full` (run 20261009T235155Z-480906abf076); log `00-ledger/testee-full-step0.log`. The external proof inventory is in step-0.md |
 | G1 | Pinned devenv distribution | OPEN | | Lane running |
 | G2 | `vendomat sync` for devenv workspaces | PASS | [step-2.md](step-2.md) | Stock devenv 2.4.0. The patched CLI is G1. Offline shell entry is G1 |
-| G3 | Vendomat module and library faces | OPEN | | |
+| G3 | Vendomat module and library faces | PASS | [step-3.md](step-3.md) | Mode metadata for the patched CLI waits for G1 |
 | G4 | Command and launcher | OPEN | | |
 | G5 | Source, cache, builder | OPEN | | PV-09 may stay a named blocker |
 | G6 | `nix-systems` bootable core | OPEN | | |
