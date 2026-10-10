@@ -157,6 +157,9 @@ The owner ran `/run/wrappers/bin/sudo nixos-rebuild switch --flake .#server` fro
 The command returned exit 4 because `argentic-overlay.service` failed to bind to port 8790.
 That unit file was identical in the old and new generations. The Attic service restarted and stayed
 active. Its unit used `/nix/store/6b5jh49dkbs93zlkpic2fkn2lfbl5ybs-checked-attic-server.toml`.
+At final inspection, a process in the user-level `argentic-overlay.service` cgroup held port 8790.
+The system-level service was still retrying. This port conflict explains the bind error; it is a
+separate service issue.
 The checked TOML had 64/256/1024 KiB chunks. Database and storage paths stayed on
 `/mnt/wd_green1/attic`. The switch's exit code is a named service failure, not a passed gate.
 The change was committed and pushed as nix-meta `main` revision `5c8ea153`. That branch also
