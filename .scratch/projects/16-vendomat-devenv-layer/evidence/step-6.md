@@ -275,3 +275,10 @@ cd ~/Documents/Projects/gitman-workspaces/v6-vm-core   # or any checkout of v6-s
 NS_TEST_KEYS=<dir with deploy and wrong keys>   # optional; a new run makes new keys and a new image
 tests/run                                       # needs /dev/kvm and about 3 GB of Nix store for the image
 ```
+
+## Update 2026-10-10: rerun on fork `v2.4.0-vendomat.2`
+
+`tests/run` ran once, alone, on `nix-systems` `main` `fe848434` with the patched CLI
+`2.4.0+e2acb5b`. All four stages exit 0 (`collection`, `lock-and-build`, `core-vm`, `vm-flow`).
+Raw logs: `~/.local/state/vendomat/v6/2026-10-09/06-nix-systems/final3/`. The item list above
+(1 to 6) holds for the new fork.

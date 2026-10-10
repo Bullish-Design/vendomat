@@ -252,12 +252,13 @@ these. Every defect below is closed in a rerun (`evidence/step-7.md`) except whe
 
 The wrapper `vendomat machine install` always passes `--phases disko,install`. A direct call with `kexec` or `reboot` beside `disko` or `install` is refused by the fork before any contact.
 
-## 13. What the last reruns left open
+## 13. Reruns after the last fork and role changes
 
-- The Step 6 core and Machines-flow runner (`nix-systems/tests/run`) was **not** rerun with fork `.2`
-  because the disk guard stopped it (unallocated space reached 1 MiB when two image builds ran at once).
-  The Step 7 harness ran the same Machines flow with fork `.2`. Run `tests/run` once, alone, before
-  the review closes.
-- The disk of this host is the limit for more VM work: about 8 unreferenced 2.6 GiB `nixos-disk-image`
-  paths and 12,485 dead store paths wait for `nix-collect-garbage`, and btrfs has no unallocated space.
-  No cutover step needs them.
+- `nix-systems/tests/run` (core boot with no Vendomat, the Machines flow, the library face, Home
+  Manager in the role, and the framework denial) ran once, alone, on `main` `fe848434` with fork
+  `v2.4.0-vendomat.2` on 2026-10-10: all four stages exit 0. Raw logs:
+  `~/.local/state/vendomat/v6/2026-10-09/06-nix-systems/final3/`.
+- The services VM ran again on `main` with fork `.2`: the first deploy of the unmodified role
+  succeeded with 0 failed units.
+- The disk of this host was the limit for the VM lanes. After the owner's `nix-collect-garbage`
+  unallocated space is about 10 GiB. No cutover step needs more VM runs.
