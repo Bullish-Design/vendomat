@@ -20,7 +20,7 @@ privileged read-only scan that the owner must run (section 3).
 | `nixos-facter` report | **BLOCKED**: needs root. The role uses an explicit hardware module instead |
 | Installed closure | Built and listed (section 6). No V4 module or toolchain manifest |
 | Live source, cache, and Dagu routes | Not changed. See section 7 and the blockers |
-| Install route in VMs | Refusal matrix ran and found defects (section 12). The success path and the firmware test have **not** run |
+| Install route in VMs | PASS in QEMU (`evidence/step-7.md`): 25 injection cases and 10 direct-CLI cases refuse with no write; the install, the new-disk-alone boot, the one-time boot and the fallback work. Real firmware and the real drive are unproven |
 | Role services in a VM | 8 checks PASS in a disposable VM (`evidence/step-8-services.md`); the tailnet, Serve, and real ciphertext are unproven |
 
 ## 2. What the install does, in one paragraph
@@ -220,7 +220,7 @@ one). Promote the new entry to default only after repeated good boots (`MACH-009
 ## 12. Defects that the VM runs found, and where they stand
 
 The two-disk VM matrix (`evidence/step-7.md`) and the services VM (`evidence/step-8-services.md`) found
-these. The install must not run until each is closed and its fixture reruns.
+these. Every defect below is closed in a rerun (`evidence/step-7.md`) except where a row says otherwise.
 
 | ID | Defect | State |
 | --- | --- | --- |
@@ -232,6 +232,10 @@ these. The install must not run until each is closed and its fixture reruns.
 | W1 | The wrapper's unmount ignored `target.sshOpts` and the port | fixed in `main` (`MACH-025`) |
 | W2 | The wrapper unmounted `/mnt` after a refusal | fixed in `main` |
 | W3 | The new swap stayed active after the install | fixed in `main` (`swapoff` of the install-target's swap) |
+| N1 | In the VM, `tailscaled-autoconnect` failed (no age key to decrypt the auth key) | VM artifact. On the server the copied host key is the first recipient of the ciphertext (`ssh-to-age`). The unit stays loud on purpose (`MACH-026`) |
+| N2 | The new system had no `efibootmgr` | fixed in `nix-systems` `main` (`BOOT-028`) |
+| N3 | `loader/random-seed` on the old ESP changes at each boot | compare the ESP without that file |
+| N4 | OVMF reorders its own entries | compare the entry set and the first entry, not the whole `BootOrder` |
 | G1 | The module accepted an `install-target` that shares a by-id with a `keep` disk | fixed in `main`; fixture added |
 | C1 | **A direct `devenv machines install server` with default phases ran `kexec` before the preflight** | fixed in fork `v2.4.0-vendomat.2` (`DVN-010`): refused before any contact; 72 unit tests, 39 CLI cases, and a VM step |
 | C2 | The CLI hid the failed check names | fixed in the same fork commit |
