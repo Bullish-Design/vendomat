@@ -20,6 +20,8 @@ privileged read-only scan that the owner must run (section 3).
 | `nixos-facter` report | **BLOCKED**: needs root. The role uses an explicit hardware module instead |
 | Installed closure | Built and listed (section 6). No V4 module or toolchain manifest |
 | Live source, cache, and Dagu routes | Not changed. See section 7 and the blockers |
+| Install route in VMs | Refusal matrix ran and found defects (section 12). The success path and the firmware test have **not** run |
+| Role services in a VM | 8 checks PASS in a disposable VM (`evidence/step-8-services.md`); the tailnet, Serve, and real ciphertext are unproven |
 
 ## 2. What the install does, in one paragraph
 
@@ -214,3 +216,27 @@ one). Promote the new entry to default only after repeated good boots (`MACH-009
 3. `agentman` and its PostgreSQL unit are not in the new role (deferred; see the Step 8 record).
 4. A `nixos-facter` report: optional replacement for the hardware module.
 5. A live push to the production Attic: not run in this work.
+
+## 12. Defects that the VM runs found, and where they stand
+
+The two-disk VM matrix (`evidence/step-7.md`) and the services VM (`evidence/step-8-services.md`) found
+these. The install must not run until each is closed and its fixture reruns.
+
+| ID | Defect | State |
+| --- | --- | --- |
+| D1 | The preflight used `wipefs --parse`, which is not an option, so no blank disk could pass | fixed in `main` (`--parsable`); rerun pending |
+| D2 | A missing `grep` or `awk` turned a check into a false pass | fixed in `main`; rerun pending |
+| D3 | The program did not check `--phases` or `--disko-mode`; a direct `--disko-mode format` formatted the blank disk | fixed in `main` (`MACH-024`); rerun pending |
+| D4 | A `keep` disk whose by-id path did not resolve was skipped | fixed in `main`; rerun pending |
+| D5 | `findmnt -R /mnt` missed submounts | fixed in `main`; rerun pending |
+| W1 | The wrapper's unmount ignored `target.sshOpts` and the port | fixed in `main` (`MACH-025`) |
+| W2 | The wrapper unmounted `/mnt` after a refusal | fixed in `main` |
+| W3 | The new swap stayed active after the install | fixed in `main` (`swapoff` of the install-target's swap) |
+| G1 | The module accepted an `install-target` that shares a by-id with a `keep` disk | fixed in `main`; fixture added |
+| C1 | **A direct `devenv machines install server` with default phases ran `kexec` before the preflight** | fix requested: fork `v2.4.0-vendomat.2` (`DVN-010`). Until then, never run the direct command |
+| C2 | The CLI hid the failed check names | same fork change |
+| F1 | `git-daemon` failed on a fresh install (no `/home/andrew/vendor`), so the first deploy rolled back | fixed in `nix-systems` `main` (`tmpfiles`) |
+| F2 | Dagu user units also started for root | fixed in `nix-systems` `main` (`ConditionUser`) |
+| F4 | SSH is open on every interface, against the comment | comment corrected; **owner decision**: `services.openssh.openFirewall = false` |
+
+Until C1 is closed, use only `vendomat machine install`, which always passes `--phases disko,install`.

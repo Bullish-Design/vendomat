@@ -13,8 +13,8 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 64, proposed 15, to build 0, superseded 20, decided 2) | 101 |
-| V6 `NAT-*` facts | 27 |
+| V6 IDs defined (active 67, proposed 15, to build 0, superseded 20, decided 2) | 104 |
+| V6 `NAT-*` facts | 31 |
 | V5 IDs that section 0 names | 51 |
 
 ## Checks
@@ -299,6 +299,7 @@ withdrew it, and V6 adds nothing.
 | `DVN-007` | active |  |  |
 | `DVN-008` | active |  |  |
 | `DVN-009` | proposed |  |  |
+| `DVN-010` | active |  |  |
 | `FACE-001` | superseded |  | by `FACE-006` |
 | `FACE-002` | active |  |  |
 | `FACE-003` | active |  |  |
@@ -330,6 +331,8 @@ withdrew it, and V6 adds nothing.
 | `MACH-021` | active |  |  |
 | `MACH-022` | proposed |  |  |
 | `MACH-023` | proposed |  |  |
+| `MACH-024` | active |  |  |
+| `MACH-025` | active |  |  |
 | `MOD-011` | superseded |  | by `MOD-013` |
 | `MOD-012` | superseded |  | by `MOD-013` |
 | `MOD-013` | active | `DEL-003` |  |
@@ -360,6 +363,10 @@ withdrew it, and V6 adds nothing.
 | `NAT-042` | fact |  |  |
 | `NAT-043` | fact |  |  |
 | `NAT-044` | fact |  |  |
+| `NAT-045` | fact |  |  |
+| `NAT-046` | fact |  |  |
+| `NAT-047` | fact |  |  |
+| `NAT-048` | fact |  |  |
 | `PRE-001` | active |  |  |
 | `PRE-002` | active |  |  |
 | `PRE-003` | active |  |  |
