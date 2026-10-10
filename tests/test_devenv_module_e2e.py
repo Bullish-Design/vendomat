@@ -186,7 +186,7 @@ class Workspace:
         for name in ("flake.nix", "flake.lock", "pyproject.toml", "README.md"):
             if (ROOT / name).exists():
                 shutil.copy2(ROOT / name, self.vendomat / name)
-        for name in ("src", "nix"):
+        for name in ("src", "nix", "preflight", "direnv", "launcher"):
             shutil.copytree(ROOT / name, self.vendomat / name, ignore=shutil.ignore_patterns("__pycache__"))
         self.libs = libs
         self.env = {"HOME": os.environ["HOME"], "PATH": os.environ["PATH"]}

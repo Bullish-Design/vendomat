@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# Vendomat fresh-install preflight (MACH-010, MACH-016, DISK-002, DISK-003, VMOD-016).
+#
+# The patched `devenv machines install` copies this file to the target and runs it before any disk
+# write. It reads the target read-only and prints one JSON report, schema `vendomat.preflight/v1`.
+# It exits 0 only on a definite pass. Any failure or unknown result exits 1.
+#
+# Invocation (fixed by the patched CLI, devenv-dist patch 0006):
+#   vendomat-preflight --machine NAME --nonce HEX --phases CSV --disko-mode MODE --disk BYID [--disk BYID ...]
+#
+# The expected identity of each install-target and the protected disks are baked in at build time
+# by the Vendomat module (nix/devenv-module). A copy with the placeholders still in place refuses.
+#
+# This script never writes to a disk. It does not trust its caller: the CLI re-reads the machine id
+# and the boot id itself, and compares the disk set with the disko layout.
+set -u -o pipefail
+export LC_ALL=C
+
+# --- Baked data. One entry per line: BYID|MODEL|SERIAL|SIZE_BYTES, and BYID for protected disks. ---
+TARGETS_BAKED=(
+@TARGETS@
+)
+PROTECTED_BAKED=(
+@PROTECTED@
+)
+
+machine=""
+nonce=""
+phases=""
+disko_mode=""
+disks=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --machine) machine="${2:-}"; shift 2 ;;
+    --nonce) nonce="${2:-}"; shift 2 ;;
+    --phases) phases="${2:-}"; shift 2 ;;
+    --disko-mode) disko_mode="${2:-}"; shift 2 ;;
+    --disk) disks+=("${2:-}"); shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+# --- Report assembly --------------------------------------------------------------------------
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\t'/ }"
+  printf '%s' "$s"
+}
+
+checks_json=""
+disks_json=""
+overall="pass"
+
+add_check() {  # id status detail
+  local id="$1" status="$2" detail="${3:-}"
+  case "$status" in
+    pass) ;;
+    fail) overall="fail" ;;
+    *) [ "$overall" = "fail" ] || overall="unknown" ;;
+  esac
+  [ -n "$checks_json" ] && checks_json+=","
+  checks_json+="{\"id\":\"$(json_escape "$id")\",\"status\":\"$status\",\"detail\":\"$(json_escape "$detail")\"}"
+}
+
+finish() {
+  local machine_id boot_id
+  machine_id="$(tr -d '\n' < /etc/machine-id 2>/dev/null || true)"
+  boot_id="$(tr -d '\n' < /proc/sys/kernel/random/boot_id 2>/dev/null || true)"
+  printf '{"schema":"vendomat.preflight/v1","result":"%s","machine":"%s","nonce":"%s",' \
+    "$overall" "$(json_escape "$machine")" "$(json_escape "$nonce")"
+  printf '"host":{"machine_id":"%s","boot_id":"%s"},' "$machine_id" "$boot_id"
+  printf '"disks":[%s],"checks":[%s]}\n' "$disks_json" "$checks_json"
+  [ "$overall" = "pass" ] && exit 0
+  exit 1
+}
+
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
+
+# --- Preconditions ----------------------------------------------------------------------------
+if [ "${#TARGETS_BAKED[@]}" -eq 0 ] || [[ "${TARGETS_BAKED[0]}" == "@TARGETS@" ]]; then
+  add_check baked-data fail "this copy holds no baked inventory; build it with the Vendomat module"
+  finish
+fi
+add_check baked-data pass "${#TARGETS_BAKED[@]} install-target(s), ${#PROTECTED_BAKED[@]} protected disk(s)"
+
+[ "$(id -u)" = "0" ] && add_check root pass || add_check root unknown "run as root: signatures cannot be read otherwise"
+
+missing=""
+for tool in lsblk wipefs blkid readlink findmnt; do
+  command -v "$tool" >/dev/null 2>&1 || missing+=" $tool"
+done
+if [ -n "$missing" ]; then
+  add_check tools unknown "missing tools:$missing"
+  finish
+fi
+add_check tools pass "lsblk wipefs blkid readlink findmnt"
+
+if [ -z "$machine" ] || [ -z "$nonce" ]; then
+  add_check arguments fail "--machine and --nonce are required"
+  finish
+fi
+if [ "${#disks[@]}" -eq 0 ]; then
+  add_check arguments fail "no --disk was given"
+  finish
+fi
+
+# --- The disk set equals the baked install-targets --------------------------------------------
+declare -A want_model want_serial want_size
+baked_ids=""
+for entry in "${TARGETS_BAKED[@]}"; do
+  IFS='|' read -r b_id b_model b_serial b_size <<< "$entry"
+  want_model["$b_id"]="$b_model"; want_serial["$b_id"]="$b_serial"; want_size["$b_id"]="$b_size"
+  baked_ids+="$b_id"$'\n'
+done
+given_ids="$(printf '%s\n' "${disks[@]}" | LC_ALL=C sort)"
+baked_sorted="$(printf '%s' "$baked_ids" | LC_ALL=C sort)"
+if [ "$given_ids" = "$baked_sorted" ]; then
+  add_check disk-set pass "the disks equal the inventory's install-targets"
+else
+  add_check disk-set fail "disks given [$(printf '%s ' "${disks[@]}")] differ from the inventory's install-targets"
+  finish
+fi
+
+# --- Nothing under /mnt -----------------------------------------------------------------------
+if findmnt -rn -R /mnt >/dev/null 2>&1; then
+  add_check mnt-clear fail "something is mounted at or under /mnt"
+elif [ -d /mnt ] && [ -n "$(ls -A /mnt 2>/dev/null || true)" ]; then
+  add_check mnt-clear fail "/mnt holds files; install would write into the running root"
+else
+  add_check mnt-clear pass "/mnt is empty or absent"
+fi
+
+# --- Mounted device ancestry (computed once) --------------------------------------------------
+# Every name that backs a mounted filesystem or active swap, with its ancestors.
+backing=""
+while read -r src; do
+  case "$src" in /dev/*) ;; *) continue ;; esac
+  src="${src%%\[*}"
+  names="$(lsblk -s -rn -o NAME "$src" 2>/dev/null || true)"
+  backing+="$names"$'\n'
+done < <(findmnt -rn -o SOURCE 2>/dev/null; awk 'NR>1 {print $1}' /proc/swaps 2>/dev/null)
+backing_status="pass"
+[ -z "$(trim "$backing")" ] && backing_status="unknown"
+if [ "$backing_status" = "unknown" ]; then
+  add_check mount-table unknown "could not read the mounted devices"
+  finish
+fi
+add_check mount-table pass "read the mounted devices and swap"
+
+# --- Protected disks --------------------------------------------------------------------------
+declare -A protected_dev
+for p in "${PROTECTED_BAKED[@]}"; do
+  [ -n "$p" ] || continue
+  if [ -e "$p" ]; then
+    protected_dev["$(readlink -f -- "$p")"]=1
+  fi
+done
+
+# --- Per target disk --------------------------------------------------------------------------
+for by in "${disks[@]}"; do
+  tag="$by"
+  dev="$(readlink -f -- "$by" 2>/dev/null || true)"
+  if [ -z "$dev" ] || [ ! -b "$dev" ]; then
+    add_check "resolve:$tag" fail "$by does not resolve to a block device"
+    continue
+  fi
+  name="${dev#/dev/}"
+  if [ ! -e "/sys/block/$name" ]; then
+    add_check "whole-disk:$tag" fail "$dev is not a whole disk"
+    continue
+  fi
+  add_check "resolve:$tag" pass "$by -> $dev"
+
+  model="$(trim "$(cat "/sys/block/$name/device/model" 2>/dev/null || true)")"
+  serial="$(trim "$(cat "/sys/block/$name/device/serial" 2>/dev/null || cat "/sys/block/$name/serial" 2>/dev/null || true)")"
+  sectors="$(cat "/sys/block/$name/size" 2>/dev/null || echo 0)"
+  size=$((sectors * 512))
+  disks_json="${disks_json:+$disks_json,}{\"by_id\":\"$(json_escape "$by")\",\"model\":\"$(json_escape "$model")\",\"serial\":\"$(json_escape "$serial")\",\"size_bytes\":$size}"
+
+  if [ -z "$model" ] || [ -z "$serial" ] || [ "$size" -le 0 ]; then
+    add_check "identity:$tag" unknown "model, serial, or size could not be read (model='$model' serial='$serial' size=$size)"
+  elif [ "$model" = "${want_model[$by]}" ] && [ "$serial" = "${want_serial[$by]}" ] && [ "$size" = "${want_size[$by]}" ]; then
+    add_check "identity:$tag" pass "model, serial, and size match the inventory"
+  else
+    add_check "identity:$tag" fail "got model='$model' serial='$serial' size=$size; inventory has model='${want_model[$by]}' serial='${want_serial[$by]}' size=${want_size[$by]}"
+  fi
+
+  if [ -n "${protected_dev[$dev]:-}" ]; then
+    add_check "not-protected:$tag" fail "$dev is a protected (keep or existing-system) disk"
+  else
+    add_check "not-protected:$tag" pass "not a protected disk"
+  fi
+
+  # Partitions and holders of the disk and each partition.
+  parts=("/sys/block/$name/$name"*)
+  holders=""
+  nparts=0
+  for node in "/sys/block/$name" "${parts[@]}"; do
+    [ -d "$node" ] || continue
+    [ "$node" != "/sys/block/$name" ] && { [ -e "$node/partition" ] && nparts=$((nparts + 1)); }
+    h="$(ls -A "$node/holders" 2>/dev/null || true)"
+    [ -n "$h" ] && holders+=" $h"
+  done
+  if [ "$nparts" -gt 0 ]; then
+    add_check "no-partitions:$tag" fail "$dev has $nparts partition(s)"
+  else
+    add_check "no-partitions:$tag" pass "no partition"
+  fi
+  if [ -n "$(trim "$holders")" ]; then
+    add_check "no-holders:$tag" fail "mapped holders:$holders"
+  else
+    add_check "no-holders:$tag" pass "no mapped holder"
+  fi
+
+  # Mounted or swap, through the backing list.
+  if printf '%s\n' "$backing" | grep -Fxq -- "$name"; then
+    add_check "not-mounted:$tag" fail "$dev backs a mounted filesystem, a swap, or the running root or boot"
+  else
+    add_check "not-mounted:$tag" pass "no mounted filesystem or swap on $dev or its partitions"
+  fi
+
+  # Signatures: wipefs and blkid must both find nothing.
+  if wipe="$(wipefs --no-act --parse -- "$dev" 2>&1)"; then
+    if [ -z "$(trim "$wipe")" ]; then
+      add_check "no-signature-wipefs:$tag" pass "wipefs found no signature"
+    else
+      add_check "no-signature-wipefs:$tag" fail "wipefs found: $(printf '%s' "$wipe" | head -n 3 | tr '\n' ';')"
+    fi
+  else
+    add_check "no-signature-wipefs:$tag" unknown "wipefs failed: $(trim "$wipe")"
+  fi
+  blkid -p -- "$dev" >/dev/null 2>&1
+  case "$?" in
+    2) add_check "no-signature-blkid:$tag" pass "blkid -p found no signature" ;;
+    0) add_check "no-signature-blkid:$tag" fail "blkid -p found a signature" ;;
+    *) add_check "no-signature-blkid:$tag" unknown "blkid -p failed" ;;
+  esac
+done
+
+finish

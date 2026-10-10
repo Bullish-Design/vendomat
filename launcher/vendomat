@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# The Vendomat host launcher (DEL-017).
+#
+# It is the `vendomat` command on a host. Inside a workspace, it runs the Vendomat build that the
+# workspace's devenv.lock pins, found in the store by the NAR hash of its source. Outside a
+# workspace, it runs the host's pinned release. It holds no Vendomat logic of its own.
+#
+# The host release (the full command) sits at $VENDOMAT_HOST_RELEASE, baked in at build time.
+#
+# Environment:
+#   VENDOMAT_HOST_RELEASE   path of the host release's bin/vendomat
+#   VENDOMAT_USE_HOST=1     force the host release, and say so
+#   VENDOMAT_LAUNCHER_CACHE directory for the NAR-hash to build map (default ~/.cache/vendomat/launcher)
+#
+# The host release repairs a workspace in two cases, and the launcher says which on stderr:
+#   1. the workspace has no devenv.lock or no `vendomat` node yet (a new workspace);
+#   2. the pinned build is missing from the store and cannot be fetched (the command that
+#      repairs it, `sync`, needs a working Vendomat; the host release stands in).
+set -euo pipefail
+
+host_release="${VENDOMAT_HOST_RELEASE:-@HOST_RELEASE@}"
+say() { printf 'vendomat: %s\n' "$*" >&2; }
+
+use_host() {
+  [ -x "$host_release" ] || { say "no host release at $host_release"; exit 2; }
+  exec "$host_release" "$@"
+}
+
+# Start directory: --root DIR when given, else the current directory.
+start="$PWD"
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--root" ]; then start="$arg"; fi
+  case "$arg" in --root=*) start="${arg#--root=}" ;; esac
+  prev="$arg"
+done
+
+root=""
+dir="$(cd "$start" 2>/dev/null && pwd -P || true)"
+while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+  if [ -f "$dir/vendomat.toml" ]; then root="$dir"; break; fi
+  dir="$(dirname "$dir")"
+done
+
+if [ "${VENDOMAT_USE_HOST:-}" = "1" ]; then
+  say "VENDOMAT_USE_HOST=1: using the host release"
+  use_host "$@"
+fi
+
+# Outside a workspace: the host release, with no message.
+[ -n "$root" ] || use_host "$@"
+
+lock="$root/devenv.lock"
+if [ ! -f "$lock" ]; then
+  say "$root has no devenv.lock; using the host release to bootstrap it"
+  use_host "$@"
+fi
+
+nar="$(jq -r '.nodes.vendomat.locked.narHash // empty' "$lock" 2>/dev/null || true)"
+if [ -z "$nar" ]; then
+  say "$lock pins no vendomat input; using the host release"
+  use_host "$@"
+fi
+
+# sha256-<base64> to hex, without extra tools.
+hex="$(printf '%s' "${nar#sha256-}" | base64 -d | od -An -tx1 | tr -d ' \n')"
+cache="${VENDOMAT_LAUNCHER_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/vendomat/launcher}"
+mkdir -p "$cache"
+
+if [ -f "$cache/$hex" ]; then
+  out="$(cat "$cache/$hex")"
+  if [ -x "$out/bin/vendomat" ]; then
+    exec "$out/bin/vendomat" "$@"
+  fi
+fi
+
+store="$(nix-store --print-fixed-path --recursive sha256 "$hex" source)"
+system="$(uname -m)-linux"
+out=""
+if [ -d "$store" ]; then
+  # The source is in the store. Build it offline: its inputs are fixed-output paths.
+  out="$(nix build --offline --no-link --print-out-paths "path:$store#packages.$system.vendomat" 2>/dev/null || true)"
+  if [ -z "$out" ]; then
+    out="$(nix build --no-link --print-out-paths "path:$store#packages.$system.vendomat" 2>/dev/null || true)"
+  fi
+fi
+if [ -z "$out" ]; then
+  # The source is not in the store. Fetch it from the lock's own reference.
+  ref="$(jq -r '.nodes.vendomat | .original as $o | $o.type as $t
+      | if $t == "git" then "git+" + $o.url + "?ref=" + ($o.ref // "") + "&rev=" + (.locked.rev // "")
+        elif $t == "github" then "github:" + $o.owner + "/" + $o.repo + "/" + (.locked.rev // "")
+        else empty end' "$lock" 2>/dev/null || true)"
+  # A plain git:// URL in the lock keeps its scheme.
+  case "$ref" in git+git://*) ref="${ref#git+}" ;; esac
+  if [ -n "$ref" ]; then
+    out="$(nix build --no-link --print-out-paths "$ref#packages.$system.vendomat" 2>/dev/null || true)"
+  fi
+fi
+if [ -z "$out" ] || [ ! -x "$out/bin/vendomat" ]; then
+  say "the Vendomat pinned by $lock is not in the store and cannot be fetched"
+  say "using the host release to repair the workspace; run \`vendomat sync\` when the source is reachable"
+  use_host "$@"
+fi
+printf '%s' "$out" > "$cache/$hex.tmp" && mv "$cache/$hex.tmp" "$cache/$hex"
+exec "$out/bin/vendomat" "$@"

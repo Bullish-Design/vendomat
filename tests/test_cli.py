@@ -10,7 +10,7 @@ from vendomat.cli import app
 runner = CliRunner()
 
 #: The commands `CLI-001` allows. A command appears here only when it is built.
-BUILT = {"sync", "path"}
+BUILT = {"sync", "path", "check", "push", "bump", "machine"}
 
 
 def test_help_exits_zero():

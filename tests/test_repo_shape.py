@@ -15,12 +15,17 @@ ROOT = Path(__file__).resolve().parents[1]
 #: The library modules that exist. Add a name here when a V5 module is built.
 MODULES = {
     "__init__.py",
+    "bump.py",
+    "check.py",
     "cli.py",
     "defaults.py",
     "devenvgen.py",
     "generate.py",
     "locate.py",
+    "lockpath.py",
+    "machine.py",
     "nixio.py",
+    "push.py",
     "registry.py",
     "store.py",
     "yamlsubset.py",

@@ -13,9 +13,9 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 60, proposed 16, to build 0, superseded 18, decided 2) | 96 |
-| V6 `NAT-*` facts | 23 |
-| V5 IDs that section 0 names | 50 |
+| V6 IDs defined (active 62, proposed 15, to build 0, superseded 18, decided 2) | 97 |
+| V6 `NAT-*` facts | 25 |
+| V5 IDs that section 0 names | 51 |
 
 ## Checks
 
@@ -205,7 +205,7 @@ withdrew it, and V6 adds nothing.
 | `REG-006` | active | Kept | V5 text applies |
 | `REG-007` | active | Kept | V5 text applies |
 | `REG-008` | active | Kept | V5 text applies |
-| `REG-009` | active | Kept | V5 text applies |
+| `REG-009` | active | Superseded | `REG-025`: `bump` may write two `ref` values; no other command writes the registry |
 | `REG-010` | active | Kept | V5 text applies |
 | `REG-011` | active | Kept | V5 text applies |
 | `REG-012` | active | Kept | V5 text applies |
@@ -324,7 +324,7 @@ withdrew it, and V6 adds nothing.
 | `MACH-018` | proposed |  |  |
 | `MACH-019` | proposed |  |  |
 | `MACH-020` | proposed |  |  |
-| `MACH-021` | proposed |  |  |
+| `MACH-021` | active |  |  |
 | `MACH-022` | proposed |  |  |
 | `MACH-023` | proposed |  |  |
 | `MOD-011` | superseded |  | by `MOD-013` |
@@ -353,6 +353,8 @@ withdrew it, and V6 adds nothing.
 | `NAT-038` | fact |  |  |
 | `NAT-039` | fact |  |  |
 | `NAT-040` | fact |  |  |
+| `NAT-041` | fact |  |  |
+| `NAT-042` | fact |  |  |
 | `PRE-001` | active |  |  |
 | `PRE-002` | active |  |  |
 | `PRE-003` | active |  |  |
@@ -367,6 +369,7 @@ withdrew it, and V6 adds nothing.
 | `REG-022` | active | `REG-021` |  |
 | `REG-023` | active |  |  |
 | `REG-024` | active |  |  |
+| `REG-025` | active | `REG-009` |  |
 | `SEC-001` | superseded |  | by `SEC-003`, `MACH-007` |
 | `SEC-002` | proposed |  |  |
 | `SEC-003` | proposed |  |  |

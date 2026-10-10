@@ -84,6 +84,7 @@ in
   packages = [
     pkgs.uv
     pkgs.git
+    pkgs.jq # the launcher tests run the launcher, which reads devenv.lock with jq
   ];
 
   # Local gitman checkout, a sibling of this repository. It runs in its own .venv.

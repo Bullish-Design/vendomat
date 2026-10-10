@@ -96,21 +96,22 @@ the concept, spec, guide, or earlier active guide. V6 remains a draft after this
 
 **Goal:** one reproducible CLI and module source, without a maintained moving fork branch.
 
-1. Pin upstream v2.4.0 at `b904dcb51fe48c30db250038241507f60752f222`. Start from the
-   ordered project-15 patch series: install SSH handshake, `latest-version`, locked-source offline
-   reuse, and release-build enforcement. Add the adopted-host install denial as a separate patch.
+1. Pin upstream v2.4.0 at `b904dcb51fe48c30db250038241507f60752f222`. The series is six patches in
+   `devenv-dist/SERIES`: install SSH handshake, `latest-version`, locked-source offline reuse,
+   release-build enforcement, the adopted-host install denial (0005), and the fresh-host preflight
+   (0006). `devenv-dist/materialize` rebuilds the fork commit from the pin and the series.
 2. Keep patches and their upstream references in version control. Record source commit, patch
    order, patch hashes, resulting source revision, build derivation, and `devenv version`.
 3. Materialize a tagged distribution source in the collection so `inputs.devenv` can address its
    patched `src/modules` by the same revision used to build the CLI. Prove this packaging shape
    with a fixture before making it the V6 interface. Never pin a moving branch.
-4. Carry an explicit machine mode from Vendomat's proposed inventory to devenv machine metadata.
-   Validate the exact option and metadata path on pinned tools. At the start of `machines install`,
+4. Carry an explicit machine mode from Vendomat's inventory to devenv machine metadata. The option is
+   `machines.<name>.vendomat.mode`, and the CLI reads `machinesMeta.<name>.vendomat`. At the start of `machines install`,
    reject `adopt-existing` before SSH, payload preparation, kexec, facter, disko, install, or reboot.
    Reject every phase subset and disko mode, including `--phases install` alone.
-5. Define the fresh-host direct-CLI rule separately. The V6 concept promises a bypass still fails.
-   Test a minimal fail-closed policy that permits fresh installation only after a target-bound,
-   current preflight. Do not call an unchecked environment variable an attestation.
+5. The fresh-host direct-CLI rule is `MACH-021`: the patched CLI runs a target-side preflight
+   program and accepts only a definite, target-bound, current pass. The contract is in
+   `evidence/01-devenv-distribution.md` section 5. No environment variable counts as attestation.
 6. Build the patched CLI as a release build. Check native `require_version` against its patched
    modules. Repeat the project-15 offline shell fixture with the source remote unavailable and an
    empty fetcher cache. Test the SSH install fix with real install payloads in a disposable VM.

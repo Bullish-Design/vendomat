@@ -13,6 +13,7 @@ let
   builder = import ./builder.nix { inherit lib self inputs; };
   guard = import ./guard.nix { inherit lib; };
   lockPin = import ./lock-pin.nix { inherit lib; };
+  mkPreflight = import ./preflight.nix { inherit lib pkgs; };
 
   # --- Lock-pin check (VMOD-005, VMOD-006) ---------------------------------------------------
   lockPath = "${config.devenv.root}/devenv.lock";
@@ -77,6 +78,19 @@ let
       ++ [ h.nixos ];
   };
 
+  # The patched devenv (devenv-dist patches 0005 and 0006) reads the mode and the preflight program
+  # from `machines.<host>.vendomat`. Stock devenv has no such option, so write it only where it exists.
+  patchedMachines =
+    let sub = options.machines.type.getSubOptions [ "machines" "<name>" ];
+    in sub ? vendomat;
+  machineMeta = host: h: lib.optionalAttrs patchedMachines {
+    vendomat = {
+      mode = h.mode;
+      preflight.program =
+        if h.mode == "fresh-install" then mkPreflight { inherit host; disks = h.disks; } else null;
+    };
+  };
+
   diskType = lib.types.submodule {
     options = {
       byId = lib.mkOption {
@@ -122,6 +136,13 @@ in
           };
         };
       });
+    };
+
+    modes = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      readOnly = true;
+      default = lib.mapAttrs (_: h: h.mode) cfg.inventory;
+      description = "The mode of each inventory host. `vendomat machine install` and `check` read it.";
     };
 
     # VMOD-009: host paths, exported as VENDOMAT_PATH_<NAME>.
@@ -185,7 +206,7 @@ in
 
   config = lib.mkMerge [
     {
-      machines = lib.mapAttrs (host: h: { nixos = hostModule host h; }) cfg.inventory;
+      machines = lib.mapAttrs (host: h: { nixos = hostModule host h; } // machineMeta host h) cfg.inventory;
       # Any other definition of machines.<host>.nixos can drop the guard without an error, because the
       # option type merges attribute sets shallowly (NAT-029). Refuse it at shell entry as well.
       assertions = lib.mapAttrsToList

@@ -52,13 +52,17 @@ Vendomat ships a fork of devenv in the collection: upstream `v2.4.0` plus a shor
 | `src/modules/latest-version` says `2.4.0` | `a5c34429` (on `main`) | The next release |
 | A shell reuses locked inputs already in the store, so it enters with the collection down | PR #3244 (open) | Upstream merges it |
 | `isRelease = true`, so `require_version: true` is enforced | none; fork-only | Always |
+| `machines install` refuses an `adopt-existing` machine before any contact (patch 0005) | none; fork-only | Always |
+| `machines install` runs the target-side preflight of a `fresh-install` machine before disko (patch 0006) | none; fork-only | Always |
 
 Every devenv project sets `require_version: "2.4.0"` and pins `inputs.devenv` to the fork revision. A
 fleet check reports any project that differs. On each upstream bump, a fixed checklist runs (SPEC
 `DVN-007`).
 
 Evidence: the series builds in about six minutes; only devenv's own crates build locally. The patched
-CLI entered a shell offline where the stock CLI failed (agent J).
+CLI entered a shell offline where the stock CLI failed (agent J). The recipe is `devenv-dist/`, and
+`devenv-dist/materialize` reproduces the fork commit. V6 fixtures: 67 Rust unit tests, a 29-case CLI
+fixture with a tripwire target, and a QEMU install with payloads (`evidence/01-devenv-distribution.md`).
 
 ## 2. The Vendomat devenv module
 
@@ -222,6 +226,9 @@ firmware boot menu.
    A failure needs only a power cycle.
 5. After the new system has run reliably, it sets `canTouchEfiVariables = true` and runs
    `bootctl install` once.
+
+The patched `devenv machines install` also runs the preflight program itself (`MACH-021`), so a direct
+`devenv machines install server` fails without a current, target-bound pass.
 
 **Two guards, so a bypass still fails:**
 
