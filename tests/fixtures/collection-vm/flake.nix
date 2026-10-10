@@ -1,8 +1,8 @@
 {
   # Disposable proof of Step 6.3: the module settings in nix-meta's machines/server.nix, a release
-  # push over SSH, per-repository export, and a Nix fetch from a second machine. The pin is the
-  # nixpkgs revision that `server` builds with on 2026-10-08.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/d407951447dcd00442e97087bf374aad70c04cea";
+  # push over SSH, per-repository export, and a Nix fetch from a second machine. The pin is the V6
+  # release nixpkgs (it was the revision that `server` built with on 2026-10-08; V6 Step 5 moved it).
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
 
   outputs = { nixpkgs, ... }:
     let
