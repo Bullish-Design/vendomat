@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Real install fixture for patches 0005 and 0006 (disposable QEMU VM only).
+
+Boot a NixOS source VM with a second blank virtio disk (serial TARGETDISK).
+Run the patched `devenv machines install` from this host against the VM over
+root SSH on a loopback port, with install payloads and the stand-in preflight.
+Then boot the installed disk alone under OVMF and check the payload. Then run
+the native commands against the adopted-mode machine.
+
+usage: python3 -I vm-fixture DEVENV_BIN MODULES_URL RUNDIR LOGDIR QEMU_DIR OVMF_DIR NIXPKGS_REV
+
+RUNDIR must not exist. It holds the qcow2 images: keep it under /mnt/shared.
+"""
+import atexit
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+from importlib.machinery import SourceFileLoader  # noqa: E402
+from importlib.util import module_from_spec, spec_from_loader  # noqa: E402
+
+_loader = SourceFileLoader("fixture_common", str(HERE / "fixture-common"))
+_common = module_from_spec(spec_from_loader("fixture_common", _loader))
+_loader.exec_module(_common)
+prepare_project = _common.prepare_project
+
+PORT = 22833
+TOKEN = "dummy-bootstrap-value"
+EXTRA = "fixture-extra-value\n"
+steps = []
+
+
+def sha256_text(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def main():
+    devenv, modules_url, rundir, logdir, qemu_dir, ovmf_dir, rev = sys.argv[1:8]
+    rundir, logdir = Path(rundir), Path(logdir)
+    rundir.mkdir(parents=True)
+    logdir.mkdir(parents=True, exist_ok=True)
+    qemu = Path(qemu_dir) / "bin" / "qemu-system-x86_64"
+    qemu_img = Path(qemu_dir) / "bin" / "qemu-img"
+    keys = rundir / "keys"
+    keys.mkdir()
+    base_env = dict(os.environ, NO_COLOR="1", BOOTSTRAP_TOKEN=TOKEN)
+
+    def record(name, ok, **info):
+        entry = {"step": name, "result": "PASS" if ok else "FAIL", **info}
+        steps.append(entry)
+        print(json.dumps(entry), flush=True)
+        (logdir / "steps.json").write_text(json.dumps(steps, indent=2))
+        if not ok:
+            raise SystemExit(f"step failed: {name}")
+
+    def run(cmd, name, check=True, **kw):
+        proc = subprocess.run(cmd, text=True, capture_output=True, **kw)
+        (logdir / f"{len(steps):02d}-{name}.log").write_text(
+            f"$ {' '.join(map(str, cmd))}\n[exit {proc.returncode}]\n--- stdout ---\n{proc.stdout}\n--- stderr ---\n{proc.stderr}\n"
+        )
+        if check and proc.returncode != 0:
+            record(name, False, exit=proc.returncode)
+        return proc
+
+    # Keys and project.
+    run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "vendomat-fixture", "-f", str(keys / "id_ed25519")], "keygen")
+    pubkey = (keys / "id_ed25519.pub").read_text()
+    project = rundir / "project"
+    prepare_project(project, modules_url, PORT, pubkey)
+    # The project reads keys and known_hosts from its own keys directory.
+    shutil.copy(keys / "id_ed25519", project / "keys" / "id_ed25519")
+    os.chmod(project / "keys" / "id_ed25519", 0o600)
+    (project / "payload" / "extra.txt").write_text(EXTRA)
+
+    # Source VM.
+    out = run([str(HERE / "vm" / "build-source-vm.sh"), rev, str(keys / "id_ed25519.pub"), str(PORT)], "build-source-vm")
+    runner = next((Path(out.stdout.split()[0]) / "bin").glob("run-*-vm"))
+    target = rundir / "target.qcow2"
+    run([str(qemu_img), "create", "-q", "-f", "qcow2", str(target), "12G"], "create-target-disk")
+    vm_env = dict(os.environ,
+                  NIX_DISK_IMAGE=str(rundir / "source.qcow2"),
+                  PATH=f"{Path(qemu_dir) / 'bin'}:{os.environ['PATH']}",
+                  QEMU_OPTS=f"-drive file={target},if=none,id=tgt,format=qcow2 "
+                            f"-device virtio-blk-pci,drive=tgt,serial=TARGETDISK")
+    console = open(logdir / "source-console.log", "w")
+    source_vm = subprocess.Popen([str(runner)], env=vm_env, stdin=subprocess.DEVNULL,
+                                 stdout=console, stderr=subprocess.STDOUT, start_new_session=True)
+
+    def cleanup():
+        # Stop both VMs on every exit path. A VM must not outlive the fixture.
+        if source_vm.poll() is None:
+            source_vm.kill()
+        pid_file = rundir / "installed.pid"
+        if pid_file.exists():
+            subprocess.run(["kill", pid_file.read_text().strip()], capture_output=True)
+
+    atexit.register(cleanup)
+
+    ssh_base = ["ssh", "-i", str(keys / "id_ed25519"), "-o", "IdentitiesOnly=yes",
+                "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5", "-p", str(PORT), "root@127.0.0.1"]
+
+    def vm(cmd, name="vm", check=True, timeout=600):
+        return run([*ssh_base, cmd], name, check=check, timeout=timeout)
+
+    def wait_ssh(limit=200):
+        for _ in range(limit):
+            if subprocess.run([*ssh_base, "true"], capture_output=True).returncode == 0:
+                return True
+            time.sleep(3)
+        return False
+
+    def pin_host_key():
+        scan = subprocess.run(["ssh-keyscan", "-p", str(PORT), "-t", "ed25519", "127.0.0.1"],
+                              text=True, capture_output=True)
+        (project / "keys" / "known_hosts").write_text(scan.stdout)
+        return bool(scan.stdout.strip())
+
+    record("source-vm-ssh", wait_ssh(), port=PORT)
+    record("pin-host-key", pin_host_key())
+    vm("nix --version; hostname; ls -l /dev/disk/by-id | grep -i TARGETDISK; findmnt /mnt || echo no-mnt", "source-facts")
+
+    def devenv_run(args, name, extra_env=None, timeout=3600):
+        return run([devenv, *args], name, check=False, cwd=project, env={**base_env, **(extra_env or {})}, timeout=timeout)
+
+    disk = "/dev/disk/by-id/virtio-TARGETDISK"
+
+    # 1. Dirty target disk: the real preflight must refuse; the disk must stay as it is.
+    vm(f"mkfs.ext4 -q -L dirty {disk}", "make-disk-dirty")
+    for phases in ("disko,install", "install", "disko"):
+        proc = devenv_run(["machines", "install", "fresh", "--phases", phases], f"dirty-install-{phases.replace(',', '-')}")
+        text = proc.stdout + proc.stderr
+        still = vm(f"wipefs --no-act {disk}", "dirty-still-dirty", check=False).stdout
+        record(f"dirty-refused-{phases}", proc.returncode != 0 and "blank-signature" in text and "ext4" in still,
+               exit=proc.returncode)
+    vm(f"wipefs -a {disk}", "wipe-signature")
+
+    # 2. Real install with payloads and the real stand-in preflight.
+    proc = devenv_run(["machines", "install", "fresh", "--phases", "disko,install"], "install-fresh")
+    text = proc.stdout + proc.stderr
+    record("install-fresh", proc.returncode == 0, exit=proc.returncode,
+           preflight_ran=("Vendomat preflight" in text))
+    runs = vm("cat /var/log/vendomat-preflight.log", "preflight-runs", check=False).stdout.strip().splitlines()
+    record("preflight-ran-on-target", len(runs) >= 4, runs=len(runs), last=runs[-1].split()[1:2] if runs else None)
+    vm("umount -R /mnt 2>&1; findmnt /mnt || echo unmounted", "unmount-mnt", check=False)
+    vm("poweroff", "poweroff-source", check=False)
+    try:
+        source_vm.wait(timeout=120)
+    except subprocess.TimeoutExpired:
+        source_vm.kill()
+    target_hash = subprocess.run(["sha256sum", str(target)], text=True, capture_output=True).stdout.split()[0]
+    record("target-image-hash", True, sha256=target_hash)
+
+    # 3. Boot the installed disk alone under OVMF.
+    vars_fd = rundir / "OVMF_VARS.fd"
+    shutil.copy(Path(ovmf_dir) / "FV" / "OVMF_VARS.fd", vars_fd)
+    os.chmod(vars_fd, 0o644)
+    boot = [str(qemu), "-machine", "q35,accel=kvm", "-cpu", "host", "-smp", "2", "-m", "3072",
+            "-drive", f"if=pflash,format=raw,readonly=on,file={Path(ovmf_dir) / 'FV' / 'OVMF_CODE.fd'}",
+            "-drive", f"if=pflash,format=raw,file={vars_fd}",
+            "-drive", f"file={target},if=none,id=tgt,format=qcow2",
+            "-device", "virtio-blk-pci,drive=tgt,serial=TARGETDISK",
+            "-netdev", f"user,id=n0,hostfwd=tcp:127.0.0.1:{PORT}-:22", "-device", "virtio-net-pci,netdev=n0",
+            "-display", "none", "-serial", f"file:{logdir / 'installed-serial.log'}",
+            "-pidfile", str(rundir / "installed.pid"), "-daemonize"]
+    run(boot, "boot-installed-disk")
+    record("installed-ssh", wait_ssh(100), port=PORT)
+    record("pin-host-key-installed", pin_host_key())
+    facts = vm("hostname; cat /etc/vendomat-fixture-marker; readlink /run/current-system; "
+               "stat -c '%n %a %U:%G' /var/lib/bootstrap/token /var/lib/bootstrap/extra; "
+               "sha256sum /var/lib/bootstrap/token /var/lib/bootstrap/extra | cut -d' ' -f1; "
+               "systemctl --failed --no-legend | wc -l", "installed-facts").stdout.split("\n")
+    expect_token = hashlib.sha256(TOKEN.encode()).hexdigest()
+    expect_extra = hashlib.sha256(EXTRA.encode()).hexdigest()
+    ok = (facts[0] == "vmfresh" and facts[1] == "GENERATION-1"
+          and "/var/lib/bootstrap/token 400 root:root" in facts[3]
+          and "/var/lib/bootstrap/extra 640 root:root" in facts[4]
+          and facts[5] == expect_token and facts[6] == expect_extra)
+    record("payload-on-installed-disk", ok, facts=facts[:5], failed_units=facts[7] if len(facts) > 7 else None)
+    leak = vm(f"timeout 600 grep -rlF {TOKEN} /nix/store 2>/dev/null | head -3; echo done", "grep-store", check=False)
+    record("no-secret-in-store", leak.stdout.strip() == "done", output=leak.stdout.strip()[:200])
+
+    # 4. Native commands for the adopted-mode machine, on the same target.
+    count_cmd = "journalctl -u sshd --no-pager | grep -c 'Accepted publickey' || true"
+    # Each count call is itself a login, so compare the step of one call with the step across the refusal.
+    count1 = int(vm(count_cmd, "sshd-count-1").stdout.strip())
+    count2 = int(vm(count_cmd, "sshd-count-2").stdout.strip())
+    proc = devenv_run(["machines", "install", "adopt", "--phases", "install"], "adopt-install-refused")
+    count3 = int(vm(count_cmd, "sshd-count-3").stdout.strip())
+    record("adopt-install-refused-no-contact", proc.returncode != 0 and "adopt-existing" in proc.stdout + proc.stderr
+           and count3 - count2 == count2 - count1, counts=[count1, count2, count3], exit=proc.returncode)
+    for label, args in [("info", ["machines", "info", "adopt"]), ("check", ["machines", "check", "adopt"]),
+                        ("plan", ["machines", "plan", "adopt"]),
+                        ("deploy", ["machines", "deploy", "adopt", "--yes"]),
+                        ("status", ["machines", "status", "adopt"])]:
+        proc = devenv_run(args, f"native-{label}")
+        record(f"native-{label}", proc.returncode == 0, exit=proc.returncode)
+    marker = vm("cat /etc/vendomat-fixture-marker", "marker-after-deploy").stdout.strip()
+    record("deploy-applied", marker == "GENERATION-2", marker=marker)
+    proc = devenv_run(["machines", "rollback", "adopt"], "native-rollback")
+    marker = vm("cat /etc/vendomat-fixture-marker", "marker-after-rollback").stdout.strip()
+    record("native-rollback", proc.returncode == 0 and marker == "GENERATION-1", exit=proc.returncode, marker=marker)
+
+    vm("poweroff", "poweroff-installed", check=False)
+    time.sleep(10)
+    pid = (rundir / "installed.pid").read_text().strip() if (rundir / "installed.pid").exists() else None
+    if pid:
+        subprocess.run(["kill", pid], capture_output=True)
+    final = subprocess.run(["sha256sum", str(target)], text=True, capture_output=True).stdout.split()[0]
+    record("final-target-image-hash", True, sha256=final)
+    failed = [s for s in steps if s["result"] == "FAIL"]
+    print(f"summary: {len(steps) - len(failed)} pass, {len(failed)} fail")
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

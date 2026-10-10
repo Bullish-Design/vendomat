@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Fake ssh for the CLI fixture. It records each call and opens no connection.
+# FAKE_LOG: call log. FAKE_SCENARIO_FILE: preflight scenario name.
+# FAKE_DISKO_SLEEP: seconds that a disko run takes.
+log=${FAKE_LOG:?FAKE_LOG is not set}
+cmd="${*: -1}"
+printf '%s\tssh\t%s\n' "$(date +%s.%N)" "$*" >> "$log"
+[ -t 0 ] || cat > /dev/null
+scenario=$(cat "${FAKE_SCENARIO_FILE:-/dev/null}" 2>/dev/null || true)
+scenario=${scenario:-pass}
+machine_id=0123456789abcdef0123456789abcdef
+boot_id=11111111-2222-3333-4444-555555555555
+case "$cmd" in
+  *--nonce*)
+    eval "set -- $cmd"
+    program=$1; shift
+    machine=""; nonce=""; disks=()
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --machine) machine=$2; shift 2 ;;
+        --nonce) nonce=$2; shift 2 ;;
+        --disk) disks+=("$2"); shift 2 ;;
+        *) shift 2 ;;
+      esac
+    done
+    result=pass; status=pass; rc=0; mid=$machine_id
+    case "$scenario" in
+      fail) result=fail; status=fail; rc=1 ;;
+      unknown) result=unknown; status=unknown ;;
+      malformed) echo "this is not json"; exit 0 ;;
+      nonce) nonce=00000000000000000000000000000000 ;;
+      machine) machine=other ;;
+      host) mid=ffffffffffffffffffffffffffffffff ;;
+      disk) disks=("/dev/disk/by-id/some-other-disk") ;;
+    esac
+    dj=""; sep=""
+    for d in "${disks[@]}"; do
+      dj="$dj$sep{\"by_id\":\"$d\",\"model\":\"FAKE\",\"serial\":\"F1\",\"size_bytes\":1000}"; sep=","
+    done
+    printf '{"schema":"vendomat.preflight/v1","result":"%s","machine":"%s","nonce":"%s",' "$result" "$machine" "$nonce"
+    printf '"host":{"machine_id":"%s","boot_id":"%s"},' "$mid" "$boot_id"
+    printf '"disks":[%s],"checks":[{"id":"fake-check","status":"%s","detail":"fixture"}]}\n' "$dj" "$status"
+    exit $rc ;;
+  "cat /etc/machine-id; cat /proc/sys/kernel/random/boot_id")
+    echo "$machine_id"; echo "$boot_id"; exit 0 ;;
+  /nix/store/*disko*)
+    sleep "${FAKE_DISKO_SLEEP:-0}"; exit 0 ;;
+esac
+exit 0

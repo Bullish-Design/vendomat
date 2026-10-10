@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""CLI fixture for patches 0005 and 0006 of the Vendomat devenv distribution.
+
+Run a built patched `devenv` against a throwaway project. A fake `ssh` and a
+fake `nix copy` earlier on PATH record every call. A tripwire listener records
+every TCP connection to the target port.
+
+usage: python3 -I cli-fixture DEVENV_BIN MODULES_URL WORKDIR [LOGDIR]
+
+WORKDIR must not exist. Exit 0 when every case passes.
+"""
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+from importlib.machinery import SourceFileLoader  # noqa: E402
+from importlib.util import module_from_spec, spec_from_loader  # noqa: E402
+
+_loader = SourceFileLoader("fixture_common", str(HERE / "fixture-common"))
+_common = module_from_spec(spec_from_loader("fixture_common", _loader))
+_loader.exec_module(_common)
+prepare_project = _common.prepare_project
+
+
+class Tripwire:
+    """Accept TCP connections on a loopback port and count them."""
+
+    def __init__(self):
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(16)
+        self.port = self.sock.getsockname()[1]
+        self.count = 0
+        self.stop = False
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        self.sock.settimeout(0.2)
+        while not self.stop:
+            try:
+                conn, _ = self.sock.accept()
+            except OSError:
+                continue
+            self.count += 1
+            conn.close()
+
+
+def sh(cmd, **kw):
+    return subprocess.run(cmd, text=True, capture_output=True, **kw)
+
+
+def main():
+    devenv, modules_url, workdir = sys.argv[1], sys.argv[2], Path(sys.argv[3])
+    logdir = Path(sys.argv[4]) if len(sys.argv) > 4 else workdir.parent / (workdir.name + "-logs")
+    logdir.mkdir(parents=True, exist_ok=True)
+    tripwire = Tripwire()
+    pubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGc0v3bW1Apht6DDoRQLvuNm4mX3SWhBK6PyR23MEUdM fixture-public-only\n"
+    prepare_project(workdir, modules_url, tripwire.port, pubkey)
+
+    real_nix = shutil.which("nix")
+    fake_log = logdir / "fake-calls.log"
+    scenario_file = logdir / "scenario"
+    env = dict(os.environ)
+    env.update(
+        PATH=f"{HERE / 'fakebin'}:{os.environ['PATH']}",
+        FAKE_LOG=str(fake_log),
+        FAKE_SCENARIO_FILE=str(scenario_file),
+        REAL_NIX=real_nix,
+        BOOTSTRAP_TOKEN="dummy-bootstrap-value",
+        NO_COLOR="1",
+    )
+    results = []
+
+    def run_case(case, args, scenario="pass", disko_sleep="0", expect_rc=None, must_contain=(),
+                 must_not_log=(), must_log_in_order=(), expect_connections=0, timeout=1800):
+        fake_log.write_text("")
+        scenario_file.write_text(scenario)
+        run_env = dict(env, FAKE_DISKO_SLEEP=disko_sleep)
+        before = tripwire.count
+        start = time.time()
+        proc = subprocess.run([devenv, *args], cwd=workdir, env=run_env, text=True,
+                              capture_output=True, timeout=timeout)
+        elapsed = time.time() - start
+        out = proc.stdout + proc.stderr
+        calls = fake_log.read_text().splitlines()
+        failures = []
+        if expect_rc == "nonzero" and proc.returncode == 0:
+            failures.append("exit status is 0")
+        if expect_rc == 0 and proc.returncode != 0:
+            failures.append(f"exit status is {proc.returncode}")
+        for text in must_contain:
+            if text not in out:
+                failures.append(f"output lacks {text!r}")
+        for pattern in must_not_log:
+            if any(re.search(pattern, line) for line in calls):
+                failures.append(f"fake call log has {pattern!r}")
+        position = -1
+        for pattern in must_log_in_order:
+            found = next((i for i, line in enumerate(calls) if i > position and re.search(pattern, line)), None)
+            if found is None:
+                failures.append(f"fake call log lacks {pattern!r} after position {position}")
+                break
+            position = found
+        connections = tripwire.count - before
+        if connections != expect_connections:
+            failures.append(f"tripwire saw {connections} connections")
+        record = {
+            "case": case, "args": args, "scenario": scenario, "exit": proc.returncode,
+            "seconds": round(elapsed, 1), "fake_calls": len(calls), "tripwire_connections": connections,
+            "result": "PASS" if not failures else "FAIL", "failures": failures,
+        }
+        results.append(record)
+        (logdir / f"{len(results):02d}-{case}.log").write_text(
+            json.dumps(record, indent=2) + "\n--- calls ---\n" + "\n".join(calls) + "\n--- output ---\n" + out
+        )
+        print(f"{record['result']} {case} exit={proc.returncode} calls={len(calls)} conn={connections}", flush=True)
+
+    def install(machine, *flags):
+        return ["machines", "install", machine, *flags]
+
+    # A. Adopted machine: refuse for every phase selection and disko mode, with no contact.
+    adopt_cases = {
+        "default": [],
+        "phases-kexec": ["--phases", "kexec"],
+        "phases-facter": ["--phases", "facter"],
+        "phases-disko": ["--phases", "disko"],
+        "phases-install": ["--phases", "install"],
+        "phases-reboot": ["--phases", "reboot"],
+        "phases-disko-install": ["--phases", "disko,install"],
+        "phases-facter-install": ["--phases", "facter,install"],
+        "phases-all": ["--phases", "kexec,facter,disko,install,reboot"],
+        "stop-after-disko": ["--stop-after-disko"],
+        "no-reboot": ["--no-reboot"],
+        "disko-mode-disko": ["--disko-mode", "disko"],
+        "disko-mode-format": ["--disko-mode", "format"],
+        "disko-mode-mount": ["--disko-mode", "mount"],
+        "install-mount": ["--phases", "install", "--disko-mode", "mount"],
+        "disko-format": ["--phases", "disko", "--disko-mode", "format"],
+    }
+    for label, flags in adopt_cases.items():
+        run_case(f"adopt-{label}", install("adopt", *flags), expect_rc="nonzero",
+                 must_contain=["adopt-existing", "machines.adopt", "made no connection"],
+                 must_not_log=[r"."])
+    run_case("adopt-in-a-list", ["machines", "install", "fresh", "adopt", "--phases", "disko"],
+             expect_rc="nonzero", must_contain=["machines.adopt"], must_not_log=[r"."])
+
+    # B. Mode and program policy for other machines.
+    run_case("legacy-no-mode", install("legacy", "--phases", "install"), expect_rc="nonzero",
+             must_contain=["no `vendomat.mode`"], must_not_log=[r"."])
+    run_case("fresh-no-program", install("noprog", "--phases", "disko"), expect_rc="nonzero",
+             must_contain=["vendomat.preflight.program"], must_not_log=[r"."])
+
+    # C. Fresh install gate, with the fake target.
+    for scenario, text in {
+        "fail": "not \"pass\"",
+        "unknown": "not \"pass\"",
+        "malformed": "malformed",
+        "nonce": "nonce",
+        "machine": "machine",
+        "host": "another host",
+        "disk": "disko layout",
+    }.items():
+        run_case(f"fresh-preflight-{scenario}", install("fresh", "--phases", "disko"),
+                 scenario=scenario, expect_rc="nonzero", must_contain=[text],
+                 must_not_log=[r"/nix/store/[a-z0-9]{32}-disko"],
+                 must_log_in_order=[r"^[0-9.]+\tnix\tcopy", r"--nonce"])
+    run_case("fresh-preflight-pass", install("fresh", "--phases", "disko"), scenario="pass",
+             expect_rc=0, must_log_in_order=[r"^[0-9.]+\tnix\tcopy", r"--nonce", r"cat /etc/machine-id",
+                                             r"^[0-9.]+\tnix\tcopy", r"/nix/store/[a-z0-9]{32}-disko"])
+    run_case("fresh-preflight-expired", install("fresh-short", "--phases", "disko,install"),
+             scenario="pass", disko_sleep="3", expect_rc="nonzero",
+             must_contain=["preflight result is", "nixos-install"],
+             must_log_in_order=[r"--nonce", r"/nix/store/[a-z0-9]{32}-disko"],
+             must_not_log=[r"nixos-install --system"])
+    # facter alone and reboot alone need no preflight and are not refused by the policy.
+
+    # D. Native commands still evaluate for the adopted machine.
+    run_case("adopt-native-info", ["machines", "info", "adopt"], expect_rc=0, must_contain=["adopt"])
+
+    summary = {"devenv": devenv, "modules": modules_url, "results": results,
+               "pass": sum(r["result"] == "PASS" for r in results),
+               "fail": sum(r["result"] == "FAIL" for r in results)}
+    (logdir / "summary.json").write_text(json.dumps(summary, indent=2))
+    tripwire.stop = True
+    print(f"summary: {summary['pass']} pass, {summary['fail']} fail")
+    sys.exit(1 if summary["fail"] else 0)
+
+
+if __name__ == "__main__":
+    main()

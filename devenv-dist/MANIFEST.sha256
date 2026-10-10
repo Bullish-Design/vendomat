@@ -1,0 +1,7 @@
+# sha256 of each patch file. materialize refuses a patch that differs.
+514e1a90b7662c2c948b7838da4412662ef6df7d04f72f0b6e9e40dc50f65a9b  0001-fix-machines-allow-Nix-SSH-connection-handshake-3255.patch
+206700fda87bad968da28a958012cf1229626a299f07fcee2a29d682b1bf839b  0002-Update-latest-devenv-version.patch
+c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5  0003-fix-bootstrap-reuse-locked-inputs-already-in-the-sto.patch
+1cefc1dab7859c8e027611eec5c505abc68f1d47f2986976f9680fcc53104b5e  0004-vendomat-build-the-devenv-CLI-as-a-release-DEVENV_IS.patch
+85eea6e22e52fdc3103381a69fa9765305433b4273d0e728e553123c0aedd2a3  0005-vendomat-refuse-machines-install-for-an-adopted-mach.patch
+200d0325bbe4fbfa228439b6e1497b126d792d1fd26b486f1cbaa8bffb8da60c  0006-vendomat-require-a-target-bound-preflight-before-a-f.patch

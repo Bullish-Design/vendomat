@@ -1,0 +1,91 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Domen=20Ko=C5=BEar?= <domen@dev.si>
+Date: Thu, 8 Oct 2026 09:32:52 +0200
+Subject: [PATCH 1/6] fix(machines): allow Nix SSH connection handshake (#3255)
+
+Fixes #3254
+
+Upstream: cachix/devenv a5fd551a9a4a47532ccf2bd4f62fb48f37893947 (PR #3255), on main after v2.4.0.
+Drop when a pinned upstream release carries it.
+---
+ CHANGELOG.md                  |  4 ++++
+ devenv/src/devenv/machines.rs | 41 ++++++++++++++++++++++++++++++-----
+ 2 files changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 7f21c80ee9280e1c7466ea9d534e64d9ba472133..b371d2933b1d2299ede6b5f083e734ae83813cbe 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## 2.4.1 (unreleased)
+ 
++### Bug Fixes
++
++- Fixed `devenv machines install` hanging while uploading store paths when no SSH connection was already open ([#3254](https://github.com/cachix/devenv/issues/3254)).
++
+ ## 2.4.0 (2026-09-24)
+ 
+ ### Bug Fixes
+diff --git a/devenv/src/devenv/machines.rs b/devenv/src/devenv/machines.rs
+index db68f997e54c5be96320b5477000bf2f373e7d80..c5ceca8cb92d81463068fd0c16ab6bd58acae269 100644
+--- a/devenv/src/devenv/machines.rs
++++ b/devenv/src/devenv/machines.rs
+@@ -1122,11 +1122,22 @@ fn target_secretspec_installer_script(
+ /// Build the `NIX_SSHOPTS` env var value used by `nix copy`. Nix parses this
+ /// as a shell-style word list, so preserve every argv token's boundary.
+ fn nix_ssh_opts_env(user_opts: &[String]) -> String {
+-    ssh_opts_argv(user_opts)
+-        .iter()
+-        .map(|token| shell_quote(token))
+-        .collect::<Vec<_>>()
+-        .join(" ")
++    // Nix waits for this local command to signal that SSH is connected. Pin
++    // both settings before the install policy and configured options because
++    // OpenSSH uses the first value. Direct SSH commands retain the policy's
++    // PermitLocalCommand=no; only Nix's fixed handshake is allowed here.
++    [
++        "-o",
++        "PermitLocalCommand=yes",
++        "-o",
++        "LocalCommand=echo started",
++    ]
++    .into_iter()
++    .map(String::from)
++    .chain(ssh_opts_argv(user_opts))
++    .map(|token| shell_quote(&token))
++    .collect::<Vec<_>>()
++    .join(" ")
+ }
+ 
+ /// One row in the `devenv machines info` table. Columns follow the
+@@ -3560,10 +3571,28 @@ mod tests {
+         let env = nix_ssh_opts_env(&user);
+         assert_eq!(
+             env,
+-            r#"'-o' 'ProxyCommand=ssh -W %h:%p bastion' '-i' '/tmp/team'\''s identity' '-o' 'StrictHostKeyChecking=accept-new' '-o' 'ConnectTimeout=10'"#
++            r#"'-o' 'PermitLocalCommand=yes' '-o' 'LocalCommand=echo started' '-o' 'ProxyCommand=ssh -W %h:%p bastion' '-i' '/tmp/team'\''s identity' '-o' 'StrictHostKeyChecking=accept-new' '-o' 'ConnectTimeout=10'"#
+         );
+     }
+ 
++    #[test]
++    fn nix_ssh_handshake_overrides_sensitive_install_policy_and_custom_local_command() {
++        let user = vec![
++            "-o".to_string(),
++            "LocalCommand=touch /tmp/unwanted".to_string(),
++        ];
++        let configured = sensitive_install_ssh_opts(&user);
++        let env = nix_ssh_opts_env(&configured);
++        assert!(env.starts_with("'-o' 'PermitLocalCommand=yes' '-o' 'LocalCommand=echo started' "));
++        assert!(env.contains("'StrictHostKeyChecking=yes'"));
++        assert!(env.contains("'ClearAllForwardings=yes'"));
++        assert!(env.contains("'SendEnv=-*'"));
++
++        let direct = ssh_opts_argv(&configured);
++        assert!(direct.iter().any(|opt| opt == "PermitLocalCommand=no"));
++        assert!(!direct.iter().any(|opt| opt == "PermitLocalCommand=yes"));
++    }
++
+     #[cfg(target_os = "linux")]
+     #[tokio::test]
+     async fn install_file_receiver_supports_root_and_replaces_only_after_complete_payload() {

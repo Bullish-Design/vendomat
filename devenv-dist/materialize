@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Materialize the Vendomat devenv distribution source.
+
+Clone upstream devenv at the pinned commit into an empty directory, apply the
+ordered patch series with a fixed committer, and create the fork tag. The same
+inputs always give the same commit id.
+
+usage: python3 -I materialize DEST [--source URL_OR_PATH] [--verify]
+
+DEST must not exist, or must be an empty directory. --source overrides the
+upstream repo URL in UPSTREAM (for a local mirror). --verify compares the
+result with the commit id recorded in RESULT.
+"""
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+DIST = Path(__file__).resolve().parent
+COMMITTER_NAME = "Vendomat Fork"
+COMMITTER_EMAIL = "vendomat-fork@users.noreply.invalid"
+COMMITTER_DATE = "2026-10-09T00:00:00+0000"
+
+
+def read_kv(path):
+    out = {}
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            key, _, value = line.partition("=")
+            out[key.strip()] = value.strip()
+    return out
+
+
+def read_series(path):
+    return [
+        line.strip()
+        for line in path.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+
+
+def read_manifest(path):
+    out = {}
+    for line in path.read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            digest, _, name = line.partition("  ")
+            out[name.strip()] = digest.strip()
+    return out
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def git(dest, *args, env_extra=None, capture=True):
+    env = dict(os.environ)
+    env.update(
+        GIT_CONFIG_GLOBAL="/dev/null",
+        GIT_CONFIG_SYSTEM="/dev/null",
+        GIT_TERMINAL_PROMPT="0",
+        GIT_COMMITTER_NAME=COMMITTER_NAME,
+        GIT_COMMITTER_EMAIL=COMMITTER_EMAIL,
+        GIT_COMMITTER_DATE=COMMITTER_DATE,
+    )
+    env.update(env_extra or {})
+    result = subprocess.run(
+        ["git", "-C", str(dest), *args],
+        env=env,
+        text=True,
+        capture_output=capture,
+        check=False,
+    )
+    if result.returncode != 0:
+        sys.exit(f"materialize: git {' '.join(args)} failed ({result.returncode}):\n{result.stderr}")
+    return result.stdout.strip() if capture else ""
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("dest", type=Path)
+    parser.add_argument("--source", help="upstream URL or path (default: repo in UPSTREAM)")
+    parser.add_argument("--verify", action="store_true", help="compare with RESULT")
+    args = parser.parse_args()
+
+    upstream = read_kv(DIST / "UPSTREAM")
+    series = read_series(DIST / "SERIES")
+    manifest = read_manifest(DIST / "MANIFEST.sha256")
+    dest = args.dest.resolve()
+
+    if dest.exists() and (not dest.is_dir() or any(dest.iterdir())):
+        sys.exit(f"materialize: {dest} exists and is not an empty directory")
+    for name in series:
+        digest = sha256(DIST / "patches" / name)
+        if manifest.get(name) != digest:
+            sys.exit(f"materialize: hash of {name} does not match MANIFEST.sha256")
+    if set(manifest) != set(series):
+        sys.exit("materialize: SERIES and MANIFEST.sha256 list different patches")
+
+    dest.mkdir(parents=True, exist_ok=True)
+    git(dest, "init", "-q")
+    git(dest, "fetch", "-q", "--no-tags", args.source or upstream["repo"],
+        f"refs/tags/{upstream['tag']}:refs/tags/{upstream['tag']}")
+    source_commit = git(dest, "rev-parse", f"refs/tags/{upstream['tag']}^{{commit}}")
+    if source_commit != upstream["commit"]:
+        sys.exit(f"materialize: tag {upstream['tag']} is {source_commit}, expected {upstream['commit']}")
+    git(dest, "checkout", "-q", "--detach", source_commit)
+    for name in series:
+        git(dest, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+            "am", "-q", "--no-3way", str(DIST / "patches" / name))
+    head = git(dest, "rev-parse", "HEAD")
+    git(dest, "tag", upstream["fork_tag"], head)
+
+    result = {
+        "upstream_repo": upstream["repo"],
+        "upstream_tag": upstream["tag"],
+        "source_commit": source_commit,
+        "fork_tag": upstream["fork_tag"],
+        "fork_commit": head,
+        "patches": [{"name": n, "sha256": manifest[n]} for n in series],
+    }
+    print(json.dumps(result, indent=2))
+    if args.verify:
+        result_file = DIST / "RESULT"
+        expected = read_kv(result_file)["fork_commit"] if result_file.exists() else None
+        if expected != head:
+            sys.exit(f"materialize: fork commit {head} differs from RESULT {expected}")
+
+
+if __name__ == "__main__":
+    main()

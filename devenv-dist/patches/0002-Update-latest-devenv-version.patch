@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: domenkozar <126339+domenkozar@users.noreply.github.com>
+Date: Sat, 26 Sep 2026 00:19:50 +0000
+Subject: [PATCH 2/6] Update latest devenv version
+
+Upstream: cachix/devenv a5c34429421e077df6f8f133e502617bedc22206, on main after v2.4.0.
+Drop when a pinned upstream release carries it.
+---
+ src/modules/latest-version | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/modules/latest-version b/src/modules/latest-version
+index a6254504e40175d135cea7feb34ad31fa0d0bca3..9183195ace754fcdd6f1c474b04618f222bf6f71 100644
+--- a/src/modules/latest-version
++++ b/src/modules/latest-version
+@@ -1 +1 @@
+-2.3.1
+\ No newline at end of file
++2.4.0
+\ No newline at end of file

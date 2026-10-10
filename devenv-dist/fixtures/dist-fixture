@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Version, packaging, and offline fixtures for the Vendomat devenv distribution.
+
+Checks DVN-002 (release build enforces require_version), DVN-004 (the packaging
+shape: a git tag addressed with ?dir=src/modules), DVN-005 (latest-version
+equals the CLI version), and DVN-008 (offline shell with an empty fetcher
+cache). A throwaway `git daemon` on a loopback port serves the sources.
+
+usage: python3 -I dist-fixture PATCHED_DEVENV STOCK_DEVENV FORK_REPO UPSTREAM_REPO WORKDIR LOGDIR NIXPKGS_REV
+
+PATCHED_DEVENV and STOCK_DEVENV are devenv binaries. FORK_REPO is the
+materialized repository. UPSTREAM_REPO is a mirror that holds tag v2.4.0.
+WORKDIR must not exist.
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+GIT_ENV = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+results = []
+
+
+def main():
+    patched, stock, fork_repo, upstream_repo, work, logdir, rev = sys.argv[1:8]
+    work, logdir = Path(work), Path(logdir)
+    work.mkdir(parents=True)
+    logdir.mkdir(parents=True, exist_ok=True)
+    port = 29418 + (os.getpid() % 500)
+
+    def git(*args, cwd=None):
+        out = subprocess.run(["git", *args], cwd=cwd, text=True, capture_output=True, env={**os.environ, **GIT_ENV})
+        if out.returncode != 0:
+            raise SystemExit(f"git {args} failed: {out.stderr}")
+        return out.stdout.strip()
+
+    def record(name, ok, **info):
+        entry = {"check": name, "result": "PASS" if ok else "FAIL", **info}
+        results.append(entry)
+        print(json.dumps(entry), flush=True)
+        (logdir / "results.json").write_text(json.dumps(results, indent=2))
+
+    def devenv(binary, args, cwd, label, env_extra=None, timeout=1800):
+        env = dict(os.environ, NO_COLOR="1")
+        env.update(env_extra or {})
+        out = subprocess.run([binary, *args], cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout)
+        (logdir / f"{len(results):02d}-{label}.log").write_text(
+            f"$ {binary} {' '.join(args)}\n[exit {out.returncode}]\n--- stdout ---\n{out.stdout}\n--- stderr ---\n{out.stderr}\n"
+        )
+        return out
+
+    fork_commit = git("rev-parse", "HEAD", cwd=fork_repo)
+    tag_commit = git("rev-parse", "v2.4.0-vendomat.1^{commit}", cwd=fork_repo)
+    record("fork-tag-is-head", fork_commit == tag_commit, fork_commit=fork_commit)
+
+    # DVN-005: latest-version equals the CLI crate version.
+    latest = git("show", "v2.4.0-vendomat.1:src/modules/latest-version", cwd=fork_repo).strip()
+    cargo = git("show", "v2.4.0-vendomat.1:Cargo.toml", cwd=fork_repo)
+    crate_version = re.search(r'^version = "([^"]+)"', cargo.split("[workspace.package]", 1)[1], re.MULTILINE).group(1)
+    cli = subprocess.run([patched, "version"], text=True, capture_output=True).stdout.strip()
+    cli_version = cli.split()[1].split("+")[0]
+    stock_latest = git("show", "v2.4.0:src/modules/latest-version", cwd=fork_repo).strip()
+    record("DVN-005-latest-version", latest == crate_version == cli_version, latest_version=latest,
+           crate_version=crate_version, cli=cli, stock_latest_version=stock_latest)
+    record("DVN-001-version-string", cli.endswith(" (x86_64-linux)") and "+" + fork_commit[:7] in cli, cli=cli)
+
+    # Serve the fork repository and a library over git://.
+    srv = work / "srv"
+    srv.mkdir()
+    git("clone", "-q", "--bare", fork_repo, str(srv / "devenv"))
+    lib = work / "lib-a-src"
+    lib.mkdir()
+    (lib / "hello.txt").write_text("hello\n")
+    git("init", "-q", cwd=lib)
+    git("add", "-A", cwd=lib)
+    git("-c", "user.name=t", "-c", "user.email=t@t.invalid", "commit", "-q", "-m", "lib-a", cwd=lib)
+    git("tag", "v1", cwd=lib)
+    git("clone", "-q", "--bare", str(lib), str(srv / "lib-a"))
+    daemon = subprocess.Popen(
+        ["git", "daemon", "--reuseaddr", f"--base-path={srv}", "--export-all", "--listen=127.0.0.1", f"--port={port}"],
+        env={**os.environ, **GIT_ENV}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    time.sleep(1)
+
+    def project(name, modules_ref, require, with_lib=True):
+        directory = work / name
+        directory.mkdir()
+        inputs = [
+            "  nixpkgs:",
+            f"    url: github:NixOS/nixpkgs/{rev}",
+            "  devenv:",
+            f"    url: {modules_ref}",
+        ]
+        if with_lib:
+            inputs += ["  lib-a:", f"    url: git+git://127.0.0.1:{port}/lib-a?ref=refs/tags/v1", "    flake: false"]
+        (directory / "devenv.yaml").write_text(f"require_version: {require}\ninputs:\n" + "\n".join(inputs) + "\n")
+        (directory / "devenv.nix").write_text(
+            '{ inputs, ... }: { env.LIBA = "${inputs.lib-a}"; }\n' if with_lib else "{ ... }: { }\n"
+        )
+        return directory
+
+    fork_url = f"git+git://127.0.0.1:{port}/devenv?ref=refs/tags/v2.4.0-vendomat.1&dir=src/modules"
+    stock_url = f"git+git://127.0.0.1:{port}/devenv?ref=refs/tags/v2.4.0&dir=src/modules"
+    # A bare repository, as in the collection. A working tree gives no locked rev.
+    file_url = f"git+file://{srv / 'devenv'}?ref=refs/tags/v2.4.0-vendomat.1&dir=src/modules"
+
+    # DVN-004: the packaging shape, with a file URL and a loopback git:// URL.
+    for label, url in (("file", file_url), ("git-daemon", fork_url)):
+        directory = project(f"shape-{label}", url, '"2.4.0"', with_lib=False)
+        out = devenv(patched, ["update"], directory, f"shape-{label}-update")
+        lock = json.loads((directory / "devenv.lock").read_text()) if (directory / "devenv.lock").exists() else {}
+        node = lock.get("nodes", {}).get("devenv", {})
+        locked = node.get("locked", {})
+        original = node.get("original", {})
+        ok = (out.returncode == 0 and locked.get("rev") == fork_commit and locked.get("dir") == "src/modules"
+              and original.get("ref") == "refs/tags/v2.4.0-vendomat.1")
+        # A git+file URL gives no locked rev (the observation): only git:// is a pin.
+        name = f"DVN-004-shape-{label}" if label == "git-daemon" else f"OBSERVATION-file-url-{label}"
+        record(name, ok if label == "git-daemon" else out.returncode == 0, exit=out.returncode,
+               locked_rev=locked.get("rev"), locked_keys=sorted(locked), dir=locked.get("dir"),
+               ref=original.get("ref"), url=url, pins_the_commit=ok)
+
+    # DVN-002: require_version: true against patched and stock modules.
+    for label, url, want in (("patched-modules", fork_url, 0), ("stock-modules", stock_url, 1)):
+        directory = project(f"rv-{label}", url, "true", with_lib=False)
+        out = devenv(patched, ["shell", "--", "true"], directory, f"require-version-true-{label}")
+        text = out.stdout + out.stderr
+        mismatch = "does not match the modules version" in text
+        record(f"DVN-002-require-version-true-{label}", out.returncode == want and mismatch == (want == 1),
+               exit=out.returncode, mismatch_message=mismatch,
+               line=next((ln.strip() for ln in text.splitlines() if "does not match" in ln), None))
+    directory = project("rv-string", stock_url, '"2.4.0"', with_lib=False)
+    out = devenv(patched, ["shell", "--", "true"], directory, "require-version-string-stock-modules")
+    record("DVN-002-require-version-string-stock-modules", out.returncode == 0, exit=out.returncode,
+           note="a string constraint checks the CLI version only")
+
+    # DVN-008: offline shell, empty fetcher cache, source remote down.
+    online = {}
+    for label, binary in (("patched", patched), ("stock", stock)):
+        directory = project(f"offline-{label}", fork_url, '"2.4.0"')
+        up = devenv(binary, ["update"], directory, f"offline-{label}-update")
+        sh = devenv(binary, ["shell", "--", "printenv", "LIBA"], directory, f"offline-{label}-online-shell")
+        online[label] = (directory, up.returncode, sh.returncode, sh.stdout.strip())
+    daemon.terminate()
+    daemon.wait()
+    for label, binary in (("patched", patched), ("stock", stock)):
+        directory, up_rc, sh_rc, liba = online[label]
+        shutil.rmtree(directory / ".devenv", ignore_errors=True)
+        cache = work / f"empty-cache-{label}"
+        cache.mkdir()
+        proxy = "http://127.0.0.1:9"
+        env = {"XDG_CACHE_HOME": str(cache), "https_proxy": proxy, "http_proxy": proxy, "all_proxy": proxy,
+               "HTTPS_PROXY": proxy, "HTTP_PROXY": proxy, "NO_PROXY": "", "no_proxy": ""}
+        out = devenv(binary, ["shell", "--", "printenv", "LIBA"], directory, f"offline-{label}-offline-shell", env)
+        text = out.stdout + out.stderr
+        at_resolve = "resolve-lock.nix" in text
+        want = 0 if label == "patched" else 1
+        ok = up_rc == 0 and sh_rc == 0 and out.returncode == want
+        if label == "patched":
+            ok = ok and out.stdout.strip() == liba
+        else:
+            ok = ok and at_resolve
+        record(f"DVN-008-offline-shell-{label}", ok, online_update_exit=up_rc, online_shell_exit=sh_rc,
+               offline_exit=out.returncode, source_path=out.stdout.strip()[:80], same_path_as_online=(out.stdout.strip() == liba),
+               failed_at_resolve_lock=at_resolve)
+
+    failed = [r for r in results if r["result"] == "FAIL"]
+    print(f"summary: {len(results) - len(failed)} pass, {len(failed)} fail")
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()

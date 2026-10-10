@@ -1,0 +1,268 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 5/6] vendomat: refuse `machines install` for an adopted
+ machine
+
+Add `machines.<name>.vendomat.mode`, an enum of "fresh-install" and
+"adopt-existing" with a null default. The option reaches the CLI through
+`machinesMeta.<name>.vendomat.mode`.
+
+At the start of `machines_install`, right after the machine names are
+validated, the CLI refuses an invocation that names a machine with mode
+"adopt-existing". The check runs before any payload read, secret
+resolution, build, SSH connection, kexec, facter, disko, nixos-install,
+or reboot. It does not depend on `--phases`, `--stop-after-disko`,
+`--no-reboot`, or `--disko-mode`. Native plan, apply, deploy, status,
+rollback, info, and check do not read the mode.
+
+Upstream: fork-only. Drop if upstream adds an equivalent install guard.
+---
+ devenv/src/devenv/machines.rs | 129 ++++++++++++++++++++++++++++++++++
+ src/modules/machines.nix      |  39 ++++++++++
+ 2 files changed, 168 insertions(+)
+
+diff --git a/devenv/src/devenv/machines.rs b/devenv/src/devenv/machines.rs
+index c5ceca8cb92d81463068fd0c16ab6bd58acae269..7d187a2c7c8f693da34e832531662224465a43f1 100644
+--- a/devenv/src/devenv/machines.rs
++++ b/devenv/src/devenv/machines.rs
+@@ -325,6 +325,22 @@ enum SecretspecExecution {
+     Target,
+ }
+ 
++/// Lifecycle mode of a machine, from `machines.<name>.vendomat.mode`.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
++enum VendomatMode {
++    #[serde(rename = "fresh-install")]
++    FreshInstall,
++    #[serde(rename = "adopt-existing")]
++    AdoptExisting,
++}
++
++/// Vendomat policy metadata for one machine.
++#[derive(Debug, Clone, Default, Deserialize)]
++struct MachineVendomat {
++    #[serde(default)]
++    mode: Option<VendomatMode>,
++}
++
+ #[derive(Debug, Clone, Default, Deserialize)]
+ struct MachineSecretspec {
+     #[serde(default)]
+@@ -349,6 +365,9 @@ struct MachineMeta {
+     kexec_post_ssh_port: Option<u16>,
+     #[serde(rename = "copyHostKeys")]
+     copy_host_keys: bool,
++    /// Vendomat policy metadata from `machines.<name>.vendomat`. Fork-only.
++    #[serde(default)]
++    vendomat: MachineVendomat,
+     #[serde(default)]
+     secretspec: MachineSecretspec,
+     #[serde(rename = "secrets", default)]
+@@ -717,6 +736,39 @@ fn clear_target_secretspec_local_env(cmd: &mut process::Command) {
+     }
+ }
+ 
++/// Vendomat install policy. `machines_install` calls this before it reads a
++/// payload file, prepares a secret, or contacts a target. The check does not
++/// depend on the selected phases or the disko mode: it refuses every
++/// invocation that names an adopted machine.
++fn check_vendomat_install_policy(
++    names: &[String],
++    meta: &BTreeMap<String, MachineMeta>,
++) -> Result<()> {
++    let adopted: Vec<&str> = names
++        .iter()
++        .filter(|name| {
++            meta.get(*name)
++                .is_some_and(|m| m.vendomat.mode == Some(VendomatMode::AdoptExisting))
++        })
++        .map(String::as_str)
++        .collect();
++    if !adopted.is_empty() {
++        bail!(
++            "Refusing to install: {} set `vendomat.mode = \"adopt-existing\"`. \
++             An adopted machine already runs a system, and `devenv machines install` \
++             can erase its disks or rewrite its boot files. devenv made no \
++             connection to the target. Use `devenv machines plan`, `apply`, or \
++             `deploy` for an adopted machine.",
++            adopted
++                .iter()
++                .map(|name| format!("machines.{name}"))
++                .collect::<Vec<_>>()
++                .join(", ")
++        );
++    }
++    Ok(())
++}
++
+ /// Reject repeated machine names before any target interaction. Running two
+ /// destructive pipelines for the same machine is never meaningful, even when
+ /// concurrency is explicitly limited to one.
+@@ -1269,6 +1321,11 @@ impl Devenv {
+             );
+         }
+ 
++        // vendomat: the install policy runs first. It refuses an adopted
++        // machine for every phase and disko mode, before any payload read,
++        // build, or target contact.
++        check_vendomat_install_policy(names, &meta)?;
++
+         // Per-machine validation: install only applies to NixOS roles
+         // over SSH. Catch configuration mistakes before starting any work.
+         for name in names {
+@@ -4028,6 +4085,7 @@ remote = "awssm"
+             kexec_image: None,
+             kexec_post_ssh_port: None,
+             copy_host_keys: false,
++            vendomat: MachineVendomat::default(),
+             secretspec: MachineSecretspec::default(),
+             bootstrap_secrets: Vec::new(),
+             extra_files: BTreeMap::new(),
+@@ -4079,6 +4137,7 @@ remote = "awssm"
+                 kexec_image: None,
+                 kexec_post_ssh_port: None,
+                 copy_host_keys: false,
++                vendomat: MachineVendomat::default(),
+                 secretspec: MachineSecretspec::default(),
+                 bootstrap_secrets: Vec::new(),
+                 extra_files: BTreeMap::new(),
+@@ -4105,4 +4164,74 @@ remote = "awssm"
+             identity("builder@[2001:db8::1]:2222")
+         );
+     }
++
++    fn policy_meta(mode: Option<VendomatMode>) -> MachineMeta {
++        MachineMeta {
++            system: "x86_64-linux".to_string(),
++            target: MachineTarget {
++                host: Some("root@127.0.0.1:1".to_string()),
++                ssh_opts: Vec::new(),
++            },
++            has_nixos: true,
++            has_nix_darwin: false,
++            has_home_manager: false,
++            kexec_image: None,
++            kexec_post_ssh_port: None,
++            copy_host_keys: false,
++            vendomat: MachineVendomat { mode },
++            secretspec: MachineSecretspec::default(),
++            bootstrap_secrets: Vec::new(),
++            extra_files: BTreeMap::new(),
++            encryption_keys: BTreeMap::new(),
++        }
++    }
++
++    #[test]
++    fn vendomat_metadata_parses_mode_and_defaults_to_none() {
++        let with_mode: MachineVendomat =
++            serde_json::from_str(r#"{"mode":"adopt-existing"}"#).unwrap();
++        assert_eq!(with_mode.mode, Some(VendomatMode::AdoptExisting));
++        let fresh: MachineVendomat = serde_json::from_str(r#"{"mode":"fresh-install"}"#).unwrap();
++        assert_eq!(fresh.mode, Some(VendomatMode::FreshInstall));
++        let null_mode: MachineVendomat = serde_json::from_str(r#"{"mode":null}"#).unwrap();
++        assert_eq!(null_mode.mode, None);
++        assert_eq!(MachineVendomat::default().mode, None);
++        assert!(serde_json::from_str::<MachineVendomat>(r#"{"mode":"adopt"}"#).is_err());
++    }
++
++    #[test]
++    fn install_policy_refuses_adopted_machine_and_names_it() {
++        let mut meta = BTreeMap::new();
++        meta.insert(
++            "framework".to_string(),
++            policy_meta(Some(VendomatMode::AdoptExisting)),
++        );
++        meta.insert(
++            "server".to_string(),
++            policy_meta(Some(VendomatMode::FreshInstall)),
++        );
++        let error = check_vendomat_install_policy(&["framework".to_string()], &meta)
++            .unwrap_err()
++            .to_string();
++        assert!(error.contains("machines.framework"), "{error}");
++        assert!(error.contains("adopt-existing"), "{error}");
++        assert!(error.contains("made no connection"), "{error}");
++        // One adopted name in a list refuses the whole invocation.
++        let error =
++            check_vendomat_install_policy(&["server".to_string(), "framework".to_string()], &meta)
++                .unwrap_err()
++                .to_string();
++        assert!(error.contains("machines.framework"), "{error}");
++        assert!(!error.contains("machines.server"), "{error}");
++    }
++
++    #[test]
++    fn install_policy_allows_a_fresh_install_machine() {
++        let mut meta = BTreeMap::new();
++        meta.insert(
++            "server".to_string(),
++            policy_meta(Some(VendomatMode::FreshInstall)),
++        );
++        check_vendomat_install_policy(&["server".to_string()], &meta).unwrap();
++    }
+ }
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index 69df84dfc3c07b4e807363692098f107b87ce507..ffa4cc6a3f4c207763ae3fa6ed9802be092f4982 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -565,6 +565,33 @@ let
+         description = "Install-time settings for `devenv machines install`.";
+       };
+ 
++      # vendomat: fork-only policy options. See patches/0005 in the vendomat
++      # devenv distribution. Upstream devenv has no `vendomat` option.
++      vendomat = lib.mkOption {
++        type = lib.types.submodule {
++          options = {
++            mode = lib.mkOption {
++              type = lib.types.nullOr (lib.types.enum [ "fresh-install" "adopt-existing" ]);
++              default = null;
++              description = ''
++                Lifecycle mode of this machine.
++
++                `"adopt-existing"` marks a machine that already runs a system.
++                `devenv machines install` refuses it for every phase and every
++                disko mode, before it contacts the target. Use `plan`, `apply`,
++                or `deploy` for such a machine.
++
++                `"fresh-install"` marks a machine that `devenv machines install`
++                may install.
++              '';
++              example = "adopt-existing";
++            };
++          };
++        };
++        default = { };
++        description = "Vendomat policy for this machine. Fork-only.";
++      };
++
+       home-manager = lib.mkOption {
+         type = lib.types.nullOr lib.types.unspecified;
+         description = "Home Manager configuration for the machine.";
+@@ -812,6 +839,17 @@ in
+             type = lib.types.bool;
+             description = "Whether install should preserve SSH host keys.";
+           };
++          vendomat = lib.mkOption {
++            description = "Vendomat policy metadata. Fork-only.";
++            type = lib.types.submodule {
++              options = {
++                mode = lib.mkOption {
++                  type = lib.types.nullOr (lib.types.enum [ "fresh-install" "adopt-existing" ]);
++                  description = "Vendomat lifecycle mode copied into CLI metadata.";
++                };
++              };
++            };
++          };
+           secretspec = lib.mkOption {
+             description = "SecretSpec bootstrap execution metadata.";
+             type = lib.types.submodule {
+@@ -868,6 +906,7 @@ in
+       kexecImage = m.install.kexec.image;
+       kexecPostSshPort = m.install.kexec.postSshPort;
+       copyHostKeys = m.install.copyHostKeys;
++      vendomat = { inherit (m.vendomat) mode; };
+       secretspec = {
+         inherit (m.install.secretspec) execution;
+         provider =

@@ -1,0 +1,15 @@
+require_version: "2.4.0"
+secretspec:
+  enable: true
+  provider: env
+  profile: default
+inputs:
+  nixpkgs:
+    url: github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8
+  devenv:
+    url: @MODULES_URL@
+  disko:
+    url: github:nix-community/disko/v1.13.0
+    inputs:
+      nixpkgs:
+        follows: nixpkgs

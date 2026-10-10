@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake nix for the CLI fixture. `nix copy` is recorded and skipped. Every
+# other call goes to the real nix named by REAL_NIX.
+if [ "${1:-}" = copy ]; then
+  printf '%s\tnix\t%s\n' "$(date +%s.%N)" "$*" >> "${FAKE_LOG:?}"
+  exit 0
+fi
+exec "${REAL_NIX:?}" "$@"

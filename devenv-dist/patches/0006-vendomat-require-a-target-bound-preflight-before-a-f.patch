@@ -1,0 +1,1148 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 6/6] vendomat: require a target-bound preflight before a fresh
+ install writes disks
+
+A machine with `vendomat.mode = "fresh-install"` must pass a target-side
+preflight before the disko phase or the install phase. A machine with no
+`vendomat.mode` is refused for every phase. A fresh-install machine with
+no `vendomat.preflight.program` is refused before any target contact when
+the phase set reaches disko or install.
+
+New options: `machines.<name>.vendomat.preflight.program` (a derivation
+whose output is one executable file) and
+`machines.<name>.vendomat.preflight.ttlSeconds` (1 to 900, default 300).
+The program is built as `machines.<name>.build.vendomatPreflight`. The
+installCheck output gains `diskoDevices`, taken from the evaluated disko
+layout. Every device must be a `/dev/disk/by-id/` path.
+
+Before encryption keys, disko, or nixos-install, the CLI copies the
+program to the target and runs it with a fresh 128-bit nonce:
+
+  <program> --machine NAME --nonce HEX --phases CSV --disko-mode MODE
+            --disk BYID [--disk BYID ...]
+
+The program prints one JSON report on stdout with schema
+`vendomat.preflight/v1` and exits 0 on a definite pass. The CLI accepts
+the report only when it is complete, says "pass" with every check
+"pass", repeats the nonce and machine name, repeats the machine-id and
+boot-id that the CLI reads itself over SSH, and lists exactly the disks of
+the disko layout. The result expires `ttlSeconds` after acceptance; each
+disk-writing phase checks it again. Nothing in the process environment
+counts as attestation.
+
+Upstream: fork-only. Drop if upstream adds an equivalent install gate.
+---
+ devenv/src/devenv/machines.rs | 847 ++++++++++++++++++++++++++++++++--
+ src/modules/machines.nix      |  71 ++-
+ 2 files changed, 882 insertions(+), 36 deletions(-)
+
+diff --git a/devenv/src/devenv/machines.rs b/devenv/src/devenv/machines.rs
+index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf1579d05e21 100644
+--- a/devenv/src/devenv/machines.rs
++++ b/devenv/src/devenv/machines.rs
+@@ -339,6 +339,31 @@ enum VendomatMode {
+ struct MachineVendomat {
+     #[serde(default)]
+     mode: Option<VendomatMode>,
++    #[serde(default)]
++    preflight: MachinePreflightMeta,
++}
++
++/// Preflight settings from `machines.<name>.vendomat.preflight`. The program
++/// itself is a build output (`machines.<name>.build.vendomatPreflight`).
++#[derive(Debug, Clone, Deserialize)]
++struct MachinePreflightMeta {
++    #[serde(rename = "hasProgram", default)]
++    has_program: bool,
++    #[serde(rename = "ttlSeconds", default = "default_preflight_ttl_seconds")]
++    ttl_seconds: u64,
++}
++
++fn default_preflight_ttl_seconds() -> u64 {
++    300
++}
++
++impl Default for MachinePreflightMeta {
++    fn default() -> Self {
++        Self {
++            has_program: false,
++            ttl_seconds: default_preflight_ttl_seconds(),
++        }
++    }
+ }
+ 
+ #[derive(Debug, Clone, Default, Deserialize)]
+@@ -407,6 +432,9 @@ struct TargetBootstrapInstall<'a> {
+ struct MachineInstallCheck {
+     #[serde(rename = "hasRootAuth")]
+     has_root_auth: bool,
++    /// Device path of every disko disk in the evaluated NixOS config.
++    #[serde(rename = "diskoDevices", default)]
++    disko_devices: Vec<String>,
+ }
+ 
+ #[derive(Debug, Clone, Deserialize)]
+@@ -737,21 +765,27 @@ fn clear_target_secretspec_local_env(cmd: &mut process::Command) {
+ }
+ 
+ /// Vendomat install policy. `machines_install` calls this before it reads a
+-/// payload file, prepares a secret, or contacts a target. The check does not
+-/// depend on the selected phases or the disko mode: it refuses every
+-/// invocation that names an adopted machine.
++/// payload file, prepares a secret, or contacts a target. Mode checks do not
++/// depend on the selected phases or the disko mode.
++///
++/// - `adopt-existing`: refuse every invocation (patch 0005).
++/// - no mode: refuse. A machine must declare its mode (patch 0006).
++/// - `fresh-install`: allow, but a phase set that reaches disko or
++///   nixos-install needs a preflight program (patch 0006).
+ fn check_vendomat_install_policy(
+     names: &[String],
+     meta: &BTreeMap<String, MachineMeta>,
++    phases: &HashSet<InstallPhase>,
+ ) -> Result<()> {
+-    let adopted: Vec<&str> = names
+-        .iter()
+-        .filter(|name| {
+-            meta.get(*name)
+-                .is_some_and(|m| m.vendomat.mode == Some(VendomatMode::AdoptExisting))
+-        })
+-        .map(String::as_str)
+-        .collect();
++    let with_mode = |wanted: Option<VendomatMode>| -> Vec<String> {
++        names
++            .iter()
++            .filter(|name| meta.get(*name).is_some_and(|m| m.vendomat.mode == wanted))
++            .map(|name| format!("machines.{name}"))
++            .collect()
++    };
++
++    let adopted = with_mode(Some(VendomatMode::AdoptExisting));
+     if !adopted.is_empty() {
+         bail!(
+             "Refusing to install: {} set `vendomat.mode = \"adopt-existing\"`. \
+@@ -759,16 +793,295 @@ fn check_vendomat_install_policy(
+              can erase its disks or rewrite its boot files. devenv made no \
+              connection to the target. Use `devenv machines plan`, `apply`, or \
+              `deploy` for an adopted machine.",
+-            adopted
+-                .iter()
+-                .map(|name| format!("machines.{name}"))
+-                .collect::<Vec<_>>()
+-                .join(", ")
++            adopted.join(", ")
+         );
+     }
++
++    let unset = with_mode(None);
++    if !unset.is_empty() {
++        bail!(
++            "Refusing to install: {} set no `vendomat.mode`. Set it to \
++             \"fresh-install\" or \"adopt-existing\". devenv made no connection \
++             to the target.",
++            unset.join(", ")
++        );
++    }
++
++    if install_phases_need_preflight(phases) {
++        let missing: Vec<String> = names
++            .iter()
++            .filter(|name| {
++                meta.get(*name)
++                    .is_some_and(|m| !m.vendomat.preflight.has_program)
++            })
++            .map(|name| format!("machines.{name}"))
++            .collect();
++        if !missing.is_empty() {
++            bail!(
++                "Refusing to install: {} set no `vendomat.preflight.program`. A \
++                 fresh-install machine needs a preflight program before the disko \
++                 or install phase. devenv made no connection to the target.",
++                missing.join(", ")
++            );
++        }
++    }
+     Ok(())
+ }
+ 
++// ── Vendomat fresh-install preflight (fork-only) ─────────────────────
++
++/// Schema tag of the report that a preflight program prints.
++const PREFLIGHT_SCHEMA: &str = "vendomat.preflight/v1";
++/// Every disk that a fresh install may touch must be named by a stable path.
++const PREFLIGHT_DISK_PREFIX: &str = "/dev/disk/by-id/";
++
++/// True when the phase set reaches a phase that writes to the target disks:
++/// disko partitions and formats them, nixos-install writes the system and the
++/// boot loader. kexec, facter, and reboot write to no disk.
++fn install_phases_need_preflight(phases: &HashSet<InstallPhase>) -> bool {
++    phases.contains(&InstallPhase::Disko) || phases.contains(&InstallPhase::Install)
++}
++
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct PreflightReport {
++    schema: String,
++    result: String,
++    machine: String,
++    nonce: String,
++    host: PreflightHost,
++    disks: Vec<PreflightDisk>,
++    checks: Vec<PreflightCheck>,
++}
++
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct PreflightHost {
++    machine_id: String,
++    boot_id: String,
++}
++
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct PreflightDisk {
++    by_id: String,
++    model: String,
++    serial: String,
++    size_bytes: u64,
++}
++
++#[derive(Debug, Deserialize)]
++#[serde(deny_unknown_fields)]
++struct PreflightCheck {
++    id: String,
++    status: String,
++    #[serde(default)]
++    detail: Option<String>,
++}
++
++/// What the CLI itself knows when it judges a report. None of these values
++/// come from the program.
++struct PreflightExpectation<'a> {
++    machine: &'a str,
++    nonce: &'a str,
++    machine_id: &'a str,
++    boot_id: &'a str,
++    disks: &'a BTreeSet<String>,
++}
++
++/// Turn the disko device list into the set the report must match. Refuse a
++/// kernel device name: kernel names move between boots.
++fn preflight_disk_set(devices: &[String]) -> Result<BTreeSet<String>> {
++    if devices.is_empty() {
++        bail!("the NixOS config declares no disko disk, so a preflight has no disk to check");
++    }
++    let mut set = BTreeSet::new();
++    for device in devices {
++        let stable = device.starts_with(PREFLIGHT_DISK_PREFIX)
++            && device.len() > PREFLIGHT_DISK_PREFIX.len()
++            && !device.contains("..")
++            && !device.contains(char::is_whitespace);
++        if !stable {
++            bail!(
++                "disko device {device:?} is not a `{PREFLIGHT_DISK_PREFIX}` path. \
++                 A fresh install selects disks by stable identity only"
++            );
++        }
++        if !set.insert(device.clone()) {
++            bail!("disko device {device:?} appears twice");
++        }
++    }
++    Ok(set)
++}
++
++fn is_lower_hex(value: &str, len: usize) -> bool {
++    value.len() == len
++        && value
++            .bytes()
++            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
++}
++
++/// Judge the stdout of a preflight program. Succeed only for a complete,
++/// definite pass that is bound to this machine, this run, this host and
++/// boot, and exactly the expected disks.
++fn validate_preflight_report(stdout: &str, expected: &PreflightExpectation<'_>) -> Result<()> {
++    let report: PreflightReport = serde_json::from_str(stdout.trim())
++        .into_diagnostic()
++        .wrap_err("the preflight result is not a valid report (malformed JSON or unknown field)")?;
++    if report.schema != PREFLIGHT_SCHEMA {
++        bail!(
++            "the preflight result has schema {:?}, expected {PREFLIGHT_SCHEMA:?}",
++            report.schema
++        );
++    }
++    if report.nonce != expected.nonce {
++        bail!("the preflight result carries a different nonce: it is not an answer to this run");
++    }
++    if report.machine != expected.machine {
++        bail!(
++            "the preflight result is for machine {:?}, not {:?}",
++            report.machine,
++            expected.machine
++        );
++    }
++    if !is_lower_hex(&report.host.machine_id, 32) || report.host.boot_id.len() != 36 {
++        bail!("the preflight result has a malformed host identity");
++    }
++    if report.host.machine_id != expected.machine_id || report.host.boot_id != expected.boot_id {
++        bail!(
++            "the preflight result is bound to another host or another boot than the target \
++             that the CLI observed"
++        );
++    }
++    let mut reported = BTreeSet::new();
++    for disk in &report.disks {
++        if disk.model.trim().is_empty() || disk.serial.trim().is_empty() || disk.size_bytes == 0 {
++            bail!(
++                "the preflight result lacks model, serial, or size for disk {:?}",
++                disk.by_id
++            );
++        }
++        if !reported.insert(disk.by_id.clone()) {
++            bail!("the preflight result lists disk {:?} twice", disk.by_id);
++        }
++    }
++    if &reported != expected.disks {
++        bail!(
++            "the preflight result covers disks {:?}, but the disko layout names {:?}",
++            reported,
++            expected.disks
++        );
++    }
++    if report.result != "pass" {
++        let failed: Vec<String> = report
++            .checks
++            .iter()
++            .filter(|check| check.status != "pass")
++            .map(|check| match &check.detail {
++                Some(detail) => format!("{}: {detail}", check.id),
++                None => check.id.clone(),
++            })
++            .collect();
++        bail!(
++            "the preflight result is {:?}, not \"pass\" (failed checks: {})",
++            report.result,
++            if failed.is_empty() {
++                "none named".to_string()
++            } else {
++                failed.join("; ")
++            }
++        );
++    }
++    if report.checks.is_empty() {
++        bail!("the preflight result lists no checks");
++    }
++    if let Some(check) = report.checks.iter().find(|check| check.status != "pass") {
++        bail!(
++            "the preflight result says \"pass\" but check {:?} has status {:?}",
++            check.id,
++            check.status
++        );
++    }
++    Ok(())
++}
++
++/// A validated preflight result. It lets the disk-writing phases of one
++/// install job proceed while it is younger than its time to live.
++#[derive(Debug)]
++struct PreflightGrant {
++    accepted_at: std::time::Instant,
++    ttl: std::time::Duration,
++}
++
++impl PreflightGrant {
++    fn ensure_current(&self, now: std::time::Instant, name: &str, before: &str) -> Result<()> {
++        let age = now.saturating_duration_since(self.accepted_at);
++        if age > self.ttl {
++            bail!(
++                "machines.{name}: the preflight result is {}s old and its limit is {}s. \
++                 Refusing to start {before}. Run the install again for a fresh preflight.",
++                age.as_secs(),
++                self.ttl.as_secs()
++            );
++        }
++        Ok(())
++    }
++}
++
++/// The command line that runs the preflight program on the target.
++fn preflight_command(
++    program: &Path,
++    machine: &str,
++    nonce: &str,
++    phases: &HashSet<InstallPhase>,
++    disko_mode: DiskoMode,
++    disks: &BTreeSet<String>,
++) -> String {
++    let phase_names: Vec<&str> = [
++        (InstallPhase::Kexec, "kexec"),
++        (InstallPhase::Facter, "facter"),
++        (InstallPhase::Disko, "disko"),
++        (InstallPhase::Install, "install"),
++        (InstallPhase::Reboot, "reboot"),
++    ]
++    .into_iter()
++    .filter(|(phase, _)| phases.contains(phase))
++    .map(|(_, label)| label)
++    .collect();
++    let mode = match disko_mode {
++        DiskoMode::Disko => "disko",
++        DiskoMode::Format => "format",
++        DiskoMode::Mount => "mount",
++    };
++    let mut parts = vec![
++        shell_quote(&program.display().to_string()),
++        "--machine".to_string(),
++        shell_quote(machine),
++        "--nonce".to_string(),
++        shell_quote(nonce),
++        "--phases".to_string(),
++        shell_quote(&phase_names.join(",")),
++        "--disko-mode".to_string(),
++        shell_quote(mode),
++    ];
++    for disk in disks {
++        parts.push("--disk".to_string());
++        parts.push(shell_quote(disk));
++    }
++    parts.join(" ")
++}
++
++/// A fresh 128-bit nonce as 32 lowercase hex digits.
++fn new_preflight_nonce() -> Result<String> {
++    use std::io::Read;
++    let mut bytes = [0u8; 16];
++    std::fs::File::open("/dev/urandom")
++        .and_then(|mut file| file.read_exact(&mut bytes))
++        .into_diagnostic()
++        .wrap_err("Failed to read /dev/urandom for the preflight nonce")?;
++    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
++}
++
+ /// Reject repeated machine names before any target interaction. Running two
+ /// destructive pipelines for the same machine is never meaningful, even when
+ /// concurrency is explicitly limited to one.
+@@ -1324,7 +1637,7 @@ impl Devenv {
+         // vendomat: the install policy runs first. It refuses an adopted
+         // machine for every phase and disko mode, before any payload read,
+         // build, or target contact.
+-        check_vendomat_install_policy(names, &meta)?;
++        check_vendomat_install_policy(names, &meta, phases)?;
+ 
+         // Per-machine validation: install only applies to NixOS roles
+         // over SSH. Catch configuration mistakes before starting any work.
+@@ -1757,9 +2070,39 @@ impl Devenv {
+             None
+         };
+ 
++        // vendomat: a fresh-install machine passes its target-side preflight
++        // before any phase that writes to a disk. The grant has a short time
++        // to live. Each disk-writing phase checks it again.
++        let needs_preflight = install_phases_need_preflight(phases);
++        let preflight_grant = if needs_preflight {
++            let act = activity!(INFO, operation, "Vendomat preflight");
++            Some(
++                async {
++                    self.run_vendomat_preflight(
++                        name, machine, &target, &ssh_opts, phases, disko_mode,
++                    )
++                    .await
++                }
++                .in_activity(&act)
++                .await?,
++            )
++        } else {
++            None
++        };
++        let require_preflight = |before: &str| -> Result<()> {
++            match (&preflight_grant, needs_preflight) {
++                (Some(grant), _) => grant.ensure_current(std::time::Instant::now(), name, before),
++                (None, true) => {
++                    bail!("machines.{name}: no preflight result. Refusing to start {before}.")
++                }
++                (None, false) => Ok(()),
++            }
++        };
++
+         // Encryption keys are dropped onto the installer BEFORE disko runs
+         // so LUKS layouts with `passwordFile` can reference them.
+         if phases.contains(&InstallPhase::Disko) && !machine.encryption_keys.is_empty() {
++            require_preflight("the encryption key copy")?;
+             let act = activity!(INFO, operation, "Copying encryption keys");
+             async {
+                 self.install_encryption_keys(
+@@ -1776,6 +2119,7 @@ impl Devenv {
+ 
+         // Phase 3: disko
+         if phases.contains(&InstallPhase::Disko) {
++            require_preflight("disko")?;
+             let act = activity!(INFO, operation, "Partitioning (disko)");
+             async {
+                 self.install_disko(name, &target, &ssh_opts, disko_mode)
+@@ -1787,6 +2131,7 @@ impl Devenv {
+ 
+         // Phase 4: install
+         if let Some(toplevel) = &installed_toplevel {
++            require_preflight("nixos-install")?;
+             let act = activity!(INFO, operation, "Installing NixOS");
+             async { self.install_nixos(name, &target, &ssh_opts, toplevel).await }
+                 .in_activity(&act)
+@@ -1879,6 +2224,109 @@ impl Devenv {
+         Ok(())
+     }
+ 
++    /// Vendomat preflight (fork-only). Build the machine's preflight program,
++    /// copy it to the target, run it with a fresh nonce, and accept only a
++    /// definite pass that is bound to this machine, this run, this host and
++    /// boot, and exactly the disks the disko layout names.
++    async fn run_vendomat_preflight(
++        &self,
++        name: &str,
++        machine: &MachineMeta,
++        target: &SshTarget,
++        ssh_opts: &[String],
++        phases: &HashSet<InstallPhase>,
++        disko_mode: DiskoMode,
++    ) -> Result<PreflightGrant> {
++        if machine.vendomat.mode != Some(VendomatMode::FreshInstall) {
++            bail!(
++                "machines.{name}: refusing to install without `vendomat.mode = \"fresh-install\"`"
++            );
++        }
++        if !machine.vendomat.preflight.has_program {
++            bail!("machines.{name}: `vendomat.preflight.program` is not set");
++        }
++        let check = self.load_machine_install_check(name).await?;
++        let disks = preflight_disk_set(&check.disko_devices).map_err(|error| {
++            miette!("machines.{name}: cannot bind a preflight to its disks: {error}")
++        })?;
++
++        let program = self.build_machine_role(name, "vendomatPreflight").await?;
++        let executable = {
++            use std::os::unix::fs::PermissionsExt;
++            std::fs::metadata(&program)
++                .map(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
++                .unwrap_or(false)
++        };
++        if !executable {
++            bail!(
++                "machines.{name}: the preflight program {} is not an executable file",
++                program.display()
++            );
++        }
++        self.nix_copy(target, &program, ssh_opts)
++            .await
++            .map_err(|error| {
++                miette!("Failed to copy the preflight program to machines.{name}: {error}")
++            })?;
++
++        let nonce = new_preflight_nonce()?;
++        let command = preflight_command(&program, name, &nonce, phases, disko_mode, &disks);
++        // Run the program and keep its status and stdout. A failing program
++        // still prints a report that names the failed checks.
++        let (status, stdout) = self
++            .ssh_capture_with_status(target, ssh_opts, &command)
++            .await
++            .map_err(|error| {
++                miette!("Failed to run the preflight program on machines.{name}: {error}")
++            })?;
++        if !status.success() && stdout.trim().is_empty() {
++            bail!(
++                "machines.{name}: the preflight did not pass. The program or SSH exited \
++                 with {status} and printed no report."
++            );
++        }
++
++        // Read the host identity with a separate command. The program is not
++        // the only witness of which host and which boot it ran on.
++        let identity = self
++            .ssh_run_capture(
++                target,
++                ssh_opts,
++                "cat /etc/machine-id; cat /proc/sys/kernel/random/boot_id",
++            )
++            .await
++            .map_err(|error| {
++                miette!("Failed to read the host identity of machines.{name}: {error}")
++            })?;
++        let mut lines = identity
++            .lines()
++            .map(str::trim)
++            .filter(|line| !line.is_empty());
++        let (machine_id, boot_id) = match (lines.next(), lines.next(), lines.next()) {
++            (Some(machine_id), Some(boot_id), None) => (machine_id, boot_id),
++            _ => bail!("machines.{name}: the target returned an unexpected host identity"),
++        };
++        let expectation = PreflightExpectation {
++            machine: name,
++            nonce: &nonce,
++            machine_id,
++            boot_id,
++            disks: &disks,
++        };
++        validate_preflight_report(&stdout, &expectation)
++            .map_err(|error| miette!("machines.{name}: refusing to install: {error:#}"))?;
++        if !status.success() {
++            bail!(
++                "machines.{name}: refusing to install. The preflight program exited with \
++                 {status} although its report says \"pass\"."
++            );
++        }
++        Ok(PreflightGrant {
++            accepted_at: std::time::Instant::now(),
++            ttl: std::time::Duration::from_secs(machine.vendomat.preflight.ttl_seconds),
++        })
++    }
++
+     /// Preflight probe: run a single SSH command that checks key
+     /// prerequisites on the target before any destructive work begins.
+     async fn install_preflight(
+@@ -2395,6 +2843,37 @@ impl Devenv {
+             .wrap_err("ssh stdout was not valid UTF-8")
+     }
+ 
++    /// Like `ssh_run_capture` but returns the exit status with stdout, so a
++    /// caller can read a report that a failing remote program printed.
++    async fn ssh_capture_with_status(
++        &self,
++        target: &SshTarget,
++        user_ssh_opts: &[String],
++        script: &str,
++    ) -> Result<(std::process::ExitStatus, String)> {
++        let mut cmd = process::Command::new("ssh");
++        for opt in ssh_opts_argv(user_ssh_opts) {
++            cmd.arg(opt);
++        }
++        if let Some(port) = target.port() {
++            cmd.arg("-p").arg(port.to_string());
++        }
++        cmd.arg(target.ssh_destination()).arg(script);
++        cmd.stdin(Stdio::null())
++            .stdout(Stdio::piped())
++            .stderr(Stdio::inherit())
++            .kill_on_drop(true);
++        let output = cmd
++            .output()
++            .await
++            .into_diagnostic()
++            .wrap_err("Failed to spawn ssh")?;
++        let stdout = String::from_utf8(output.stdout)
++            .into_diagnostic()
++            .wrap_err("ssh stdout was not valid UTF-8")?;
++        Ok((output.status, stdout))
++    }
++
+     async fn ssh_read_boot_id(
+         &self,
+         target: &SshTarget,
+@@ -4165,7 +4644,7 @@ remote = "awssm"
+         );
+     }
+ 
+-    fn policy_meta(mode: Option<VendomatMode>) -> MachineMeta {
++    fn policy_meta(mode: Option<VendomatMode>, has_program: bool) -> MachineMeta {
+         MachineMeta {
+             system: "x86_64-linux".to_string(),
+             target: MachineTarget {
+@@ -4178,7 +4657,13 @@ remote = "awssm"
+             kexec_image: None,
+             kexec_post_ssh_port: None,
+             copy_host_keys: false,
+-            vendomat: MachineVendomat { mode },
++            vendomat: MachineVendomat {
++                mode,
++                preflight: MachinePreflightMeta {
++                    has_program,
++                    ttl_seconds: 300,
++                },
++            },
+             secretspec: MachineSecretspec::default(),
+             bootstrap_secrets: Vec::new(),
+             extra_files: BTreeMap::new(),
+@@ -4186,52 +4671,344 @@ remote = "awssm"
+         }
+     }
+ 
++    const ALL_PHASES: [InstallPhase; 5] = [
++        InstallPhase::Kexec,
++        InstallPhase::Facter,
++        InstallPhase::Disko,
++        InstallPhase::Install,
++        InstallPhase::Reboot,
++    ];
++
++    /// Every non-empty subset of the five install phases.
++    fn every_phase_subset() -> Vec<HashSet<InstallPhase>> {
++        (1u32..32)
++            .map(|mask| {
++                ALL_PHASES
++                    .iter()
++                    .enumerate()
++                    .filter(|(bit, _)| mask & (1 << bit) != 0)
++                    .map(|(_, phase)| *phase)
++                    .collect()
++            })
++            .collect()
++    }
++
+     #[test]
+     fn vendomat_metadata_parses_mode_and_defaults_to_none() {
+         let with_mode: MachineVendomat =
+             serde_json::from_str(r#"{"mode":"adopt-existing"}"#).unwrap();
+         assert_eq!(with_mode.mode, Some(VendomatMode::AdoptExisting));
+-        let fresh: MachineVendomat = serde_json::from_str(r#"{"mode":"fresh-install"}"#).unwrap();
++        let fresh: MachineVendomat = serde_json::from_str(
++            r#"{"mode":"fresh-install","preflight":{"hasProgram":true,"ttlSeconds":20}}"#,
++        )
++        .unwrap();
+         assert_eq!(fresh.mode, Some(VendomatMode::FreshInstall));
++        assert!(fresh.preflight.has_program);
++        assert_eq!(fresh.preflight.ttl_seconds, 20);
+         let null_mode: MachineVendomat = serde_json::from_str(r#"{"mode":null}"#).unwrap();
+         assert_eq!(null_mode.mode, None);
+         assert_eq!(MachineVendomat::default().mode, None);
++        assert!(!MachineVendomat::default().preflight.has_program);
+         assert!(serde_json::from_str::<MachineVendomat>(r#"{"mode":"adopt"}"#).is_err());
+     }
+ 
+     #[test]
+-    fn install_policy_refuses_adopted_machine_and_names_it() {
++    fn install_policy_refuses_adopted_machine_for_every_phase_subset() {
+         let mut meta = BTreeMap::new();
+         meta.insert(
+             "framework".to_string(),
+-            policy_meta(Some(VendomatMode::AdoptExisting)),
++            policy_meta(Some(VendomatMode::AdoptExisting), true),
+         );
+         meta.insert(
+             "server".to_string(),
+-            policy_meta(Some(VendomatMode::FreshInstall)),
++            policy_meta(Some(VendomatMode::FreshInstall), true),
+         );
+-        let error = check_vendomat_install_policy(&["framework".to_string()], &meta)
++        for phases in every_phase_subset() {
++            let error = check_vendomat_install_policy(&["framework".to_string()], &meta, &phases)
++                .unwrap_err()
++                .to_string();
++            assert!(error.contains("machines.framework"), "{error}");
++            assert!(error.contains("adopt-existing"), "{error}");
++            assert!(error.contains("made no connection"), "{error}");
++            // One adopted name in a list refuses the whole invocation.
++            let error = check_vendomat_install_policy(
++                &["server".to_string(), "framework".to_string()],
++                &meta,
++                &phases,
++            )
+             .unwrap_err()
+             .to_string();
+-        assert!(error.contains("machines.framework"), "{error}");
+-        assert!(error.contains("adopt-existing"), "{error}");
+-        assert!(error.contains("made no connection"), "{error}");
+-        // One adopted name in a list refuses the whole invocation.
+-        let error =
+-            check_vendomat_install_policy(&["server".to_string(), "framework".to_string()], &meta)
++            assert!(error.contains("machines.framework"), "{error}");
++            assert!(!error.contains("machines.server"), "{error}");
++        }
++    }
++
++    #[test]
++    fn install_policy_refuses_a_machine_without_mode() {
++        let mut meta = BTreeMap::new();
++        meta.insert("legacy".to_string(), policy_meta(None, true));
++        for phases in every_phase_subset() {
++            let error = check_vendomat_install_policy(&["legacy".to_string()], &meta, &phases)
+                 .unwrap_err()
+                 .to_string();
+-        assert!(error.contains("machines.framework"), "{error}");
+-        assert!(!error.contains("machines.server"), "{error}");
++            assert!(error.contains("no `vendomat.mode`"), "{error}");
++        }
+     }
+ 
+     #[test]
+-    fn install_policy_allows_a_fresh_install_machine() {
++    fn install_policy_requires_a_preflight_program_only_for_disk_phases() {
+         let mut meta = BTreeMap::new();
+         meta.insert(
+             "server".to_string(),
+-            policy_meta(Some(VendomatMode::FreshInstall)),
++            policy_meta(Some(VendomatMode::FreshInstall), false),
++        );
++        let names = ["server".to_string()];
++        for phases in every_phase_subset() {
++            let result = check_vendomat_install_policy(&names, &meta, &phases);
++            if install_phases_need_preflight(&phases) {
++                let error = result.unwrap_err().to_string();
++                assert!(error.contains("vendomat.preflight.program"), "{error}");
++            } else {
++                result.unwrap();
++            }
++        }
++        meta.insert(
++            "server".to_string(),
++            policy_meta(Some(VendomatMode::FreshInstall), true),
+         );
+-        check_vendomat_install_policy(&["server".to_string()], &meta).unwrap();
++        for phases in every_phase_subset() {
++            check_vendomat_install_policy(&names, &meta, &phases).unwrap();
++        }
++    }
++
++    #[test]
++    fn disk_phases_are_disko_and_install_only() {
++        for phase in ALL_PHASES {
++            let set = HashSet::from([phase]);
++            let expected = matches!(phase, InstallPhase::Disko | InstallPhase::Install);
++            assert_eq!(install_phases_need_preflight(&set), expected, "{phase:?}");
++        }
++    }
++
++    const MACHINE_ID: &str = "0123456789abcdef0123456789abcdef";
++    const BOOT_ID: &str = "11111111-2222-3333-4444-555555555555";
++    const NONCE: &str = "aabbccddeeff00112233445566778899";
++    const DISK_A: &str = "/dev/disk/by-id/nvme-TEST_A";
++
++    fn good_report() -> serde_json::Value {
++        serde_json::json!({
++            "schema": "vendomat.preflight/v1",
++            "result": "pass",
++            "machine": "server",
++            "nonce": NONCE,
++            "host": { "machine_id": MACHINE_ID, "boot_id": BOOT_ID },
++            "disks": [{
++                "by_id": DISK_A,
++                "model": "TEST",
++                "serial": "A1",
++                "size_bytes": 1000
++            }],
++            "checks": [
++                { "id": "blank-signature", "status": "pass" },
++                { "id": "not-root-disk", "status": "pass", "detail": "ok" }
++            ]
++        })
++    }
++
++    fn judge(report: &serde_json::Value) -> Result<()> {
++        let disks = BTreeSet::from([DISK_A.to_string()]);
++        validate_preflight_report(
++            &report.to_string(),
++            &PreflightExpectation {
++                machine: "server",
++                nonce: NONCE,
++                machine_id: MACHINE_ID,
++                boot_id: BOOT_ID,
++                disks: &disks,
++            },
++        )
++    }
++
++    fn judge_error(report: &serde_json::Value) -> String {
++        format!("{:#}", judge(report).unwrap_err())
++    }
++
++    #[test]
++    fn preflight_accepts_only_a_complete_bound_pass() {
++        judge(&good_report()).unwrap();
++    }
++
++    #[test]
++    fn preflight_rejects_malformed_output() {
++        let disks = BTreeSet::from([DISK_A.to_string()]);
++        let expectation = PreflightExpectation {
++            machine: "server",
++            nonce: NONCE,
++            machine_id: MACHINE_ID,
++            boot_id: BOOT_ID,
++            disks: &disks,
++        };
++        for text in ["", "pass", "{}", "{\"result\":\"pass\"}", "[1]"] {
++            assert!(
++                validate_preflight_report(text, &expectation).is_err(),
++                "{text:?}"
++            );
++        }
++        // Text before the JSON document is malformed too.
++        let noisy = format!("banner\n{}", good_report());
++        assert!(validate_preflight_report(&noisy, &expectation).is_err());
++        // An unknown field is malformed.
++        let mut extra = good_report();
++        extra["unexpected"] = serde_json::json!(true);
++        assert!(judge_error(&extra).contains("malformed"));
++    }
++
++    #[test]
++    fn preflight_rejects_a_missing_or_failing_result() {
++        let mut failing = good_report();
++        failing["result"] = serde_json::json!("fail");
++        failing["checks"][0]["status"] = serde_json::json!("fail");
++        failing["checks"][0]["detail"] = serde_json::json!("filesystem signature found");
++        let error = judge_error(&failing);
++        assert!(error.contains("not \"pass\""), "{error}");
++        assert!(error.contains("blank-signature"), "{error}");
++
++        let mut unknown = good_report();
++        unknown["result"] = serde_json::json!("unknown");
++        assert!(judge_error(&unknown).contains("not \"pass\""));
++
++        // "pass" with one failing check is not a definite pass.
++        let mut mixed = good_report();
++        mixed["checks"][1]["status"] = serde_json::json!("unknown");
++        assert!(judge_error(&mixed).contains("status"));
++
++        let mut empty = good_report();
++        empty["checks"] = serde_json::json!([]);
++        assert!(judge_error(&empty).contains("no checks"));
++    }
++
++    #[test]
++    fn preflight_rejects_a_wrong_nonce_machine_or_schema() {
++        let mut wrong = good_report();
++        wrong["nonce"] = serde_json::json!("00000000000000000000000000000000");
++        assert!(judge_error(&wrong).contains("nonce"));
++
++        let mut wrong = good_report();
++        wrong["machine"] = serde_json::json!("framework");
++        assert!(judge_error(&wrong).contains("machine"));
++
++        let mut wrong = good_report();
++        wrong["schema"] = serde_json::json!("vendomat.preflight/v0");
++        assert!(judge_error(&wrong).contains("schema"));
++    }
++
++    #[test]
++    fn preflight_rejects_another_host_or_boot() {
++        let mut wrong = good_report();
++        wrong["host"]["machine_id"] = serde_json::json!("ffffffffffffffffffffffffffffffff");
++        assert!(judge_error(&wrong).contains("another host"));
++
++        let mut wrong = good_report();
++        wrong["host"]["boot_id"] = serde_json::json!("99999999-2222-3333-4444-555555555555");
++        assert!(judge_error(&wrong).contains("another host"));
++
++        let mut wrong = good_report();
++        wrong["host"]["machine_id"] = serde_json::json!("NOT-HEX");
++        assert!(judge_error(&wrong).contains("host identity"));
++    }
++
++    #[test]
++    fn preflight_rejects_a_wrong_missing_or_extra_disk() {
++        let mut wrong = good_report();
++        wrong["disks"][0]["by_id"] = serde_json::json!("/dev/disk/by-id/nvme-OTHER");
++        assert!(judge_error(&wrong).contains("disko layout"));
++
++        let mut missing = good_report();
++        missing["disks"] = serde_json::json!([]);
++        assert!(judge_error(&missing).contains("disko layout"));
++
++        let mut extra = good_report();
++        extra["disks"] = serde_json::json!([
++            { "by_id": DISK_A, "model": "TEST", "serial": "A1", "size_bytes": 1 },
++            { "by_id": "/dev/disk/by-id/nvme-EXTRA", "model": "T", "serial": "B", "size_bytes": 1 }
++        ]);
++        assert!(judge_error(&extra).contains("disko layout"));
++
++        let mut anonymous = good_report();
++        anonymous["disks"][0]["serial"] = serde_json::json!("");
++        assert!(judge_error(&anonymous).contains("model, serial, or size"));
++    }
++
++    #[test]
++    fn disk_set_requires_stable_unique_paths() {
++        let ok = preflight_disk_set(&[DISK_A.to_string()]).unwrap();
++        assert_eq!(ok.len(), 1);
++        for bad in [
++            vec![],
++            vec!["/dev/nvme0n1".to_string()],
++            vec!["/dev/vda".to_string()],
++            vec!["/dev/disk/by-id/".to_string()],
++            vec!["/dev/disk/by-id/../../nvme0n1".to_string()],
++            vec!["/dev/disk/by-uuid/abc".to_string()],
++            vec![DISK_A.to_string(), DISK_A.to_string()],
++        ] {
++            assert!(preflight_disk_set(&bad).is_err(), "{bad:?}");
++        }
++    }
++
++    #[test]
++    fn preflight_grant_expires_after_its_ttl() {
++        let start = std::time::Instant::now();
++        let grant = PreflightGrant {
++            accepted_at: start,
++            ttl: std::time::Duration::from_secs(30),
++        };
++        grant.ensure_current(start, "server", "disko").unwrap();
++        grant
++            .ensure_current(
++                start + std::time::Duration::from_secs(30),
++                "server",
++                "disko",
++            )
++            .unwrap();
++        let error = grant
++            .ensure_current(
++                start + std::time::Duration::from_secs(31),
++                "server",
++                "disko",
++            )
++            .unwrap_err()
++            .to_string();
++        assert!(error.contains("31s old"), "{error}");
++        assert!(error.contains("disko"), "{error}");
++    }
++
++    #[test]
++    fn preflight_command_quotes_every_value_and_lists_phases_in_order() {
++        let disks = BTreeSet::from([DISK_A.to_string()]);
++        let phases = HashSet::from([InstallPhase::Install, InstallPhase::Disko]);
++        let command = preflight_command(
++            Path::new("/nix/store/aaaa-preflight"),
++            "server",
++            NONCE,
++            &phases,
++            DiskoMode::Mount,
++            &disks,
++        );
++        assert_eq!(
++            command,
++            format!(
++                "'/nix/store/aaaa-preflight' --machine 'server' --nonce '{NONCE}' \
++                 --phases 'disko,install' --disko-mode 'mount' --disk '{DISK_A}'"
++            )
++        );
++    }
++
++    #[test]
++    fn preflight_nonces_are_fresh_hex() {
++        let first = new_preflight_nonce().unwrap();
++        let second = new_preflight_nonce().unwrap();
++        assert!(is_lower_hex(&first, 32));
++        assert_ne!(first, second);
+     }
+ }
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index ffa4cc6a3f4c207763ae3fa6ed9802be092f4982..25a713010ddfc1b4ed41768f3536347f2a0195f7 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -586,6 +586,38 @@ let
+               '';
+               example = "adopt-existing";
+             };
++
++            preflight = lib.mkOption {
++              type = lib.types.submodule {
++                options = {
++                  program = lib.mkOption {
++                    type = lib.types.nullOr lib.types.package;
++                    default = null;
++                    description = ''
++                      Target-side preflight program for a `"fresh-install"`
++                      machine. The output must be one executable file.
++
++                      `devenv machines install` builds it, copies it to the
++                      target, and runs it before any disko or nixos-install
++                      phase. The install stops unless the program reports a
++                      definite pass for exactly the disks that the disko
++                      layout names. See `patches/0006` of the Vendomat devenv
++                      distribution for the result schema.
++                    '';
++                  };
++                  ttlSeconds = lib.mkOption {
++                    type = lib.types.ints.between 1 900;
++                    default = 300;
++                    description = ''
++                      Seconds that a passing preflight result stays valid.
++                      The CLI measures the age on its own clock.
++                    '';
++                  };
++                };
++              };
++              default = { };
++              description = "Preflight settings for a `\"fresh-install\"` machine.";
++            };
+           };
+         };
+         default = { };
+@@ -670,6 +702,13 @@ let
+         '';
+       };
+ 
++      build.vendomatPreflight = lib.mkOption {
++        type = outputType;
++        default = null;
++        internal = true;
++        description = "Vendomat preflight program for this machine, or null if none is set.";
++      };
++
+       build.nix-darwin = lib.mkOption {
+         type = outputType;
+         default = null;
+@@ -725,6 +764,11 @@ let
+               default = false;
+               description = "Whether the evaluated NixOS root account has a password or authorized SSH key.";
+             };
++            diskoDevices = lib.mkOption {
++              type = lib.types.listOf lib.types.str;
++              default = [ ];
++              description = "Device paths of every disko disk in the evaluated NixOS config.";
++            };
+           };
+         };
+         internal = true;
+@@ -747,6 +791,7 @@ let
+       diskoScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.diskoScript;
+       diskoFormatScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.formatScript;
+       diskoMountScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.mountScript;
++      vendomatPreflight = lib.mkIf (config.vendomat.preflight.program != null) config.vendomat.preflight.program;
+       nix-darwin = lib.mkIf (config.nix-darwin != null) (lib.mkDefault (buildNixDarwinToplevel config));
+       home-manager = lib.mkIf (config.home-manager != null) (lib.mkDefault (buildHomeManagerToplevel config));
+     };
+@@ -772,6 +817,9 @@ let
+             || (root.initialPassword or null) != null;
+         in
+         keys != [ ] || keyFiles != [ ] || hasPassword;
++      diskoDevices = lib.mapAttrsToList
++        (_diskName: disk: disk.device)
++        (config._nixosEval.config.disko.devices.disk or { });
+     };
+   });
+ in
+@@ -847,6 +895,21 @@ in
+                   type = lib.types.nullOr (lib.types.enum [ "fresh-install" "adopt-existing" ]);
+                   description = "Vendomat lifecycle mode copied into CLI metadata.";
+                 };
++                preflight = lib.mkOption {
++                  description = "Vendomat preflight metadata copied into CLI metadata.";
++                  type = lib.types.submodule {
++                    options = {
++                      hasProgram = lib.mkOption {
++                        type = lib.types.bool;
++                        description = "Whether the machine sets a preflight program.";
++                      };
++                      ttlSeconds = lib.mkOption {
++                        type = lib.types.int;
++                        description = "Seconds that a passing preflight result stays valid.";
++                      };
++                    };
++                  };
++                };
+               };
+             };
+           };
+@@ -906,7 +969,13 @@ in
+       kexecImage = m.install.kexec.image;
+       kexecPostSshPort = m.install.kexec.postSshPort;
+       copyHostKeys = m.install.copyHostKeys;
+-      vendomat = { inherit (m.vendomat) mode; };
++      vendomat = {
++        inherit (m.vendomat) mode;
++        preflight = {
++          hasProgram = m.vendomat.preflight.program != null;
++          inherit (m.vendomat.preflight) ttlSeconds;
++        };
++      };
+       secretspec = {
+         inherit (m.install.secretspec) execution;
+         provider =

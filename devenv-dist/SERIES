@@ -1,0 +1,7 @@
+# Ordered patch series. Apply top to bottom on the upstream pin in UPSTREAM.
+0001-fix-machines-allow-Nix-SSH-connection-handshake-3255.patch
+0002-Update-latest-devenv-version.patch
+0003-fix-bootstrap-reuse-locked-inputs-already-in-the-sto.patch
+0004-vendomat-build-the-devenv-CLI-as-a-release-DEVENV_IS.patch
+0005-vendomat-refuse-machines-install-for-an-adopted-mach.patch
+0006-vendomat-require-a-target-bound-preflight-before-a-f.patch

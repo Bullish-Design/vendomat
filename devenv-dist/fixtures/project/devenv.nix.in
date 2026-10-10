@@ -1,0 +1,65 @@
+# Fixture project for the Vendomat devenv distribution. The driver script
+# fills the @...@ values. Machines share one target and one NixOS module.
+{ config, pkgs, lib, ... }:
+let
+  keyDir = "@KEYDIR@";
+  common = {
+    system = "x86_64-linux";
+    target.host = "root@127.0.0.1:@PORT@";
+    target.sshOpts = [
+      "-o" "IdentitiesOnly=yes"
+      "-o" "IdentityFile=${keyDir}/id_ed25519"
+      "-o" "UserKnownHostsFile=${keyDir}/known_hosts"
+      "-o" "LogLevel=ERROR"
+    ];
+    hardware.facter = null;
+    nixos = { imports = [ ./nixos/vm.nix ]; };
+    deploy.rollbackTimeout = 60;
+  };
+  standin = pkgs.writeShellScript "vendomat-preflight-standin"
+    (builtins.readFile ./preflight-standin.sh);
+  payloads = {
+    install.extraFiles."/var/lib/bootstrap/extra" = {
+      source = "@PAYLOAD_DIR@/extra.txt"; # a string path: never enters /nix/store
+      owner = "0:0";
+      mode = "0640";
+    };
+    install.secrets."/var/lib/bootstrap/token" = {
+      secret = "BOOTSTRAP_TOKEN";
+      owner = "0:0";
+      mode = "0400";
+    };
+  };
+in
+{
+  # Fresh install with a stand-in preflight program and install payloads.
+  machines.fresh = common // payloads // {
+    vendomat.mode = "fresh-install";
+    vendomat.preflight.program = standin;
+  };
+
+  # Same, with a one-second time to live for the expiry test.
+  machines.fresh-short = common // payloads // {
+    vendomat.mode = "fresh-install";
+    vendomat.preflight.program = standin;
+    vendomat.preflight.ttlSeconds = 1;
+  };
+
+  # Fresh install with no preflight program.
+  machines.noprog = common // {
+    vendomat.mode = "fresh-install";
+  };
+
+  # Adopted machine: same target and system as `fresh`.
+  # Its NixOS config differs by one file so that `deploy` has a change to apply.
+  machines.adopt = common // {
+    vendomat.mode = "adopt-existing";
+    nixos = {
+      imports = [ ./nixos/vm.nix ];
+      environment.etc."vendomat-fixture-marker".text = lib.mkForce "GENERATION-2\n";
+    };
+  };
+
+  # No mode at all.
+  machines.legacy = common;
+}
