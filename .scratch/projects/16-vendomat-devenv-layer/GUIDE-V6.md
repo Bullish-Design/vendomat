@@ -1,10 +1,12 @@
 # Vendomat V6 implementation guide
 
-**Date:** 2026-10-09. **Status:** Draft implementation plan. V5 remains authoritative until the
+**Date:** 2026-10-09. **Updated:** 2026-10-10. **Status:** Draft implementation plan.
+V5 remains authoritative until the
 owner accepts a fixture-backed V6 specification. This guide does not authorize a real disk write,
 machine deployment, firmware change, or secret transfer.
 
 **Read with:** [CONCEPT-V6.md](./CONCEPT-V6.md), [SPEC-V6.md](./SPEC-V6.md),
+[the concept update](./CONCEPT-UPDATE-2026-10-10.md),
 [machine-path research](./RESEARCH-2026-10-09-MACHINE-PATHS.md), and
 [the adoption VM plan](./fixtures/VM-TEST-PLAN.md). The research read pinned upstream source and
 prior reports. It did not inspect the local Vendomat code or run a new NixOS VM. Project 15 holds
@@ -13,6 +15,8 @@ the earlier fixtures; its reports do not satisfy a production gate.
 ## Agreed direction and finish line
 
 - Complete V6 through the new `server` system, Framework adoption, and workspace conversion.
+- Prove the workspace user flow first. A workspace user creates and updates a workspace without
+  editing Nix. Module authors may write Nix. The machine operator interface follows later.
 - Cut over `server` first. Install it on the empty 4 TB drive. Keep the 512 GB system bootable.
 - Adopt the existing Framework NixOS system in place. Keep its data, disk layout, and initial pins.
 - Build devenv from a pinned upstream source and a short, ordered patch series. The CLI and modules
@@ -24,7 +28,8 @@ the earlier fixtures; its reports do not satisfy a production gate.
 - Keep V6 a draft until the missing fixtures run and the owner reviews the updated concept and spec.
 
 **Complete** means every active requirement has a saved passing gate, an explicit blocker, or an
-accepted deferral. It also means both machines boot and recover, a real workspace uses the module,
+accepted deferral. It also means both machines boot and recover, a real workspace user completes
+the no-Nix module-selection flow,
 and source and build outputs cross the fleet. A passing unit test or a successful Nix build alone
 does not establish any of those runtime results.
 
@@ -32,7 +37,7 @@ does not establish any of those runtime results.
 
 | Area | Current evidence | Work still needed |
 | --- | --- | --- |
-| Vendomat CLI | Version 0.6.0 has `sync` and `path`; `src/vendomat/` holds the V5 registry, generator, store, and locator | V6 input fragment, module, launcher, checks, cache push, fleet bump, machine preflight |
+| Vendomat CLI | The V6 input resolver and command fixtures have passed in this repository; see the gate record | A no-Nix workspace selection and values interface, plus the open real consumer gates |
 | Vendomat flake | One input and `packages.<system>.vendomat`; its current nixpkgs URL is `devenv-nixpkgs/rolling` | One tested plain nixpkgs revision and `devenvModules.default` |
 | Source collection | A live `devman` tag and collection hook are reported in V5 records | Rebuild proof, remaining hooks, a cross-host tag push, and source recovery |
 | Cache and builder | Attic and host settings have earlier fixture evidence | Real Vendomat output push, cold substitution, watch-store, builder, and recovery proofs |
@@ -66,11 +71,11 @@ clues, not as observations of the running laptop.
 The real `server` and Framework operations in Steps 9 and 12 are future operator runbooks. Each
 requires a new review of its exact plan and target facts immediately before execution.
 
-The next implementation session should assign one file and one fixture for each interface before
-editing. The likely Vendomat files are `registry.py` and `generate.py` for Step 2, a new Nix module
-tree for Step 3, and `cli.py` with focused command modules for Step 4. Step 1 owns the ordered
-devenv patch files and its distribution recipe. `nix-systems` owns Step 6 onward as a separate
-repository. These paths are proposed until the first fixture proves each interface.
+The next implementation session should first prove the workspace user flow in one real consumer.
+Assign a file and a fixture for the proposed registry values and generated module wiring. Keep
+the existing resolver and command evidence. The current description builder is an implemented
+prototype, not the new authoring contract. `nix-systems` remains a separate repository for the
+machine phase. New file paths and registry keys remain proposed until a fixture proves them.
 
 ## Step 0 — Reconcile authority and establish a V6 evidence ledger
 
@@ -130,6 +135,9 @@ Arbitrary root commands and another downloaded binary are outside this command p
 
 **Goal:** keep the existing flake target and add the `.vendomat/` fragment without a second lock.
 
+The input-resolution fixture for this step passed. Keep that behavior. Step 3A adds workspace
+selections and values without replacing the native lock or the module's `devenv.yaml` inputs.
+
 1. Extend the registry parser with `[imports]` and `[targets]`. Reject unknown top-level tables.
    Keep V5 store and flake-generation behavior for a registry that selects the flake target.
 2. For a devenv target, generate `.vendomat/devenv.yaml`, `.vendomat/devenv.nix`, and
@@ -149,19 +157,22 @@ Arbitrary root commands and another downloaded binary are outside this command p
 **Gate:** a three-level imported-input fixture locks one node per source; every conflict and stale
 case reports the cause; an unchanged workspace does no sync; Testee and end-to-end checks pass.
 
-## Step 3 — Build the Vendomat module and library faces
+## Step 3 — Keep the Vendomat module; retire the description builder
 
-**Goal:** make a pinned module compose shells and machine roles without activating unused inputs.
+**Goal:** retain the proved shell and machine checks while moving authored modules to native Nix.
+
+The original three-target builder passed its recorded fixtures. Those fixtures remain evidence
+about the prototype. They do not prove the revised workspace user flow.
 
 1. Export `devenvModules.default` while retaining `packages.<system>.vendomat` and one `nixpkgs`
    flake input. Use the release-tested plain nixpkgs revision required by V6.
-2. Build a face from each input's `vendomat` description. Use the exact proposed `DESC-002` shape.
-   Support a hand-written face where no description exists. Name duplicate names and ambiguous
-   description-plus-face inputs. Skip Vendomat, devenv, nixpkgs, self, and non-flake sources.
-3. Put all options under `vendomat.libs.<name>.*`. Keep `enable = false` inert. Check shell,
-   NixOS toplevel, and Home Manager derivations with and without each disabled face.
-4. Implement package and service behavior for devenv, NixOS, and Home Manager. Test the start
-   script's PATH, the devenv process, the system unit, and the user unit in a VM.
+2. Prove a selected authored module in a focused fixture. Then remove the central description
+   builder before the Step 3A gate. Import only selected workspace modules. Keep a library's
+   Vendomat input optional.
+3. Let an author provide a devenv module with its own `devenv.yaml`. Check its selected shell
+   behavior and inherited inputs in a consumer. Do not require NixOS or Home Manager faces.
+4. Keep native NixOS and Home Manager modules for machine roles that need them. Test each exported
+   target in its own consumer or VM. Do not require one option path across targets.
 5. Add pin checks as assertions for shell, test, and up. Run the same checks explicitly before
    Vendomat build/push commands. Do not assume `devenv build` evaluates shell assertions.
 6. Add input paths, the derivation-valued JSON closure, host paths, and profile defaults. Prove the
@@ -172,8 +183,29 @@ case reports the cause; an unchanged workspace does no sync; Testee and end-to-e
    mount identities without rejecting legitimate mapped storage found in the Framework inventory.
    Do not let the general shell pin-check opt-out disable machine disk or mode assertions.
 
-**Gate:** the FACE inertness fixture passes, a described library has no Vendomat input, a hand-written
-face works, all three enabled faces work, and bad machine layouts fail on a direct NixOS build.
+**Gate:** a selected authored module works; an unselected source leaves the shell unchanged; its
+inputs reach the consumer lock; machine disk guards still fail on bad layouts. Preserve the old
+builder fixture as historical evidence, not as this gate.
+
+## Step 3A — Prove the no-Nix workspace user flow
+
+**Goal:** let a workspace user create and update a workspace without editing Nix.
+
+1. Use the bundled template generator to create a fresh devenv workspace. Give template-owned,
+   user-owned, and Vendomat-owned files distinct ownership. Keep generated Nix in version control.
+2. Put module selections and supported values in `vendomat.toml`. Reuse `[imports]` where it gives
+   one clear selection source. Test the exact values table and types before adopting a name.
+3. Extend `vendomat sync` to generate only the Nix wiring for selected modules and supported
+   values. Reject unknown modules and unsupported values. Keep the root `devenv.nix` stable.
+4. Select two composable authored modules whose `devenv.yaml` files declare inherited inputs.
+   Enter the shell. Change one supported value and repeat. Record the registry diff, generated
+   diff, lock nodes, shell result, and unchanged user-owned files.
+5. Compare the shell derivation with and without an unselected source. Confirm that sync does not
+   import its module. Run Testee and the consumer end-to-end gate.
+
+**Gate:** a workspace user changes only `vendomat.toml` after template creation. Both selected
+modules compose, their inputs lock, a supported value changes the result, and an unselected
+source has no effect. The exact format remains proposed until this fixture passes.
 
 ## Step 4 — Complete the Vendomat command and launcher
 
@@ -238,8 +270,9 @@ separate saved evidence. The collection and Attic remain separate owners of sour
    server's disposable VM and self-deploy over `root@localhost` with devenv running as the owner.
 5. Set a health check and rollback timeout per host. Keep `systemctl --failed` empty before deploy.
    Prove the shared core boots, mounts, and accepts SSH in a VM without Vendomat services.
-6. Import described and hand-written library NixOS and Home Manager faces through the inventory.
-   Test disabled inertness, enabled units, and the system rollback of declarative HM configuration.
+6. Import authored NixOS and Home Manager modules through the inventory where a host needs them.
+   Test enabled units and the system rollback of declarative Home Manager configuration. An
+   unselected module must leave the host derivation unchanged.
 
 **Gate:** both machine roles build in isolated VMs; the core boots without Vendomat; an enabled
 library unit runs; Machines plan/apply/status/rollback work on a disposable NixOS VM.
@@ -273,8 +306,8 @@ order match the baseline; payload secret works after boot; no plaintext enters a
    central overlays, then convert `linkman` and the remaining V4 registry files.
 2. Move the Dagu workflow registry to a tagged `devman` renderer input before switching the host.
    Prove the rendered store path and service start. Preserve the live generation until cutover.
-3. Verify each converted library output without Vendomat installed, then verify its enabled V6
-   face through the module. Compare any changed behavior with the prior output and name the delta.
+3. Verify each converted library output without Vendomat installed, then verify its authored
+   module in a selected consumer. Compare any changed behavior with the prior output.
 4. Build the final `server` NixOS role with no V4 module path or stale toolchain manifest. Keep
    the old 512 GB system and its EFI partition available as the recovery reference.
 
@@ -382,16 +415,17 @@ An absence of disk formatting does not prove these outcomes.
 
 ## Step 13 — Convert workspaces and prove the fleet
 
-**Goal:** make every intended workspace a pinned V6 devenv consumer.
+**Goal:** make every intended workspace a pinned V6 devenv consumer with no routine Nix edits.
 
-1. Convert one ordinary workspace first. Add the V6 registry, generated fragment, direct module
-   import, pinned devenv CLI/modules, and locked Vendomat tag. Keep its own flake only if it
+1. Convert one ordinary workspace first through the Step 3A template and registry flow. Add the
+   generated fragment, selected authored modules, pinned devenv CLI/modules, and locked Vendomat
+   tag. Keep its own flake only if it
    publishes flake outputs. Remove old Vendomat/V4 imports and unused toolchain declarations.
-2. Run its Testee gate, full evaluation, shell/test/up, library face checks, `vendomat check`,
+2. Run its Testee gate, full evaluation, shell/test/up, authored module checks, `vendomat check`,
    input path, real cache push/pull, and offline shell entry with locked sources in the store.
-   Confirm a disabled imported library changes no derivation.
-3. Convert remaining repositories in dependency order. Give each library a native package and a
-   `vendomat` description or hand-written face. Keep its own lock authoritative. Preserve source
+   Confirm an unselected source changes no derivation and the user edits no Nix.
+3. Convert remaining repositories in dependency order. Give each library a native package and
+   authored modules for the targets it needs. Keep its own lock authoritative. Preserve source
    collection tags, shared cores and variants, named paths, and required output isolation.
 4. Use `vendomat bump` dry run over the fleet. Review each proposed tag, fork revision, nixpkgs
    default and consumer gate. Apply in batches; run each repository's gate and report failures.
@@ -402,14 +436,15 @@ An absence of disk formatting does not prove these outcomes.
 
 **Gate:** every intended workspace pins one tested Vendomat release and supported patched devenv;
 the fleet scan reports no divergent pin; every consumer gate and cross-host proof has a saved run.
+At least one real consumer proves routine creation and updates with no Nix edits.
 
 ## Step 14 — Accept V6 and close the transition
 
 1. Re-run the full Testee gate and opt-in end-to-end check. Re-run machine, cache, restore, and
    real-consumer gates only where an intervening change invalidated their earlier evidence.
-2. Resolve deferred `SYS-*` and TOML commands after `nix-systems` has run: accept them in a new
-   tested scope or mark them deferred with the owner's reason. Decide `SEC-002` from a workspace
-   SOPS fixture. Do not quietly add a second configuration authority.
+2. Keep the workspace user values separate from deferred machine `SYS-*` and TOML commands. Decide
+   the machine operator interface after the workspace flow passes and `nix-systems` runs. Decide
+   `SEC-002` from a workspace SOPS fixture. Do not add a second configuration authority.
 3. Reconcile the V5/V6 ID ledger. Search and repair duplicate claims, stale V4 instructions,
    obsolete command examples, and mismatched concept/spec/guide statements. Update
    `.scratch/CURRENT.md` to make V6 authoritative only after owner review.

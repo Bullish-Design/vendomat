@@ -3,13 +3,16 @@
 **Updated:** 2026-10-10. Each gate is `PASS`, `FAIL`, `BLOCKED`, or `OPEN` (not yet run). `OPEN`
 is a work state, not a result. A document, a unit test, a synthetic policy result, or a project 15
 VM is not new V6 runtime proof. Raw logs sit under `~/.local/state/vendomat/v6/2026-10-09/<step>/`.
+The 2026-10-10 concept revision keeps earlier fixtures as mechanism evidence. It adds G3A for the
+new workspace user contract. A prior builder pass does not close G3A.
 
 | Gate | Step | Status | Evidence | Note |
 | --- | --- | --- | --- | --- |
 | G0 | Authority ledger | PASS | [LEDGER-V6.md](../LEDGER-V6.md), [step-0.md](step-0.md) | Ledger check passes in `testee verify --full` (run 20261009T235155Z-480906abf076); log `00-ledger/testee-full-step0.log`. The external proof inventory is in step-0.md |
 | G1 | Pinned devenv distribution | BLOCKED | [01-devenv-distribution.md](01-devenv-distribution.md) | Fork `v2.4.0-vendomat.2` (commit `e2acb5b0`). Every item passes except `DVN-006` (the fork build in the live Attic and a cold dry run) and the `kexec` phase, which the server route does not use |
 | G2 | `vendomat sync` for devenv workspaces | PASS | [step-2.md](step-2.md) | Stock devenv 2.4.0. The patched CLI is G1. Offline shell entry is G1 |
-| G3 | Vendomat module and library faces | PASS | [step-3.md](step-3.md) | Mode metadata for the patched CLI waits for G1 |
+| G3 | Original Vendomat module and description builder | PASS | [step-3.md](step-3.md) | This proves the original prototype. The description builder is superseded as the concept contract. Mode metadata for the patched CLI waits for G1 |
+| G3A | No-Nix workspace user flow | OPEN | [concept update](../CONCEPT-UPDATE-2026-10-10.md), [guide Step 3A](../GUIDE-V6.md) | A template-created real consumer must select two authored modules, inherit their inputs, change a supported value, and enter its shell without Nix edits |
 | G4 | Command and launcher | PASS | [step-4.md](step-4.md), [step-5.md](step-5.md) | Launcher, `path`, `check`, `push`, `bump`, `machine install` pass. The push shape (`attic push <cache> --stdin`) ran against a real `atticd` in a VM (`testee check e2e` run `20261010T125007Z-a0ca995fce8e`). The owner's live Attic was not pushed to (not permitted in this session) |
 | G5 | Source, cache, builder | BLOCKED | [step-5.md](step-5.md) | Collection, `STORE-010`, cache push, cold substitution, builder, and both substitution directions PASS in VMs and in the green e2e. BLOCKED only on PV-09 (the installer's pull credential: an owner decision) |
 | G6 | `nix-systems` bootable core | PASS | [step-6.md](step-6.md) | Core, Machines flow, library face, Home Manager role, and the framework denial pass in QEMU, rerun on fork `.2` (`tests/run` exit 0). The tests use a minimal delta, so the real services have their own VM check (G8) |

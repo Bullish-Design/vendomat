@@ -13,9 +13,9 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 69, proposed 15, to build 0, superseded 20, decided 2) | 106 |
+| V6 IDs defined (active 56, proposed 22, to build 0, superseded 33, decided 2) | 113 |
 | V6 `NAT-*` facts | 31 |
-| V5 IDs that section 0 names | 51 |
+| V5 IDs that section 0 names | 53 |
 
 ## Checks
 
@@ -99,7 +99,7 @@ withdrew it, and V6 adds nothing.
 | `CORE-008` | active | Kept | V5 text applies |
 | `DEL-001` | superseded | Closed in V5 |  |
 | `DEL-002` | superseded | Closed in V5 |  |
-| `DEL-003` | active | Superseded | `MOD-013`: no `mkModules` helper exists, so no library needs a Vendomat input |
+| `DEL-003` | active | Superseded | `MOD-013`, then `MOD-014`: no shared Vendomat module builder is required |
 | `DEL-004` | active | Superseded | `DEL-016`: `nix-meta` is retired |
 | `DEL-005` | superseded | Closed in V5 |  |
 | `DEL-006` | active | Kept | V5 text applies |
@@ -139,7 +139,7 @@ withdrew it, and V6 adds nothing.
 | `GEN-014` | superseded | Closed in V5 |  |
 | `GEN-015` | active | Kept | V5 text applies |
 | `GEN-016` | active | Kept | V5 text applies |
-| `GEN-017` | active | Kept | It covers the flake target only. The module builds faces from descriptions (`VMOD-018`), not the generator |
+| `GEN-017` | active | Kept | It covers the flake target only. `PRE-012` covers generated workspace wiring |
 | `GEN-018` | active | Kept | V5 text applies |
 | `GEN-019` | active | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
 | `GEN-020` | active | Kept | V5 text applies |
@@ -150,9 +150,9 @@ withdrew it, and V6 adds nothing.
 | `INP-003` | active | Kept | V5 text applies |
 | `INP-004` | active | Kept | V5 text applies |
 | `INP-005` | active | Kept | V5 text applies |
-| `INP-006` | active | Kept | V5 text applies |
+| `INP-006` | active | Superseded | `FACE-008`: only selected modules activate; a common `enable` switch is not required |
 | `INP-007` | active | Kept | V5 text applies |
-| `INP-008` | active | Kept | V5 text applies |
+| `INP-008` | active | Narrowed | The flake target still uses native flake inputs. `PRE-003` covers inherited `devenv.yaml` inputs in a workspace |
 | `ISO-001` | active | Kept | V5 text applies |
 | `ISO-002` | active | Kept | V5 text applies |
 | `ISO-003` | active | Kept | V5 text applies |
@@ -160,16 +160,16 @@ withdrew it, and V6 adds nothing.
 | `ISO-005` | active | Kept | V5 text applies |
 | `ISO-006` | superseded | Closed in V5 |  |
 | `ISO-007` | active | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
-| `MOD-001` | active | Superseded (owner 2026-10-09: Vendomat builds the modules from a library description) | `MOD-001` → `DESC-002` (through `DESC-001`); `MOD-002` → `FACE-005` |
-| `MOD-002` | active | Superseded (owner 2026-10-09: Vendomat builds the modules from a library description) | `MOD-001` → `DESC-002` (through `DESC-001`); `MOD-002` → `FACE-005` |
-| `MOD-003` | active | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
-| `MOD-004` | active | Superseded | `DESC-002`: `packages` is `pkgs: [ derivation ]` and `extra` is `{ cfg, pkgs, lib }: { devenv; nixos; homeManager }` |
-| `MOD-005` | active | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
-| `MOD-006` | active | Superseded | `DESC-002`: `packages` is `pkgs: [ derivation ]` and `extra` is `{ cfg, pkgs, lib }: { devenv; nixos; homeManager }` |
+| `MOD-001` | active | Superseded | `MOD-001` → `DESC-002`, then `MOD-014`; `MOD-002` → `FACE-005`, then `FACE-008` |
+| `MOD-002` | active | Superseded | `MOD-001` → `DESC-002`, then `MOD-014`; `MOD-002` → `FACE-005`, then `FACE-008` |
+| `MOD-003` | active | Superseded | `FACE-008`: a source exports only the targets it needs; an unselected source stays inert |
+| `MOD-004` | active | Superseded | `DESC-002`, then `MOD-014`: authors use native modules |
+| `MOD-005` | active | Superseded | `FACE-008`: a source exports only the targets it needs; an unselected source stays inert |
+| `MOD-006` | active | Superseded | `DESC-002`, then `MOD-014`: authors use native modules |
 | `MOD-007` | superseded | Closed in V5 |  |
-| `MOD-008` | active | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
-| `MOD-009` | active | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
-| `MOD-010` | active | Kept | They apply to the modules Vendomat builds. `MOD-007` stays superseded by `MOD-010` |
+| `MOD-008` | active | Superseded | `MOD-014`: native authored modules replace the generated `extra` and merge contract |
+| `MOD-009` | active | Superseded | `MOD-014`: native authored modules replace the generated `extra` and merge contract |
+| `MOD-010` | active | Superseded | `MOD-014`: native authored modules replace the generated `extra` and merge contract |
 | `NAT-001` | active | Fact | Observation. It satisfies no requirement. |
 | `NAT-002` | active | Fact | Observation. It satisfies no requirement. |
 | `NAT-003` | active | Fact | Observation. It satisfies no requirement. |
@@ -217,7 +217,7 @@ withdrew it, and V6 adds nothing.
 | `REG-018` | active | Kept | V5 text applies |
 | `REG-019` | active | Kept | V5 text applies |
 | `REG-020` | active | Kept | V5 text applies |
-| `REG-021` | active | Superseded | `REG-022`: adds `[imports]` and `[targets]` |
+| `REG-021` | active | Superseded | `REG-022`, then `REG-026`: the workspace registry also holds user choices |
 | `RES-001` | withdrawn | Closed in V5 |  |
 | `RES-002` | withdrawn | Closed in V5 |  |
 | `RES-003` | withdrawn | Closed in V5 |  |
@@ -286,9 +286,9 @@ withdrew it, and V6 adds nothing.
 | `DEL-017` | active | `DEL-010`, `DEL-011` |  |
 | `DEL-018` | superseded | `DEL-012` | by `DEL-019` |
 | `DEL-019` | active | `DEL-012`, `DEL-012` |  |
-| `DESC-001` | superseded | `MOD-001`, `MOD-002` | by `DESC-002` |
-| `DESC-002` | active | `MOD-001`, `MOD-002`, `MOD-004`, `MOD-006` |  |
-| `DESC-003` | active |  |  |
+| `DESC-001` | superseded |  | by `DESC-002` |
+| `DESC-002` | superseded | `MOD-001`, `MOD-002`, `MOD-004`, `MOD-006` | by `MOD-014` |
+| `DESC-003` | superseded |  | by `MOD-014` |
 | `DISK-008` | superseded | `DISK-005` | by `DISK-009` |
 | `DISK-009` | proposed |  |  |
 | `DVN-001` | active |  |  |
@@ -302,12 +302,13 @@ withdrew it, and V6 adds nothing.
 | `DVN-009` | proposed |  |  |
 | `DVN-010` | active |  |  |
 | `FACE-001` | superseded |  | by `FACE-006` |
-| `FACE-002` | active |  |  |
-| `FACE-003` | active |  |  |
+| `FACE-002` | superseded |  | by `FACE-008`, `INP-006` |
+| `FACE-003` | superseded |  | by `FACE-008` |
 | `FACE-004` | decided |  | by `FACE-005` |
-| `FACE-005` | active | `MOD-001`, `MOD-002` |  |
-| `FACE-006` | active |  |  |
-| `FACE-007` | active |  |  |
+| `FACE-005` | superseded | `MOD-001`, `MOD-002` | by `FACE-008` |
+| `FACE-006` | superseded |  | by `FACE-008`, `DESC-002`, `FACE-005`, `MOD-009`, `VMOD-018` |
+| `FACE-007` | superseded |  | by `FACE-008` |
+| `FACE-008` | proposed | `INP-006`, `MOD-001`, `MOD-002`, `MOD-003`, `MOD-005` |  |
 | `GEN-023` | active | `GEN-022` |  |
 | `MACH-001` | superseded |  | by `MACH-023` |
 | `MACH-002` | superseded |  | by `MACH-019` |
@@ -337,7 +338,8 @@ withdrew it, and V6 adds nothing.
 | `MACH-026` | active |  |  |
 | `MOD-011` | superseded |  | by `MOD-013` |
 | `MOD-012` | superseded |  | by `MOD-013` |
-| `MOD-013` | active | `DEL-003` |  |
+| `MOD-013` | superseded | `DEL-003` | by `MOD-014`, `FACE-002`, `FACE-003` |
+| `MOD-014` | proposed | `DEL-003`, `MOD-001`, `MOD-002`, `MOD-004`, `MOD-006`, `MOD-008`, `MOD-009`, `MOD-010` |  |
 | `NAT-018` | fact | `NAT-006` |  |
 | `NAT-019` | fact | `NAT-009` |  |
 | `NAT-020` | fact |  |  |
@@ -371,7 +373,7 @@ withdrew it, and V6 adds nothing.
 | `NAT-048` | fact |  |  |
 | `PRE-001` | active |  |  |
 | `PRE-002` | active |  |  |
-| `PRE-003` | active |  |  |
+| `PRE-003` | active | `INP-008` |  |
 | `PRE-004` | active |  |  |
 | `PRE-005` | active |  |  |
 | `PRE-006` | active |  |  |
@@ -380,15 +382,17 @@ withdrew it, and V6 adds nothing.
 | `PRE-009` | active |  |  |
 | `PRE-010` | active |  |  |
 | `PRE-011` | active |  |  |
-| `REG-022` | active | `REG-021` |  |
+| `PRE-012` | proposed | `GEN-017` |  |
+| `REG-022` | superseded | `REG-021` | by `REG-026` |
 | `REG-023` | active |  |  |
 | `REG-024` | active |  |  |
 | `REG-025` | active | `REG-009` |  |
+| `REG-026` | proposed | `REG-021` |  |
 | `SEC-001` | superseded |  | by `SEC-003`, `MACH-007` |
 | `SEC-002` | proposed |  |  |
 | `SEC-003` | proposed |  |  |
 | `VMOD-001` | active | `DEL-008` |  |
-| `VMOD-002` | active |  |  |
+| `VMOD-002` | superseded |  | by `WS-007` |
 | `VMOD-003` | superseded |  | by `VMOD-013`, `VMOD-018` |
 | `VMOD-004` | active |  |  |
 | `VMOD-005` | active |  |  |
@@ -400,11 +404,14 @@ withdrew it, and V6 adds nothing.
 | `VMOD-011` | active |  |  |
 | `VMOD-012` | superseded |  | by `VMOD-016` |
 | `VMOD-013` | superseded |  | by `VMOD-018`, `DESC-002` |
-| `VMOD-014` | active |  |  |
+| `VMOD-014` | superseded |  | by `FACE-008`, `MACH-023`, `MACH-017` |
 | `VMOD-015` | superseded |  | by `VMOD-018` |
 | `VMOD-016` | proposed |  |  |
-| `VMOD-017` | active |  |  |
-| `VMOD-018` | active | `GEN-017` |  |
+| `VMOD-017` | superseded |  | by `VMOD-019`, `VMOD-018` |
+| `VMOD-018` | superseded |  | by `VMOD-019`, `DESC-002`, `VMOD-017` |
+| `VMOD-019` | proposed |  |  |
+| `WS-007` | proposed |  |  |
+| `WS-008` | proposed |  |  |
 
 ## Reserved and never adopted
 

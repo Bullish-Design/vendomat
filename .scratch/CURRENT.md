@@ -1,12 +1,13 @@
 # Current project
 
-**Updated:** 2026-10-09. This file names the active project. `AGENTS.md` holds durable rules and
+**Updated:** 2026-10-10. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
 ## Draft under owner review: project 16 — Vendomat V6, the devenv layer
 
 `.scratch/projects/16-vendomat-devenv-layer/`: `CONCEPT-V6.md`, `SPEC-V6.md`, `GUIDE-V6.md`,
-`LEDGER-V6.md` (generated), `CUTOVER-REVIEW.md` (the Step 9 package, DRAFT), and
+`CONCEPT-UPDATE-2026-10-10.md`, `LEDGER-V6.md` (generated),
+`CUTOVER-REVIEW.md` (the Step 9 package, DRAFT), and
 `RESEARCH-2026-10-09-MACHINE-PATHS.md`. Gate records: `evidence/GATES.md`.
 
 Every workspace imports a pinned Vendomat devenv module. `vendomat sync` writes a `.vendomat/`
@@ -14,12 +15,17 @@ fragment. One patched devenv (`devenv-dist/`) runs everywhere. The `nix-systems`
 (`Bullish-Design/nix-systems`, private) holds the machine roles: `server` is installed fresh on the
 4 TB drive, then `framework` is adopted in place without a disk install.
 
-**State on 2026-10-10.** Gates G0 to G4, G6, and G7 pass (G7 in QEMU). G1, G5, G8, and G9 are
+**State on 2026-10-10.** Gates G0 to G4, G6, and G7 pass for their recorded interfaces (G7 in
+QEMU). The revised no-Nix workspace gate G3A is OPEN. G1, G5, G8, and G9 are
 BLOCKED by named items: the live Attic push (not permitted in the agent session), PV-09 (the
 installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
 privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot
 order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
 proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.2`.
+
+The 2026-10-10 concept revision makes no-Nix workspace use the first user goal. Module authors
+may write native Nix. The existing description builder remains fixture evidence, but the revised
+draft no longer requires it. Machine operator coverage follows this workspace proof.
 
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
