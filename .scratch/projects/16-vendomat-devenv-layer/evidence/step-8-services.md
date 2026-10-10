@@ -340,3 +340,71 @@ For the lead to merge. IDs are proposals.
   under 2 s that succeeds), `NAT-048` (`PerSourcePenalties` and a single QEMU source).
 - `nixos/server.nix` (F1, F4) and `devman` `nix/nixos-module.nix` (F2): apply the diffs above after
   the owner decides on F4.
+
+## Addendum 2026-10-10: rerun on `main` `fe848434` (fork `v2.4.0-vendomat.2`)
+
+**Status:** the services run PASS for all eight checks, with one runner fault named below. The
+`tests/run` core rerun is **BLOCKED by disk** (no result). F1, F2, and the F4 comment are applied in
+`main`.
+
+**Branch:** `nix-systems` bookmark `v6-services-rerun`, commit `f6de84c91ec1bda9970d5e57467954427a108221`,
+on `main` `fe8484347c55`. The commit changes only the runner and the overlay: the `fixes` variants and
+the F1 reproduction steps are gone, and the disk guard stops under 1 GiB unallocated or over 85%
+metadata. Pushed. `main` is not moved.
+
+| Item | Value |
+| --- | --- |
+| Fork | `v2.4.0-vendomat.2`, rev `e2acb5b02b8627602e223128a082ecfd024850ab` (modules and CLI, `$A/lock-pins.json`) |
+| CLI | `/nix/store/3mfmgg65mf08h7rhwd7w4f2vvcr9ia9i-devenv-wrapped-2.4.0`, `devenv 2.4.0+e2acb5b` |
+| Role toplevel (unmodified) | `/nix/store/yvgz4rxkld5flxr5kvd9sash0x21464q-nixos-system-server-26.11.20261008.e7439b6`, 895 paths |
+| Raw logs `$A` | `~/.local/state/vendomat/v6/2026-10-09/08-legacy/services-vm/rerun1/` |
+
+### Services VM (`python3 -I tests/services/services-vm all RUNDIR LOGDIR`, one run, exit 1)
+
+Expected for the first deploy: exit 0, no rollback, `git-daemon` active, 0 failed units, on a VM with
+no `/home/andrew/vendor`. Observed `[O]`: `/home/andrew/vendor` absent before the deploy; `machines
+apply` exit 0 in 21.2 s, `outcome: succeeded`, system equals the toplevel, `andrew:users 755`,
+`git-daemon` active, 0 failed units (`$A/018-apply-unmodified.log`, `022-…`). No `fixes` variant ran.
+
+| # | Check | Result | Raw log (under `$A`) |
+| --- | --- | --- | --- |
+| 1 | Failed units: after first deploy, same plan again, new plan, reboot, end of run | PASS | `022`, `025`, `029`, `034`, `074` |
+| 2 | SSH key-only; password, another key, deploy key for `andrew` refused | PASS | `035`, `075` to `079` |
+| 3 | sops: 0400 root, `SAME` content, no value in the store, `/etc`, host closure, or logs | PASS | `036` to `042`, `080` |
+| 4 | Collection: tag listed; unmarked repository and push refused | PASS | `043` to `047` |
+| 5 | Attic: API, `/mnt/wd_green1`, tokens, push, narinfo, mount absent | PASS | `066` to `068`, `072`, `073` |
+| 6 | Dagu: linger, registry, API (26 DAGs), one DAG run (`start http=200`, `succeeded`) | PASS | `061`, `063` to `065` |
+| 6b | Root's manager does not run `dagu` or `devman-watch` | PASS on content, FAIL as recorded (below) | `062-dagu-per-user.log` |
+| 7 | Tools: `devenv version` is `2.4.0+e2acb5b`; the rest exit 0 | PASS | `048` to `058` |
+| 8 | No V4: 0 of 895 paths match; 0 `REPOMAN_TOOLCHAIN_BIN` in 445 unit files, `etc`, environments | PASS | `059`, `060` |
+
+Check 6b, observed `[O]` (`062`): `root dagu.service: inactive`, `ActiveState=inactive
+ConditionResult=no Result=success`; the same for `devman-watch.service`; `andrew: active`; PID 788
+(andrew) holds `127.0.0.1:8080` and `:50055`; 0 `address already in use` lines in the boot journal.
+That is the expected result (F2 applied). `checks.json` still says FAIL: the command's last pipeline
+stage, `grep -c`, exits 1 when the count is 0, and the runner required exit 0. The pushed commit
+appends `; true`. I did not rerun this check on a VM (disk, below), so the record keeps FAIL and
+the `; true` fix is untested. `checks.json`: 60 PASS, 1 FAIL, 1 OBSERVED (the Serve unit started by
+hand, which fails at `tailscale wait`, as before). The limits under "Not proven" stand unchanged.
+
+### `tests/run` (Step 6 core and Machines flow): BLOCKED, DISK
+
+- Started with the services rerun, in parallel (`rerun2` of the services runner and `tests/run`).
+- The services runner stopped itself after the base image build: `DISK blocker: unallocated
+  1.00MiB at after-image` (`$A/../rerun2/all.err`, exit 3). I stopped `tests/run` at `lock-and-build`
+  by hand. Its stage `collection` exited 0; no other stage ran
+  (`06-nix-systems/rerun-fork2.out`). No result: neither PASS nor FAIL for any runner step.
+- Disk: unallocated 7.01 GiB at the start, 3.01 GiB after the first services run (the run built one
+  2.6 GiB image), 1.00 MiB when the two runs built their images together (data chunks 412.86 GiB to
+  419.88 GiB; other lanes build at the same time). Metadata 77.9%. Free in chunks 37.6 GiB. I ran
+  no GC. The qcow2 images, run directories, keys, and daemons of both runs are deleted. Each run
+  leaves a new 2.6 GiB `nixos-disk-image` in the store.
+- Mistake of mine: starting two image builds together while unallocated was 3 GiB. One at a time
+  would have stayed above 1 GiB.
+
+### What the next lane needs
+
+1. Free chunk space (owner: `nix-collect-garbage`, or `btrfs balance`), or wait until another lane
+   frees unallocated space above 3 GiB.
+2. Run `tests/run` once, alone, from `main` `fe848434` or from `v6-services-rerun`.
+3. Optionally rerun `tests/services/services-vm all` to turn check 6b green with the `; true` fix.
