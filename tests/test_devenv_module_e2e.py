@@ -390,6 +390,11 @@ BAD = [
         "not an install-target of the inventory",
     ),
     (
+        "install-target has the by-id path of a keep disk",
+        fresh(disks=f"main = {disk('install-target', TARGET)}; old = {disk('keep', TARGET)};"),
+        "same by-id path as a keep or existing-system disk",
+    ),
+    (
         "fresh target lacks model and serial",
         fresh(disks=f"main = {disk('install-target', TARGET, full=False)};"),
         "needs model, serial, and sizeBytes",

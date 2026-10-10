@@ -138,6 +138,15 @@ in
       });
     };
 
+    installTargets = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.listOf lib.types.str);
+      readOnly = true;
+      default = lib.mapAttrs
+        (_: h: lib.mapAttrsToList (_: d: d.byId) (lib.filterAttrs (_: d: d.role == "install-target") h.disks))
+        cfg.inventory;
+      description = "The by-id paths of each host's install-target disks. `vendomat machine install` reads them.";
+    };
+
     modes = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       readOnly = true;

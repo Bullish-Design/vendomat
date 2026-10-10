@@ -33,6 +33,8 @@ in
       incomplete = lib.filterAttrs
         (_: d: d.model == null || d.serial == null || d.sizeBytes == null) targets;
       notById = lib.filterAttrs (_: d: !(lib.hasPrefix "/dev/disk/by-id/" d.byId)) disks;
+      protectedIds = lib.mapAttrsToList (_: d: d.byId) (lib.filterAttrs (_: d: d.role != "install-target") disks);
+      sharedIds = lib.filter (id: lib.elem id protectedIds) targetIds;
       bullet = lib.concatMapStringsSep "\n" (s: "  " + s);
     in
     {
@@ -44,6 +46,10 @@ in
         {
           assertion = notById == { };
           message = "vendomat guard (${host}): inventory disks must be /dev/disk/by-id/ paths: ${toString (lib.attrNames notById)}.";
+        }
+        {
+          assertion = sharedIds == [ ];
+          message = "vendomat guard (${host}): an install-target has the same by-id path as a keep or existing-system disk: ${toString sharedIds}.";
         }
         # --- fresh-install ---------------------------------------------------------------------
         {

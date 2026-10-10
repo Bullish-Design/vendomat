@@ -90,14 +90,15 @@ add_check baked-data pass "${#TARGETS_BAKED[@]} install-target(s), ${#PROTECTED_
 [ "$(id -u)" = "0" ] && add_check root pass || add_check root unknown "run as root: signatures cannot be read otherwise"
 
 missing=""
-for tool in lsblk wipefs blkid readlink findmnt; do
-  command -v "$tool" >/dev/null 2>&1 || missing+=" $tool"
+for tool in lsblk wipefs blkid readlink findmnt awk cat grep head id ls sort tr; do
+  # `command -v` accepts a file that is not executable. `type -P` names an executable file only.
+  [ -x "$(type -P "$tool" 2>/dev/null)" ] || missing+=" $tool"
 done
 if [ -n "$missing" ]; then
   add_check tools unknown "missing tools:$missing"
   finish
 fi
-add_check tools pass "lsblk wipefs blkid readlink findmnt"
+add_check tools pass "lsblk wipefs blkid readlink findmnt awk cat grep head id ls sort tr"
 
 if [ -z "$machine" ] || [ -z "$nonce" ]; then
   add_check arguments fail "--machine and --nonce are required"
@@ -106,6 +107,18 @@ fi
 if [ "${#disks[@]}" -eq 0 ]; then
   add_check arguments fail "no --disk was given"
   finish
+fi
+
+# --- Only the reviewed route is allowed (MACH-008): phases `disko,install`, disko mode `disko` --------
+if [ "$phases" = "disko,install" ]; then
+  add_check phases pass "disko,install"
+else
+  add_check phases fail "phases '$phases'; only 'disko,install' is supported"
+fi
+if [ "$disko_mode" = "disko" ]; then
+  add_check disko-mode pass "disko"
+else
+  add_check disko-mode fail "disko mode '$disko_mode'; only 'disko' is supported"
 fi
 
 # --- The disk set equals the baked install-targets --------------------------------------------
@@ -126,7 +139,7 @@ else
 fi
 
 # --- Nothing under /mnt -----------------------------------------------------------------------
-if findmnt -rn -R /mnt >/dev/null 2>&1; then
+if findmnt -rn -o TARGET 2>/dev/null | grep -Eq '^/mnt(/|$)'; then
   add_check mnt-clear fail "something is mounted at or under /mnt"
 elif [ -d /mnt ] && [ -n "$(ls -A /mnt 2>/dev/null || true)" ]; then
   add_check mnt-clear fail "/mnt holds files; install would write into the running root"
@@ -157,6 +170,8 @@ for p in "${PROTECTED_BAKED[@]}"; do
   [ -n "$p" ] || continue
   if [ -e "$p" ]; then
     protected_dev["$(readlink -f -- "$p")"]=1
+  else
+    add_check "protected-resolves:$p" unknown "the protected disk path does not resolve"
   fi
 done
 
@@ -224,7 +239,7 @@ for by in "${disks[@]}"; do
   fi
 
   # Signatures: wipefs and blkid must both find nothing.
-  if wipe="$(wipefs --no-act --parse -- "$dev" 2>&1)"; then
+  if wipe="$(wipefs --no-act --parsable -- "$dev" 2>&1)"; then
     if [ -z "$(trim "$wipe")" ]; then
       add_check "no-signature-wipefs:$tag" pass "wipefs found no signature"
     else

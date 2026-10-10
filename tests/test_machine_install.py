@@ -18,7 +18,15 @@ from vendomat.machine import MachineError, plan_install
 runner = CliRunner()
 
 
-def fake_devenv(tmp: Path, *, modes: dict, facter: object = None, target: str | None = "root@localhost") -> str:
+def fake_devenv(
+    tmp: Path,
+    *,
+    modes: dict,
+    facter: object = None,
+    target: str | None = "root@localhost",
+    ssh_opts: list[str] | None = None,
+    install_targets: dict | None = None,
+) -> str:
     """A `devenv` that answers `eval` from tables and records every other call."""
 
     log = tmp / "devenv-calls.log"
@@ -28,6 +36,11 @@ def fake_devenv(tmp: Path, *, modes: dict, facter: object = None, target: str | 
         "machines.server.target.host": target,
         "machines.framework.hardware.facter": facter,
         "machines.framework.target.host": target,
+        "machines.server.target.sshOpts": ssh_opts or [],
+        "machines.framework.target.sshOpts": ssh_opts or [],
+        "vendomat.installTargets": install_targets
+        if install_targets is not None
+        else {"server": ["/dev/disk/by-id/new"]},
     }
     table = tmp / "answers.json"
     table.write_text(json.dumps(answers))
@@ -66,6 +79,40 @@ def test_a_fresh_host_gets_exactly_one_install_command(tmp_path):
     plan = plan_install(root, "server", devenv, check_version=False)
     assert plan.argv == [devenv, "machines", "install", "server", "--phases", "disko,install"]
     assert plan.unmount == ["ssh", "-o", "BatchMode=yes", "root@localhost", "umount -R /mnt"]
+    assert plan.swapoff[:4] == ["ssh", "-o", "BatchMode=yes", "root@localhost"]
+    assert "swapoff" in plan.swapoff[-1] and "/dev/disk/by-id/new" in plan.swapoff[-1]
+
+
+def test_the_unmount_uses_the_machines_ssh_options_and_port(tmp_path):
+    root, devenv = prepare(
+        tmp_path,
+        modes={"server": "fresh-install"},
+        facter=None,
+        target="root@127.0.0.1:2222",
+        ssh_opts=["-o", "IdentityFile=/k", "-o", "UserKnownHostsFile=/h"],
+    )
+    plan = plan_install(root, "server", devenv, check_version=False)
+    assert plan.unmount == [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "IdentityFile=/k",
+        "-o",
+        "UserKnownHostsFile=/h",
+        "-p",
+        "2222",
+        "root@127.0.0.1",
+        "umount -R /mnt",
+    ]
+
+
+def test_split_target_handles_a_user_host_and_port():
+    from vendomat.machine import split_target
+
+    assert split_target("root@localhost") == ("root@localhost", None)
+    assert split_target("root@10.0.0.2:2200") == ("root@10.0.0.2", "2200")
+    assert split_target("host:22") == ("host", "22")
 
 
 def test_an_adopted_host_is_refused_before_any_install_call(tmp_path):
@@ -100,7 +147,7 @@ def test_a_failed_workspace_check_stops_before_the_install(tmp_path):
     assert calls(tmp_path) == []
 
 
-def test_the_command_runs_the_install_then_unmounts(tmp_path, monkeypatch):
+def test_the_command_runs_the_install_then_unmounts_and_turns_off_swap(tmp_path, monkeypatch):
     root, devenv = prepare(tmp_path, modes={"server": "fresh-install"}, facter=None)
     ssh_log = tmp_path / "ssh.log"
     ssh = stub(tmp_path, "ssh", f'echo "$@" >> {ssh_log}\n')
@@ -109,10 +156,12 @@ def test_the_command_runs_the_install_then_unmounts(tmp_path, monkeypatch):
     result = runner.invoke(app, ["machine", "install", "server", "--root", str(root), "--no-version"])
     assert result.exit_code == 0, result.output
     assert calls(tmp_path) == ["machines install server --phases disko,install"]
-    assert ssh_log.read_text().strip() == "-o BatchMode=yes root@localhost umount -R /mnt"
+    lines = ssh_log.read_text().splitlines()
+    assert lines[0] == "-o BatchMode=yes root@localhost umount -R /mnt"
+    assert "swapoff" in lines[1]
 
 
-def test_a_failed_install_still_unmounts_and_exits_two(tmp_path, monkeypatch):
+def test_a_failed_install_unmounts_nothing_and_exits_two(tmp_path, monkeypatch):
     root, devenv = prepare(tmp_path, modes={"server": "fresh-install"}, facter=None)
     ssh_log = tmp_path / "ssh.log"
     ssh = stub(tmp_path, "ssh", f'echo "$@" >> {ssh_log}\n')
@@ -121,8 +170,8 @@ def test_a_failed_install_still_unmounts_and_exits_two(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", f"{Path(ssh).parent}:/usr/bin:/bin:/run/current-system/sw/bin")
     result = runner.invoke(app, ["machine", "install", "server", "--root", str(root), "--no-version"])
     assert result.exit_code == 2
-    assert "install failed (exit 7)" in result.output
-    assert ssh_log.exists()
+    assert "install failed (exit 7)" in result.output and "Nothing was unmounted" in result.output
+    assert not ssh_log.exists()  # a refused preflight must not unmount an operator's /mnt (case l2)
 
 
 def test_dry_run_prints_the_command_and_runs_nothing(tmp_path, monkeypatch):

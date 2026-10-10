@@ -41,7 +41,40 @@ class InstallPlan:
     mode: str
     argv: list[str]
     unmount: list[str] = field(default_factory=list)
+    #: The command that turns off swap that the install started on the new disks. Empty when unknown.
+    swapoff: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+
+
+def split_target(target: str) -> tuple[str, str | None]:
+    """Split ``user@host[:port]`` into the ssh destination and the port. A bare ``host:port`` works too."""
+
+    user, at, rest = target.rpartition("@")
+    host, colon, port = rest.rpartition(":")
+    if colon and port.isdigit() and "]" not in port:
+        return f"{user}{at}{host}", port
+    return target, None
+
+
+def ssh_argv(target: str, ssh_opts: list[str], remote: str) -> list[str]:
+    """The ssh command for one remote shell command, with the machine's own options and port."""
+
+    destination, port = split_target(target)
+    argv = ["ssh", "-o", "BatchMode=yes", *ssh_opts]
+    if port is not None:
+        argv += ["-p", port]
+    return [*argv, destination, remote]
+
+
+def swapoff_script(by_ids: list[str]) -> str:
+    """A shell command that runs ``swapoff`` on each active swap whose parent disk is one of ``by_ids``."""
+
+    disks = " ".join(f"'{b}'" for b in by_ids)
+    return (
+        "for id in " + disks + '; do d=$(basename "$(readlink -f "$id")"); '
+        "for s in $(awk 'NR>1 {print $1}' /proc/swaps); do "
+        '[ "$(lsblk -no PKNAME "$s" 2>/dev/null)" = "$d" ] && swapoff "$s"; done; done; true'
+    )
 
 
 def _devenv_json(devenv: str, root: Path, attr: str) -> Any:
@@ -126,23 +159,39 @@ def plan_install(root: Path, host: str, devenv_cmd: str | None = None, check_ver
             notes.append("could not tell whether the facter report is committed (no jj or git answered)")
     target = _devenv_json(devenv, root, f"machines.{host}.target.host")
     unmount: list[str] = []
+    swapoff: list[str] = []
     if isinstance(target, str) and target:
-        unmount = ["ssh", "-o", "BatchMode=yes", target, "umount -R /mnt"]
+        opts = _devenv_json(devenv, root, f"machines.{host}.target.sshOpts")
+        ssh_opts = [str(o) for o in opts] if isinstance(opts, list) else []
+        unmount = ssh_argv(target, ssh_opts, "umount -R /mnt")
+        targets = _devenv_json(devenv, root, "vendomat.installTargets")
+        by_ids = targets.get(host, []) if isinstance(targets, dict) else []
+        if by_ids:
+            swapoff = ssh_argv(target, ssh_opts, swapoff_script([str(b) for b in by_ids]))
     argv = [devenv, "machines", "install", host, "--phases", PHASES]
-    return InstallPlan(host=host, mode=mode, argv=argv, unmount=unmount, notes=notes)
+    return InstallPlan(host=host, mode=mode, argv=argv, unmount=unmount, swapoff=swapoff, notes=notes)
 
 
 def run_install(plan: InstallPlan, root: Path) -> tuple[int, int | None]:
-    """Run the install, then unmount ``/mnt`` on the target. Return ``(install exit, unmount exit)``."""
+    """Run the install. After a successful install, unmount ``/mnt`` and turn off the new swap.
+
+    A refused or failed install mounted nothing that the operator did not mount, so nothing is
+    unmounted then. Return ``(install exit, cleanup exit)``. The second value is ``None`` when no
+    cleanup ran, and the worst exit status otherwise.
+    """
 
     done = subprocess.run(plan.argv, cwd=root, timeout=DEVENV_TIMEOUT, stdin=subprocess.DEVNULL)
-    unmounted: int | None = None
-    if plan.unmount:
-        # Run it even when the install failed: a half-installed /mnt must not stay mounted.
+    if done.returncode != 0:
+        return done.returncode, None
+    worst: int | None = None
+    for argv in (plan.unmount, plan.swapoff):
+        if not argv:
+            continue
         try:
-            unmounted = subprocess.run(
-                plan.unmount, cwd=root, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL
+            code = subprocess.run(
+                argv, cwd=root, capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL
             ).returncode
         except (OSError, subprocess.TimeoutExpired):
-            unmounted = 124
-    return done.returncode, unmounted
+            code = 124
+        worst = code if worst in (None, 0) else worst
+    return 0, worst

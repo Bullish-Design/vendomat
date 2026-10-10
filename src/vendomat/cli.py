@@ -300,14 +300,19 @@ def machine_install(
         typer.echo("vendomat machine install: dry run; nothing ran", err=True)
         return
     installed, unmounted = run_install(plan, project)
-    if unmounted not in (None, 0):
+    if installed != 0:
         typer.echo(
-            f"vendomat machine install: could not unmount /mnt on the target (exit {unmounted}); unmount it by hand",
+            f"vendomat machine install: the install failed (exit {installed}). Nothing was unmounted. "
+            "Inspect the target before you unmount /mnt or run the install again",
             err=True,
         )
-    if installed != 0:
-        typer.echo(f"vendomat machine install: the install failed (exit {installed})", err=True)
         raise typer.Exit(code=2)
+    if unmounted not in (None, 0):
+        typer.echo(
+            f"vendomat machine install: could not unmount /mnt or turn off the new swap (exit {unmounted}); "
+            "do both by hand before the reboot",
+            err=True,
+        )
 
 
 def main() -> None:
