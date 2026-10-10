@@ -14,10 +14,12 @@ fragment. One patched devenv (`devenv-dist/`) runs everywhere. The `nix-systems`
 (`Bullish-Design/nix-systems`, private) holds the machine roles: `server` is installed fresh on the
 4 TB drive, then `framework` is adopted in place without a disk install.
 
-**State on 2026-10-10.** Steps 0 to 4 are built and on `main`; Steps 5 to 8 have VM and closure
-evidence with named blockers. No real disk, firmware entry, or boot order changed. The privileged
-scan (PV-02), the `nixos-facter` report, the live Attic push, and PV-09 wait for the owner. See
-`CUTOVER-REVIEW.md` section 1 for the verdict.
+**State on 2026-10-10.** Gates G0 to G4, G6, and G7 pass (G7 in QEMU). G1, G5, G8, and G9 are
+BLOCKED by named items: the live Attic push (not permitted in the agent session), PV-09 (the
+installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
+privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot
+order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
+proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.2`.
 
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
