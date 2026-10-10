@@ -191,21 +191,32 @@ builder fixture as historical evidence, not as this gate.
 
 **Goal:** let a workspace user create and update a workspace without editing Nix.
 
+The Vendomat package ships `vendomat-workspace-init` and a Templateer library. Templateer must be
+on `PATH`. Give the command a JSON model with `forge_url`, `vendomat_tag`, and optional
+`devenv_tag`, then a new workspace directory. The command creates `vendomat.toml`, `devenv.nix`,
+and `devenv.yaml`. The workspace user owns `vendomat.toml`. The template owns the two devenv files.
+Vendomat owns `.vendomat/`. Only the workspace user edits routine module selections and values.
+
+```sh
+vendomat-workspace-init model.json workspace
+```
+
 1. Use the bundled template generator to create a fresh devenv workspace. Give template-owned,
    user-owned, and Vendomat-owned files distinct ownership. Keep generated Nix in version control.
-2. Put module selections and supported values in `vendomat.toml`. Reuse `[imports]` where it gives
-   one clear selection source. Test the exact values table and types before adopting a name.
-3. Extend `vendomat sync` to generate only the Nix wiring for selected modules and supported
-   values. Reject unknown modules and unsupported values. Keep the root `devenv.nix` stable.
+2. Put module selections in `[imports]` and supported values under `[settings.<module>]` in
+   `vendomat.toml`.
+3. Keep the root `devenv.nix` stable. Let the template read `[settings]` through `builtins.fromTOML`.
+   Let native Nix options in selected modules reject unsupported values. Let `sync` reject unknown
+   `[imports]` names and resolve the selected modules' inherited inputs.
 4. Select two composable authored modules whose `devenv.yaml` files declare inherited inputs.
-   Enter the shell. Change one supported value and repeat. Record the registry diff, generated
-   diff, lock nodes, shell result, and unchanged user-owned files.
+   Enter the shell. Change one supported value and repeat. Record the registry diff, fragment
+   diff, lock nodes, shell result, and unchanged template-owned files.
 5. Compare the shell derivation with and without an unselected source. Confirm that sync does not
    import its module. Run Testee and the consumer end-to-end gate.
 
 **Gate:** a workspace user changes only `vendomat.toml` after template creation. Both selected
 modules compose, their inputs lock, a supported value changes the result, and an unselected
-source has no effect. The exact format remains proposed until this fixture passes.
+source has no effect. G3A passed in the local consumer. See `evidence/step-3a.md`.
 
 ## Step 4 — Complete the Vendomat command and launcher
 

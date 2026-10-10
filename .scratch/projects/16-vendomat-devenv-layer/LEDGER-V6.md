@@ -13,7 +13,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 56, proposed 22, to build 0, superseded 33, decided 2) | 113 |
+| V6 IDs defined (active 56, proposed 22, to build 0, superseded 35, decided 2) | 115 |
 | V6 `NAT-*` facts | 31 |
 | V5 IDs that section 0 names | 53 |
 
@@ -139,7 +139,7 @@ withdrew it, and V6 adds nothing.
 | `GEN-014` | superseded | Closed in V5 |  |
 | `GEN-015` | active | Kept | V5 text applies |
 | `GEN-016` | active | Kept | V5 text applies |
-| `GEN-017` | active | Kept | It covers the flake target only. `PRE-012` covers generated workspace wiring |
+| `GEN-017` | active | Kept | It covers the flake target only. `PRE-013` covers the workspace bridge |
 | `GEN-018` | active | Kept | V5 text applies |
 | `GEN-019` | active | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
 | `GEN-020` | active | Kept | V5 text applies |
@@ -217,7 +217,7 @@ withdrew it, and V6 adds nothing.
 | `REG-018` | active | Kept | V5 text applies |
 | `REG-019` | active | Kept | V5 text applies |
 | `REG-020` | active | Kept | V5 text applies |
-| `REG-021` | active | Superseded | `REG-022`, then `REG-026`: the workspace registry also holds user choices |
+| `REG-021` | active | Superseded | `REG-022`, `REG-026`, then `REG-027`: the workspace registry also holds user choices |
 | `RES-001` | withdrawn | Closed in V5 |  |
 | `RES-002` | withdrawn | Closed in V5 |  |
 | `RES-003` | withdrawn | Closed in V5 |  |
@@ -382,12 +382,14 @@ withdrew it, and V6 adds nothing.
 | `PRE-009` | active |  |  |
 | `PRE-010` | active |  |  |
 | `PRE-011` | active |  |  |
-| `PRE-012` | proposed | `GEN-017` |  |
+| `PRE-012` | superseded |  | by `PRE-013` |
+| `PRE-013` | proposed | `GEN-017` |  |
 | `REG-022` | superseded | `REG-021` | by `REG-026` |
 | `REG-023` | active |  |  |
 | `REG-024` | active |  |  |
 | `REG-025` | active | `REG-009` |  |
-| `REG-026` | proposed | `REG-021` |  |
+| `REG-026` | superseded | `REG-021` | by `REG-027`, `REG-022` |
+| `REG-027` | proposed | `REG-021` |  |
 | `SEC-001` | superseded |  | by `SEC-003`, `MACH-007` |
 | `SEC-002` | proposed |  |  |
 | `SEC-003` | proposed |  |  |

@@ -71,6 +71,23 @@ in
       timeout_s = 1800;
       structured = { parser = "junit-xml"; file = "e2e.junit.xml"; };
     };
+    workspace-e2e = {
+      argv = [
+        "${pkgs.bash}/bin/bash"
+        "-c"
+        ''
+          export HOME="$(eval echo "~$(id -un)")" VENDOMAT_E2E=1
+          export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+          export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
+          export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
+          ${venvBin}/python -m pytest -q tests/test_workspace_user_e2e.py --junitxml="$TESTEE_RUN_DIR/workspace-e2e.junit.xml"
+        ''
+      ];
+      profiles = [ "workspace-e2e" ];
+      required = false;
+      timeout_s = 900;
+      structured = { parser = "junit-xml"; file = "workspace-e2e.junit.xml"; };
+    };
   };
 
   # https://devenv.sh/basics/

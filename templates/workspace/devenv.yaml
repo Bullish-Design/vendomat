@@ -1,0 +1,2 @@
+# Template-owned input wiring. Vendomat writes the imported .vendomat/ fragment.
+imports: [ ./.vendomat ]

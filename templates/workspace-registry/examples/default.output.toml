@@ -1,0 +1,14 @@
+# Workspace-owned choices. Edit this file, then run vendomat sync.
+[forge]
+url = "git://server"
+
+[targets]
+devenv = true
+
+[inputs]
+vendomat = { ref = "refs/tags/v0.7.0" }
+devenv = { ref = "refs/tags/v2.4.0-vendomat.2", dir = "src/modules" }
+
+[imports]
+
+[settings]

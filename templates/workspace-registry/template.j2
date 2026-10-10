@@ -1,0 +1,16 @@
+# Workspace-owned choices. Edit this file, then run vendomat sync.
+[forge]
+url = "{{ forge_url }}"
+
+[targets]
+devenv = true
+
+[inputs]
+vendomat = { ref = "refs/tags/{{ vendomat_tag }}" }
+{% if devenv_tag %}
+devenv = { ref = "refs/tags/{{ devenv_tag }}", dir = "src/modules" }
+{% endif %}
+
+[imports]
+
+[settings]

@@ -42,6 +42,7 @@ include = [
   "src",
   "README.md",
   "tests",
+  "templates",
   "pyproject.toml",
 ]
 

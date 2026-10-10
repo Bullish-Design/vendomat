@@ -67,7 +67,7 @@ def test_the_dir_key_becomes_a_url_query_parameter():
 
 
 def test_an_unknown_table_names_the_allowed_tables():
-    with pytest.raises(RegistryError, match=r"\[imports\], or \[targets\]"):
+    with pytest.raises(RegistryError, match=r"\[targets\], or \[settings\]"):
         parse_registry(BASE + "\n[other]\nx = 1\n")
 
 
@@ -75,3 +75,20 @@ def test_the_flake_digest_ignores_imports_and_targets():
     plain = parse_registry(BASE)
     extra = parse_registry(BASE + '\n[imports]\nlib-a = "devenv"\n\n[targets]\nflake = true\ndevenv = true\n')
     assert plain.digest == extra.digest
+
+
+def test_workspace_settings_hold_native_toml_values():
+    registry = parse_registry(
+        BASE + '\n[targets]\ndevenv = true\n\n[settings.lib-a]\nport = 8123\nnames = ["one", "two"]\n'
+    )
+    assert registry.settings == {"lib-a": {"port": 8123, "names": ["one", "two"]}}
+
+
+def test_workspace_settings_reject_values_that_nix_cannot_pass_to_module_options():
+    with pytest.raises(RegistryError, match=r"settings.lib-a.at has an unsupported TOML value \(datetime\)"):
+        parse_registry(BASE + "\n[targets]\ndevenv = true\n\n[settings.lib-a]\nat = 2026-10-10T12:00:00Z\n")
+
+
+def test_workspace_settings_need_a_devenv_target():
+    with pytest.raises(RegistryError, match=r"\[settings\] needs the devenv target"):
+        parse_registry(BASE + "\n[settings.lib-a]\nport = 8123\n")

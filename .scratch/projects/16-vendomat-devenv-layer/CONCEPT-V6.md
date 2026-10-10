@@ -77,7 +77,12 @@ fixture with a tripwire target, and a QEMU install with payloads (`evidence/01-d
 ## 2. The Vendomat devenv module and the workspace user
 
 The template generator creates the workspace's `devenv.yaml` and `devenv.nix`. The user does not
-edit either file for routine changes. The following files show the generated wiring, not user steps:
+edit either file for routine changes.
+The Vendomat package carries the template files and an init command. The init command runs the
+Templateer host tool. The workspace user owns `vendomat.toml`; the template owns the two devenv
+files; Vendomat owns `.vendomat/`.
+
+The following files show the template-owned wiring, not user steps:
 
 ```yaml
 # devenv.yaml
@@ -85,22 +90,26 @@ imports: [ ./.vendomat ]
 ```
 
 ```nix
-# devenv.nix (template-owned wiring; exact imports remain proposed)
-{ inputs, ... }: {
-  imports = [ inputs.vendomat.devenvModules.default ./.vendomat/modules.nix ];
+# devenv.nix (template-owned wiring)
+{ inputs, ... }:
+let registry = builtins.fromTOML (builtins.readFile ./vendomat.toml);
+in {
+  imports = [ inputs.vendomat.devenvModules.default ];
+  vendomat.settings = registry.settings or { };
 }
 ```
 
-The user selects `knappy` and its supported values in `vendomat.toml`. `vendomat sync` resolves the
-module's inputs and writes its import and settings into Vendomat-owned files. The exact registry
-syntax and generated file path need a fixture on the pinned tools. The user's choice has one source
-of truth. A module may provide its own `devenv.yaml`; its consumers inherit those inputs.
+The user selects `knappy` through `[imports]` and sets supported values under `[settings.knappy]`.
+`vendomat sync` resolves the selected module's inputs into `.vendomat/devenv.yaml`.
+The stable template-owned `devenv.nix` reads settings from `vendomat.toml` with `builtins.fromTOML`.
+The authored module declares and validates its supported values through native Nix options.
+The user's choice has one source of truth. A module may provide its own `devenv.yaml`; its consumers inherit those inputs.
 
 The workspace integration does this:
 
 | Function | How | Evidence |
 | --- | --- | --- |
-| Imports selected workspace modules | The generated workspace wiring names authored devenv modules. An unselected source changes no shell output | Existing face fixtures prove inertness for the current builder; the selected-module flow still needs a consumer fixture |
+| Imports selected workspace modules | The generated fragment names authored devenv modules. An unselected source changes no shell output | G3A passed in a template-created consumer (`evidence/step-3a.md`) |
 | Refuses an unpinned input | An **assertion** reads `devenv.lock`: every git node must name `refs/tags/…`. A task cannot stop shell entry | Agents I Q5, K Q2 |
 | Pushes outputs to Attic | `vendomat.cache.push` adds a `vendomat:push` task and a `vendomat-push` script | Agent K Q3 (stand-in `attic`) |
 | Exposes input store paths | `vendomat.inputPaths`, and a JSON output whose closure holds every input source | Agent K Q4 |
@@ -134,9 +143,9 @@ The current `vendomat sync` reads `vendomat.toml` and writes three files:
 | `.vendomat/devenv.nix` | Assertions that stop the shell when the registry or the fragment changed since the last sync |
 | `.vendomat/digest` | Hashes of the registry, the resolved imports, and the fragment |
 
-The proposed workspace flow also needs generated Nix wiring for selected modules and supported
-values. The sketch names `.vendomat/modules.nix`; its path and content remain unproved. The digest
-must cover that wiring once the fixture selects its final form.
+The template owns the stable `devenv.nix` bridge. It reads `[settings]` directly from the registry.
+The digest already covers the registry and the generated fragment. Vendomat does not generate a
+second Nix module for settings.
 
 A direnv function, `use_vendomat`, re-syncs only when the digest is stale, then calls `use devenv`.
 With nothing changed it costs about 0.35 s. The fragment adds no measurable time to a warm shell

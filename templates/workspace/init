@@ -1,0 +1,33 @@
+#!/bin/sh
+# Create one workspace from the bundled Templateer library and stable devenv files.
+set -eu
+
+if [ "$#" -ne 2 ]; then
+  echo "usage: vendomat-workspace-init MODEL.json DIRECTORY" >&2
+  exit 3
+fi
+
+model=$1
+target=$2
+templateer_cmd=${VENDOMAT_TEMPLATEER:-templateer}
+if ! command -v "$templateer_cmd" >/dev/null 2>&1; then
+  echo "vendomat-workspace-init: templateer is required on PATH" >&2
+  exit 2
+fi
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+case "$here" in
+  */bin) templates=$here/../share/vendomat/templates ;;
+  *) templates=$here/.. ;;
+esac
+
+for name in vendomat.toml devenv.nix devenv.yaml; do
+  if [ -e "$target/$name" ]; then
+    echo "vendomat-workspace-init: $target/$name already exists" >&2
+    exit 1
+  fi
+done
+
+mkdir -p "$target"
+"$templateer_cmd" render workspace-registry -p "$templates" --input "$model" --output "$target/vendomat.toml"
+cp "$templates/workspace/devenv.nix" "$target/devenv.nix"
+cp "$templates/workspace/devenv.yaml" "$target/devenv.yaml"

@@ -1,4 +1,4 @@
-"""The Vendomat devenv module against a real `devenv` (Step 3, `VMOD-*`, `FACE-*`, `DESC-*`).
+"""The Vendomat machine and lock module against a real `devenv` (Step 3, `VMOD-*`).
 
 Opt in with `testee check e2e`. Each case writes a small devenv workspace that imports
 `inputs.vendomat.devenvModules.default` from this repository, plus library flakes in a temporary
@@ -30,95 +30,9 @@ GIT = ["git", "-c", "user.email=fixture@example.invalid", "-c", "user.name=fixtu
 
 # --- Library fixtures -------------------------------------------------------------------------
 
-KNAPPY = """\
-{
-  inputs.nixpkgs.url = "%(nixpkgs)s";
-  outputs = { self, nixpkgs }:
-    let forAll = nixpkgs.lib.genAttrs [ "x86_64-linux" ];
-    in {
-      packages = forAll (system: {
-        default = nixpkgs.legacyPackages.${system}.writeShellScriptBin "knappy" ''
-          case "$1" in
-            serve) echo "knappy serving on $3"; exec sleep 3600 ;;
-            *) echo "knappy $*" ;;
-          esac
-        '';
-      });
-      vendomat = {
-        name = "knappy";
-        packages = pkgs: [ self.packages.${pkgs.stdenv.hostPlatform.system}.default ];
-        options = lib: {
-          port = lib.mkOption { type = lib.types.port; default = 8080; };
-        };
-        service = { pkgs, cfg }: { exec = "knappy serve --port ${toString cfg.port}"; };
-        extra = { cfg, pkgs, lib }: {
-          devenv.env.KNAPPY_EXTRA = "devenv";
-          nixos.networking.firewall.allowedTCPPorts = [ cfg.port ];
-          homeManager.home.sessionVariables.KNAPPY_EXTRA = "home-manager";
-        };
-      };
-    };
-}
-"""
+KNAPPY = '{ inputs.nixpkgs.url = "%(nixpkgs)s"; outputs = { self, nixpkgs }: { }; }\n'
 
-#: A library that writes its faces by hand, with no description.
-HAND = """\
-{
-  outputs = { self }: {
-    vendomat = { name = "hand"; faces = "hand"; };
-    devenvModules.default = { config, lib, ... }: {
-      options.vendomat.libs.hand.enable = lib.mkEnableOption "hand";
-      config = lib.mkIf config.vendomat.libs.hand.enable { env.HAND_FACE = "devenv"; };
-    };
-    nixosModules.default = { config, lib, ... }: {
-      options.vendomat.libs.hand.enable = lib.mkEnableOption "hand";
-      config = lib.mkIf config.vendomat.libs.hand.enable { environment.sessionVariables.HAND_FACE = "nixos"; };
-    };
-  };
-}
-"""
-
-#: Same library name as knappy.
-CLASH = """\
-{ outputs = { self }: { vendomat = { name = "knappy"; packages = pkgs: [ ]; }; }; }
-"""
-
-#: A hand-written marker that also carries description keys.
-BOTH = """\
-{ outputs = { self }: {
-  vendomat = { name = "both"; faces = "hand"; packages = pkgs: [ ]; };
-  devenvModules.default = { ... }: { };
-}; }
-"""
-
-#: Modules with no marker: Vendomat must not import them, whatever they declare.
-UNMARKED = """\
-{ outputs = { self }: {
-  nixosModules.default = { lib, ... }: { options.vendomat.libs.knappy.enable = lib.mkEnableOption "clash"; };
-  devenvModules.default = { lib, ... }: { options.vendomat.libs.knappy.enable = lib.mkEnableOption "clash"; };
-}; }
-"""
-
-NONAME = "{ outputs = { self }: { vendomat = { packages = pkgs: [ ]; }; }; }\n"
-BADKEY = '{ outputs = { self }: { vendomat = { name = "badkey"; packages = pkgs: [ ]; colour = "red"; }; }; }\n'
-OWNENABLE = """\
-{ outputs = { self }: { vendomat = {
-  name = "own";
-  packages = pkgs: [ ];
-  options = lib: { enable = lib.mkOption { default = true; }; };
-}; }; }
-"""
-
-LIBRARIES = {
-    "knappy": KNAPPY % {"nixpkgs": NIXPKGS},
-    "hand": HAND,
-    "clash": CLASH,
-    "both": BOTH,
-    "unmarked": UNMARKED,
-    "noname": NONAME,
-    "badkey": BADKEY,
-    "ownenable": OWNENABLE,
-}
+LIBRARIES = {"knappy": KNAPPY % {"nixpkgs": NIXPKGS}}
 
 # --- Host fixtures ----------------------------------------------------------------------------
 
@@ -272,90 +186,6 @@ def ws_factory(tmp_path):
         return Workspace(tmp_path, libs)
 
     return make
-
-
-# --- Inertness (FACE-002, FACE-007, VMOD-002) ---------------------------------------------------
-
-
-def test_a_disabled_described_library_changes_no_derivation(ws_factory):
-    ws = ws_factory(["knappy"])
-    ws.write_nix(adopt())
-    with_lib = {a: ws.value(a) for a in (SHELL, TOPLEVEL, HM)}
-    # Remove the library input and rebuild in the same directory (the shell derivation names its path).
-    ws.libs = []
-    ws.write_yaml()
-    (ws.root / "devenv.lock").unlink(missing_ok=True)
-    without = {a: ws.value(a) for a in (SHELL, TOPLEVEL, HM)}
-    assert with_lib == without
-
-
-# --- Enabled faces (DESC-003, FACE-005) ----------------------------------------------------------
-
-
-def test_enabled_faces_install_packages_and_units(ws_factory):
-    ws = ws_factory(["knappy"])
-    on = "vendomat.libs.knappy = { enable = true; port = 7070; service.enable = true; };\n"
-    hm = "home-manager.users.alice.vendomat.libs.knappy = { enable = true; port = 7071; service.enable = true; };\n"
-    ws.write_nix(adopt(), workspace_extra="  vendomat.libs.knappy.enable = true;\n", libs_on=on + hm)
-    cfg = "machines.test._nixosEval.config"
-    # devenv
-    assert ws.value("env.KNAPPY_EXTRA") == "devenv"
-    assert "knappy" in ws.value("processes.knappy.exec")
-    # NixOS
-    exec_start = ws.value(f"{cfg}.systemd.services.knappy.serviceConfig.ExecStart")
-    assert exec_start.endswith("-knappy-start")
-    assert ws.value(f"{cfg}.networking.firewall.allowedTCPPorts") == [7070]
-    # Home Manager
-    user_exec = ws.value(f"{cfg}.home-manager.users.alice.systemd.user.services.knappy.Service.ExecStart")
-    user_exec = user_exec[0] if isinstance(user_exec, list) else user_exec
-    assert user_exec.endswith("-knappy-start")
-    assert ws.value(f"{cfg}.home-manager.users.alice.home.sessionVariables.KNAPPY_EXTRA") == "home-manager"
-
-
-def test_options_exist_only_under_vendomat_libs(ws_factory):
-    ws = ws_factory(["knappy"])
-    ws.write_nix(adopt(), workspace_extra="  programs.knappy.enable = true;\n")
-    done = ws.eval("shell.drvPath")
-    assert done.returncode != 0  # no programs.knappy option exists
-
-
-def test_a_hand_written_face_works_without_a_description(ws_factory):
-    ws = ws_factory(["hand"])
-    ws.write_nix(
-        adopt(), workspace_extra="  vendomat.libs.hand.enable = true;\n", libs_on="vendomat.libs.hand.enable = true;\n"
-    )
-    assert ws.value("env.HAND_FACE") == "devenv"
-    cfg = "machines.test._nixosEval.config"
-    assert ws.value(f"{cfg}.environment.sessionVariables.HAND_FACE") == "nixos"
-
-
-# --- Description errors (VMOD-013, DESC-002) -----------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "libs, message",
-    [
-        (["knappy", "clash"], "two inputs use the same library name"),
-        (["both"], "marks hand-written faces and also exports packages"),
-        (["noname"], "exports a vendomat description with no `name`"),
-        (["badkey"], "unknown description key(s) colour"),
-        (["ownenable"], "must not define `enable` or `service`"),
-    ],
-)
-def test_a_bad_description_stops_evaluation_and_names_the_input(ws_factory, libs, message):
-    ws = ws_factory(libs)
-    ws.write_nix(None, workspace_extra="  vendomat.libs.own.enable = false;\n" if "ownenable" in libs else "")
-    done = ws.eval("shell.drvPath")
-    assert done.returncode != 0
-    assert message in done.stderr, done.stderr[-1500:]
-
-
-def test_an_unmarked_flake_with_modules_is_never_imported(ws_factory):
-    ws = ws_factory(["knappy", "unmarked"])
-    ws.write_nix(adopt())
-    # The unmarked flake declares the same option path as knappy. Importing it would be a conflict.
-    assert ws.value(SHELL).endswith(".drv")
-    assert ws.value(TOPLEVEL).endswith(".drv")
 
 
 # --- Machine guard (VMOD-011, VMOD-016) ----------------------------------------------------------
@@ -581,23 +411,3 @@ def test_the_input_paths_output_carries_every_source_in_its_closure(tmp_path):
     sources = ws.value("vendomat.inputPaths")
     for name, source in sources.items():
         assert source in closure, name
-
-
-def test_the_devenv_process_runs_under_devenv_up(tmp_path):
-    ws = Workspace(tmp_path, ["knappy"])
-    ws.write_nix(None, workspace_extra="  vendomat.libs.knappy = { enable = true; port = 7099; };\n")
-    up = subprocess.run([str(DEVENV), "up", "-d"], cwd=ws.root, capture_output=True, text=True, env=ws.env, timeout=300)
-    try:
-        assert up.returncode == 0, up.stderr[-2000:]
-        import time
-
-        found = False
-        for _ in range(60):
-            seen = subprocess.run(["pgrep", "-af", "sleep 3600"], capture_output=True, text=True).stdout
-            if "sleep 3600" in seen:
-                found = True
-                break
-            time.sleep(0.5)
-        assert found, "the knappy process did not start under devenv up"
-    finally:
-        subprocess.run([str(DEVENV), "processes", "down"], cwd=ws.root, capture_output=True, timeout=120, env=ws.env)

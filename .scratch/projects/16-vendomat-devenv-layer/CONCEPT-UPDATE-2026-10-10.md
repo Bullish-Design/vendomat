@@ -173,3 +173,17 @@ Run `20261010T153231Z-a584dca3f271` exited zero and passed pytest, ruff, ruff-fo
 Its saved report is at `.testee/runs/20261010T153231Z-a584dca3f271/report.json`.
 The report marks the run as a full gate with a stable source tree. It does not prove G3A or any
 real machine operation.
+
+## Implementation outcome later on 2026-10-10
+
+The Step 3A consumer fixture answered the first four open questions. `[imports]` selects authored
+devenv modules. `[settings.<module>]` carries their supported TOML values. Templateer creates a
+stable root `devenv.nix`, which reads those values with `builtins.fromTOML`. Each authored module
+declares its own Nix options and validates its own values. Vendomat writes no additional Nix file.
+
+The fixture selected two modules and inherited their input files. A value changed through TOML
+alone, an unselected source left the shell derivation unchanged, and invalid choices failed by
+name. The Vendomat package built with the template library and init command. The description
+builder and its obsolete fixture were removed. [Step 3A evidence](./evidence/step-3a.md) records
+the commands and limits. Testee end-to-end run `20261010T160815Z-7533da901018` passed 328 tests.
+Machine operator coverage and workspace migration remain open decisions.

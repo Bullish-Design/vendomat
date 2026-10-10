@@ -1,0 +1,20 @@
+name: workspace-registry
+description: Create a Vendomat registry for a devenv workspace.
+
+output:
+  path: vendomat.toml
+  language: toml
+
+schema:
+  module: schema
+  class: WorkspaceRegistry
+
+prompt:
+  file: prompt.md
+
+renderer:
+  engine: minijinja
+  file: template.j2
+
+trigger_filenames:
+  - vendomat.toml

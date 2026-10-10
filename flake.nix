@@ -32,6 +32,9 @@
             # The direnv function `use_vendomat` ships with the command (PRE-009).
             postInstall = ''
               install -Dm644 direnv/vendomat.sh $out/share/vendomat/direnv/vendomat.sh
+              mkdir -p $out/share/vendomat/templates
+              cp -r templates/workspace templates/workspace-registry $out/share/vendomat/templates/
+              install -Dm755 templates/workspace/init $out/bin/vendomat-workspace-init
             '';
             meta.mainProgram = "vendomat";
           };

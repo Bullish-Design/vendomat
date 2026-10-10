@@ -16,7 +16,8 @@ fragment. One patched devenv (`devenv-dist/`) runs everywhere. The `nix-systems`
 4 TB drive, then `framework` is adopted in place without a disk install.
 
 **State on 2026-10-10.** Gates G0 to G4, G6, and G7 pass for their recorded interfaces (G7 in
-QEMU). The revised no-Nix workspace gate G3A is OPEN. G1, G5, G8, and G9 are
+QEMU). The revised no-Nix workspace gate G3A passes in a template-created local consumer
+([evidence](projects/16-vendomat-devenv-layer/evidence/step-3a.md)). G1, G5, G8, and G9 are
 BLOCKED by named items: the live Attic push (not permitted in the agent session), PV-09 (the
 installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
 privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot

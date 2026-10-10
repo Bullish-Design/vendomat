@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(not ENABLED, reason="Nix, devenv, and jq fixture
 
 GIT = ["git", "-c", "user.email=fixture@example.invalid", "-c", "user.name=fixture", "-c", "commit.gpgsign=false"]
 COPY = ("flake.nix", "flake.lock", "pyproject.toml", "README.md")
-COPY_DIRS = ("src", "nix", "direnv", "launcher", "preflight")
+COPY_DIRS = ("src", "nix", "direnv", "launcher", "preflight", "templates")
 
 
 def sh(argv, cwd, env=None, timeout=1500):

@@ -2,15 +2,13 @@
 #
 #   imports = [ inputs.vendomat.devenvModules.default ];
 #   vendomat.cache = { push = true; name = "vendomat"; };
-#   vendomat.libs.knappy.enable = true;          # built from knappy's `vendomat` description
 #
 # Every part is inert until a workspace uses it: a face does nothing until `enable = true`, the
 # inventory builds nothing until a host is listed, and the pin check reads `devenv.lock` only.
-self:
+_self:
 { inputs, config, options, lib, pkgs, ... }:
 let
   cfg = config.vendomat;
-  builder = import ./builder.nix { inherit lib self inputs; };
   guard = import ./guard.nix { inherit lib; };
   lockPin = import ./lock-pin.nix { inherit lib; };
   mkPreflight = import ./preflight.nix { inherit lib pkgs; };
@@ -64,18 +62,7 @@ let
 
   hostModule = host: h: {
     key = guardKey host;
-    imports =
-      [ (guard.mk { inherit host; inventory = h; direct = directDefs host; }) ]
-      ++ builder.nixosImports
-      ++ [
-        # Hand-written Home Manager faces, where the host imports the Home Manager NixOS module.
-        ({ options, lib, ... }: {
-          config = lib.optionalAttrs (options ? home-manager) {
-            home-manager.sharedModules = builder.homeManagerShared;
-          };
-        })
-      ]
-      ++ [ h.nixos ];
+    imports = [ (guard.mk { inherit host; inventory = h; direct = directDefs host; }) h.nixos ];
   };
 
   # The patched devenv (devenv-dist patches 0005 and 0006) reads the mode and the preflight program
@@ -112,8 +99,6 @@ let
   };
 in
 {
-  imports = builder.devenvImports;
-
   options.vendomat = {
     inventory = lib.mkOption {
       default = { };

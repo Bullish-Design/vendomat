@@ -1,14 +1,15 @@
-"""Read and validate the V5 registry, ``vendomat.toml`` (``REG-*``).
+"""Read and validate the registry, ``vendomat.toml`` (``REG-*``).
 
 The registry names the direct source inputs of one project. It selects no revision: Nix
 resolves revisions and owns ``flake.lock`` and ``devenv.lock``. This module only reads and
 validates. It never writes the registry (``REG-009``) and never fetches an input.
 
-Six tables exist. ``[forge]`` names the one source collection. ``[inputs]`` and
+Seven tables exist. ``[forge]`` names the one source collection. ``[inputs]`` and
 ``[passthrough]`` hold input entries. ``[follows]`` lists, per direct flake input, the child
 inputs that follow the root ``nixpkgs``. ``[imports]`` lists, per input, the directories whose
 ``devenv.yaml`` the pre-resolver reads (``PRE-003``). ``[targets]`` selects the outputs
 (``PRE-001``): ``flake`` writes ``flake.nix`` and ``devenv`` writes the ``.vendomat/`` fragment.
+``[settings]`` holds values for selected authored modules.
 A registry with no ``[targets]`` table keeps the V5 behavior: the flake target only.
 
 An ``[inputs]`` entry without a ``url`` lives in the collection. Every ``[inputs]`` entry pins a
@@ -21,7 +22,7 @@ import hashlib
 import json
 import re
 import tomllib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import cast
 
@@ -32,7 +33,7 @@ INPUT_KEYS = frozenset({"url", "repo", "ref", "rev", "flake", "mirror", "keep", 
 PASSTHROUGH_KEYS = frozenset({"url", "ref", "rev", "flake", "backup", "dir"})
 FORGE_KEYS = frozenset({"url"})
 TARGET_KEYS = frozenset({"flake", "devenv"})
-TABLES = frozenset({"forge", "inputs", "passthrough", "follows", "imports", "targets"})
+TABLES = frozenset({"forge", "inputs", "passthrough", "follows", "imports", "targets", "settings"})
 #: The only root input a ``[follows]`` entry may name. A wider mapping needs its own fixture.
 FOLLOWS_ROOT = "nixpkgs"
 #: Inputs that are never copied into the collection or onto a machine. They are huge.
@@ -100,6 +101,7 @@ class Registry:
     forge: str | None = None
     imports: tuple[str, ...] = ()
     targets: Targets = Targets()
+    settings: dict[str, object] = field(default_factory=dict)
 
 
 def read_registry(path: Path) -> Registry:
@@ -122,7 +124,7 @@ def parse_registry(text: str, where: str = "vendomat.toml") -> Registry:
     if unknown:
         raise RegistryError(
             f"{where}: unknown table [{unknown[0]}]; expected [forge], [inputs], [passthrough], [follows], "
-            "[imports], or [targets]"
+            "[imports], [targets], or [settings]"
         )
     if "inputs" not in data:
         raise RegistryError(f"{where}: the registry needs an [inputs] table")
@@ -146,7 +148,42 @@ def parse_registry(text: str, where: str = "vendomat.toml") -> Registry:
     sources = tuple(_with_follows(entries[name], follows.get(name, ())) for name in sorted(entries))
     imports = _imports(where, data.get("imports", {}), entries)
     targets = _targets(where, data.get("targets"))
-    return Registry(sources=sources, digest=_digest(sources), forge=forge, imports=imports, targets=targets)
+    settings = _settings(where, data.get("settings", {}), targets)
+    return Registry(
+        sources=sources,
+        digest=_digest(sources),
+        forge=forge,
+        imports=imports,
+        targets=targets,
+        settings=settings,
+    )
+
+
+def _settings(where: str, raw: object, targets: Targets) -> dict[str, object]:
+    """Validate the values that the template's native TOML bridge passes to authored modules."""
+
+    if not isinstance(raw, dict):
+        raise RegistryError(f"{where}: [settings] must be a table")
+    if raw and not targets.devenv:
+        raise RegistryError(f"{where}: [settings] needs the devenv target")
+
+    def check(value: object, path: str) -> None:
+        if isinstance(value, dict):
+            for name, child in value.items():
+                check(child, f"{path}.{name}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                check(child, f"{path}[{index}]")
+        elif not isinstance(value, str | int | float | bool):
+            raise RegistryError(f"{where}: {path} has an unsupported TOML value ({type(value).__name__})")
+
+    for name, value in cast("dict[str, object]", raw).items():
+        if not NAME_RE.fullmatch(name):
+            raise RegistryError(f"{where}: setting name '{name}' must match [a-z0-9][a-z0-9-]*")
+        if not isinstance(value, dict):
+            raise RegistryError(f"{where}: [settings.{name}] must be a table")
+        check(value, f"settings.{name}")
+    return cast("dict[str, object]", raw)
 
 
 def _targets(where: str, raw: object) -> Targets:
