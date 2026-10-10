@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from . import yamlsubset
 from .defaults import DEFAULT_NIXPKGS_URL
@@ -178,7 +179,9 @@ class _Discovery:
         except NixError as exc:
             raise DevenvSyncError(f"import '{imp}': {exc}") from exc
         self.resolved[imp] = fetched.nar_hash
-        base = Path(fetched.store_path)
+        # Nix keeps the repository root as storePath when the URL selects a flake subdirectory.
+        source_dir = parse_qs(self.inputs[name].url.partition("?")[2]).get("dir", [""])[0]
+        base = Path(fetched.store_path) / source_dir
         self._read_yaml(imp, base, directory, chain)
         self._done.add(imp)
 
@@ -416,7 +419,7 @@ def ensure_lock(root: Path, requested: dict[str, str], devenv_cmd: str) -> bool:
     if not problems:
         return False
     names = sorted({name for name, _ in problems})
-    argv = [devenv_cmd, "update"] if prior is None else [devenv_cmd, "update", *names]
+    argv = [devenv_cmd, "update"] if prior is None or len(names) != 1 else [devenv_cmd, "update", names[0]]
     try:
         done = subprocess.run(
             argv, cwd=root, capture_output=True, text=True, timeout=UPDATE_TIMEOUT, stdin=subprocess.DEVNULL

@@ -148,6 +148,28 @@ def test_three_level_imports_lift_each_input_once(tmp_path):
     assert {k for k in digest if k.startswith("import")} == {"import"} or "import" in digest
 
 
+def test_import_reads_yaml_below_flake_dir(tmp_path):
+    checkout = tmp_path / "checkout"
+    module = checkout / "sources" / "greeting" / "devenv"
+    module.mkdir(parents=True)
+    (module / "devenv.yaml").write_text("inputs:\n  greeting-defaults:\n    url: git://s/defaults?ref=refs/tags/v1\n")
+    root = project(
+        tmp_path,
+        """
+        [targets]
+        devenv = true
+        [inputs]
+        greeting = { url = "git://s/demo", ref = "refs/tags/v1", dir = "sources/greeting" }
+        [imports]
+        greeting = "devenv"
+        """,
+    )
+    resolver = FakeResolver({"git://s/demo?ref=refs/tags/v1&dir=sources/greeting": checkout})
+    result = run(root, resolver)
+    assert result.inputs == 3
+    assert "greeting-defaults:" in (root / ".vendomat" / "devenv.yaml").read_text()
+
+
 def test_two_imports_that_disagree_on_a_url_are_an_error_naming_both(tmp_path):
     a = source(tmp_path, "a", "inputs:\n  shared:\n    url: git://s/shared?ref=refs/tags/v1\n")
     b = source(tmp_path, "b", "inputs:\n  shared:\n    url: git://s/shared?ref=refs/tags/v2\n")
@@ -424,6 +446,21 @@ def test_ensure_lock_runs_update_when_the_lock_is_missing(tmp_path):
     cmd = stub_devenv(tmp_path, f"cat > devenv.lock <<'EOF'\n{GOOD_LOCK}\nEOF\n")
     assert ensure_lock(root, {"a": "git://s/a?ref=refs/tags/v1"}, cmd) is True
     assert ensure_lock(root, {"a": "git://s/a?ref=refs/tags/v1"}, "/no/such/command") is False
+
+
+def test_ensure_lock_updates_all_when_two_inputs_are_missing(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "devenv.lock").write_text(json.dumps(lock_with()))
+    complete = json.dumps(
+        lock_with(
+            a={"locked": {"rev": "1" * 40}, "original": {"type": "git", "url": "git://s/a", "ref": "refs/tags/v1"}},
+            b={"locked": {"rev": "2" * 40}, "original": {"type": "git", "url": "git://s/b", "ref": "refs/tags/v1"}},
+        )
+    )
+    cmd = stub_devenv(tmp_path, f"printf '%s\\n' \"$@\" > argv\ncat > devenv.lock <<'EOF'\n{complete}\nEOF\n")
+    assert ensure_lock(root, {"a": "git://s/a?ref=refs/tags/v1", "b": "git://s/b?ref=refs/tags/v1"}, cmd)
+    assert (root / "argv").read_text() == "update\n"
 
 
 def test_a_failed_update_that_exits_zero_is_still_a_failure_and_keeps_the_prior_lock(tmp_path):

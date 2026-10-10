@@ -28,6 +28,13 @@ The 2026-10-10 concept revision makes no-Nix workspace use the first user goal. 
 may write native Nix. The existing description builder remains fixture evidence, but the revised
 draft no longer requires it. Machine operator coverage follows this workspace proof.
 
+The private `Bullish-Design/vendomat-demo` repository is the reusable live consumer. Its first
+run passed two selected modules, inherited inputs, TOML setting changes, shell entry, and the
+unselected-source check ([evidence](projects/16-vendomat-devenv-layer/evidence/demo-consumer.md)).
+It found and led to fixes for `dir=` source discovery and a lock update with two changed inputs.
+It uses stock devenv and a Vendomat module snapshot; it does not close the patched-fork or fleet
+gate.
+
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
 

@@ -218,6 +218,10 @@ vendomat-workspace-init model.json workspace
 modules compose, their inputs lock, a supported value changes the result, and an unselected
 source has no effect. G3A passed in the local consumer. See `evidence/step-3a.md`.
 
+The private `vendomat-demo` repository also passed this user flow with tagged module
+subdirectories. Its run found and fixed two sync defects. See `evidence/demo-consumer.md`.
+It pins stock devenv and a Vendomat module snapshot, so it does not close Step 13.
+
 ## Step 4 — Complete the Vendomat command and launcher
 
 **Goal:** run each workspace's pinned Vendomat while retaining a working host command elsewhere.
