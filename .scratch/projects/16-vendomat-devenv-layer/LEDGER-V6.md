@@ -14,7 +14,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
 | V6 IDs defined (active 64, proposed 15, to build 0, superseded 20, decided 2) | 101 |
-| V6 `NAT-*` facts | 25 |
+| V6 `NAT-*` facts | 27 |
 | V5 IDs that section 0 names | 51 |
 
 ## Checks
@@ -358,6 +358,8 @@ withdrew it, and V6 adds nothing.
 | `NAT-040` | fact |  |  |
 | `NAT-041` | fact |  |  |
 | `NAT-042` | fact |  |  |
+| `NAT-043` | fact |  |  |
+| `NAT-044` | fact |  |  |
 | `PRE-001` | active |  |  |
 | `PRE-002` | active |  |  |
 | `PRE-003` | active |  |  |
