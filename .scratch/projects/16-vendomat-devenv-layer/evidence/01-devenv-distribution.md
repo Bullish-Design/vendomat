@@ -20,7 +20,7 @@
 | Real install payload in a disposable QEMU VM, then boot | PASS | `vm-fixture.out`, `vm-fixture/` |
 | Native commands on an `adopt-existing` machine (VM) | PASS | `vm-fixture.out` |
 | `testee verify --full` | PASS | Testee run `20261010T023918Z-f9b95065a989` (pytest, ruff, ruff-format, ty) |
-| Build on `server`, Attic push, cold substitution (`DVN-006`) | NOT RUN | not in this lane |
+| Build on `server`, Attic push, cold substitution (`DVN-006`) | PASS on `server` only | [live-release-2026-10-10.md](live-release-2026-10-10.md): push, 0 missing paths, signed `nix copy` into an empty store, cold `--dry-run` fetched 40 paths and listed none to build. Evaluation built 4 derivations locally. No other host or VM yet |
 | `kexec` route with the patched CLI | NOT RUN | not needed for `MACH-008` |
 
 ## Pins and versions
@@ -253,7 +253,8 @@ preflight on the VM. The VM is not the real server: no real firmware, no kexec, 
 
 ## 8. Not covered
 
-- Building on `server`, the Attic push, and cold substitution (`DVN-006`, Guide Step 1 item 7).
+- Cold substitution on another host or VM (Guide Step 1 item 7). The same-host proof is in
+  [live-release-2026-10-10.md](live-release-2026-10-10.md).
 - The `kexec` phase of the patched CLI, and `--phases` with `kexec` against a real installer.
 - The real server: the PV-02 disk scan, real firmware, and `BootNext`.
 - The Vendomat Python preflight itself (`MACH-010`). Only the contract and a stand-in exist.

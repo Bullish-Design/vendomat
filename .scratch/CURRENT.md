@@ -18,7 +18,8 @@ fragment. One patched devenv (`devenv-dist/`) runs everywhere. The `nix-systems`
 **State on 2026-10-10.** Gates G0 to G4, G6, and G7 pass for their recorded interfaces (G7 in
 QEMU). The revised no-Nix workspace gate G3A passes in a template-created local consumer
 ([evidence](projects/16-vendomat-devenv-layer/evidence/step-3a.md)). G1, G5, G8, and G9 are
-BLOCKED by named items: the live Attic push (not permitted in the agent session), PV-09 (the
+BLOCKED by named items: cold substitution on another host or VM (the same-host live Attic proof
+passed; see [evidence](projects/16-vendomat-devenv-layer/evidence/live-release-2026-10-10.md)), PV-09 (the
 installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
 privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot
 order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
