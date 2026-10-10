@@ -130,7 +130,8 @@ The owner approved the following diff against `nix-meta/machines/server.nix`:
 The trial proved these Attic TOML keys on the pinned server with `--mode check-config` and real uploads.
 `nix eval --json --expr` accepted the proposed attribute names on Nix 2.34.7.
 The module was evaluated, built, and activated on 2026-10-10. The Attic service restarted.
-New uploads will share fewer chunks with older uploads and may use more storage and network traffic.
+New uploads may share fewer chunks with older uploads and use more local storage. Attic chunks
+new NARs on the server, so this change does not by itself increase client upload bytes.
 The change could leave the pool timeouts unresolved.
 Moving the database to root is another candidate, but root has only 48 GiB free and prior btrfs metadata exhaustion.
 A safe move would also need a consistent database migration.
@@ -181,7 +182,7 @@ timeout during these checks. The three load pushes had a 3.300-second median, co
 228–239 seconds for the two original first attempts. This is an observed before-and-after result.
 It does not isolate the chunk setting from the restart, cache state, or production workload.
 The timeouts' cause remains **not established**. New uploads may share fewer chunks with old
-uploads and use more storage or network traffic.
+uploads and use more local storage. The random-file checks did not measure chunk reuse.
 
 `testee verify --full` passed with exit 0 and `is_full_gate=true` in the final run
 `20261010T220723Z-793f892766af`.
