@@ -311,3 +311,84 @@ For the lead to merge. IDs are proposals. Check them against the ledger before u
   patches. The "Evidence" line can cite the 67 unit tests and the VM run.
 - Section 7: the preflight is run by the patched CLI, and the Python preflight is the program that
   it runs. A direct `devenv machines install server` fails without a current preflight.
+
+## Addendum 2026-10-10: tag `v2.4.0-vendomat.2` (defects C1, C2, D3)
+
+The Step 7 VM matrix found two defects in patch 0006. Patch 0006 changed. Patches 0001 to 0005
+did not change (same sha256). The `.1` tag was local only and is not reused. The values in sections
+2 to 6 above describe `.1` and are history. The values below are current.
+
+**Raw logs:** `~/.local/state/vendomat/v6/2026-10-09/01-devenv/run2/`.
+
+| Item | Value |
+| --- | --- |
+| Fork commit | `e2acb5b02b8627602e223128a082ecfd024850ab`, tag `v2.4.0-vendomat.2` (lightweight) |
+| Tree | `165f6fb5c18b2d93e84e9614361fe5b77d28eb04` |
+| Patch 0006 sha256 (first 12) | see `devenv-dist/MANIFEST.sha256` |
+| Patched CLI | `devenv 2.4.0+e2acb5b (x86_64-linux)` |
+| Build output | `/nix/store/3mfmgg65mf08h7rhwd7w4f2vvcr9ia9i-devenv-wrapped-2.4.0` (391.6 MiB) |
+| Build derivation | `/nix/store/mhiqkdprnk0717ga6x21w4mvkjkl2br0-devenv-wrapped-2.4.0.drv` |
+
+**C1 (high).** With the default phase list, the CLI ran `kexec` before the preflight. For a
+`fresh-install` machine, `machines_install` now refuses before any contact: an empty phase set, and
+any set that joins `kexec` or `reboot` with `disko` or `install`. The default list, `--stop-after-disko`,
+and `--no-reboot` are such sets. The message says: use `--phases disko,install`. `kexec`, `facter`,
+or `reboot` alone, and any set without `disko` and `install`, stay allowed. The `adopt-existing`
+denial is unchanged. Updated policy table:
+
+| `vendomat.mode` | Phase set | Result |
+| --- | --- | --- |
+| `"adopt-existing"` | any | Refuse (unchanged). |
+| `null` | any | Refuse (unchanged). |
+| `"fresh-install"` | empty, or `kexec` or `reboot` with `disko` or `install` | Refuse before contact. |
+| `"fresh-install"` | other, with `disko` or `install` | Allow when `preflight.program` is set. The preflight gate applies. |
+| `"fresh-install"` | other, with neither | Allow. |
+
+**C2.** A refusal of a readable report now names every check whose status is not `pass`, with its
+`detail`, whatever the reason. The verdict (`result` is `pass`, all checks `pass`) comes before the
+disk-set comparison, so a report with no disk no longer says "covers disks {}". Example:
+`the preflight reported failed checks: resolve:main: no such by-id path. Refusal reason: the
+preflight result is "fail", not "pass"`.
+
+**D3.** The CLI passes `--phases` as the selected phases in canonical order. For
+`--phases disko,install` the program receives exactly `--phases 'disko,install' --disko-mode 'disko'`.
+A set such as `facter,disko,install` is passed as `facter,disko,install`; the `main` preflight
+program refuses it by design.
+
+### Results
+
+| Gate | Result | Raw log (under `run2/`) |
+| --- | --- | --- |
+| Reproducible commit id (3 local runs and the GitHub URL) | PASS | `materialize-commits.txt` |
+| Release build, `devenv version` | PASS | `release-build.log`, `release-build-facts.txt` |
+| Rust unit tests (`machines::`): 72 passed, 0 failed (67 before, 5 new) | PASS | `unit-tests.log` |
+| `cli-fixture`: 39 cases, 0 failed (29 before, 10 new) | PASS | `cli-fixture.out` |
+| `dist-fixture`: 10 checks, 0 failed (DVN-001, 002, 004, 005, 008) | PASS | `dist-fixture.out` |
+| `vm-fixture`: 22 steps, 0 failed (21 before, 1 new: C1) | PASS | `vm-fixture.out` |
+| `testee verify --full` (pytest, ruff, ruff-format, ty) | PASS | Testee run `20261010T113238Z-6708168e4f58` |
+
+New CLI cases: default phases, `kexec,disko`, `kexec,install`, `reboot,install`,
+`disko,install,reboot`, `--stop-after-disko`, `--no-reboot` are refused with 0 fake ssh calls and
+0 tripwire connections. `--phases kexec` and `--phases reboot` alone are not refused by the policy.
+The `nodisk` scenario (no disk, failed `resolve:main`) shows the failed check name. New unit tests:
+the exact refused and allowed phase sets, the unchanged adopted denial for all 31 subsets, failed
+checks named for a no-disk report and for nonce, host, and mixed-status refusals, and the exact
+`--phases` string.
+
+New VM step `C1-default-and-kexec-refused-no-contact`: in the running source VM, `devenv machines
+install fresh` (default phases), `--phases kexec,disko`, and `--stop-after-disko` each exit non-zero
+with the hint. The VM boot id is unchanged, and sshd logged no login from them.
+
+Image hashes (qcow2 deleted): target after install
+`5b40955d683a77e303b8103cc0368d38723dc5ad779c8d8e6614dcc79c26d492`, after native deploy and rollback
+`ac3a3257853ca89a9482abed158229cdf3c73622c8f97f42a54529e0f27cbac1`.
+
+Disk: unallocated space fell from 8 GiB to 3 GiB during the work. Disk logs: `run2/disk-*.txt`.
+
+### Proposed document changes (additions)
+
+- `DVN-010` (proposed in the first part of this record): add that a `fresh-install` machine is refused
+  for an empty phase set and for `kexec` or `reboot` joined with `disko` or `install`, with the
+  hint `use --phases disko,install`.
+- `DVN-003` Verify and `DVN-004`: the fork tag is now `v2.4.0-vendomat.2`. Test data in
+  `tests/test_registry_v6.py` and `tests/test_commands_v6.py` still uses `.1` as sample strings.

@@ -54,7 +54,7 @@ def test_the_upstream_pin_names_tag_and_commit():
     assert pin["tag"] == "v2.4.0"
     assert pin["commit"] == "b904dcb51fe48c30db250038241507f60752f222"
     assert re.fullmatch(r"[0-9a-f]{40}", pin["commit"])
-    assert pin["fork_tag"] == "v2.4.0-vendomat.1"
+    assert pin["fork_tag"] == "v2.4.0-vendomat.2"
     assert pin["repo"].startswith("https://github.com/cachix/devenv")
 
 
@@ -144,3 +144,23 @@ def test_materialize_refuses_a_patch_that_differs_from_the_manifest(tmp_path: Pa
     assert run.returncode != 0
     assert "does not match MANIFEST.sha256" in run.stderr
     assert not (tmp_path / "out").exists()
+
+
+def test_the_recorded_result_matches_the_pin_and_names_a_new_fork_tag():
+    result: dict[str, str] = {}
+    for line in read_lines(DIST / "RESULT"):
+        key, _, value = line.partition("=")
+        result[key.strip()] = value.strip()
+    pin = upstream()
+    assert result["fork_tag"] == pin["fork_tag"]
+    assert result["source_commit"] == pin["commit"]
+    assert re.fullmatch(r"[0-9a-f]{40}", result["fork_commit"])
+    # The `.1` tag was local only. A new series gets a new tag.
+    assert pin["fork_tag"] != "v2.4.0-vendomat.1"
+
+
+def test_patch_0006_refuses_the_default_phase_list_and_names_failed_checks():
+    text = (PATCHES / series()[-1]).read_text()
+    assert "fresh_install_phase_conflict" in text
+    assert "use `--phases disko,install`" in text
+    assert "the preflight reported failed checks" in text

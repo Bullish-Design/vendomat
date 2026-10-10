@@ -32,6 +32,11 @@ case "$cmd" in
       machine) machine=other ;;
       host) mid=ffffffffffffffffffffffffffffffff ;;
       disk) disks=("/dev/disk/by-id/some-other-disk") ;;
+      nodisk)
+        printf '{"schema":"vendomat.preflight/v1","result":"fail","machine":"%s","nonce":"%s",' "$machine" "$nonce"
+        printf '"host":{"machine_id":"%s","boot_id":"%s"},' "$machine_id" "$boot_id"
+        printf '"disks":[],"checks":[{"id":"resolve:main","status":"fail","detail":"no such by-id path"}]}\n'
+        exit 1 ;;
     esac
     dj=""; sep=""
     for d in "${disks[@]}"; do

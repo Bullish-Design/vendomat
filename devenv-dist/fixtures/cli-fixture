@@ -80,7 +80,7 @@ def main():
     results = []
 
     def run_case(case, args, scenario="pass", disko_sleep="0", expect_rc=None, must_contain=(),
-                 must_not_log=(), must_log_in_order=(), expect_connections=0, timeout=1800):
+                 must_not_log=(), must_log_in_order=(), must_not_contain=(), expect_connections=0, timeout=1800):
         fake_log.write_text("")
         scenario_file.write_text(scenario)
         run_env = dict(env, FAKE_DISKO_SLEEP=disko_sleep)
@@ -99,6 +99,9 @@ def main():
         for text in must_contain:
             if text not in out:
                 failures.append(f"output lacks {text!r}")
+        for text in must_not_contain:
+            if text in out:
+                failures.append(f"output has {text!r}")
         for pattern in must_not_log:
             if any(re.search(pattern, line) for line in calls):
                 failures.append(f"fake call log has {pattern!r}")
@@ -158,6 +161,26 @@ def main():
     run_case("fresh-no-program", install("noprog", "--phases", "disko"), expect_rc="nonzero",
              must_contain=["vendomat.preflight.program"], must_not_log=[r"."])
 
+    # B2. Fresh machine: no kexec or reboot together with a disk phase. No contact.
+    phases_hint = "use `--phases disko,install`"
+    fresh_conflicts = {
+        "default-phases": [],
+        "kexec-disko": ["--phases", "kexec,disko"],
+        "kexec-install": ["--phases", "kexec,install"],
+        "reboot-install": ["--phases", "reboot,install"],
+        "disko-install-reboot": ["--phases", "disko,install,reboot"],
+        "stop-after-disko": ["--stop-after-disko"],
+        "no-reboot": ["--no-reboot"],
+    }
+    for label, flags in fresh_conflicts.items():
+        run_case(f"fresh-refused-{label}", install("fresh", *flags), expect_rc="nonzero",
+                 must_contain=[phases_hint, "made no connection"], must_not_log=[r"."])
+    # kexec alone and reboot alone are not refused by the policy: the fake target answers
+    # nothing useful, so the run fails later, after at least one call.
+    for label, flags in {"kexec-alone": ["--phases", "kexec"], "reboot-alone": ["--phases", "reboot"]}.items():
+        run_case(f"fresh-allowed-{label}", install("fresh", *flags), expect_rc="nonzero",
+                 must_not_contain=[phases_hint], must_log_in_order=[r"ssh\t"])
+
     # C. Fresh install gate, with the fake target.
     for scenario, text in {
         "fail": "not \"pass\"",
@@ -175,6 +198,11 @@ def main():
     run_case("fresh-preflight-pass", install("fresh", "--phases", "disko"), scenario="pass",
              expect_rc=0, must_log_in_order=[r"^[0-9.]+\tnix\tcopy", r"--nonce", r"cat /etc/machine-id",
                                              r"^[0-9.]+\tnix\tcopy", r"/nix/store/[a-z0-9]{32}-disko"])
+    # C2. A report with no disk and a failed check: the message names the check.
+    run_case("fresh-preflight-no-disk-names-check", install("fresh", "--phases", "disko"),
+             scenario="nodisk", expect_rc="nonzero",
+             must_contain=["resolve:main", "no such by-id path"], must_not_contain=["covers disks"],
+             must_not_log=[r"/nix/store/[a-z0-9]{32}-disko"])
     run_case("fresh-preflight-expired", install("fresh-short", "--phases", "disko,install"),
              scenario="pass", disko_sleep="3", expect_rc="nonzero",
              must_contain=["preflight result is", "nixos-install"],
