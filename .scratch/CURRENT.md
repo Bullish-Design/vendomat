@@ -26,7 +26,9 @@ order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the b
 proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.2`.
 
 The live cache checks `testee check live-cache` and `live-cache-load` (`CACHE-012`) pass on
-`server`; the 64 MiB run needs a second push attempt and shows server pool timeouts
+`server`. The original 64 MiB runs needed a second push attempt and showed server pool timeouts.
+After an approved Attic chunk change, one small and three 64 MiB checks passed with zero retries.
+The timeouts' cause remains not established
 ([evidence](projects/16-vendomat-devenv-layer/evidence/live-cache.md)).
 
 The 2026-10-10 concept revision makes no-Nix workspace use the first user goal. Module authors

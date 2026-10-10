@@ -1,6 +1,7 @@
 # Attic pool timeouts, 2026-10-10
 
-Requirement: `CACHE-012`. Status: **cause not established**. No production cache, service, or NixOS configuration changed.
+Requirement: `CACHE-012`. Status: **cause not established**. The investigation started read-only.
+The owner then approved a production trial with larger chunks. See the production results below.
 
 ## Inputs and method
 
@@ -103,7 +104,7 @@ Database placement, chunk count, production service state, and concurrent work r
 The smallest measured mitigation is larger chunks.
 The disk trial's median push fell from 5.501 to 1.502 seconds, and its GET p95 fell from 0.306 to 0.012 seconds.
 This result does not prove that the change will remove production timeouts.
-The following diff is **proposed only** against `nix-meta/machines/server.nix`:
+The owner approved the following diff against `nix-meta/machines/server.nix`:
 
 ```diff
    services.atticd = {
@@ -128,8 +129,7 @@ The following diff is **proposed only** against `nix-meta/machines/server.nix`:
 
 The trial proved these Attic TOML keys on the pinned server with `--mode check-config` and real uploads.
 `nix eval --json --expr` accepted the proposed attribute names on Nix 2.34.7.
-The proposed nix-meta module has not been evaluated or activated.
-The change needs a NixOS activation and an Attic restart.
+The module was evaluated, built, and activated on 2026-10-10. The Attic service restarted.
 New uploads will share fewer chunks with older uploads and may use more storage and network traffic.
 The change could leave the pool timeouts unresolved.
 Moving the database to root is another candidate, but root has only 48 GiB free and prior btrfs metadata exhaustion.
@@ -140,8 +140,52 @@ A safe move would also need a consistent database migration.
 - The production database file size was not measured directly. The read-only backup supplied the snapshot size and counts.
 - No query trace identifies which operation held the pool connection for 30 seconds.
 - The production journal has one corrupt file and does not name store paths for upload PUTs.
-- The live-cache load check needs a no-retry run after any approved change.
+- The approved trial now has three no-retry load runs; longer observation is still open.
 - The trial results do not prove a fix for the existing production service.
+
+## Production trial, 2026-10-10
+
+The owner approved the diff above and named `nixos-rebuild switch --flake .#server` as the workflow.
+The deployed generation matched `main@origin` in nix-meta. Local `main` also held a separate
+Mnemonix pin, so the trial used a workspace based on the deployed revision. The only source change
+in that workspace was the Attic chunk setting. `nix flake check --no-build` passed after Nix
+realized a missing Rust derivation. A build of the server system passed. The generated Attic TOML
+passed `atticd --mode check-config` with a temporary test key. The old and new system closures had
+no package differences. The Attic unit changed only its checked TOML path.
+
+The owner ran `/run/wrappers/bin/sudo nixos-rebuild switch --flake .#server` from that workspace.
+The command returned exit 4 because `argentic-overlay.service` failed to bind to port 8790.
+That unit file was identical in the old and new generations. The Attic service restarted and stayed
+active. Its unit used `/nix/store/6b5jh49dkbs93zlkpic2fkn2lfbl5ybs-checked-attic-server.toml`.
+The checked TOML had 64/256/1024 KiB chunks. Database and storage paths stayed on
+`/mnt/wd_green1/attic`. The switch's exit code is a named service failure, not a passed gate.
+The change was committed and pushed as nix-meta `main` revision `5c8ea153`. That branch also
+contains the pre-existing local Mnemonix pin. The active system was built from the deployed-base
+trial workspace, so the Mnemonix pin was not activated by this switch.
+
+The expected cache result was one push attempt, no narinfo errors, and a matching cold copy.
+The commands ran serially from the Vendomat repository root. Each command exited 0.
+
+| Check | UTC run | Result | Push attempts | Push time | Narinfo errors |
+| --- | --- | --- | ---: | ---: | ---: |
+| `testee check live-cache` | `20261010T220217Z` | pass | 1 | 0.822 s | 0 |
+| `testee check live-cache-load` | `20261010T220255Z` | pass | 1 | 3.169 s | 0 |
+| `testee check live-cache-load` | `20261010T220326Z` | pass | 1 | 5.586 s | 0 |
+| `testee check live-cache-load` | `20261010T220357Z` | pass | 1 | 3.300 s | 0 |
+
+Each check needed zero retries. Each cold substitution passed. The Attic journal recorded no pool
+timeout during these checks. The three load pushes had a 3.300-second median, compared with
+228–239 seconds for the two original first attempts. This is an observed before-and-after result.
+It does not isolate the chunk setting from the restart, cache state, or production workload.
+The timeouts' cause remains **not established**. New uploads may share fewer chunks with old
+uploads and use more storage or network traffic.
+
+`testee verify --full` passed with exit 0 and `is_full_gate=true` in the final run
+`20261010T220723Z-793f892766af`.
+
+Raw Testee output and Nix build logs are under
+`~/.local/state/vendomat/v6/attic-investigation/phase4/`. The four cache reports are under
+`~/.local/state/vendomat/v6/live-cache/` at the UTC times in the table.
 
 Raw files stay outside the repository:
 

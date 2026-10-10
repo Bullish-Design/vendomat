@@ -16,15 +16,17 @@ Code: `tests/livecache.py`; fake-world tests: `tests/test_live_cache.py`. Both c
    substituter. Compare the unique file by SHA-256.
 7. Write `report.json` under `~/.local/state/vendomat/v6/live-cache/<UTC time>/`.
 
-`live-cache` uses a 1 MiB unique object. `live-cache-load` uses 64 MiB (about 1000 chunks at the
-server's 64 KiB average). The Testee shell drops host variables, so the size is set in the argv.
+`live-cache` uses a 1 MiB unique object. `live-cache-load` uses 64 MiB. The Testee shell drops
+host variables, so the size is set in the argv. The original server used 64 KiB average chunks.
+The 2026-10-10 trial uses 256 KiB average chunks.
 
 ## Inputs
 
 Host `server`, x86_64-linux; Nix 2.34.7; attic-client 0.1.0
 (`/nix/store/9r5fng0g7gkaq8ym3v4vhdyysvhywhx2-attic-0-unstable-2026-06-26`); Testee 0.5.1; cache
-`vendomat` at `http://127.0.0.1:8089/vendomat`, private. Server config is the same as in
-[live-release-2026-10-10.md](live-release-2026-10-10.md): SQLite on `/mnt/wd_green1`, 64 KiB chunks.
+`vendomat` at `http://127.0.0.1:8089/vendomat`, private. The original server config matches
+[live-release-2026-10-10.md](live-release-2026-10-10.md): SQLite on `/mnt/wd_green1` with
+64 KiB average chunks. The later trial kept that database and storage with 256 KiB average chunks.
 
 ## Runs
 
@@ -40,6 +42,22 @@ Run directories are under `~/.local/state/vendomat/v6/live-cache/`.
 | `20261010T204456Z` | live-cache-load | blocked | n/a | Check bug: a `narinfo` HTTP 500 raised a blocker. Fixed: a 5xx now fails the attempt |
 | `20261010T205004Z` | live-cache-load | pass | 2 (239 s, 0.3 s) | Attempt 1 exit 0, then 1 `narinfo` HTTP 500 |
 | `20261010T205442Z` | live-cache-load | pass | 2 (228 s, 2.8 s) | Attempt 1 exit 1 with 1 upload error; attempt 2 uploaded the rest |
+| `20261010T220217Z` | live-cache | pass | 1 (0.822 s) | After the chunk change; 0 retries, 0 narinfo errors |
+| `20261010T220255Z` | live-cache-load | pass | 1 (3.169 s) | 0 retries, 0 narinfo errors |
+| `20261010T220326Z` | live-cache-load | pass | 1 (5.586 s) | 0 retries, 0 narinfo errors |
+| `20261010T220357Z` | live-cache-load | pass | 1 (3.300 s) | 0 retries, 0 narinfo errors |
+
+The four new checks ran in the listed order with `testee check live-cache`, then
+`testee check live-cache-load` three times. Each command exited 0. Each cold substitution passed.
+The expected result was one successful push attempt, successful narinfo reads, and a matching cold
+copy. The checked server TOML used 64/256/1024 KiB chunks and the same database and storage paths.
+The Attic server and client still reported 0.1.0; Nix reported 2.34.7; Testee reported 0.5.1.
+The service journal recorded no new pool timeout during these four checks.
+
+The new check reports are in `~/.local/state/vendomat/v6/live-cache/` under the listed UTC times.
+Testee run IDs are `20261010T220216Z-241fcd5992c8`, `20261010T220254Z-234ed2facb3e`,
+`20261010T220325Z-c25b38bfc1ce`, and `20261010T220356Z-6010af563de7`.
+Raw Testee output is in `~/.local/state/vendomat/v6/attic-investigation/phase4/`.
 
 `testee verify --full` passed on the same source before the last two runs (run
 `20261010T204941Z-57adeac8b2d9`).
@@ -59,5 +77,6 @@ Run directories are under `~/.local/state/vendomat/v6/live-cache/`.
 
 This is one host and one client. It proves push and cold pull through the pull credential on
 `server`. It does not prove another host, a remote substitution, or a push that needs no retry.
-The cause of the pool timeouts is not established; the investigation is a separate task.
+The cause of the pool timeouts is not established. These four passes do not isolate chunk size from
+the service restart or other changes in production workload.
 Every run leaves its unique object in the cache. The cache has no retention period.
