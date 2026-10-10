@@ -1,13 +1,13 @@
 # Reusable devenv module: Testee verification entrypoints.
 #
-# The tasks call the host `testee` wrapper (Testee 0.5.0). The wrapper starts before devenv, then
+# The tasks call the host `testee` wrapper (Testee 0.5.1). The wrapper starts before devenv, then
 # opens one clean devenv shell and runs the checks that the project declares in `testee.checks`.
 #
 # This module declares no checks and does not import the Testee devenv module. The consumer pins
 # the Testee module and `testee.package` from one tag, and declares its own `testee.checks`:
 #
 #   let
-#     testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.0";
+#     testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
 #   in
 #   {
 #     imports = [ testeeFlake.devenvModules.default ./nix/testee.nix ];

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Testee 0.5.0 runs the checks declared in devenv.nix (`testee.checks`). Testee is the host
+# Testee 0.5.1 runs the checks declared in devenv.nix (`testee.checks`). Testee is the host
 # wrapper (`~/.nix-profile/bin/testee`). It starts before devenv, so this group does not carry it.
 # The checks need pytest, ruff, and ty, so this group names them. Run `testee verify` (or the
 # testee:* devenv tasks), not pytest/ruff directly.

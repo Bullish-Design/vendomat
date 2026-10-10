@@ -70,5 +70,5 @@ testee verify           # quick: ruff and ruff-format
 testee check e2e        # opt-in: also builds real consumers with Nix
 ```
 
-Testee 0.5.0 runs these checks from `devenv.nix`. Run `testee` from the repository root. It opens its
+Testee 0.5.1 runs these checks from `devenv.nix`. Run `testee` from the repository root. It opens its
 own devenv shell.
