@@ -103,7 +103,7 @@ alternative is to move both mountpoints out of `/mnt` in the running system firs
 | disko | `de5708739256238fb912c62f03988815db89ec9a` (v1.13.0) |
 | Home Manager | `6b88c12cc6d234de4888f5d21076fb11199d0844` |
 | sops-nix | `dcd241ba97088c22569d1573286e1b9daad340c0` |
-| Vendomat | `main` of `Bullish-Design/vendomat`; **no release tag yet** (the registry names `v0.7.0`) |
+| Vendomat | `main` of `Bullish-Design/vendomat` (`86e5b300` at this writing); **no release tag yet** (the registry names `v0.7.0`; the review lock used a disposable `v0.7.0` of this tree) |
 | nix-systems | `main` of `Bullish-Design/nix-systems` (private); **no release tag yet** |
 | Deploy key (public) | `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMLhWJRKm9Z0TH+uYXt2LUUYNohKZBYHbkD79eUUuuF+ nix-systems-deploy@server`, SHA256:2yBw9eeg4lE57cQesFH8OUF8XdydFFSnRHhheJD6peI. The private key is `~/.ssh/nix-systems-deploy`, created 2026-10-09 for this work |
 | Server host key (public) | `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuCv60g0lkc64dHXAk0pSqU9UGFqLAgtm67j9bMG3K8`, SHA256:yB8P5Uga/SPYxzrKHL+FT9i+Uu3XqZ2w+FRoKWL6Y0g. The first install copies it into the new system |
@@ -116,10 +116,17 @@ toplevel. Verify that equality (section 8, step 4).
 
 ## 6. The built closure
 
-- Toplevel: `/nix/store/vg74gb57xbp64fvdrj1jmp4bzjy92awr-nixos-system-server-26.11.20261008.e7439b6`
-  (3.1 GiB, 810 paths). Built with the patched CLI: `devenv build machines.server.build.nixos`.
+- Toplevel: `/nix/store/bg8d1zxylrcnqdh2l81qrhpd266rj32n-nixos-system-server-26.11.20261008.e7439b6`
+  (3.4 GiB, 905 paths), built 2026-10-10 from `nix-systems` `main` `fe848434` with the patched CLI
+  `2.4.0+e2acb5b`: `devenv build machines.server.build.nixos`. It includes the F1, F2, and N2 fixes.
+- Preflight program: `/nix/store/wmpxqdid0wdn9aqi5p0ls8h6nffvrvaa-vendomat-preflight-server`
+  (`devenv build machines.server.build.vendomatPreflight`). It bakes the 4 TB drive's model, serial,
+  and size, and the old drive as protected.
+- Lock: `devenv.lock` sha256 `f6a4d5265f08f215e19fc90569a0139131717187ca1360a2e7e519842be68ef1`, kept with the fragment under
+  `~/.local/state/vendomat/v6/2026-10-09/09-cutover-review/nix-systems-lock/`. It names a loopback
+  collection; re-run `vendomat sync` after the tags are in `git://server`.
 - Contains: `devenv-wrapped-2.4.0` (the patched CLI), `vendomat-launcher-0.6.0`, `vendomat-0.6.0` (host
-  release), `repoman-0.12.0`, `python3.13-gitman-0.12.1`, `jujutsu-bin-0.46.0`, `testee-0.5.0`, `atticd`,
+  release), `repoman-0.12.1`, `efibootmgr`, `devman-0.8.0`, `dagu-2.15.0`, `python3.13-gitman-0.12.1`, `jujutsu-bin-0.46.0`, `testee-0.5.0`, `atticd`,
   `sops-install-secrets`.
 - Does not contain: the V4 `vendomat` module, `repoman-toolchain-core`, `toolchain.json`, or
   `REPOMAN_TOOLCHAIN_BIN`.
@@ -131,13 +138,13 @@ toplevel. Verify that equality (section 8, step 4).
 
 | Route | In the new system | State |
 | --- | --- | --- |
-| SSH | `services.openssh`, key-only; root accepts the deploy key; `andrew` accepts the two framework keys | built; VM check in Step 6 |
-| Secrets | sops-nix; host key is the age identity; `secrets/secrets.yaml` is the old ciphertext | built; the first recipient equals the server's host key (`ssh-to-age`) |
+| SSH | `services.openssh`, key-only; root accepts the deploy key; `andrew` accepts the two framework keys | built; VM PASS (steps 6 and 8). Open on every interface until the owner sets `openFirewall = false` (F4) |
+| Secrets | sops-nix; host key is the age identity; `secrets/secrets.yaml` is the old ciphertext | built; the first recipient equals the server's host key (`ssh-to-age`); decrypt proven in a VM with a test key only |
 | Tailnet | `services.tailscale` with `tailscale-auth-key` | built |
-| Source collection | `services.gitDaemon` over `/home/andrew/vendor`, port 9418 on `tailscale0` | built; data must be copied (section 8) |
-| Attic | `services.atticd` on loopback; Tailscale Serve publishes `/attic`; data on `/mnt/wd_green1` | built |
-| Dagu | pending the `devman` registry function (Step 8, lane `v6-devman`) | see GATES G8 |
-| Library services | pending a real library description | see GATES G6, G8 |
+| Source collection | `services.gitDaemon` over `/home/andrew/vendor`, port 9418 on `tailscale0` | built; services VM PASS (ls-remote, no export file means not served, push refused); data must be copied (section 8) |
+| Attic | `services.atticd` on loopback; Tailscale Serve publishes `/attic`; data on `/mnt/wd_green1` | built; services VM PASS except Tailscale Serve (needs a joined tailnet) |
+| Dagu | `services.devman-dagu` from `devman` v0.8.0 with a store-path registry (`mkRegistry`) for the tooling repositories | built; services VM PASS (API lists 26 DAGs; one DAG ran) |
+| Library faces | `docman` v0.3.1 `vendomat` description, enabled with `vendomat.libs.docman` | built; services VM PASS (`docman --help`) |
 | Pull credential for a cold installer (PV-09) | `/etc/nix/netrc` has no source | **owner decision** |
 
 ## 8. Proposed commands (NOT RUN)
