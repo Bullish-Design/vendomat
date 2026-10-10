@@ -194,3 +194,10 @@ For the owner and the lanes that own the documents.
 - The real tailnet, Tailscale Serve, real keys, and the live collection and cache (not touched).
 - A timer-driven scan (`scan.onCalendar`) and a GC of the cache (`CACHE` retention).
 - A build host with a failing `attic watch-store` (restart behavior).
+
+## Update 2026-10-10: the e2e wrapper
+
+`testee check e2e` ran green on `main` after a brittle log assertion was removed from
+`tests/test_infra_e2e.py` (run `20261010T125007Z-a0ca995fce8e`, 336 tests, exit 0). The VM script
+asserts the hook messages itself. The `attic push --stdin` shape ran against the real `atticd` in the
+cache VM test. PV-09 stays BLOCKED (owner decision). The owner's live Attic was not pushed to.

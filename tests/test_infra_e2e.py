@@ -119,8 +119,8 @@ def test_the_collection_serves_tags_only_and_rebuilds_from_release_tags(vendomat
         "RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original",
         "RESULT idle cpu ns in 15 s: ",
     )
-    assert "collection: only release tags are accepted, not refs/heads/main" in log
-    assert "collection: refs/tags/v1.0.0 exists; releases are immutable" in log
+    # The hook messages (`only release tags are accepted`, `releases are immutable`) are asserted in
+    # the VM script itself (`tests/nix/infra/collection.nix`). The driver log does not echo them.
 
 
 @needs_nix_fixture
