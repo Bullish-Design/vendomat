@@ -25,6 +25,10 @@ privileged scan with the `nixos-facter` report (they need root). No real disk, f
 order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
 proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.2`.
 
+The live cache checks `testee check live-cache` and `live-cache-load` (`CACHE-012`) pass on
+`server`; the 64 MiB run needs a second push attempt and shows server pool timeouts
+([evidence](projects/16-vendomat-devenv-layer/evidence/live-cache.md)).
+
 The 2026-10-10 concept revision makes no-Nix workspace use the first user goal. Module authors
 may write native Nix. The existing description builder remains fixture evidence, but the revised
 draft no longer requires it. Machine operator coverage follows this workspace proof.

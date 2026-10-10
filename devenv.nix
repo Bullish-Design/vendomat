@@ -12,6 +12,23 @@ let
   # to the host `testee` wrapper version. The uv venv does not carry Testee.
   testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
   venvBin = "${config.devenv.state}/venv/bin";
+  # One live cache check. The Testee shell drops host variables, so the size is set here.
+  liveCache = size: {
+    argv = [
+      "${pkgs.bash}/bin/bash"
+      "-c"
+      ''
+        export HOME="$(eval echo "~$(id -un)")" VENDOMAT_LIVE_CACHE=1 VENDOMAT_LIVE_CACHE_SIZE=${toString size}
+        export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+        export VENDOMAT_LIVE_CACHE_LOGS="$HOME/.local/state/vendomat/v6/live-cache/$(date -u +%Y%m%dT%H%M%SZ)"
+        ${venvBin}/python -m pytest -q -s tests/test_live_cache.py --junitxml="$TESTEE_RUN_DIR/live-cache.junit.xml"
+      ''
+    ];
+    profiles = [ "live-cache" ];
+    required = false;
+    timeout_s = 3600;
+    structured = { parser = "junit-xml"; file = "live-cache.junit.xml"; };
+  };
 in
 {
   # Verification entrypoints (testee:quick, testee:full, testee:doctor, testee:report, and
@@ -88,6 +105,14 @@ in
       timeout_s = 900;
       structured = { parser = "junit-xml"; file = "workspace-e2e.junit.xml"; };
     };
+    # Opt-in live cache checks (CACHE-012). They push to the host Attic with the push credential,
+    # ask for every path with the pull credential, and copy cold into an empty store. They write
+    # real objects to the live cache, so no profile selects them. Run `testee check live-cache`
+    # (a 1 MiB unique object) or `testee check live-cache-load` (a 64 MiB unique object, about
+    # 1000 chunks). They read ~/.config/attic/config.toml and print no token. The report goes
+    # under ~/.local/state/vendomat/v6/live-cache/<UTC time>/.
+    live-cache = liveCache 1048576;
+    live-cache-load = liveCache 67108864;
   };
 
   # https://devenv.sh/basics/
