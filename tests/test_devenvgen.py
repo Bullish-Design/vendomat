@@ -450,3 +450,18 @@ def test_a_partial_lock_from_a_failed_update_is_rolled_back(tmp_path):
     with pytest.raises(DevenvSyncError):
         ensure_lock(root, {"a": "git://s/a?ref=refs/tags/v1"}, cmd)
     assert (root / "devenv.lock").read_text() == prior
+
+
+def test_a_registry_nixpkgs_naming_the_default_revision_is_not_an_override(tmp_path):
+    root = project(
+        tmp_path,
+        f"""
+        [targets]
+        devenv = true
+        [inputs]
+        [passthrough]
+        nixpkgs = {{ url = "github:NixOS/nixpkgs", rev = "{DEFAULT_NIXPKGS_URL.rsplit("/", 1)[1]}" }}
+        """,
+    )
+    result = run(root, FakeResolver({}))
+    assert not any("overrides" in n for n in result.notes)

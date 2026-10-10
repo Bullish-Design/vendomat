@@ -26,7 +26,7 @@ from typing import Any
 
 from . import yamlsubset
 from .defaults import DEFAULT_NIXPKGS_URL
-from .nixio import NixError, NixResolver, Resolver, lock_problems, same_source
+from .nixio import NixError, NixResolver, Resolver, canon_url, lock_problems, same_source
 from .registry import Registry
 
 FRAGMENT_DIR = ".vendomat"
@@ -151,7 +151,10 @@ class _Discovery:
         if "nixpkgs" not in self.inputs:
             self.inputs["nixpkgs"] = InputSpec("nixpkgs", DEFAULT_NIXPKGS_URL, origin="default")
             self.notes.append(f"nixpkgs: the registry names none; using the release default {DEFAULT_NIXPKGS_URL}")
-        elif self.inputs["nixpkgs"].url != DEFAULT_NIXPKGS_URL:
+        elif self.inputs["nixpkgs"].url != DEFAULT_NIXPKGS_URL and (
+            canon_url(self.inputs["nixpkgs"].url) is None
+            or canon_url(self.inputs["nixpkgs"].url) != canon_url(DEFAULT_NIXPKGS_URL)
+        ):
             self.notes.append(f"nixpkgs: the registry overrides the release default with {self.inputs['nixpkgs'].url}")
         for imp in self.registry.imports:
             self._walk(imp, [])
