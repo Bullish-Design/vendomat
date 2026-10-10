@@ -13,7 +13,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 #: The library modules that exist. Add a name here when a V5 module is built.
-MODULES = {"__init__.py", "cli.py", "generate.py", "locate.py", "registry.py", "store.py"}
+MODULES = {
+    "__init__.py",
+    "cli.py",
+    "defaults.py",
+    "devenvgen.py",
+    "generate.py",
+    "locate.py",
+    "nixio.py",
+    "registry.py",
+    "store.py",
+    "yamlsubset.py",
+}
 
 
 def test_the_library_holds_only_v5_modules():

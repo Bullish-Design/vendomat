@@ -57,7 +57,12 @@ in
         "${pkgs.bash}/bin/bash"
         "-c"
         ''
-          export HOME="$(eval echo "~$(id -un)")" VENDOMAT_E2E=1 PATH="${pkgs.nix}/bin:$PATH"
+          export HOME="$(eval echo "~$(id -un)")" VENDOMAT_E2E=1
+          export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+          # The sync fixture runs a real devenv. Use the host's, which is the pinned release build.
+          export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
+          # Keep every fixture command, exit status, and output outside the repository.
+          export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
           ${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/e2e.junit.xml"
         ''
       ];

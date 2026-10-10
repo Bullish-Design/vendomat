@@ -13,7 +13,8 @@ from pathlib import Path
 
 import typer
 
-from .generate import GenerateError, sync_flake
+from .devenvgen import DevenvSyncError, sync_devenv
+from .generate import GenerateError, load_registry, sync_flake, tool_version
 from .locate import LocateError, input_path
 from .store import exit_code, source_root, sync_store
 
@@ -33,9 +34,12 @@ def sync(
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the planned actions and change nothing."),
 ) -> None:
-    """Write the project ``flake.nix`` from ``vendomat.toml``, then keep and mirror sources.
+    """Write the project outputs from ``vendomat.toml``, then keep and mirror sources.
 
-    ``sync`` writes ``flake.nix`` first. A store failure never undoes it. ``keep`` entries get a
+    ``[targets]`` selects the outputs. The flake target (the default) writes ``flake.nix``. The
+    devenv target writes the ``.vendomat/`` fragment and asks ``devenv`` to lock its inputs.
+
+    ``sync`` writes the outputs first. A store failure never undoes them. ``keep`` entries get a
     clone under ``$VENDOMAT_SOURCE_ROOT`` (default ``~/vendor``) that shows the pinned tag. ``mirror``
     entries act only with ``--collection``. ``sync`` leaves ``flake.lock`` and ``flake-outputs.nix``
     alone: Nix owns the lock and the project owns its outputs. It refuses to overwrite a
@@ -44,23 +48,40 @@ def sync(
 
     project = Path(root) if root is not None else Path.cwd()
     try:
-        result = sync_flake(project, dry_run=dry_run)
+        registry = load_registry(project)
+        if registry.targets.flake:
+            result = sync_flake(project, dry_run=dry_run)
+            registry = result.registry
+            verb = ("would write" if dry_run else "wrote") if result.changed else "unchanged"
+            typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
     except GenerateError as exc:
         typer.echo(f"vendomat sync: {exc}", err=True)
         raise typer.Exit(code=exc.code) from exc
-    if result.changed:
-        verb = "would write" if dry_run else "wrote"
-    else:
-        verb = "unchanged"
-    typer.echo(f"vendomat sync: {verb} {result.path.name} ({result.inputs} direct input(s))")
 
-    outcomes = sync_store(result.registry, root=source_root(), collection=collection, dry_run=dry_run)
-    for outcome in outcomes:
-        typer.echo(f"vendomat sync: {outcome.line()}", err=not outcome.ok)
+    if registry.targets.devenv:
+        try:
+            outcome = sync_devenv(project, registry, tool_version(), dry_run=dry_run)
+        except DevenvSyncError as exc:
+            typer.echo(f"vendomat sync: {exc}", err=True)
+            raise typer.Exit(code=exc.code) from exc
+        for note in outcome.notes:
+            typer.echo(f"vendomat sync: note: {note}")
+        for warning in outcome.warnings:
+            typer.echo(f"vendomat sync: warning: {warning}", err=True)
+        if outcome.skipped:
+            verb = "unchanged"
+        else:
+            verb = ("would write" if dry_run else "wrote") if outcome.changed else "unchanged"
+        lock = "; devenv.lock updated" if outcome.lock_updated else ""
+        typer.echo(f"vendomat sync: {verb} .vendomat/ ({outcome.inputs} input(s), {outcome.imports} import(s){lock})")
+
+    outcomes = sync_store(registry, root=source_root(), collection=collection, dry_run=dry_run)
+    for outcome_line in outcomes:
+        typer.echo(f"vendomat sync: {outcome_line.line()}", err=not outcome_line.ok)
     code = exit_code(outcomes)
     if code:
-        failed = sum(1 for outcome in outcomes if not outcome.ok)
-        typer.echo(f"vendomat sync: {failed} source problem(s); flake.nix is not affected", err=True)
+        failed = sum(1 for item in outcomes if not item.ok)
+        typer.echo(f"vendomat sync: {failed} source problem(s); the written outputs are not affected", err=True)
         raise typer.Exit(code=code)
 
 

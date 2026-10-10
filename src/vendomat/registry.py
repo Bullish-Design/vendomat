@@ -1,12 +1,15 @@
 """Read and validate the V5 registry, ``vendomat.toml`` (``REG-*``).
 
 The registry names the direct source inputs of one project. It selects no revision: Nix
-resolves revisions and owns ``flake.lock``. This module only reads and validates. It never
-writes the registry (``REG-009``) and never fetches an input.
+resolves revisions and owns ``flake.lock`` and ``devenv.lock``. This module only reads and
+validates. It never writes the registry (``REG-009``) and never fetches an input.
 
-Four tables exist. ``[forge]`` names the one source collection. ``[inputs]`` and
+Six tables exist. ``[forge]`` names the one source collection. ``[inputs]`` and
 ``[passthrough]`` hold input entries. ``[follows]`` lists, per direct flake input, the child
-inputs that follow the root ``nixpkgs``.
+inputs that follow the root ``nixpkgs``. ``[imports]`` lists, per input, the directories whose
+``devenv.yaml`` the pre-resolver reads (``PRE-003``). ``[targets]`` selects the outputs
+(``PRE-001``): ``flake`` writes ``flake.nix`` and ``devenv`` writes the ``.vendomat/`` fragment.
+A registry with no ``[targets]`` table keeps the V5 behavior: the flake target only.
 
 An ``[inputs]`` entry without a ``url`` lives in the collection. Every ``[inputs]`` entry pins a
 tag, so a lock never follows a moving branch (``REG-017``).
@@ -25,10 +28,11 @@ from typing import cast
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 #: A repository name in the collection. It may hold dots, which an input name cannot.
 REPO_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-INPUT_KEYS = frozenset({"url", "repo", "ref", "rev", "flake", "mirror", "keep", "backup"})
-PASSTHROUGH_KEYS = frozenset({"url", "ref", "rev", "flake", "backup"})
+INPUT_KEYS = frozenset({"url", "repo", "ref", "rev", "flake", "mirror", "keep", "backup", "dir"})
+PASSTHROUGH_KEYS = frozenset({"url", "ref", "rev", "flake", "backup", "dir"})
 FORGE_KEYS = frozenset({"url"})
-TABLES = frozenset({"forge", "inputs", "passthrough", "follows"})
+TARGET_KEYS = frozenset({"flake", "devenv"})
+TABLES = frozenset({"forge", "inputs", "passthrough", "follows", "imports", "targets"})
 #: The only root input a ``[follows]`` entry may name. A wider mapping needs its own fixture.
 FOLLOWS_ROOT = "nixpkgs"
 #: Inputs that are never copied into the collection or onto a machine. They are huge.
@@ -38,6 +42,8 @@ TAG_PREFIX = "refs/tags/"
 _URL_RE = re.compile(r"[^\s\x00-\x1f\x7f\"\\$#]+")
 _REF_RE = re.compile(r"[A-Za-z0-9._/+-]+")
 _REV_RE = re.compile(r"[0-9a-f]{40,64}")
+#: A directory inside an input's source. No leading slash, and ``..`` is rejected separately.
+_DIR_RE = re.compile(r"[A-Za-z0-9._][A-Za-z0-9._/-]*")
 
 
 class RegistryError(Exception):
@@ -74,12 +80,26 @@ class Source:
 
 
 @dataclass(frozen=True)
+class Targets:
+    """The outputs ``sync`` writes. A registry without ``[targets]`` selects ``flake`` only."""
+
+    flake: bool = True
+    devenv: bool = False
+
+
+@dataclass(frozen=True)
 class Registry:
-    """A validated registry. ``sources`` is sorted by name, so output order never depends on the file."""
+    """A validated registry. ``sources`` is sorted by name, so output order never depends on the file.
+
+    ``imports`` holds ``<input>`` or ``<input>/<dir>`` strings, sorted. ``digest`` covers only what
+    the flake target writes, so a V5 flake keeps its digest.
+    """
 
     sources: tuple[Source, ...]
     digest: str
     forge: str | None = None
+    imports: tuple[str, ...] = ()
+    targets: Targets = Targets()
 
 
 def read_registry(path: Path) -> Registry:
@@ -101,7 +121,8 @@ def parse_registry(text: str, where: str = "vendomat.toml") -> Registry:
     unknown = sorted(set(data) - TABLES)
     if unknown:
         raise RegistryError(
-            f"{where}: unknown table [{unknown[0]}]; expected [forge], [inputs], [passthrough], or [follows]"
+            f"{where}: unknown table [{unknown[0]}]; expected [forge], [inputs], [passthrough], [follows], "
+            "[imports], or [targets]"
         )
     if "inputs" not in data:
         raise RegistryError(f"{where}: the registry needs an [inputs] table")
@@ -123,7 +144,53 @@ def parse_registry(text: str, where: str = "vendomat.toml") -> Registry:
 
     follows = _follows(where, data.get("follows", {}), entries)
     sources = tuple(_with_follows(entries[name], follows.get(name, ())) for name in sorted(entries))
-    return Registry(sources=sources, digest=_digest(sources), forge=forge)
+    imports = _imports(where, data.get("imports", {}), entries)
+    targets = _targets(where, data.get("targets"))
+    return Registry(sources=sources, digest=_digest(sources), forge=forge, imports=imports, targets=targets)
+
+
+def _targets(where: str, raw: object) -> Targets:
+    """Read ``[targets]``. An absent table keeps V5 behavior. A present table names every output it wants."""
+
+    if raw is None:
+        return Targets()
+    if not isinstance(raw, dict):
+        raise RegistryError(f"{where}: [targets] must be a table")
+    for key, value in raw.items():
+        if key not in TARGET_KEYS:
+            raise RegistryError(f"{where}: unknown key '{key}' in [targets]; allowed keys: devenv, flake")
+        if not isinstance(value, bool):
+            raise RegistryError(f"{where}: '{key}' in [targets] must be true or false")
+    targets = Targets(flake=bool(raw.get("flake", False)), devenv=bool(raw.get("devenv", False)))
+    if not (targets.flake or targets.devenv):
+        raise RegistryError(f"{where}: [targets] selects no output; set flake = true, devenv = true, or both")
+    return targets
+
+
+def _imports(where: str, raw: object, entries: dict[str, Source]) -> tuple[str, ...]:
+    """Read ``[imports]``: an input name maps to one directory or a list of directories.
+
+    A directory is relative to the input's source. ``"."`` names the source root.
+    """
+
+    if not isinstance(raw, dict):
+        raise RegistryError(f"{where}: [imports] must be a table")
+    out: set[str] = set()
+    for name, value in cast("dict[str, object]", raw).items():
+        if name not in entries:
+            raise RegistryError(f"{where}: [imports] names '{name}', which is not a direct input")
+        dirs = value if isinstance(value, list) else [value]
+        if not dirs:
+            raise RegistryError(f"{where}: [imports] '{name}' must name at least one directory")
+        for directory in dirs:
+            if not isinstance(directory, str) or not _DIR_RE.fullmatch(directory) or ".." in directory.split("/"):
+                raise RegistryError(
+                    f"{where}: [imports] '{name}' has an invalid directory {directory!r}; "
+                    'use a relative path inside the input, or "." for its root'
+                )
+            clean = "/".join(part for part in directory.split("/") if part not in ("", "."))
+            out.add(f"{name}/{clean}" if clean else name)
+    return tuple(sorted(out))
 
 
 def _with_follows(source: Source, follows: tuple[str, ...]) -> Source:
@@ -182,6 +249,9 @@ def _entry(where: str, table: str, name: str, entry: object, forge: str | None) 
 
     ref = _string(where, name, entry, "ref", _REF_RE)
     rev = _string(where, name, entry, "rev", _REV_RE)
+    subdir = _string(where, name, entry, "dir", _DIR_RE)
+    if subdir is not None and ".." in subdir.split("/"):
+        raise RegistryError(f"{where}: 'dir' in entry '{name}' must stay inside the input: {subdir!r}")
     if table == "inputs":
         _check_pin(where, name, base, ref, rev)
     flake = _boolean(where, name, entry, "flake", True)
@@ -197,7 +267,7 @@ def _entry(where: str, table: str, name: str, entry: object, forge: str | None) 
     backup = _string(where, name, entry, "backup", _URL_RE)
     return Source(
         name=name,
-        url=_with_query(where, name, base, ref, rev),
+        url=_with_query(where, name, base, ref, rev, subdir),
         flake=flake,
         follows=(),
         in_forge=own_url is None,
@@ -249,14 +319,15 @@ def _boolean(where: str, name: str, entry: dict, key: str, default: bool) -> boo
     return value
 
 
-def _with_query(where: str, name: str, url: str, ref: str | None, rev: str | None) -> str:
-    """Add ``ref`` and ``rev`` as URL query parameters.
+def _with_query(where: str, name: str, url: str, ref: str | None, rev: str | None, subdir: str | None = None) -> str:
+    """Add ``ref``, ``rev``, and ``dir`` as URL query parameters.
 
-    Nix 2.34.7 rejects them as separate input attributes next to ``url`` (PV-13).
+    Nix 2.34.7 rejects them as separate input attributes next to ``url`` (PV-13). ``dir`` selects a
+    subdirectory of the source, such as the ``src/modules`` of devenv.
     """
 
     present = {pair.partition("=")[0] for pair in url.partition("?")[2].split("&") if pair}
-    pairs = [("ref", ref), ("rev", rev)]
+    pairs = [("ref", ref), ("rev", rev), ("dir", subdir)]
     for key, value in pairs:
         if value is not None and key in present:
             raise RegistryError(f"{where}: entry '{name}' sets '{key}' and also carries '{key}=' in its url; use one")

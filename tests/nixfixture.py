@@ -27,8 +27,8 @@ NIXPKGS_URL = "github:cachix/devenv-nixpkgs/12866ae2dddbc0ab8b329915f8072bb9c75b
 SYSTEM = "x86_64-linux"
 
 needs_nix_fixture = pytest.mark.skipif(
-    os.environ.get("VENDOMAT_E2E") != "1" or shutil.which("nix") is None or shutil.which("gitman") is None,
-    reason="Nix fixture; set VENDOMAT_E2E=1 and provide nix and gitman to opt in",
+    os.environ.get("VENDOMAT_E2E") != "1" or shutil.which("nix") is None or shutil.which("git") is None,
+    reason="Nix fixture; set VENDOMAT_E2E=1 and provide nix and git to opt in",
 )
 
 _LOG_COUNTER = {"n": 0}
@@ -116,39 +116,37 @@ def nixpkgs_nodes(lock: dict) -> list[str]:
     )
 
 
-# --- Gitman helpers -------------------------------------------------------------------
+# --- Fixture repository helpers -------------------------------------------------------
+#
+# A fixture repository is a throwaway directory. It uses plain Git, because Nix reads Git trees and
+# the project's own version-control rules do not apply inside a temporary fixture.
+
+_GIT = ["git", "-c", "user.email=fixture@example.invalid", "-c", "user.name=fixture", "-c", "commit.gpgsign=false"]
 
 
-def gitman(args: list[str], cwd: Path) -> Result:
-    """Run Gitman. Set ``VENDOMAT_GITMAN`` to a build whose CLI the fixtures know (init, seed, start,
-    describe, land, repair, release), for example while the sibling checkout is mid-rewrite."""
-    result = run([os.environ.get("VENDOMAT_GITMAN", "gitman"), *args], cwd)
-    assert result.returncode == 0, f"gitman {' '.join(args)} failed: {result.stdout}{result.stderr}"
+def git(args: list[str], cwd: Path) -> Result:
+    result = run([*_GIT, *args], cwd)
+    assert result.returncode == 0, f"git {' '.join(args)} failed: {result.stdout}{result.stderr}"
     return result
 
 
 def init_repo(root: Path, message: str = "fixture seed") -> None:
-    gitman(["init", "--colocate", "--trunk", "main"], root)
-    gitman(["seed", "-m", message], root)
-    gitman(["repair"], root)
+    root.mkdir(parents=True, exist_ok=True)
+    git(["init", "-q", "-b", "main"], root)
+    git(["add", "-A"], root)
+    git(["commit", "-q", "--allow-empty", "-m", message], root)
 
 
 def save(root: Path, lane: str, message: str) -> None:
-    """Record the working tree through Gitman so Nix sees every file as tracked.
-
-    A remote-less fixture leaves the colocated git ref behind after ``land``, so the Git
-    tree reads as dirty until ``repair`` re-points it.
-    """
-    gitman(["start", lane], root)
-    gitman(["describe", "-m", message], root)
-    gitman(["land"], root)
-    gitman(["repair"], root)
+    """Record the working tree so Nix sees every file as tracked. ``lane`` only names the step."""
+    git(["add", "-A"], root)
+    git(["commit", "-q", "--allow-empty", "-m", f"{lane}: {message}"], root)
 
 
 def tag_release(root: Path, version: str) -> str:
-    """Tag trunk and return its commit id, using Gitman only."""
-    gitman(["release", "--version", version], root)
-    return str(json.loads(gitman(["trunk", "show", "--json"], root).stdout)["commit_id"])
+    """Tag the current commit ``v<version>`` and return its commit id."""
+    git(["tag", f"v{version}"], root)
+    return git(["rev-parse", "HEAD"], root).stdout.strip()
 
 
 # --- Source files ---------------------------------------------------------------------

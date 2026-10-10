@@ -106,17 +106,19 @@
 | ID | Requirement | Verify |
 | --- | --- | --- |
 | `REG-022` | A top-level table other than `[forge]`, `[inputs]`, `[passthrough]`, `[follows]`, `[imports]`, and `[targets]` MUST be an error naming it. `[inputs]` MUST be present | Unit tests |
+| `REG-023` | An `[inputs]` or `[passthrough]` entry MAY set `dir`, a relative path inside the input's source. `sync` writes it as the `dir` URL query parameter. A path that leaves the input is an error | Unit tests; the fragment URL of a `dir` entry ends in `dir=<path>` |
+| `REG-024` | `[imports]` maps a direct input name to one directory or a list of directories (`"."` names the source root). `sync` writes each as `<input>/<dir>`. A name that is not a direct input is an error. A registry with no `[targets]` table selects the flake target only. A `[targets]` table selects what it names and MUST select at least one | Unit tests (`tests/test_registry_v6.py`) |
 | `PRE-001` | `[targets]` MUST select the outputs: `devenv = true` writes the fragment; `flake = true` writes `flake.nix` by `GEN-005` to `GEN-021`. Both MAY be set | Unit tests for each combination |
-| `PRE-002` | With the devenv target, `vendomat sync` MUST write `.vendomat/devenv.yaml`, `.vendomat/devenv.nix`, and `.vendomat/digest`. A workspace `devenv.yaml` of only `imports: [ ./.vendomat ]` MUST lock every fragment input into the workspace's own `devenv.lock` | Agent I Q1 |
-| `PRE-003` | For each `[imports]` entry `<input>/<dir>`, `sync` MUST read that directory's `devenv.yaml` from the input's source and add its inputs as top-level inputs, recursively. Two imported files with different URLs for one name MUST be an error naming both. A registry entry wins and `sync` MUST report it | Agent I Q3 (the conflict path is not yet run) |
-| `PRE-004` | `sync` MUST NOT write a `follows` deeper than one level. It MUST express a nested edge as a top-level input plus one-level `follows` | Agent I Q4: one node per source |
-| `PRE-005` | `sync` MUST add `<input>.inputs.<name>.follows = <name>` for every child that shares a top-level source, and MUST report a child whose source differs instead of following it | Lock node count per source is one (agent I Q3) |
-| `PRE-006` | `.vendomat/devenv.nix` MUST assert that the digest exists, that `vendomat.toml` matches the recorded hash, and that the fragment matches the recorded hash | Each case exits 1 with its message (agent I Q5) |
-| `PRE-007` | `sync` MUST warn when the workspace `devenv.yaml` or `devenv.local.yaml` redeclares a generated input, because that entry replaces the generated one entirely | Fixture: a redeclared input with `follows` in the fragment prints the warning (agent I Q2 shows the replacement) |
-| `PRE-008` | `sync` MUST judge a lock update by the lock contents and the error text, never by the exit status of `devenv update` | An unreachable input makes `sync` exit non-zero, though `devenv update` exits 0 (`NAT-026`) |
-| `PRE-009` | A `use_vendomat` direnv function MUST re-sync only when the digest is stale, then run `use devenv` | Agent I Q6: about 0.35 s with no change |
-| `PRE-010` | The fragment MUST add no measurable time to a warm shell entry and at most 100 ms to a full evaluation | Agent I Q7: 0.173 s against 0.175 s warm; +65 ms full |
-| `PRE-011` | `sync` MUST replace generated files atomically with a new modification time, and MUST clear `.devenv` evaluation state when the inputs change | Agent L Q3 saw a stale result after swapping same-size, same-mtime `devenv.yaml` files with `.devenv` kept. Cause UNPROVEN |
+| `PRE-002` | With the devenv target, `vendomat sync` MUST write `.vendomat/devenv.yaml`, `.vendomat/devenv.nix`, and `.vendomat/digest`. A workspace `devenv.yaml` of only `imports: [ ./.vendomat ]` MUST lock every fragment input into the workspace's own `devenv.lock` | Agent I Q1. **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): a three-level chain locks every input with a 40-hex revision |
+| `PRE-003` | For each `[imports]` entry `<input>/<dir>`, `sync` MUST read that directory's `devenv.yaml` from the input's source and add its inputs as top-level inputs, recursively. Two imported files with different URLs for one name MUST be an error naming both. A registry entry wins and `sync` MUST report it | Agent I Q3 (the conflict path is not yet run). **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): three levels, one lock node per source. Conflict, cycle, and registry-wins cases: `tests/test_devenvgen.py` |
+| `PRE-004` | `sync` MUST NOT write a `follows` deeper than one level. It MUST express a nested edge as a top-level input plus one-level `follows` | Agent I Q4: one node per source. **V6 fixture:** `tests/test_devenvgen.py`: only one-level `follows` are written; deeper edges are reported |
+| `PRE-005` | `sync` MUST add `<input>.inputs.<name>.follows = <name>` for every child that shares a top-level source, and MUST report a child whose source differs instead of following it | Lock node count per source is one (agent I Q3). **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): `shared` has one node although four flakes declare it |
+| `PRE-006` | `.vendomat/devenv.nix` MUST assert that the digest exists, that `vendomat.toml` matches the recorded hash, and that the fragment matches the recorded hash | Each case exits 1 with its message (agent I Q5). **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): a registry edit and a hand edit each stop `devenv shell` with a named message |
+| `PRE-007` | `sync` MUST warn when the workspace `devenv.yaml` or `devenv.local.yaml` redeclares a generated input, because that entry replaces the generated one entirely | Fixture: a redeclared input with `follows` in the fragment prints the warning (agent I Q2 shows the replacement). **V6 fixture:** `tests/test_devenvgen.py`: a redeclared input gives a warning |
+| `PRE-008` | `sync` MUST judge a lock update by the lock contents and the error text, never by the exit status of `devenv update` | An unreachable input makes `sync` exit non-zero, though `devenv update` exits 0 (`NAT-026`). **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): `devenv update` of an unreachable input leaves the prior lock and exits 2 |
+| `PRE-009` | A `use_vendomat` direnv function MUST re-sync only when the digest is stale, then run `use devenv` | Agent I Q6: about 0.35 s with no change. **V6 fixture:** `tests/test_use_vendomat.py` (stale cases and a failed sync). Direnv itself is not run |
+| `PRE-010` | The fragment MUST add no measurable time to a warm shell entry and at most 100 ms to a full evaluation | Agent I Q7: 0.173 s against 0.175 s warm; +65 ms full. **V6 fixture:** `tests/test_devenv_sync_e2e.py` (Testee run `20261010T021235Z-496f611f02bf`): an unchanged `sync` took 0.142 s with the source daemon stopped |
+| `PRE-011` | `sync` MUST replace generated files atomically with a new modification time, and MUST clear `.devenv` evaluation state when the inputs change | Agent L Q3 saw a stale result after swapping same-size, same-mtime `devenv.yaml` files with `.devenv` kept. Cause UNPROVEN. **V6 re-run (2026-10-09, stock 2.4.0, evaluation cache on, `.devenv` kept):** the stale result did NOT reproduce, so `sync` clears `nix-eval-cache*` only when the fragment content changes, as a precaution |
 
 ---
 
@@ -243,12 +245,6 @@ a retention engine, or a workspace orchestrator. devenv Machines deploys. Nix ow
 
 ## Count
 
-`LEDGER-V6.md` holds the exact counts and is generated from this file. At the last generation V6 defined
-116 IDs: 9 `DVN`, 16 `VMOD`, 1 `REG`, 11 `PRE`, 7 `FACE`, 3 `MOD`, 3 `DESC`, 23 `MACH`, 3 `SEC`, 2 `DISK`,
-1 `CACHE`, 7 `DEL`, 1 `GEN`, 1 `BOOT`, 5 `CLI`, and 23 `NAT` facts. Sixteen are proposed and one is to build.
-
-Within this draft, `VMOD-003`, `VMOD-012`, `FACE-001`, `MOD-011`, `MOD-012`, `DESC-001`, `MACH-001`,
-`MACH-002`, `MACH-003`, `MACH-010`, `MACH-011`, `MACH-012`, `MACH-013`, `SEC-001`, `DISK-008`, `DEL-015`,
-`DEL-018`, and `CLI-017` are superseded. `DEL-014` and `FACE-004` are decided by `DEL-017` and `FACE-005`.
-No new ID reuses a V5 ID. Section 0 names 50 V5 IDs: it supersedes, narrows, withdraws, defers, or keeps
-each one. The active `MOD-*` IDs that `DESC-002` does not replace return to scope.
+`LEDGER-V6.md` holds every count and every disposition. It is generated from this file and from
+`SPEC-V5.md`, and a Testee check fails when it differs. This document keeps no count, so none can go
+stale. No new ID reuses a V5 ID. A row that starts with *Superseded* names its successor.

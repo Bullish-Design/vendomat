@@ -128,6 +128,18 @@ def sync_flake(root: Path, tool: str | None = None, *, dry_run: bool = False) ->
     return SyncResult(flake, changed=True, inputs=len(registry.sources), registry=registry)
 
 
+def load_registry(root: Path) -> Registry:
+    """Read and validate ``vendomat.toml`` in ``root``. A fault raises ``GenerateError``."""
+
+    registry_path = root / REGISTRY_FILE
+    if not registry_path.is_file():
+        raise GenerateError(f"{registry_path}: no registry here; create {REGISTRY_FILE} first")
+    try:
+        return read_registry(registry_path)
+    except RegistryError as exc:
+        raise GenerateError(str(exc)) from exc
+
+
 def _has_header(flake: Path) -> bool:
     with flake.open("rb") as handle:
         first = handle.readline(200)
