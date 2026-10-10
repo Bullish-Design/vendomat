@@ -4,4 +4,4 @@
 c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5  0003-fix-bootstrap-reuse-locked-inputs-already-in-the-sto.patch
 1cefc1dab7859c8e027611eec5c505abc68f1d47f2986976f9680fcc53104b5e  0004-vendomat-build-the-devenv-CLI-as-a-release-DEVENV_IS.patch
 85eea6e22e52fdc3103381a69fa9765305433b4273d0e728e553123c0aedd2a3  0005-vendomat-refuse-machines-install-for-an-adopted-mach.patch
-200d0325bbe4fbfa228439b6e1497b126d792d1fd26b486f1cbaa8bffb8da60c  0006-vendomat-require-a-target-bound-preflight-before-a-f.patch
+8b91f6770d3f3699e05c8f76e7769d7ec8f6732b4f112d813f00739cf956d37c  0006-vendomat-require-a-target-bound-preflight-before-a-f.patch

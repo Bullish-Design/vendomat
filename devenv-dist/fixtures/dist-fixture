@@ -55,12 +55,12 @@ def main():
         return out
 
     fork_commit = git("rev-parse", "HEAD", cwd=fork_repo)
-    tag_commit = git("rev-parse", "v2.4.0-vendomat.1^{commit}", cwd=fork_repo)
+    tag_commit = git("rev-parse", "v2.4.0-vendomat.2^{commit}", cwd=fork_repo)
     record("fork-tag-is-head", fork_commit == tag_commit, fork_commit=fork_commit)
 
     # DVN-005: latest-version equals the CLI crate version.
-    latest = git("show", "v2.4.0-vendomat.1:src/modules/latest-version", cwd=fork_repo).strip()
-    cargo = git("show", "v2.4.0-vendomat.1:Cargo.toml", cwd=fork_repo)
+    latest = git("show", "v2.4.0-vendomat.2:src/modules/latest-version", cwd=fork_repo).strip()
+    cargo = git("show", "v2.4.0-vendomat.2:Cargo.toml", cwd=fork_repo)
     crate_version = re.search(r'^version = "([^"]+)"', cargo.split("[workspace.package]", 1)[1], re.MULTILINE).group(1)
     cli = subprocess.run([patched, "version"], text=True, capture_output=True).stdout.strip()
     cli_version = cli.split()[1].split("+")[0]
@@ -104,10 +104,10 @@ def main():
         )
         return directory
 
-    fork_url = f"git+git://127.0.0.1:{port}/devenv?ref=refs/tags/v2.4.0-vendomat.1&dir=src/modules"
+    fork_url = f"git+git://127.0.0.1:{port}/devenv?ref=refs/tags/v2.4.0-vendomat.2&dir=src/modules"
     stock_url = f"git+git://127.0.0.1:{port}/devenv?ref=refs/tags/v2.4.0&dir=src/modules"
     # A bare repository, as in the collection. A working tree gives no locked rev.
-    file_url = f"git+file://{srv / 'devenv'}?ref=refs/tags/v2.4.0-vendomat.1&dir=src/modules"
+    file_url = f"git+file://{srv / 'devenv'}?ref=refs/tags/v2.4.0-vendomat.2&dir=src/modules"
 
     # DVN-004: the packaging shape, with a file URL and a loopback git:// URL.
     for label, url in (("file", file_url), ("git-daemon", fork_url)):
@@ -118,7 +118,7 @@ def main():
         locked = node.get("locked", {})
         original = node.get("original", {})
         ok = (out.returncode == 0 and locked.get("rev") == fork_commit and locked.get("dir") == "src/modules"
-              and original.get("ref") == "refs/tags/v2.4.0-vendomat.1")
+              and original.get("ref") == "refs/tags/v2.4.0-vendomat.2")
         # A git+file URL gives no locked rev (the observation): only git:// is a pin.
         name = f"DVN-004-shape-{label}" if label == "git-daemon" else f"OBSERVATION-file-url-{label}"
         record(name, ok if label == "git-daemon" else out.returncode == 0, exit=out.returncode,

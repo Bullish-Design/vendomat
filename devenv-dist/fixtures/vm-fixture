@@ -131,6 +131,23 @@ def main():
 
     disk = "/dev/disk/by-id/virtio-TARGETDISK"
 
+    # 0. The default phase list and kexec with a disk phase are refused before any contact,
+    # so the running source VM keeps its kernel (same boot id) and sshd sees no login.
+    boot_before = vm("cat /proc/sys/kernel/random/boot_id", "boot-id-before").stdout.strip()
+    login_cmd = "journalctl -u sshd --no-pager | grep -c 'Accepted publickey' || true"
+    login1 = int(vm(login_cmd, "login-count-1").stdout.strip())
+    login2 = int(vm(login_cmd, "login-count-2").stdout.strip())
+    refused_all = True
+    for label, flags in (("default", []), ("kexec-disko", ["--phases", "kexec,disko"]),
+                         ("stop-after-disko", ["--stop-after-disko"])):
+        proc = devenv_run(["machines", "install", "fresh", *flags], f"refused-{label}")
+        refused_all = refused_all and proc.returncode != 0 and "use `--phases disko,install`" in proc.stdout + proc.stderr
+    login3 = int(vm(login_cmd, "login-count-3").stdout.strip())
+    boot_after = vm("cat /proc/sys/kernel/random/boot_id", "boot-id-after").stdout.strip()
+    record("C1-default-and-kexec-refused-no-contact",
+           refused_all and boot_before == boot_after and login3 - login2 == login2 - login1,
+           boot_id_same=boot_before == boot_after, logins=[login1, login2, login3])
+
     # 1. Dirty target disk: the real preflight must refuse; the disk must stay as it is.
     vm(f"mkfs.ext4 -q -L dirty {disk}", "make-disk-dirty")
     for phases in ("disko,install", "install", "disko"):

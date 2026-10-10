@@ -2,4 +2,4 @@
 repo=https://github.com/cachix/devenv
 tag=v2.4.0
 commit=b904dcb51fe48c30db250038241507f60752f222
-fork_tag=v2.4.0-vendomat.1
+fork_tag=v2.4.0-vendomat.2

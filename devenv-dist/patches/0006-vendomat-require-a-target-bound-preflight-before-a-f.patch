@@ -10,6 +10,15 @@ preflight before the disko phase or the install phase. A machine with no
 no `vendomat.preflight.program` is refused before any target contact when
 the phase set reaches disko or install.
 
+A fresh-install machine refuses, before any contact, an empty phase set
+and any set that joins kexec or reboot with disko or install. The
+default phase list is such a set, so a direct `devenv machines install
+NAME` fails. The message says: use `--phases disko,install`. Phase sets
+without disko or install (kexec, facter, or reboot alone) stay allowed.
+
+When the CLI refuses a report, it names every check that did not pass,
+whatever the reason. The verdict comes before the disk-set comparison.
+
 New options: `machines.<name>.vendomat.preflight.program` (a derivation
 whose output is one executable file) and
 `machines.<name>.vendomat.preflight.ttlSeconds` (1 to 900, default 300).
@@ -21,6 +30,7 @@ Before encryption keys, disko, or nixos-install, the CLI copies the
 program to the target and runs it with a fresh 128-bit nonce:
 
   <program> --machine NAME --nonce HEX --phases CSV --disko-mode MODE
+            (CSV is the selected phases in canonical order)
             --disk BYID [--disk BYID ...]
 
 The program prints one JSON report on stdout with schema
@@ -34,12 +44,12 @@ counts as attestation.
 
 Upstream: fork-only. Drop if upstream adds an equivalent install gate.
 ---
- devenv/src/devenv/machines.rs | 847 ++++++++++++++++++++++++++++++++--
- src/modules/machines.nix      |  71 ++-
- 2 files changed, 882 insertions(+), 36 deletions(-)
+ devenv/src/devenv/machines.rs | 1049 ++++++++++++++++++++++++++++++++-
+ src/modules/machines.nix      |   71 ++-
+ 2 files changed, 1087 insertions(+), 33 deletions(-)
 
 diff --git a/devenv/src/devenv/machines.rs b/devenv/src/devenv/machines.rs
-index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf1579d05e21 100644
+index 7d187a2c7c8f693da34e832531662224465a43f1..49507d34af1508fb5f81b8b0bf62b82f0b154114 100644
 --- a/devenv/src/devenv/machines.rs
 +++ b/devenv/src/devenv/machines.rs
 @@ -339,6 +339,31 @@ enum VendomatMode {
@@ -84,7 +94,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
  }
  
  #[derive(Debug, Clone, Deserialize)]
-@@ -737,21 +765,27 @@ fn clear_target_secretspec_local_env(cmd: &mut process::Command) {
+@@ -737,21 +765,29 @@ fn clear_target_secretspec_local_env(cmd: &mut process::Command) {
  }
  
  /// Vendomat install policy. `machines_install` calls this before it reads a
@@ -96,8 +106,10 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +///
 +/// - `adopt-existing`: refuse every invocation (patch 0005).
 +/// - no mode: refuse. A machine must declare its mode (patch 0006).
-+/// - `fresh-install`: allow, but a phase set that reaches disko or
-+///   nixos-install needs a preflight program (patch 0006).
++/// - `fresh-install`: refuse an empty phase set and a set that joins kexec or
++///   reboot with disko or install (the default list is such a set). Allow the
++///   rest, but a set that reaches disko or nixos-install needs a preflight
++///   program (patch 0006).
  fn check_vendomat_install_policy(
      names: &[String],
      meta: &BTreeMap<String, MachineMeta>,
@@ -123,18 +135,14 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
      if !adopted.is_empty() {
          bail!(
              "Refusing to install: {} set `vendomat.mode = \"adopt-existing\"`. \
-@@ -759,16 +793,295 @@ fn check_vendomat_install_policy(
+@@ -759,16 +795,344 @@ fn check_vendomat_install_policy(
               can erase its disks or rewrite its boot files. devenv made no \
               connection to the target. Use `devenv machines plan`, `apply`, or \
               `deploy` for an adopted machine.",
 -            adopted
--                .iter()
--                .map(|name| format!("machines.{name}"))
--                .collect::<Vec<_>>()
--                .join(", ")
 +            adopted.join(", ")
-         );
-     }
++        );
++    }
 +
 +    let unset = with_mode(None);
 +    if !unset.is_empty() {
@@ -143,6 +151,28 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +             \"fresh-install\" or \"adopt-existing\". devenv made no connection \
 +             to the target.",
 +            unset.join(", ")
++        );
++    }
++
++    if fresh_install_phase_conflict(phases) {
++        let selected = canonical_phase_csv(phases);
++        bail!(
++            "Refusing to install: {} set `vendomat.mode = \"fresh-install\"`, and the \
++             phase set ({}) joins kexec or reboot with disko or install, or is empty. \
++             The default phase list is such a set. A fresh install runs only the disk \
++             phases after its preflight: use `--phases disko,install`. devenv made no \
++             connection to the target.",
++            names
+                 .iter()
+                 .map(|name| format!("machines.{name}"))
+                 .collect::<Vec<_>>()
+-                .join(", ")
++                .join(", "),
++            if selected.is_empty() {
++                "none".to_string()
++            } else {
++                selected
++            }
 +        );
 +    }
 +
@@ -164,15 +194,42 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +            );
 +        }
 +    }
-     Ok(())
- }
- 
++    Ok(())
++}
++
 +// ── Vendomat fresh-install preflight (fork-only) ─────────────────────
 +
 +/// Schema tag of the report that a preflight program prints.
 +const PREFLIGHT_SCHEMA: &str = "vendomat.preflight/v1";
 +/// Every disk that a fresh install may touch must be named by a stable path.
 +const PREFLIGHT_DISK_PREFIX: &str = "/dev/disk/by-id/";
++
++/// The phases of a set in canonical order, as a comma-separated list.
++fn canonical_phase_csv(phases: &HashSet<InstallPhase>) -> String {
++    [
++        (InstallPhase::Kexec, "kexec"),
++        (InstallPhase::Facter, "facter"),
++        (InstallPhase::Disko, "disko"),
++        (InstallPhase::Install, "install"),
++        (InstallPhase::Reboot, "reboot"),
++    ]
++    .into_iter()
++    .filter(|(phase, _)| phases.contains(phase))
++    .map(|(_, label)| label)
++    .collect::<Vec<_>>()
++    .join(",")
++}
++
++/// True when a fresh-install machine must not run this phase set: it is
++/// empty, or it joins a phase that replaces or restarts the running system
++/// (kexec, reboot) with a phase that writes disks (disko, install). The
++/// default phase list is such a set. The preflight runs inside the
++/// disk-writing step, so a kexec in the same run would act before it.
++fn fresh_install_phase_conflict(phases: &HashSet<InstallPhase>) -> bool {
++    let replaces_system =
++        phases.contains(&InstallPhase::Kexec) || phases.contains(&InstallPhase::Reboot);
++    phases.is_empty() || (replaces_system && install_phases_need_preflight(phases))
++}
 +
 +/// True when the phase set reaches a phase that writes to the target disks:
 +/// disko partitions and formats them, nixos-install writes the system and the
@@ -262,11 +319,37 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +
 +/// Judge the stdout of a preflight program. Succeed only for a complete,
 +/// definite pass that is bound to this machine, this run, this host and
-+/// boot, and exactly the expected disks.
++/// boot, and exactly the expected disks. Every refusal that follows a
++/// readable report names the checks that did not pass.
 +fn validate_preflight_report(stdout: &str, expected: &PreflightExpectation<'_>) -> Result<()> {
 +    let report: PreflightReport = serde_json::from_str(stdout.trim())
 +        .into_diagnostic()
 +        .wrap_err("the preflight result is not a valid report (malformed JSON or unknown field)")?;
++    let failed: Vec<String> = report
++        .checks
++        .iter()
++        .filter(|check| check.status != "pass")
++        .map(|check| match &check.detail {
++            Some(detail) => format!("{}: {detail}", check.id),
++            None => check.id.clone(),
++        })
++        .collect();
++    check_preflight_report(&report, expected).map_err(|error| {
++        if failed.is_empty() {
++            error
++        } else {
++            miette!(
++                "the preflight reported failed checks: {}. Refusal reason: {error}",
++                failed.join("; ")
++            )
++        }
++    })
++}
++
++fn check_preflight_report(
++    report: &PreflightReport,
++    expected: &PreflightExpectation<'_>,
++) -> Result<()> {
 +    if report.schema != PREFLIGHT_SCHEMA {
 +        bail!(
 +            "the preflight result has schema {:?}, expected {PREFLIGHT_SCHEMA:?}",
@@ -292,6 +375,21 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +             that the CLI observed"
 +        );
 +    }
++    // The verdict comes before the disk comparison: a program that failed
++    // early reports no disk, and that is not the reason to name first.
++    if report.result != "pass" {
++        bail!("the preflight result is {:?}, not \"pass\"", report.result);
++    }
++    if report.checks.is_empty() {
++        bail!("the preflight result lists no checks");
++    }
++    if let Some(check) = report.checks.iter().find(|check| check.status != "pass") {
++        bail!(
++            "the preflight result says \"pass\" but check {:?} has status {:?}",
++            check.id,
++            check.status
++        );
++    }
 +    let mut reported = BTreeSet::new();
 +    for disk in &report.disks {
 +        if disk.model.trim().is_empty() || disk.serial.trim().is_empty() || disk.size_bytes == 0 {
@@ -309,41 +407,11 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +            "the preflight result covers disks {:?}, but the disko layout names {:?}",
 +            reported,
 +            expected.disks
-+        );
-+    }
-+    if report.result != "pass" {
-+        let failed: Vec<String> = report
-+            .checks
-+            .iter()
-+            .filter(|check| check.status != "pass")
-+            .map(|check| match &check.detail {
-+                Some(detail) => format!("{}: {detail}", check.id),
-+                None => check.id.clone(),
-+            })
-+            .collect();
-+        bail!(
-+            "the preflight result is {:?}, not \"pass\" (failed checks: {})",
-+            report.result,
-+            if failed.is_empty() {
-+                "none named".to_string()
-+            } else {
-+                failed.join("; ")
-+            }
-+        );
-+    }
-+    if report.checks.is_empty() {
-+        bail!("the preflight result lists no checks");
-+    }
-+    if let Some(check) = report.checks.iter().find(|check| check.status != "pass") {
-+        bail!(
-+            "the preflight result says \"pass\" but check {:?} has status {:?}",
-+            check.id,
-+            check.status
-+        );
-+    }
-+    Ok(())
-+}
-+
+         );
+     }
+     Ok(())
+ }
+ 
 +/// A validated preflight result. It lets the disk-writing phases of one
 +/// install job proceed while it is younger than its time to live.
 +#[derive(Debug)]
@@ -376,17 +444,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +    disko_mode: DiskoMode,
 +    disks: &BTreeSet<String>,
 +) -> String {
-+    let phase_names: Vec<&str> = [
-+        (InstallPhase::Kexec, "kexec"),
-+        (InstallPhase::Facter, "facter"),
-+        (InstallPhase::Disko, "disko"),
-+        (InstallPhase::Install, "install"),
-+        (InstallPhase::Reboot, "reboot"),
-+    ]
-+    .into_iter()
-+    .filter(|(phase, _)| phases.contains(phase))
-+    .map(|(_, label)| label)
-+    .collect();
++    let phase_csv = canonical_phase_csv(phases);
 +    let mode = match disko_mode {
 +        DiskoMode::Disko => "disko",
 +        DiskoMode::Format => "format",
@@ -399,7 +457,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +        "--nonce".to_string(),
 +        shell_quote(nonce),
 +        "--phases".to_string(),
-+        shell_quote(&phase_names.join(",")),
++        shell_quote(&phase_csv),
 +        "--disko-mode".to_string(),
 +        shell_quote(mode),
 +    ];
@@ -424,7 +482,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
  /// Reject repeated machine names before any target interaction. Running two
  /// destructive pipelines for the same machine is never meaningful, even when
  /// concurrency is explicitly limited to one.
-@@ -1324,7 +1637,7 @@ impl Devenv {
+@@ -1324,7 +1688,7 @@ impl Devenv {
          // vendomat: the install policy runs first. It refuses an adopted
          // machine for every phase and disko mode, before any payload read,
          // build, or target contact.
@@ -433,7 +491,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
  
          // Per-machine validation: install only applies to NixOS roles
          // over SSH. Catch configuration mistakes before starting any work.
-@@ -1757,9 +2070,39 @@ impl Devenv {
+@@ -1757,9 +2121,39 @@ impl Devenv {
              None
          };
  
@@ -473,7 +531,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
              let act = activity!(INFO, operation, "Copying encryption keys");
              async {
                  self.install_encryption_keys(
-@@ -1776,6 +2119,7 @@ impl Devenv {
+@@ -1776,6 +2170,7 @@ impl Devenv {
  
          // Phase 3: disko
          if phases.contains(&InstallPhase::Disko) {
@@ -481,7 +539,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
              let act = activity!(INFO, operation, "Partitioning (disko)");
              async {
                  self.install_disko(name, &target, &ssh_opts, disko_mode)
-@@ -1787,6 +2131,7 @@ impl Devenv {
+@@ -1787,6 +2182,7 @@ impl Devenv {
  
          // Phase 4: install
          if let Some(toplevel) = &installed_toplevel {
@@ -489,7 +547,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
              let act = activity!(INFO, operation, "Installing NixOS");
              async { self.install_nixos(name, &target, &ssh_opts, toplevel).await }
                  .in_activity(&act)
-@@ -1879,6 +2224,109 @@ impl Devenv {
+@@ -1879,6 +2275,109 @@ impl Devenv {
          Ok(())
      }
  
@@ -599,7 +657,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
      /// Preflight probe: run a single SSH command that checks key
      /// prerequisites on the target before any destructive work begins.
      async fn install_preflight(
-@@ -2395,6 +2843,37 @@ impl Devenv {
+@@ -2395,6 +2894,37 @@ impl Devenv {
              .wrap_err("ssh stdout was not valid UTF-8")
      }
  
@@ -637,7 +695,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
      async fn ssh_read_boot_id(
          &self,
          target: &SshTarget,
-@@ -4165,7 +4644,7 @@ remote = "awssm"
+@@ -4165,7 +4695,7 @@ remote = "awssm"
          );
      }
  
@@ -646,7 +704,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
          MachineMeta {
              system: "x86_64-linux".to_string(),
              target: MachineTarget {
-@@ -4178,7 +4657,13 @@ remote = "awssm"
+@@ -4178,7 +4708,13 @@ remote = "awssm"
              kexec_image: None,
              kexec_post_ssh_port: None,
              copy_host_keys: false,
@@ -661,7 +719,7 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
              secretspec: MachineSecretspec::default(),
              bootstrap_secrets: Vec::new(),
              extra_files: BTreeMap::new(),
-@@ -4186,52 +4671,344 @@ remote = "awssm"
+@@ -4186,52 +4722,501 @@ remote = "awssm"
          }
      }
  
@@ -774,7 +832,10 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +        let names = ["server".to_string()];
 +        for phases in every_phase_subset() {
 +            let result = check_vendomat_install_policy(&names, &meta, &phases);
-+            if install_phases_need_preflight(&phases) {
++            if fresh_install_phase_conflict(&phases) {
++                let error = result.unwrap_err().to_string();
++                assert!(error.contains("use `--phases disko,install`"), "{error}");
++            } else if install_phases_need_preflight(&phases) {
 +                let error = result.unwrap_err().to_string();
 +                assert!(error.contains("vendomat.preflight.program"), "{error}");
 +            } else {
@@ -784,10 +845,87 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +        meta.insert(
 +            "server".to_string(),
 +            policy_meta(Some(VendomatMode::FreshInstall), true),
-         );
--        check_vendomat_install_policy(&["server".to_string()], &meta).unwrap();
++        );
 +        for phases in every_phase_subset() {
++            let result = check_vendomat_install_policy(&names, &meta, &phases);
++            assert_eq!(result.is_err(), fresh_install_phase_conflict(&phases));
++        }
++    }
++
++    fn phase_set(phases: &[InstallPhase]) -> HashSet<InstallPhase> {
++        phases.iter().copied().collect()
++    }
++
++    #[test]
++    fn fresh_install_refuses_kexec_or_reboot_together_with_disk_phases() {
++        let mut meta = BTreeMap::new();
++        meta.insert(
++            "server".to_string(),
++            policy_meta(Some(VendomatMode::FreshInstall), true),
++        );
++        let names = ["server".to_string()];
++        let refused = [
++            // The default phase list, `--stop-after-disko`, and `--no-reboot`.
++            phase_set(&ALL_PHASES),
++            phase_set(&[
++                InstallPhase::Kexec,
++                InstallPhase::Facter,
++                InstallPhase::Disko,
++            ]),
++            phase_set(&[
++                InstallPhase::Kexec,
++                InstallPhase::Facter,
++                InstallPhase::Disko,
++                InstallPhase::Install,
++            ]),
++            phase_set(&[InstallPhase::Kexec, InstallPhase::Disko]),
++            phase_set(&[InstallPhase::Kexec, InstallPhase::Install]),
++            phase_set(&[InstallPhase::Reboot, InstallPhase::Install]),
++            phase_set(&[InstallPhase::Reboot, InstallPhase::Disko]),
++            // An empty list.
++            HashSet::new(),
++        ];
++        for phases in refused {
++            let error = check_vendomat_install_policy(&names, &meta, &phases)
++                .unwrap_err()
++                .to_string();
++            assert!(error.contains("use `--phases disko,install`"), "{error}");
++            assert!(error.contains("machines.server"), "{error}");
++            assert!(error.contains("made no connection"), "{error}");
++        }
++        let allowed = [
++            phase_set(&[InstallPhase::Disko, InstallPhase::Install]),
++            phase_set(&[InstallPhase::Disko]),
++            phase_set(&[InstallPhase::Install]),
++            phase_set(&[
++                InstallPhase::Facter,
++                InstallPhase::Disko,
++                InstallPhase::Install,
++            ]),
++            phase_set(&[InstallPhase::Kexec]),
++            phase_set(&[InstallPhase::Facter]),
++            phase_set(&[InstallPhase::Reboot]),
++            phase_set(&[InstallPhase::Kexec, InstallPhase::Facter]),
++        ];
++        for phases in allowed {
 +            check_vendomat_install_policy(&names, &meta, &phases).unwrap();
++        }
++    }
++
++    #[test]
++    fn fresh_install_phase_rule_does_not_change_the_adopted_denial() {
++        let mut meta = BTreeMap::new();
++        meta.insert(
++            "framework".to_string(),
++            policy_meta(Some(VendomatMode::AdoptExisting), true),
++        );
++        let names = ["framework".to_string()];
++        for phases in every_phase_subset() {
++            let error = check_vendomat_install_policy(&names, &meta, &phases)
++                .unwrap_err()
++                .to_string();
++            assert!(error.contains("adopt-existing"), "{error}");
++            assert!(!error.contains("--phases disko,install"), "{error}");
 +        }
 +    }
 +
@@ -1004,7 +1142,8 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +            &phases,
 +            DiskoMode::Mount,
 +            &disks,
-+        );
+         );
+-        check_vendomat_install_policy(&["server".to_string()], &meta).unwrap();
 +        assert_eq!(
 +            command,
 +            format!(
@@ -1012,6 +1151,82 @@ index 7d187a2c7c8f693da34e832531662224465a43f1..f232c427762ec1e118e99386418faf15
 +                 --phases 'disko,install' --disko-mode 'mount' --disk '{DISK_A}'"
 +            )
 +        );
++    }
++
++    #[test]
++    fn preflight_refusal_names_failed_checks_when_the_report_lists_no_disk() {
++        let mut report = good_report();
++        report["result"] = serde_json::json!("fail");
++        report["disks"] = serde_json::json!([]);
++        report["checks"] = serde_json::json!([
++            { "id": "tools", "status": "pass" },
++            { "id": "resolve:main", "status": "fail", "detail": "no such by-id path" },
++            { "id": "phases", "status": "unknown" }
++        ]);
++        let error = judge_error(&report);
++        assert!(
++            error.contains("resolve:main: no such by-id path"),
++            "{error}"
++        );
++        assert!(error.contains("phases"), "{error}");
++        assert!(!error.contains("covers disks"), "{error}");
++        assert!(error.contains("not \"pass\""), "{error}");
++    }
++
++    #[test]
++    fn preflight_refusal_names_failed_checks_for_every_reason() {
++        let failing_check = serde_json::json!({
++            "id": "tools", "status": "fail", "detail": "wipefs is missing"
++        });
++        // A wrong nonce, a wrong host, and a pass with a failing check.
++        let mut nonce = good_report();
++        nonce["nonce"] = serde_json::json!("00000000000000000000000000000000");
++        nonce["checks"][0] = failing_check.clone();
++        let mut host = good_report();
++        host["host"]["machine_id"] = serde_json::json!("ffffffffffffffffffffffffffffffff");
++        host["checks"][0] = failing_check.clone();
++        let mut mixed = good_report();
++        mixed["checks"][0] = failing_check;
++        for (report, reason) in [
++            (nonce, "nonce"),
++            (host, "another host"),
++            (mixed, "has status"),
++        ] {
++            let error = judge_error(&report);
++            assert!(error.contains("tools: wipefs is missing"), "{error}");
++            assert!(error.contains(reason), "{error}");
++        }
++    }
++
++    #[test]
++    fn preflight_command_passes_the_reviewed_phase_list_exactly() {
++        let disks = BTreeSet::from([DISK_A.to_string()]);
++        let program = Path::new("/nix/store/aaaa-preflight");
++        let prefix = format!("'/nix/store/aaaa-preflight' --machine 'server' --nonce '{NONCE}' ");
++        let tail = format!("--disk '{DISK_A}'");
++        let cases = [
++            (
++                phase_set(&[InstallPhase::Install, InstallPhase::Disko]),
++                "--phases 'disko,install' --disko-mode 'disko' ",
++            ),
++            (
++                phase_set(&[
++                    InstallPhase::Install,
++                    InstallPhase::Facter,
++                    InstallPhase::Disko,
++                ]),
++                "--phases 'facter,disko,install' --disko-mode 'disko' ",
++            ),
++            (
++                phase_set(&[InstallPhase::Disko]),
++                "--phases 'disko' --disko-mode 'disko' ",
++            ),
++        ];
++        for (phases, middle) in cases {
++            let command =
++                preflight_command(program, "server", NONCE, &phases, DiskoMode::Disko, &disks);
++            assert_eq!(command, format!("{prefix}{middle}{tail}"));
++        }
 +    }
 +
 +    #[test]
