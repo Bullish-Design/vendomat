@@ -13,7 +13,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 61, proposed 15, to build 0, superseded 20, decided 2) | 98 |
+| V6 IDs defined (active 64, proposed 15, to build 0, superseded 20, decided 2) | 101 |
 | V6 `NAT-*` facts | 25 |
 | V5 IDs that section 0 names | 51 |
 
@@ -269,7 +269,10 @@ withdrew it, and V6 adds nothing.
 | V6 ID | Status | Supersedes (V5 or V6) | Note |
 | --- | --- | --- | --- |
 | `BOOT-026` | proposed | `BOOT-019` |  |
+| `BOOT-027` | active |  |  |
+| `BUILD-009` | active |  |  |
 | `CACHE-010` | active | `CACHE-001` |  |
+| `CACHE-011` | active |  |  |
 | `CLI-017` | superseded | `CLI-001` | by `CLI-021` |
 | `CLI-018` | active |  |  |
 | `CLI-019` | active |  |  |

@@ -11,7 +11,7 @@ VM is not new V6 runtime proof. Raw logs sit under `~/.local/state/vendomat/v6/2
 | G2 | `vendomat sync` for devenv workspaces | PASS | [step-2.md](step-2.md) | Stock devenv 2.4.0. The patched CLI is G1. Offline shell entry is G1 |
 | G3 | Vendomat module and library faces | PASS | [step-3.md](step-3.md) | Mode metadata for the patched CLI waits for G1 |
 | G4 | Command and launcher | BLOCKED | [step-4.md](step-4.md) | Every item passes except the real Attic push, which G5 owns. The gate stays BLOCKED until G5 |
-| G5 | Source, cache, builder | OPEN | | PV-09 may stay a named blocker |
+| G5 | Source, cache, builder | BLOCKED | [step-5.md](step-5.md) | VM fixtures PASS: collection, `STORE-010`, cache push, cold substitution, builder, both substitution directions. BLOCKED: PV-09 (owner decision), the live Attic push (not permitted in this session), and the opt-in e2e wrapper (disk) |
 | G6 | `nix-systems` bootable core | OPEN | | |
 | G7 | Fresh server disk route in VMs | OPEN | | |
 | G8 | Legacy dependency removal | OPEN | | |
