@@ -1,7 +1,7 @@
 [project]
 name = "vendomat"
-version = "0.6.0"
-description = "Write a project flake from vendomat.toml, keep source clones, and (later) configure machines from TOML."
+version = "0.7.0-rc.1"
+description = "Compose pinned devenv workspaces and NixOS machines from native modules."
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }

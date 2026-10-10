@@ -1,74 +1,41 @@
-# vendomat
+# Vendomat
 
-Vendomat composes one owner's machines and projects from native Nix, devenv, and NixOS
-configuration. It writes a flake from a flat list of inputs. It keeps source clones. It does not
-choose revisions: Nix resolves the graph and owns `flake.lock`.
+Vendomat composes one owner's development workspaces and NixOS machines from native devenv,
+NixOS, and Home Manager modules. This `0.7.0-rc.1` release candidate exercises the V6 workspace
+flow. V6 remains a draft until its machine and cache gates pass and the owner accepts it.
 
-## What it does
+## Workspaces
 
-Vendomat tracks two things.
+A workspace lists tagged sources, selected modules, and supported settings in `vendomat.toml`.
+`vendomat sync` writes `.vendomat/` and asks devenv to update `devenv.lock`. Nix owns the lock.
+The template supplies stable `devenv.nix` and `devenv.yaml` files. A workspace user changes
+module selections and settings in TOML without editing Nix. Module authors write native devenv
+modules and declare inherited inputs in their own `devenv.yaml`.
 
-| | Source | Build outputs |
-| --- | --- | --- |
-| Held in | The source collection on `server`, at `/home/andrew/vendor/<repo>` | Attic |
-| Filled by | The owner's CI, which pushes release tags | The builder, through `attic watch-store` |
+The package includes `vendomat-workspace-init`. It needs Templateer on `PATH` and a JSON model
+with `forge_url`, `vendomat_tag`, and optional `devenv_tag`:
 
-A project lists its direct inputs in `vendomat.toml`. Every input names a tag.
-
-```toml
-[forge]
-url = "git://server"
-
-[inputs]
-loci-nvim = { repo = "loci.nvim", ref = "refs/tags/v1.2.0" }
-nvim-core = { ref = "refs/tags/v0.3.0" }
-
-[passthrough]
-nixpkgs = { url = "github:cachix/devenv-nixpkgs/rolling" }
-
-[follows]
-loci-nvim = ["nixpkgs"]
-nvim-core = ["nixpkgs"]
+```sh
+vendomat-workspace-init model.json workspace
+cd workspace
+vendomat sync
+devenv shell
 ```
 
-`vendomat sync` writes `flake.nix` from this file. The generated flake hands the resolved inputs
-to `flake-outputs.nix`, a file the project owns. A project that uses Vendomat needs no Vendomat
-input: delete the command and the project still evaluates and builds.
+The private `vendomat-demo` repository is the live consumer for the no-Nix workspace flow.
 
-## Commands
+## Other targets
 
-| Command | Does |
-| --- | --- |
-| `vendomat sync` | Write `flake.nix`. Clone and fetch `keep` entries. With `--collection` (on `server`), also copy `mirror` entries and check out each collection repository's newest tag. `--dry-run` changes nothing |
-| `vendomat path <name>` | Print the store path of the locked source of a direct input. `--json` prints JSON |
-
-Host settings (`set`, `get`, `unset`, `diff`, `apply`, `rollback`), `add`, `remove`, `status`,
-`query`, and `explore` are specified and not built yet.
-
-## Install
-
-A host delta installs the command as `packages.<system>.vendomat`. The flake has no `default`
-package and one input, `nixpkgs`. A project never declares Vendomat as an input.
-
-## Source collection
-
-`hooks/collection-post-receive` keeps the working tree of a collection repository at its newest
-release tag. `scripts/collection-add` in `nix-meta` installs it with the tag-only `pre-receive`
-rule.
-
-## Authority
-
-The specification, the concept, and the guide are in
-[`.scratch/projects/14-vendomat-local/`](.scratch/projects/14-vendomat-local/). Start with
-[`.scratch/CURRENT.md`](.scratch/CURRENT.md).
+The flake target writes `flake.nix` for a project that publishes its own flake outputs. Its
+project-owned `flake-outputs.nix` defines those outputs. Vendomat also provides `check`, `path`,
+`push`, `bump`, and a guarded fresh-machine install command. NixOS and Home Manager own machine
+activation. The source collection holds tagged source; Attic holds cached build outputs.
 
 ## Verify
 
-```bash
-testee verify --full    # ruff, ruff-format, ty, pytest
-testee verify           # quick: ruff and ruff-format
-testee check e2e        # opt-in: also builds real consumers with Nix
-```
+Run `testee verify --full` from the repository root. Run `testee check e2e` after a change to the
+module, toolchain, or consumer path. Testee opens a clean devenv shell for the checks.
 
-Testee 0.5.1 runs these checks from `devenv.nix`. Run `testee` from the repository root. It opens its
-own devenv shell.
+The V6 concept, specification, guide, and gate records are under
+`.scratch/projects/16-vendomat-devenv-layer/`. Read `.scratch/CURRENT.md` for the current authority
+and open gates.

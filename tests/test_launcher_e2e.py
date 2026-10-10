@@ -13,6 +13,7 @@ import shutil
 import socket
 import subprocess
 import time
+from importlib.metadata import version as package_version
 from pathlib import Path
 
 import pytest
@@ -120,7 +121,8 @@ def test_the_launcher_story(tmp_path, served):
     outside = tmp_path / "outside"
     outside.mkdir()
     host = run(outside, "--version")
-    assert host.returncode == 0 and host.stdout.startswith("vendomat 0.6.0"), host.stderr
+    expected_version = package_version("vendomat").replace("-rc.", "rc")
+    assert host.returncode == 0 and host.stdout.startswith(f"vendomat {expected_version}"), host.stderr
     assert host.stderr == ""
 
     # A new workspace has no lock: the host release bootstraps it, and says so.
