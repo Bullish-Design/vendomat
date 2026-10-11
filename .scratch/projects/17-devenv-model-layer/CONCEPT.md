@@ -1,11 +1,13 @@
 # Concept: typed models for devenv modules
 
 **Date:** 2026-10-10. **Updated:** 2026-10-11 with the implementation of Steps 2 to 14, the pilot
-work of Step 15, and the Step 16 skills.
-**Status:** Draft for owner review. The harness exists in `devenv-py` (Steps 1 to 14 done; Step 15 and
-Step 16 IN PROGRESS; gates in [evidence/GATES.md](./evidence/GATES.md)). A design item marked "in
-progress" is proposed until its fixture passes. Every other new option name, command, and file
-format is proposed until a fixture proves it on the pinned tools.
+work of Step 15, the Step 16 skills, and the final records of gates GM9 and GM10.
+**Status:** Draft for owner review. The harness exists in `devenv-py` (Steps 1 to 16 done; gates GM0
+to GM10 pass, with named open items in [evidence/GATES.md](./evidence/GATES.md)). Five subtrees are
+supported at the pin: `languages.python`, `services.postgres`, `services.redis` (generated-only),
+`languages.javascript`, and `languages.rust`. A design item marked "proposed" stays proposed until
+its fixture passes. Every other new option name, command, and file format is proposed until a
+fixture proves it on the pinned tools.
 **Guide:** [GUIDE-HARNESS.md](./GUIDE-HARNESS.md). **Evidence:** [evidence/GATES.md](./evidence/GATES.md),
 [step-0-probe.md](./evidence/step-0-probe.md), [step-1.md](./evidence/step-1.md),
 [phase-a.md](./evidence/phase-a.md), [step-2-3.md](./evidence/step-2-3.md),
@@ -13,7 +15,8 @@ format is proposed until a fixture proves it on the pinned tools.
 [step-7.md](./evidence/step-7.md), [step-8.md](./evidence/step-8.md),
 [step-9.md](./evidence/step-9.md), [step-10.md](./evidence/step-10.md),
 [step-11.md](./evidence/step-11.md), [step-12-14.md](./evidence/step-12-14.md),
-[step-15.md](./evidence/step-15.md), [step-16.md](./evidence/step-16.md).
+[step-15.md](./evidence/step-15.md), [step-15-final.md](./evidence/step-15-final.md),
+[step-16.md](./evidence/step-16.md), [step-16-final.md](./evidence/step-16-final.md).
 **Builds on:** [project 16](../16-vendomat-devenv-layer/CONCEPT-V6.md) and its
 [2026-10-10 update](../16-vendomat-devenv-layer/CONCEPT-UPDATE-2026-10-10.md).
 **Uses:** `pydantree` (`../../../../pydantree`) and `templateer_v2` (`../../../../templateer_v2`).
@@ -123,8 +126,10 @@ more, against 2.8 s for the whole-tree oracle of phase A ([step-2-3.md](./eviden
 
 **The evaluation cache keys on the request file path** ([step-7.md](./evidence/step-7.md),
 refuting the phase-A claim of one entry per project). The driver therefore writes each request to a
-content-addressed path, `requests/<sha256 of the canonical JSON>.json` (MDL-026). Generated cases must
-also use paths that do not depend on the run (in progress).
+content-addressed path, `requests/<sha256 of the canonical JSON>.json` (MDL-026, superseded by
+MDL-037). Generated cases also use content-addressed directories, `cases/<sha256 of all files>/`
+(MDL-037, done). A rerun of the same request therefore hits the cache: the four-subtree gate took
+103.4 s cold and 13.2 s warm ([step-15-final.md](./evidence/step-15-final.md)).
 
 ### Options export
 
@@ -189,14 +194,15 @@ reaches the output. A definition that throws on a catchable error becomes a reco
 string, and the normalizer turns it into `$error`.
 
 A Python normalizer then sorts keys, replaces `/nix/store/<hash>-` with `<store>/`, makes `$path`
-values relative, drops `file` and `$name`, and folds several definitions from one fixture into one
+values relative, drops `file`, keeps `$name` (MDL-036; the earlier rule that dropped `$name` is
+superseded), and folds several definitions from one fixture into one
 value with the option's merge rule from the options export. It folds `listOf` by concatenation,
 `attrsOf` and submodules by recursive union, and `separatedString` by joining with its separator. A
 `nullOr X` option takes the rule of `X`. It writes any other multi-definition as
 `{"$multi-def": [...]}`. It also rewrites `/tmp/devenv-<7hex>` and `/run/user/N/devenv-<7hex>` to
 `<runtime>`, the project directories and the fixture root to `<root>`, the repository checkout to
-`<checkout>`, and the home directory to `<home>`, in every string and object key (MDL-027). The rule
-that drops `$name` is under review: see MDL-020.
+`<checkout>`, and the home directory to `<home>`, in every string and object key (MDL-027). A path
+canonicalizer makes `./.` and `.` equal (MDL-036).
 
 `definitionsWithLocations` drops definitions that lose on priority, so a losing definition vanishes
 from truth. A false `mkIf` leaves no definition, or an empty element inside a freeform value. The
@@ -250,9 +256,12 @@ defaults appear in field descriptions, not as values (decision 3).
 The generator is stricter than lax Pydantic. Lax mode accepts `"yes"` for a bool and turns an integer
 into a float, and Nix rejects both. A scalar field therefore uses `StrictBool`, `StrictInt`, or
 `StrictFloat` (MDL-029). An intermediate option path becomes a group class named by its path, at
-module level, children before parents. A read-only option is left out of the model. A coverage entry
-has one of three kinds: `nix-expr` (an MDL-008 miss), `json-value` (loosened), and `bounds-lost` (a
-pattern, separator, or `intBetween` bound that the export does not carry). At the pin the pilot
+module level, children before parents. A read-only option is left out of the model. A renamed or alias option
+(`mkRenamedOptionModule`, `mkAliasOptionModule`) is left out too (MDL-035): a value written to it
+lands in the target option, which has its own field. A coverage entry
+has one of four kinds: `nix-expr` (an MDL-008 miss), `json-value` (loosened), `bounds-lost` (a
+pattern, separator, or `intBetween` bound that the export does not carry), and `renamed` (the reason
+reads `renamed -> <target>`). At the pin the pilot
 models cover 15 of 16 fields (`services.postgres`) and 38 of 39 (`languages.python`); the whole
 export gives 1242 fields in 45 subtrees, 24 with `NixExpr` and 68 with `JsonValue`
 ([step-8.md](./evidence/step-8.md)).
@@ -314,17 +323,23 @@ V6 `vendomat.toml` is a Path T surface today.
 
 **Eval reader.** It validates truth against the model. It sees the true value of every option,
 including values from `let`, functions, and imports. It cannot see priorities or a false `mkIf`, and
-it sees a package only as a name. As built, it resolves a `$pkg` by evaluating candidate attributes
-(`pname` and `<set>.<pname>`) in one batch and matching `pname` and output. It records an ambiguous
-or missing result as a miss, and it sets `PkgRef.output` to `None` for the default output. A `pname`
-that differs from the attribute name (`gcc` gives `gcc-wrapper`) is a miss.
+it sees a package only as a name. **Superseded by MDL-036:** the first build resolved a `$pkg` by
+evaluating candidate attributes (`pname` and `<set>.<pname>`) and matching `pname` and output. A
+`pname` that differs from the attribute name (`gcc` gives `gcc-wrapper`) was a miss. The rule in
+force is under "Package identity" below. The reader sets `PkgRef.output` to `None` for the default
+output.
 
-**Package identity (in progress; MDL-020).** The `pname` rule fails on real fixtures. Truth keeps the
-`pname` `requests`, the writer renders `pkgs.requests`, and the attribute is
-`python3Packages.requests`. The `pname` `uv` fits both `uv` and `python3Packages.uv`. The `pname`
-`python3` fits `python311` to `python315`. The direction under test is to compare and write a
-package by its full `$name`, and to resolve a name to an attribute by evaluation. This changes the
-rule that the normalizer drops `$name`. No result exists yet.
+**Package identity (done; MDL-036, which supersedes MDL-020).** The `pname` rule failed on real
+fixtures. Truth kept the `pname` `requests`, the writer rendered `pkgs.requests`, and the attribute
+was `python3Packages.requests`. The `pname` `uv` fits both `uv` and `python3Packages.uv`. The `pname`
+`python3` fits `python311` to `python315`. The rule now: the normalizer keeps the full `$name`; the
+reader keys a package by `(pname, output, name)` and resolves a name to an attribute by evaluation in
+one batch (candidates: the `pname`; a versioned name such as `python3-3.12.x` gives `python312`;
+sets from the name prefix, then the subtree hint; several attributes with one name: the first wins).
+RT2 and RT6 resolve truth packages in one batch. A package with no attribute path gives the skip
+`pkg-unresolved`. Commit `4af72fe743ba`; result in
+[step-15-final.md](./evidence/step-15-final.md). One limit stays: Templateer drops `.out`, so a
+`pkgs.x.out` whose default output is not `out` renders as `pkgs.x`. No fixture hits it.
 
 **Syntax reader.** It parses source with pydantree and the tree-sitter Nix grammar (probe O9). It
 reads literal bindings into model fields. It keeps every non-literal value as a `NixExpr` that holds
@@ -343,6 +358,10 @@ Phase A ran a prototype over 59 fleet files and set these rules:
 - **Strings.** A string with an interpolation stays one `NixExpr`. Interpolation causes 81 percent of
   the `NixExpr` values outside the root `let` in phase A, and 60.2 percent of all `NixExpr` values in
   the port (159 of 264). A parts list may replace this rule later.
+- **Root `let` constants (MDL-042).** A name that the root `let` binds once to a plain literal
+  (string without interpolation, number, or boolean) reads as that literal, and `${name}` inside a
+  string reads as its text. A name bound twice, or by `inherit`, is not a constant. A function,
+  `rec`, a nested `let`, and `with` stay one `NixExpr`.
 - **Paths.** A plain `./x` or `../x` literal (no interpolation) reads as a typed `$path` value
   (MDL-028). `<x>`, `/abs`, `~/x`, and an interpolated path stay `NixExpr`.
 - **No outer parentheses.** A `NixExpr` never carries outer parentheses: `x = (a b);` reads as `a b`.
@@ -373,14 +392,33 @@ model is too loose. A value that Pydantic rejects and Nix accepts means the mode
 
 A plain `truth` request rejects nothing, because `definitionsWithLocations` never merges a value. The
 runner therefore adds a probe option to each generated module. The probe forces the defined values
-and `config.assertions` under `tryEval`. Two limits follow. The class `type-error` means that forcing
-threw, and an option that only affects another option never evaluates (for example
-`languages.python.version`). Forcing `config.packages` names and `enterShell` is in progress.
+and `config.assertions` under `tryEval`. It also forces the `config.packages` names and, by default,
+`config.enterShell` (MDL-038; `--no-probe-shell` turns the shell force off). Without those forces,
+an option that only affects another option never evaluates (for example `languages.python.version`).
+The probe accepts a path as declared when a prefix of the path is an option, so a sub-option of a
+submodule is not `unknown-option` (MDL-041). The class `type-error` means that forcing threw.
+The shell force found eight broken Python versions (series 3.3: `gcc9` is gone from nixpkgs), which
+the older probe could not see.
 
-RT8 passes only when Nix rejects the mutated value with a type error (MDL-024). Any other rejection
+RT8 builds its base case from a valid draw of the narrowed model, so the base satisfies the
+cross-field rules (MDL-040). RT8 passes only when Nix rejects the mutated value with a type error
+(MDL-024). Any other rejection
 is its own failure class: `rejected-assertion`, `rejected-unknown-option`, or `rejected-other`.
 RT7 classes: `type-error`, `assertion`, `mismatch`, and `other-error` (an error that `tryEval` does
-not catch, such as a wrong package kind).
+not catch, such as a wrong package kind). The probe also answers `packages-error` and `shell-error`
+when forcing the package names or `enterShell` throws. RT7 folds its expected values for an open
+submodule into the shape that truth keeps (one attribute set, not leaf keys; MDL-041).
+
+**Seeds (MDL-034).** An RT7 seed gives the same cases in any process. Hypothesis mixes the constants
+of every local module in `sys.modules` into its draws, so a process that loaded other models drew
+other cases (`languages.javascript` seed 2: 541 cases alone, 536 after `languages.python`). The
+generator empties that constants pool while it draws. A regression test compares runs across
+`PYTHONHASHSEED` values and loaded modules.
+
+**Hybrid render (MDL-039).** Some options have no data form: a `$fn` option and a fixture-local
+package. RT2 and RT5 write the truth, and for such an option they splice the exact source span that
+the syntax reader found in the fixture's own source. Without a span the case skips with `has-fn`.
+RT6 (TOML) cannot carry either value and skips (see the path-limit exceptions below).
 
 ### Corpus
 
@@ -408,6 +446,28 @@ predicted 23 and 10). A fixture is `batch` when its inputs match the base projec
 and `url` and `devenv.yaml` holds no other key. Other fixtures are `alone`. A `fails` fixture keeps
 its error tail. Most fleet failures are limits of the harvest, not devenv failures.
 
+**Corpus rules (final).** The report applies these rules to every subtree.
+
+- **Two tiers (MDL-030).** The pilots keep their own sizes: 10 real fixtures for
+  `languages.python` and 5 for `services.postgres`. Any other subtree is `supported` with at least 5
+  real fixtures and every row passed. With fewer real fixtures and every other row passed (RT2 to
+  RT8, and the RT7 size row with 2 seeds), it is `supported (generated-only)`. A generated-only
+  status says that RT7 and RT8 prove the type mapping and the corpus proves little.
+- **Exclusion share.** At most 20 percent of the real fixtures of a subtree, measured for each
+  check, are skipped.
+- **Named exclusion classes (MDL-032).** Each skip and each excluded fixture has one class:
+  `has-imports`, `no-literal-fields`, `pkg-unresolved`, `has-fn`, `no-subtree`, `secret`, or
+  `fails`. A class outside the list is a gate FAIL. `secret` and `fails` are triage classes, listed
+  apart from the share.
+- **Path-limit exceptions (MDL-031).** `PATH_LIMIT_EXCEPTIONS` names the skips that come from a
+  documented limit of a writer: RT6 `has-fn` (TOML cannot carry a function) and RT6
+  `pkg-unresolved` (the TOML reader module addresses a package only by its attribute path in
+  `pkgs`). The report lists each such skip and does not count it in the share. A new exception
+  needs a code change and a review.
+- **Golden fixtures are not corpus (MDL-033).** The fixtures in `tests/golden/` run every check for
+  correctness. The corpus metrics (RT3 typed share, exclusion share, corpus size) count only the
+  `corpus/` fixtures.
+
 ## Bootstrap through agent skills
 
 The harness turns authoring into a loop with a mechanical verdict. Three skills run that loop.
@@ -423,7 +483,10 @@ The existing `copyroom-template-edit` skill covers Templateer source edits. The 
 The skill sources are `skills/<name>/SKILL.md` in `devenv-py`. Devman links them into
 `.agents/skills/`. All three skills forbid a bare `uv`. The shell of an agent can inherit Vendomat's
 `UV_PROJECT_ENVIRONMENT`, and a bare `uv sync` then overwrote Vendomat's venv (twice during the
-build). The skills exist; the first trial (`services.redis`) is in progress.
+build). The skills exist and the trials are done (GM10). The first trial, `services.redis`, reached
+the gate only after rule and harness fixes that it prompted. The second, `languages.rust`, failed
+on six harness gaps, which were fixed. The third, `languages.javascript`, passed with a fresh agent,
+the skills alone, and no harness change ([step-16-final.md](./evidence/step-16-final.md)).
 
 The skills never edit the oracle, the normalizer, or the comparison. A change to those parts is a
 code change with its own review.
@@ -475,10 +538,13 @@ learner's request. The model is validated before any Nix is written.
 | Nix string escaping errors | The `nix` language in Templateer owns escaping, with its own tests |
 | A curated layer becomes a central duty again | Build one only for a named audience; write it in Nix |
 | The models become the authoring contract by habit | Requirement MDL-002 |
-| A package compares by `pname`, which many attributes share | The package identity work (MDL-020, in progress). Until then, `CHOICES` lists only attributes whose `pname` equals the attribute name. |
-| A rerun never hits the evaluation cache | The cache keys on the request path (MDL-026). Content-addressed request files are done. Content-addressed case directories are in progress. |
+| A package compares by `pname`, which many attributes share | Done: identity by the full `$name` (MDL-036, superseding MDL-020). `CHOICES` lists are no longer limited to attributes whose `pname` equals the attribute name. |
+| A rerun never hits the evaluation cache | Done: the cache keys on the request path, and requests and case directories are content-addressed (MDL-037, superseding MDL-026). |
+| An RT7 seed gives other cases in another process | Done: the generator isolates the Hypothesis constants pool (MDL-034), with a regression test. |
+| A skip rule hides a real gap | Named classes only (MDL-032); two path-limit exceptions, listed in every report (MDL-031); golden fixtures do not inflate the corpus metrics (MDL-033). |
 | An agent shell overwrites another project's venv | Run `uv` only as `env -u UV_PROJECT_ENVIRONMENT -u VIRTUAL_ENV devenv shell -- uv ...` |
 | A narrowed type rejects a real fixture | RT1 on the corpus. The pilot found two such cases and widened them (MDL-021). |
+| A narrowed model encodes data that goes stale (for example the `rust-overlay` manifests) | The data names the revision it came from (`rust-overlay` `c1cfa7a2`). A re-lock of that input needs a new extraction. RT8 cannot test such rules; unit tests and probes do. |
 
 ## Requirements (proposed)
 
@@ -503,18 +569,34 @@ learner's request. The model is validated before any Nix is written.
 | MDL-017 | The oracle reads only the options that a fixture mentions (`scope = "touched"`) by default. The scope `all`, with a deny list, is the cross-check. |
 | MDL-018 | The syntax reader refuses a file with a parse error. It keeps a root `let` header as verbatim prefix text. |
 | MDL-019 | Every typed literal that the syntax reader sets equals the Nix evaluation of its source slice. |
-| MDL-020 | **IN PROGRESS, proposed.** The harness identifies a package by its full `$name` and resolves a name to an attribute path by evaluation. It no longer compares a package by `pname`. When it lands, it replaces the `pname` rule of the eval reader and the rule that the normalizer drops `$name` (neither rule has an ID). |
+| MDL-020 | **Superseded by MDL-036.** *(Was: IN PROGRESS, proposed.)* The harness identifies a package by its full `$name` and resolves a name to an attribute path by evaluation. It no longer compares a package by `pname`. When it lands, it replaces the `pname` rule of the eval reader and the rule that the normalizer drops `$name` (neither rule has an ID). |
 | MDL-021 | A narrowed model may type a function-typed option as `NixExpr \| FnMarker`. `FnMarker` accepts only `{"$fn": true}` and holds no source. A fixture with a `$fn` value is `has-fn`: the writers skip it. |
 | MDL-022 | A narrowed class may set a `CHOICES` class variable that limits a package or string field to a listed set. Each entry has a probe that shows it evaluates at the pin. `CHOICES` adds no field, so MDL-009 holds. |
 | MDL-023 | `render` writes one canonical layout: all definitions merge into one tree and each leaf is one dotted binding. RT5 is strict: the first render equals the render of the read of the first render. |
 | MDL-024 | RT8 passes only when Nix rejects the mutated value with a type error. Any other rejection is a separate failure class. |
 | MDL-025 | RT7 discards a generated draw that fails the narrowed model validation. |
-| MDL-026 | The driver evaluates a request from a content-addressed path, `requests/<sha256 of the canonical JSON>.json`, because the evaluation cache keys on the request path. Generated cases use paths that do not depend on the run id (in progress). |
+| MDL-026 | **Superseded by MDL-037.** The driver evaluates a request from a content-addressed path, `requests/<sha256 of the canonical JSON>.json`, because the evaluation cache keys on the request path. Generated cases use paths that do not depend on the run id (in progress). |
 | MDL-027 | The normalizer rewrites store hashes, the runtime directory, project directories, the fixture root, the checkout, and the home directory in every string and object key. |
 | MDL-028 | The syntax reader reads a plain relative path literal (`./x`, `../x`, no interpolation) as a typed `$path` value. Other path forms stay `NixExpr`. |
 | MDL-029 | A generated scalar field uses a strict Pydantic type. `number` maps to `StrictInt \| StrictFloat`. This replaces the table row that mapped `number` to `float`. |
+| MDL-030 | A subtree other than the two pilots is `supported` with at least 5 real corpus fixtures and every row passed. With fewer real fixtures and every other row passed (RT2 to RT8, and the RT7 size row with 2 seeds), it is `supported (generated-only)`. The pilots keep 10 (`languages.python`) and 5 (`services.postgres`). Owner decision, 2026-10-11. |
+| MDL-031 | A skip that comes from a documented path limit of a writer does not count toward the exclusion share. `PATH_LIMIT_EXCEPTIONS` names each such skip, and the report lists each one. The two exceptions are RT6 `has-fn` and RT6 `pkg-unresolved`. A new exception needs a code change and a review. Owner decision, 2026-10-11. |
+| MDL-032 | Every skip and every excluded fixture has a named class: `has-imports`, `no-literal-fields`, `pkg-unresolved`, `has-fn`, `no-subtree`, `secret`, or `fails`. A skip with another reason is a gate FAIL. The exclusion share is measured for each of RT1 to RT6 and is at most 20 percent. |
+| MDL-033 | The golden fixtures (`tests/golden/`) run every check for correctness. The corpus metrics (RT3 typed share, exclusion share, corpus size) count only the `corpus/` fixtures. |
+| MDL-034 | An RT7 seed gives the same cases in any process, with any `PYTHONHASHSEED` and any set of loaded models. The generator isolates the Hypothesis constants pool while it draws. |
+| MDL-035 | A renamed or alias option (`mkRenamedOptionModule`, `mkAliasOptionModule`) has no field in a generated model. The generator records it as a `renamed` coverage entry with the target path. |
+| MDL-036 | The harness identifies a package by its full `$name`. The normalizer keeps `$name`; the eval reader keys a package by `(pname, output, name)` and resolves a name to an attribute path by evaluation; RT2, RT6, and RT7 compare by `$name` and output; a canonical path makes `./.` and `.` equal. A package with no attribute path gives the skip `pkg-unresolved`. Supersedes MDL-020. |
+| MDL-037 | The driver evaluates a request from a content-addressed path, `requests/<sha256 of the canonical JSON>.json`. The runner writes a generated case to `cases/<sha256 of all files>/`, written once. A repeat run sends identical requests and hits the evaluation cache. Supersedes MDL-026. |
+| MDL-038 | The RT7 probe forces the `config.packages` names. It also forces `config.enterShell` by default; `--no-probe-shell` turns that off. A failure has the class `packages-error` or `shell-error`. |
+| MDL-039 | RT2 and RT5 render a fixture with a hybrid writer. For a `$fn` option and a fixture-local package, the writer splices the exact source span from the syntax reader. Without a span the case skips with `has-fn`. `alone` fixtures run in their own project. |
+| MDL-040 | RT8 builds its base case from a valid draw of the narrowed model, so the base satisfies the cross-field rules. |
+| MDL-041 | The RT7 and RT8 probe treats a path as declared when a prefix of the path is an option. RT7 folds the expected value of an open submodule into the shape that truth keeps. |
+| MDL-042 | The syntax reader reads a root `let` name that is bound once to a plain literal as that literal, and reads `${name}` of such a name as its text. A name bound twice or by `inherit` is not a constant. |
 
 ## Gates
+
+GM9 covers five subtrees: `languages.python`, `services.postgres`, `services.redis`
+(generated-only), `languages.javascript`, and `languages.rust`.
 
 | Gate | Proves | Guide step | Status (2026-10-11) |
 | --- | --- | --- | --- |
@@ -527,8 +609,8 @@ learner's request. The model is validated before any Nix is written.
 | GM6 | Templateer has a `nix` output language | Step 9 | PASS for the suite; tag open (the harness pins a revision) |
 | GM7 | Writers and readers exist | Steps 10, 11 | PASS |
 | GM8 | The round-trip runner reports RT1 to RT8 | Steps 12, 13, 14 | PASS |
-| GM9 | The pilot subtrees pass | Step 15 | IN PROGRESS |
-| GM10 | The three skills run the loop on a new subtree | Step 16 | IN PROGRESS |
+| GM9 | The pilot subtrees pass; the supported set passes | Step 15 | PASS |
+| GM10 | The three skills run the loop on a new subtree | Step 16 | PASS |
 
 The evidence for each status is in [evidence/GATES.md](./evidence/GATES.md).
 
@@ -537,19 +619,22 @@ The evidence for each status is in [evidence/GATES.md](./evidence/GATES.md).
 1. Resolved 2026-10-11: the repository is `devenv-py`.
 2. Resolved 2026-10-11: no fork patch. The introspection module works with stock `devenv eval`
    (probe O10 to O12). Revisit only if a later pin breaks that route and the repl fallback.
-3. How should the eval reader name packages: a package index per pin, or a rule that prefers the
-   syntax reader for `packages`? Partly answered: the first build matched `pname` and output with no
-   index, and the `pname` rule failed on real fixtures. The identity work (MDL-020) is in progress.
-4. Which subtrees come after the pilot (`languages.python`, `services.postgres`)? The first trial
-   subtree for the skills is `services.redis` (in progress).
+3. Resolved 2026-10-11: the eval reader names packages by the full `$name` and resolves a name to an
+   attribute by evaluation, with no package index (MDL-036).
+4. Which subtrees come after the five supported ones? The trials used `services.redis`,
+   `languages.rust`, and `languages.javascript`. The next choice comes from the fleet census.
 5. Resolved 2026-10-11: GM9 uses the thresholds in Step 15 of the guide. Correctness checks
    must be perfect, coverage must not fall, generated cases are sized by coverage, and a small
    corpus blocks the gate.
 6. Should Path T support tagged values (`{"$pkg": ...}`) in TOML, or should such models use Path N
    only?
 7. Which `templateer` tag carries the `nix` language? Step 9 landed on `main` at `d3304db4` with no
-   tag. The tag `v0.4.2` is on the `v6-flake` branch. The harness now pins revision `ac02b48c015d`
-   (the integral-float fix). A tag on `main` is still open.
+   tag. The tag `v0.4.2` is on the `v6-flake` branch. The harness pins revision `ac02b48c015d`
+   (the integral-float fix). A tag on `main` is still open. The owner decides.
+10. How should the report show "every enum value and both integer bounds occur"? Today an author
+    computes it by hand (author skill, step 9).
+11. Should `testee check rt-pilot` cover all five supported subtrees? Today it covers the two pilots.
+    The gate runs for the other three used `dpy rt` directly.
 9. Should the generator widen every `functionTo` and `path` option as the pilot did by hand
    (`NixExpr | FnMarker`, `list[PathRef | PkgRef]`)?
 8. Should a string with an interpolation read as a parts list (literal text plus `NixExpr` holes)

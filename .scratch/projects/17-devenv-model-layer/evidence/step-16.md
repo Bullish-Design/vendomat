@@ -1,7 +1,7 @@
 # Step 16 record: the agent skills
 
-**Date:** 2026-10-11. **Status:** The skills exist (observed). The trial is IN PROGRESS. GM10 is not
-met. No trial result exists yet.
+**Date:** 2026-10-11. **Status:** Closed by [step-16-final.md](./step-16-final.md): GM10 PASS. The text below is the state at
+`0dd939d802d2`. The skills existed, the trial was IN PROGRESS, and no trial result existed.
 
 ## Inputs
 

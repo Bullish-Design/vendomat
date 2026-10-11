@@ -1,6 +1,6 @@
 # Step 15 record: the pilot, `languages.python` and `services.postgres`
 
-**Date:** 2026-10-11. **Status:** IN PROGRESS. GM9 is not met. This record holds the work done up to
+**Date:** 2026-10-11. **Status:** Closed by [step-15-final.md](./step-15-final.md): GM9 PASS. The text below is the state at `0dd939d802d2`. It was IN PROGRESS, GM9 not met. This record holds the work done up to
 the commit `0dd939d802d2`, and names the work in flight.
 **Raw reports:** `~/.local/state/devenv-py/step-15-python/REPORT.md`,
 `~/.local/state/devenv-py/harness-fix/REPORT.md`, `~/.local/state/devenv-py/widen/REPORT.md`,

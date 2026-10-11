@@ -1,8 +1,9 @@
 # Guide: the round-trip harness for typed devenv models
 
 **Date:** 2026-10-10. **Updated:** 2026-10-11 with the implementation of Steps 2 to 14, the pilot
-work of Step 15, and the Step 16 skills. **Status:** Draft for owner review. Steps 1 to 14 are done.
-Step 15 and Step 16 are IN PROGRESS. **Concept:** [CONCEPT.md](./CONCEPT.md).
+work of Step 15, the Step 16 skills, and the final records of gates GM9 and GM10.
+**Status:** Draft for owner review. Steps 1 to 16 are done and gates GM0 to GM10 pass.
+**Concept:** [CONCEPT.md](./CONCEPT.md).
 **Gates:** [evidence/GATES.md](./evidence/GATES.md).
 
 This guide builds the harness in order. Each step names its goal, its actions, the expected result,
@@ -11,7 +12,9 @@ the record to write, and its gate. Do not start a step before the gate of the st
 Every command, file name, option name, and Nix node kind here is proposed until the step's fixture
 proves it on the pinned tools. When a fixture disproves an interface, update this guide, the concept,
 and the code together. Where a step says "as built", the text follows the code in `devenv-py` at
-`main` `0dd939d802d2`, and the code wins on any disagreement.
+`main` `4f3033bdaa9c` (earlier steps were written at `0dd939d802d2`), and the code wins on any
+disagreement. Text marked "superseded" stays as history; the note names the requirement that
+replaces it.
 
 ## Conventions
 
@@ -940,8 +943,9 @@ in [evidence/phase-a.md](./evidence/phase-a.md), section 4.
      `python3Packages` for `languages.python`) in one batch evaluation. It keeps the candidate
      whose `pname` and output match. `PkgRef.output` is `None` when the truth output is the default
      output. An ambiguous or missing result is a miss. A `pname` that differs from the attribute
-     name (`gcc` gives `gcc-wrapper`) is a miss. **This `pname` rule is the source of the package
-     identity problem of Step 15** (concept MDL-020, in progress).
+     name (`gcc` gives `gcc-wrapper`) is a miss. **Superseded by MDL-036** (commit
+     `4af72fe743ba`): the reader now keys a package by `(pname, output, name)` and resolves the full
+     `$name` to an attribute by evaluation. See Step 15.
    - API: `read_eval(truth, subtree, *, model=None, resolver=None, ...) -> (OptionModel,
      list[Miss])`. A `ValidationError` maps each error to its option, drops it, records a `Miss`
      (kinds `unreadable`, `invalid`, `not-in-model`, `package`, `conflict`, `model`), and retries.
@@ -1074,7 +1078,8 @@ uses, the reader rules as built, and the fleet counts. The vendored schema is ch
 1. Write `src/devenv_py/roundtrip.py` with `dpy rt`. Flags (as built): `--subtree` (repeat or
    separate by commas; `*` for all), `--checks` (default `RT1,...,RT6`), `--fixtures DIR...`
    (default golden and corpus), `--run-id`, `--pin-dir`, `--seed` (repeat; default 1),
-   `--min-cases` (500), `--max-cases` (5000), `--no-cache`, and `--smoke` (driver echo, then the five
+   `--min-cases` (500), `--max-cases` (5000), `--no-cache`, `--probe-shell` (default on;
+   `--no-probe-shell` turns it off; MDL-038), and `--smoke` (driver echo, then the five
    golden fixtures through RT1 to RT6). For each `batch` or `alone` fixture:
 
    | Check | Steps |
@@ -1094,8 +1099,17 @@ uses, the reader rules as built, and the fleet counts. The vendored schema is ch
    **Skip reasons (as built).** RT4 skips a fixture with `imports` (`has-imports`: the syntax reader
    sees only `devenv.nix`; truth merges all files) and a fixture with `no-literal-fields`. RT1 and
    RT4 skip for subtree `*` (`no-subtree`). An `alone` fixture skips the evaluating checks
-   (`alone-needs-project`) because the runner does not receive `alone_project`. A writer skip
-   (Step 10) shows as `has-fn` and the other `WriterSkip` reasons.
+   (`alone-needs-project`) only when the runner does not receive `alone_project`. **Superseded by
+   MDL-039:** the CLI always passes `alone_project`, so `alone` fixtures run in their own project.
+   A writer skip (Step 10) shows as `has-fn` and the other `WriterSkip` reasons. The final set of
+   named classes is in Step 15 (MDL-032).
+
+   **Hybrid render (MDL-039).** RT2 and RT5 render with `render_hybrid`. For a `$fn` option and a
+   fixture-local package it splices the exact source span from the syntax reader. Without a span the
+   case skips with `has-fn` or `pkg-unresolved`. RT2 and RT6 resolve truth packages in one batch by
+   the full `$name` (MDL-036). RT4 recompares by name when two attribute paths differ
+   (`postgresql` against `postgresql_16`). The driver and the runner use content-addressed request
+   and case paths (MDL-037).
 
 **Expected result.** RT2 passes on most `batch` fixtures before any narrowing, because it renders
 the truth back as data. Its failures show writer and serializer gaps.
@@ -1138,9 +1152,11 @@ and skips 5. Wall time 2.2 s (first run).
    rejects nothing. The runner adds an own option `dpyRtProbe` to each generated module. The probe
    forces the defined values and `config.assertions` under `tryEval` and answers a string. The class
    `type-error` therefore means "forcing the values threw". It also covers a throwing `apply`. The
-   probe forces only defined options, so an option that only affects another one (such as
-   `languages.python.version`) never evaluates in RT7. In flight: forcing the `config.packages` names
-   and `enterShell` (Step 15). The runner classifies an uncatchable error from stderr with the ANSI
+   first probe forced only defined options, so an option that only affects another one (such as
+   `languages.python.version`) never evaluated in RT7. **Superseded by MDL-038:** the probe now
+   forces the `config.packages` names and, by default, `config.enterShell` (`--no-probe-shell`
+   turns the shell force off). Failures get the classes `packages-error` and `shell-error`. The probe
+   treats a path as declared when a prefix of the path is an option (MDL-041). The runner classifies an uncatchable error from stderr with the ANSI
    codes stripped (`NO_COLOR` does not remove color from Nix errors).
 
    **`CHOICES`.** A narrowed class (MDL-009) may set `CHOICES: ClassVar[dict[str, tuple[str, ...]]]`.
@@ -1151,10 +1167,17 @@ and skips 5. Wall time 2.2 s (first run).
    **Rejecting draws.** RT7 discards a Hypothesis draw that fails the narrowed model validation
    (`reject()`). A drop in the case count can mean a validator that is too wide.
 
+   **Seeds (MDL-034).** An RT7 seed must give the same cases in any process. Hypothesis mixes the
+   constants of every local module in `sys.modules` into its draws, so the generator empties that
+   pool while it draws (commit `c8297c304c85`). The regression test compares runs across
+   `PYTHONHASHSEED` values and loaded modules.
+
 3. RT8: take a valid instance. Change one field to a value outside its type: a wrong type, an
    integer outside its bounds, an unknown enum value, null where null is not allowed, a string that
    misses its pattern, or an empty string for a `nonEmptyStr`. Build it with `model_construct` so
-   that Pydantic does not stop it. Render and evaluate. **The pass rule is a type error only:** Nix
+   that Pydantic does not stop it. Build the base case from a valid draw of the narrowed model, so
+   the base satisfies the cross-field rules (MDL-040, commit `cc21b91fe3fc`). Render and evaluate.
+   **The pass rule is a type error only:** Nix
    must reject the value with a `type-error`. If Nix accepts it (`accepted`), the model is too
    tight. Another kind of rejection is its own failure class: `rejected-assertion`,
    `rejected-unknown-option`, or `rejected-other`.
@@ -1192,6 +1215,7 @@ too-tight field.
    | `pytest` | full | the whole suite (the check is named `pytest`, not `unit`) |
    | `harness-smoke` | full | `dpy rt --smoke`: the driver echo and the five golden fixtures through RT1 to RT6 |
    | `rt-pilot` | `rt` (opt-in, not required) | RT1 to RT8 for the pilot subtrees under seeds 1 and 2, then `dpy report`; timeout 1800 s |
+   | `pytest-focus` | none (opt-in, not a gate) | the pytest arguments in `${XDG_STATE_HOME:-~/.local/state}/devenv-py/focus-targets`, for single-file iteration (commit `daae98dcb09a`; owner decision). A pass never makes a commit green. |
 
    `dpy report <run-id>` exits 1 only for gate FAIL (`--strict` also for BLOCKED and INCOMPLETE).
    The report cannot measure truth stability (Step 7 records it) or the warm-cache state of the
@@ -1210,30 +1234,41 @@ candidates, 426.8 s.
 
 ## Step 15. The pilot: `languages.python` and `services.postgres`
 
-**Goal.** Two subtrees reach supported status (MDL-011).
+**Goal.** Two subtrees reach supported status (MDL-011). After the pilot, the same thresholds bring
+`services.redis`, `languages.javascript`, and `languages.rust` to supported status.
 
-**Status.** IN PROGRESS. GM9 is not met. Record: [evidence/step-15.md](./evidence/step-15.md). Done so
-far: both subtrees have narrowed models (`narrowed/services.postgres.py`, `308cf3e30afd`;
-`narrowed/languages.python.py`, `ab489dad7af5`); the harness fix (`ad9476284450`); the widening
-(`0dd939d802d2`). RT7 and RT8 pass for both subtrees under seeds 1 and 2 after the widening. The last
-full pilot report (`20261011T140324Z-rt-pilot`, before the widening) has gate FAIL. In progress (no
-result claimed): package identity by the full `$name` with attribute resolution (RT2, RT6); RT7
-forcing of `config.packages` names and `enterShell`; content-addressed case directories for a warm
-cache; then the final gate run.
+**Status.** Done. GM9 PASS on 2026-10-11. Records: [evidence/step-15.md](./evidence/step-15.md) (the
+work up to `0dd939d802d2`) and [evidence/step-15-final.md](./evidence/step-15-final.md) (the final
+runs and the supported set). The final set:
 
-**Lessons so far (as built).**
+| Subtree | Status | Real fixtures |
+| --- | --- | --- |
+| `languages.python` | supported | 24 |
+| `services.postgres` | supported | 10 |
+| `services.redis` | supported (generated-only) | 1 |
+| `languages.javascript` | supported | 7 |
+| `languages.rust` | supported | 10 |
+
+Evidence: runs `regate-1` (four subtrees, cold, 103.4 s), `regate-2` (warm, 13.2 s, same result
+rows), and `rust-rebased-1`.
+
+**Lessons (as built).**
 
 - A narrowed model restricts, validates, or lists choices. It adds no field (MDL-009). A
   cross-field rule is a `model_validator(mode="after")`, gated on `enable` when the module sets its
   config under `mkIf cfg.enable`.
 - A package or string field with a confirmed list uses `CHOICES` (Step 13). Prove each entry with a
-  probe. Package narrowing is semantic: Nix accepts any package, so RT8 cannot test it.
+  probe. Package narrowing is semantic: Nix accepts any package, so RT8 cannot test it. Manifest
+  data (the `rust-overlay` version, target, and component tables) is also semantic and ties to one
+  input revision.
 - A narrowed type can be too tight. `FnMarker` and `list[PathRef | PkgRef]` widened two fields so
   that real fixtures validate. The generator could make these widenings for every `functionTo` and
-  `path` option; that is a concept decision, so the widenings stay in `narrowed/`.
-- The comparison of a package by `pname` limits `package` choices to attributes whose `pname`
-  equals the attribute name (`python3` only). This blocks wider interpreter lists until the
-  identity fix lands.
+  `path` option; that is a concept decision (open question 9), so the widenings stay in `narrowed/`.
+- *Superseded by MDL-036:* "The comparison of a package by `pname` limits `package` choices to
+  attributes whose `pname` equals the attribute name." Package identity now uses the full `$name`,
+  and `languages.python.package` lists no such limit.
+- The RT7 shell probe is on by default (MDL-038). It removed the Python series 3.3 from the version
+  list (8 names, `gcc9` is gone from nixpkgs).
 
 **Actions.**
 
@@ -1245,14 +1280,15 @@ cache; then the final gate run.
 3. Run again until the thresholds hold.
 
 **Thresholds** (owner decision, 2026-10-11; concept open question 5). The thresholds fall into
-four groups.
+four groups. The final corpus rules (two tiers, named classes, path-limit exceptions, golden
+fixtures) follow the tables and supersede the rows marked below.
 
 *Correctness. Any failure blocks the gate.*
 
 | Check | Threshold |
 | --- | --- |
 | RT2, RT3, RT4, RT5, RT6 | 100 percent of eligible cases |
-| Exclusions | Only by a named class: `has-fn`, `fails`, or `secret`. The report lists each excluded fixture. |
+| Exclusions | **Superseded by MDL-032:** only by a named class: `has-fn`, `fails`, or `secret`. The report lists each excluded fixture. In force: the seven named classes (see below). |
 | RT7 | No `type-error` and no `mismatch`. An `assertion` failure counts only after it becomes a validator in the narrowed model, so the rerun has none. |
 | RT8 | No invalid value that Nix accepts |
 | Truth stability | Two runs give byte-identical truth |
@@ -1275,18 +1311,31 @@ four groups.
 
 | Check | Threshold |
 | --- | --- |
-| Corpus size | At least 10 real fixtures that use `languages.python`, and at least 5 that use `services.postgres` |
-| Exclusion share | At most 20 percent of those fixtures are excluded |
-| Small corpus | If the corpus is below these sizes, record GM9 as BLOCKED, not passed |
+| Corpus size | At least 10 real fixtures that use `languages.python`, and at least 5 that use `services.postgres`. Other subtrees follow the two tiers below (MDL-030). |
+| Exclusion share | At most 20 percent of those fixtures are excluded. **Refined by MDL-031 and MDL-032:** the share is measured for each of RT1 to RT6, and a path-limit exception does not count. |
+| Small corpus | If a pilot corpus is below these sizes, record GM9 as BLOCKED, not passed |
 | Run time | `testee check rt-pilot` finishes in 15 minutes or less with a warm evaluation cache |
 
-**Record.** [evidence/step-15.md](./evidence/step-15.md): the report runs, both seeds, the RT7
-coverage counts, the excluded fixtures, and every remaining `NixExpr` field
-(`languages.python.import`; `services.postgres.extensions` as `NixExpr | FnMarker`). The final
-report is not yet written.
+**Final corpus rules.** The report applies them to every subtree.
 
-**Gate GM9.** Both subtrees meet every threshold above. IN PROGRESS. The open items are in
-[evidence/GATES.md](./evidence/GATES.md).
+1. **Two tiers (MDL-030).** A subtree other than the two pilots is `supported` with at least 5 real
+   fixtures and every row passed. With fewer real fixtures and every other row passed (RT2 to RT8,
+   and the RT7 size row with 2 seeds), it is `supported (generated-only)`.
+2. **Named exclusion classes (MDL-032).** `has-imports`, `no-literal-fields`, `pkg-unresolved`,
+   `has-fn`, `no-subtree`, `secret`, and `fails`. Another reason is a gate FAIL.
+3. **Path-limit exceptions (MDL-031).** `PATH_LIMIT_EXCEPTIONS` holds RT6 `has-fn` and RT6
+   `pkg-unresolved`. The report lists them and does not count them in the share.
+4. **Golden fixtures (MDL-033).** They run every check and do not enter the corpus metrics.
+5. **Renamed options (MDL-035).** The generated model has no field for a renamed or alias option. The
+   coverage list records it.
+
+**Record.** [evidence/step-15-final.md](./evidence/step-15-final.md): the gate runs, both seeds, the
+RT7 and RT8 counts for each subtree, the skips and exceptions, and the remaining `NixExpr` fields
+(`languages.python.import`, `languages.rust.import`, and `services.postgres.extensions` as
+`NixExpr | FnMarker`).
+
+**Gate GM9.** Met. Every supported subtree meets the thresholds above under the final corpus rules.
+The open items are in [evidence/GATES.md](./evidence/GATES.md).
 
 ---
 
@@ -1294,8 +1343,9 @@ report is not yet written.
 
 **Goal.** Agents run the authoring loop without changes to the harness code.
 
-**Status.** The skills exist (commit `028e7f774899`). The trial is IN PROGRESS. Record:
-[evidence/step-16.md](./evidence/step-16.md). The skill sources are `skills/<name>/SKILL.md` in
+**Status.** Done. GM10 PASS on 2026-10-11. Records: [evidence/step-16.md](./evidence/step-16.md) (the
+skills, commit `028e7f774899`) and [evidence/step-16-final.md](./evidence/step-16-final.md) (the
+trials). The skill sources are `skills/<name>/SKILL.md` in
 `devenv-py`. Devman links them into `.agents/skills/<name>` on a machine; edit the source only.
 
 **Actions.**
@@ -1318,14 +1368,19 @@ report is not yet written.
    - Record each run in the subtree's record, under
      `~/.local/state/devenv-py/<skill>/<subtree or source>/<run-id>.md`, with each line labeled
      OBSERVATION or INFERENCE.
-5. Trial: give an agent the author skill for `services.redis`. Do not help it. Record the run.
+5. Trial: give an agent the author skill for a new subtree. Do not help it. Record the run.
+   - `services.redis`: reached the gate only after rule and harness fixes that it prompted.
+   - `languages.rust`: failed on six harness gaps (probe sub-paths, open-submodule folding, renamed
+     options, a missing `rust-overlay` pin input, RT8 bases, fixture-local packages). All six are
+     fixed, and run `rustcheck-1` confirms it. A second attempt passed with `narrowed/` and tests only.
+   - `languages.javascript`: a fresh agent used the skills alone and reached `supported` with no
+     harness change (commit `4a3e45feef51`). This is the GM10 evidence.
 
-**Expected result.** The agent brings `services.redis` to the thresholds with no harness code
-change.
+**Expected result.** The agent brings a new subtree to the thresholds with no harness code change.
 
-**Record.** [evidence/step-16.md](./evidence/step-16.md). It holds no trial result yet.
+**Record.** [evidence/step-16-final.md](./evidence/step-16-final.md).
 
-**Gate GM10.** The trial subtree passes with no harness code change. IN PROGRESS.
+**Gate GM10.** Met. The trial subtree `languages.javascript` passes with no harness code change.
 
 ---
 

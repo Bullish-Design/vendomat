@@ -67,12 +67,19 @@ superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the d
 `.scratch/projects/17-devenv-model-layer/`: `CONCEPT.md`, `GUIDE-HARNESS.md`, and `evidence/`
 (`GATES.md` and one record per step). Pydantic models are generated from native option
 declarations and checked by a round-trip harness against Nix evaluation. The harness exists in
-`devenv-py` (private, `Bullish-Design/devenv-py`, pin `devenv-2.4.0-b904dcb5-c2f38fe7`): Steps 1 to
-14 are done, and gates GM0 to GM8 pass (GM0 and GM6 keep named open items). Both pilot models, `services.postgres` and
-`languages.python`, pass RT7 and RT8 under two seeds, and the three Step 16 skills exist. GM9 (pilot
-thresholds) and GM10 (the `services.redis` skills trial) are IN PROGRESS, and the open work is
-package identity by full `$name`, a warm evaluation cache, and the final pilot run. The project does
-not change the authority of project 14 or project 16.
+`devenv-py` (private, `Bullish-Design/devenv-py`, pin `devenv-2.4.0-b904dcb5-c2f38fe7`, `main`
+`4f3033bdaa9c`). Steps 1 to 16 are done, and gates GM0 to GM10 pass (GM0 and GM6 keep named open
+items). Final record on 2026-10-11: GM9 passes for five supported subtrees under two seeds
+(`languages.python` 24 real fixtures, `services.postgres` 10, `languages.javascript` 7,
+`languages.rust` 10, and `services.redis` as supported generated-only with 1). GM10 passes on
+`languages.javascript`: a fresh agent used the skills alone and changed no harness file. The records
+are `evidence/step-15-final.md` and `evidence/step-16-final.md`; the requirements MDL-030 to
+MDL-042 hold the new rules (two-tier corpus, path-limit exceptions, named exclusion classes, golden
+fixtures outside the corpus metrics, seed determinism, renamed options, package identity by
+`$name`). Open items: Templateer `main` has no release tag; the `pytest-focus` targets file is
+shared across checkouts; the end-to-end `VENDOMAT_TEMPLATEER` default is machine-specific; the
+Devman push hook resolves `testee` from the session `PATH`, so a session from an old shell carries
+Testee 0.5.1. The project does not change the authority of project 14 or project 16.
 
 ## Active: project 14 — Vendomat V5
 
