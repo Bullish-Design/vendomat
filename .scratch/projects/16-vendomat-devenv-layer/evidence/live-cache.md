@@ -46,6 +46,10 @@ Run directories are under `~/.local/state/vendomat/v6/live-cache/`.
 | `20261010T220255Z` | live-cache-load | pass | 1 (3.169 s) | 0 retries, 0 narinfo errors |
 | `20261010T220326Z` | live-cache-load | pass | 1 (5.586 s) | 0 retries, 0 narinfo errors |
 | `20261010T220357Z` | live-cache-load | pass | 1 (3.300 s) | 0 retries, 0 narinfo errors |
+| `20261011T003438Z` | live-cache | pass | 1 (0.852 s) | Original chunks, 60 s pool wait; 0 retries, 0 narinfo errors |
+| `20261011T003511Z` | live-cache-load | pass | 1 (14.438 s) | 0 retries, 0 narinfo errors |
+| `20261011T003544Z` | live-cache-load | pass | 1 (14.270 s) | 0 retries, 0 narinfo errors |
+| `20261011T003618Z` | live-cache-load | pass | 1 (14.776 s) | 0 retries, 0 narinfo errors |
 
 The four new checks ran in the listed order with `testee check live-cache`, then
 `testee check live-cache-load` three times. Each command exited 0. Each cold substitution passed.
@@ -62,6 +66,14 @@ Raw Testee output is in `~/.local/state/vendomat/v6/attic-investigation/phase4/`
 `testee verify --full` passed on the same source before the last two runs (run
 `20261010T204941Z-57adeac8b2d9`).
 
+The last four rows ran after the owner restored the 16/64/256 KiB chunks and applied a patched Attic
+with a 60 s pool wait (see `attic-timeouts.md`, "Pool option trial"). They ran in the same order,
+and each command exited 0. Testee run IDs are `20261011T003437Z-eaf1091af6bc`,
+`20261011T003510Z-7973579df82f`, `20261011T003543Z-ef48fc6b52f8`, and
+`20261011T003617Z-8a9f21838d99`. Each cold substitution passed, and the service journal recorded no
+pool timeout. The load pushes took about 14 s with the original chunks, against 3–6 s with larger
+chunks and 228–239 s in the first two runs.
+
 ## Observations
 
 - The cold substitution passed in every complete run: signature checking on, no other
@@ -77,6 +89,6 @@ Raw Testee output is in `~/.local/state/vendomat/v6/attic-investigation/phase4/`
 
 This is one host and one client. It proves push and cold pull through the pull credential on
 `server`. It does not prove another host, a remote substitution, or a push that needs no retry.
-The cause of the pool timeouts is not established. These four passes do not isolate chunk size from
-the service restart or other changes in production workload.
+The cause of the pool timeouts is not established. These passes do not isolate chunk size or the
+pool wait from the service restart or other changes in production workload.
 Every run leaves its unique object in the cache. The cache has no retention period.

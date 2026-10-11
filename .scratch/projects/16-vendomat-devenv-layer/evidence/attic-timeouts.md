@@ -146,6 +146,9 @@ A safe move would also need a consistent database migration.
 
 ## Production trial, 2026-10-10
 
+The owner later reverted the chunk sizes and replaced them with a pool option patch. See
+"Pool option trial" below. This section stays as the record of the 256 KiB chunk trial.
+
 The owner approved the diff above and named `nixos-rebuild switch --flake .#server` as the workflow.
 The deployed generation matched `main@origin` in nix-meta. Local `main` also held a separate
 Mnemonix pin, so the trial used a workspace based on the deployed revision. The only source change
@@ -200,3 +203,108 @@ Raw files stay outside the repository:
 - [Upstream report](/home/andrew/.local/state/vendomat/v6/attic-investigation/upstream/report.md)
 - [Trial commands, GET series, push logs, server logs, and summaries](/home/andrew/.local/state/vendomat/v6/attic-investigation/repro/)
 - Prior production logs: `~/.local/state/vendomat/v6/releases/` and `~/.local/state/vendomat/v6/live-cache/`.
+
+## Pool option trial, 2026-10-10
+
+### Decision
+
+The owner chose to raise the pool wait to one minute and to keep the original 16/64/256 KiB chunks
+for chunk reuse. The owner then asked for the pool settings to be configurable. Attic 0.1.0 at
+`b7c905657cb81b8ec9c26b0d9f53aa2e4f231810` has no flag, environment variable, or TOML key for the
+pool. Its SQLite URL parser rejects pool keys. A source patch is the only route. See
+[findings.md](/home/andrew/.local/state/vendomat/v6/attic-investigation/source/findings.md).
+
+### Patch
+
+`nix-meta/nix/attic-database-pool-options.patch` adds three optional `[database]` keys. With no key
+set, behavior is unchanged.
+
+| Key | Type | Unset behavior |
+| --- | --- | --- |
+| `acquire-timeout` | duration, for example `"1 minute"` | SQLx default, 30 s |
+| `max-connections` | integer of 1 or more | SQLite: 1; PostgreSQL: driver default |
+| `busy-timeout` | duration, SQLite only | SQLx default, 5 s |
+
+When `max-connections` is above 1, the patch sets `synchronous`, `temp_store`, and `mmap_size` at
+connect time, so every connection gets them. `run_migrations` always uses the default pool size.
+The module sets only `database.acquire-timeout = "1 minute"`. A stock Attic accepts these keys and
+ignores them without an error (`check-config` exit 0 on build `4fwzb3rc…`). Dropping the patch
+would turn the setting into a silent no-op.
+
+### Throwaway-server results
+
+Inputs: patched build `/nix/store/yp3z60h1mwd8qiwrqn9r5ybmb191csai-attic-0-unstable-2026-06-26`,
+one 64 MiB random file, `attic push -j 1`, database and storage on `/mnt/wd_green1`, a fresh
+database, three runs each, one variant at a time. The throwaway server used port 18089.
+
+| Variant | Runs | Push failures | Narinfo errors | Push time |
+| --- | ---: | ---: | ---: | --- |
+| Keys unset | 3 | 0 | 0 of 18 | 5.5–5.9 s |
+| `acquire-timeout = "1 minute"` | 3 | 0 | 0 of 18 | 5.6–5.9 s |
+| `max-connections = 4`, `busy-timeout = "30 seconds"` | 3 | 0 | 0 of 6 | 1.5–1.6 s |
+
+`check-config` accepted valid values. It rejected `max-connections = 0` (expected a nonzero u32), a
+bad duration, and a wrong type.
+
+**Fault found.** The first patch let `max-connections = 4` reach the migrations. On a fresh database
+the "Migrating NARs to chunks" step failed with `no such column: "temp_nar_id"`. That migration adds
+a temporary column and uses it in later statements. The patch now clears `max-connections` in
+`run_migrations`, and the rerun passed. Production's database is already migrated, so it did not
+hit this fault. An Attic upgrade with a new migration would have.
+
+The narinfo sample is small because the faster pushes were short. The database was empty, not a
+production copy. The test does not show that `max-connections` above 1 is safe under production
+write bursts. SQLite can return "database is locked" after `busy-timeout`.
+
+### Production switch
+
+The deployed generation matched `main@origin` before the chunk change. The switch used a workspace
+on that revision with only the patch and the module option, so no Mnemonix pin was activated. The
+closure diff showed one package change (`attic`, +105 KiB) and one unit change (the `ExecStart`
+binary and checked TOML). The checked TOML had avg 64 KiB, min 16 KiB, and max 256 KiB chunks, the 65536 threshold, and
+`acquire-timeout = "1 minute"`.
+
+The owner ran `/run/wrappers/bin/sudo nixos-rebuild switch --flake .#server`. At 20:32 EDT the
+service restarted, ran migrations, and listened on `127.0.0.1:8089`. The unit ran
+`/nix/store/yp3z60h1…-attic-0-unstable-2026-06-26/bin/atticd`. The journal recorded no pool
+timeout during the checks. The module change is nix-meta `main` revision `2940f5b6`.
+
+### Live-cache results
+
+The commands ran serially from the Vendomat repository root. Each exited 0 with zero retries.
+
+| Check | UTC run | Result | Push attempts | Push time | Narinfo errors |
+| --- | --- | --- | ---: | ---: | ---: |
+| `live-cache` | `20261011T003438Z` | pass | 1 | 0.852 s | 0 |
+| `live-cache-load` | `20261011T003511Z` | pass | 1 | 14.438 s | 0 |
+| `live-cache-load` | `20261011T003544Z` | pass | 1 | 14.270 s | 0 |
+| `live-cache-load` | `20261011T003618Z` | pass | 1 | 14.776 s | 0 |
+
+### Comparison of the three production arms
+
+| Arm | Chunks (min/avg/max) | Pool wait | 64 MiB push time | Attempts |
+| --- | --- | --- | --- | --- |
+| Original | 16/64/256 KiB | 30 s | 228–239 s | 2 (both runs) |
+| Larger chunks | 64/256/1024 KiB | 30 s | 3.2–5.6 s | 1 |
+| Original chunks, patched | 16/64/256 KiB | 60 s | 14.3–14.8 s | 1 |
+
+Observation: with the original chunk sizes, the load check now passes on the first attempt in about
+14 s, not 228–239 s. Inference: chunk count drives push time, which matches the throwaway
+result (5.5 s against 1.5 s). The restart between arms is a confounder. The 60 s wait was never
+exercised, because no request waited near 30 s. The 14 s result does not show that the 60 s wait
+helped.
+
+**Cause: not established.** The original 228 s pushes did not return with the same chunk sizes.
+All passing runs followed a restart of the service. A run on a long-lived process is still open.
+
+### Open
+
+- A soak run without a restart, with the original chunks and the 60 s wait.
+- `max-connections` above 1 on production traffic. It needs only a TOML change and a restart.
+- Which operation held the pool connection during the original timeouts.
+- The Argentic port 8790 conflict remains a separate service issue.
+
+Raw files stay outside the repository:
+
+- [Pool option patch, build logs, and throwaway runs](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/)
+- [Live-cache Testee output](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/live/)
