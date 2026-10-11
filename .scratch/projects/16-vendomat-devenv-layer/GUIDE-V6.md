@@ -227,8 +227,9 @@ It pins stock devenv and a Vendomat module snapshot, so it does not close Step 1
 **Goal:** run each workspace's pinned Vendomat while retaining a working host command elsewhere.
 
 1. Install a small host launcher. Inside a workspace, resolve the locked Vendomat source by NAR
-   hash and run its build. Outside one, use the host release. Do not put a second Vendomat command
-   on the devenv shell PATH.
+   hash and run its build for `sync` only; send every other command to the shell. Outside one, use
+   the host release. The module puts the same pinned build on the shell `PATH` and runs `check`
+   and `push` as tasks (`DEL-020`, `VMOD-020`, `VMOD-021`; revised 2026-10-10).
 2. Prove bootstrap behavior for a new workspace with no `devenv.lock`, a missing build, a stale
    lock, an interrupted bump, and two workspaces on different Vendomat tags. Define when the host
    release is allowed to repair a workspace, and report that use.

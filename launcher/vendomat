@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# The Vendomat host launcher (DEL-017).
+# The Vendomat host launcher (DEL-020, which supersedes DEL-017).
 #
-# It is the `vendomat` command on a host. Inside a workspace, it runs the Vendomat build that the
-# workspace's devenv.lock pins, found in the store by the NAR hash of its source. Outside a
-# workspace, it runs the host's pinned release. It holds no Vendomat logic of its own.
+# It is the `vendomat` command on a host. Inside a workspace it serves only `sync`, the step that
+# must run before the shell exists. It runs the Vendomat build that the workspace's devenv.lock pins,
+# found in the store by the NAR hash of its source. Every other command in a workspace belongs to the
+# workspace shell, which carries the same pinned build (VMOD-020). Outside a workspace, it runs the
+# host's pinned release. It holds no Vendomat logic of its own.
 #
 # The host release (the full command) sits at $VENDOMAT_HOST_RELEASE, baked in at build time.
 #
@@ -49,6 +51,20 @@ fi
 
 # Outside a workspace: the host release, with no message.
 [ -n "$root" ] || use_host "$@"
+
+# Inside a workspace: `sync`, `--version`, and help only. The shell owns every other command.
+command=""
+for arg in "$@"; do
+  case "$arg" in -*) ;; *) command="$arg"; break ;; esac
+done
+case "$command" in
+  "" | sync) ;;
+  *)
+    say "'$command' runs in the workspace shell, which carries the pinned Vendomat"
+    say "run: devenv shell -- vendomat $*   (or enter the shell first)"
+    exit 3
+    ;;
+esac
 
 lock="$root/devenv.lock"
 if [ ! -f "$lock" ]; then

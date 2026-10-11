@@ -42,9 +42,10 @@
         {
           inherit vendomat;
 
-          # The host launcher (DEL-017). A host installs it as its `vendomat` command, and the
-          # command above as the host release. The launcher runs the Vendomat that each workspace's
-          # lock pins, and the host release elsewhere. It holds no Vendomat logic of its own.
+          # The host launcher (DEL-020). A host installs it as its `vendomat` command, and the
+          # command above as the host release. In a workspace it runs `sync` with the Vendomat that the
+          # lock pins; the shell carries that build for every other command (VMOD-020). Elsewhere it
+          # runs the host release. It holds no Vendomat logic of its own.
           launcher = pkgs.runCommand "vendomat-launcher-${vendomat.version}"
             { nativeBuildInputs = [ pkgs.makeWrapper ]; }
             ''

@@ -13,7 +13,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 57, proposed 23, to build 0, superseded 35, decided 2) | 117 |
+| V6 IDs defined (active 55, proposed 26, to build 0, superseded 37, decided 2) | 120 |
 | V6 `NAT-*` facts | 31 |
 | V5 IDs that section 0 names | 53 |
 
@@ -106,8 +106,8 @@ withdrew it, and V6 adds nothing.
 | `DEL-007` | active | Kept | V5 text applies |
 | `DEL-008` | active | Superseded | `VMOD-001`: every workspace imports the Vendomat module |
 | `DEL-009` | active | Narrowed | `DEL-013`: they hold for library outputs, not for workspaces |
-| `DEL-010` | active | Superseded | `DEL-017`: a host launcher runs each workspace's pinned Vendomat |
-| `DEL-011` | active | Superseded | `DEL-017`: a host launcher runs each workspace's pinned Vendomat |
+| `DEL-010` | active | Superseded | `DEL-017`, then `DEL-020`: a host launcher syncs each workspace with its pinned Vendomat; the shell carries it (`VMOD-020`) |
+| `DEL-011` | active | Superseded | `DEL-017`, then `DEL-020`: a host launcher syncs each workspace with its pinned Vendomat; the shell carries it (`VMOD-020`) |
 | `DEL-012` | active | Superseded | `DEL-019`: the Vendomat flake also exports the devenv module (the chain is `DEL-015`, `DEL-018`, `DEL-019`) |
 | `DISK-001` | active | Kept | V5 text applies |
 | `DISK-002` | active | Kept | V5 text applies |
@@ -282,12 +282,13 @@ withdrew it, and V6 adds nothing.
 | `CLI-020` | active |  |  |
 | `CLI-021` | active | `CLI-001`, `CLI-001`, `CLI-005`, `CLI-008` |  |
 | `DEL-013` | active | `DEL-009`, `GEN-019`, `ISO-007` |  |
-| `DEL-014` | decided |  | by `DEL-017` |
+| `DEL-014` | decided |  | by `DEL-017`, `DEL-020` |
 | `DEL-015` | superseded | `DEL-012` | by `DEL-018` |
 | `DEL-016` | active | `DEL-004` |  |
-| `DEL-017` | active | `DEL-010`, `DEL-011` |  |
+| `DEL-017` | superseded | `DEL-010`, `DEL-011` | by `DEL-020`, `VMOD-020`, `PRE-009` |
 | `DEL-018` | superseded | `DEL-012` | by `DEL-019` |
 | `DEL-019` | active | `DEL-012`, `DEL-012` |  |
+| `DEL-020` | proposed | `DEL-010`, `DEL-011` |  |
 | `DESC-001` | superseded |  | by `DESC-002` |
 | `DESC-002` | superseded | `MOD-001`, `MOD-002`, `MOD-004`, `MOD-006` | by `MOD-014` |
 | `DESC-003` | superseded |  | by `MOD-014` |
@@ -401,7 +402,7 @@ withdrew it, and V6 adds nothing.
 | `VMOD-004` | active |  |  |
 | `VMOD-005` | active |  |  |
 | `VMOD-006` | active |  |  |
-| `VMOD-007` | active |  |  |
+| `VMOD-007` | superseded |  | by `VMOD-021` |
 | `VMOD-008` | active |  |  |
 | `VMOD-009` | active |  |  |
 | `VMOD-010` | active |  |  |
@@ -414,6 +415,8 @@ withdrew it, and V6 adds nothing.
 | `VMOD-017` | superseded |  | by `VMOD-019`, `VMOD-018` |
 | `VMOD-018` | superseded |  | by `VMOD-019`, `DESC-002`, `VMOD-017` |
 | `VMOD-019` | proposed |  |  |
+| `VMOD-020` | proposed | `DEL-010`, `DEL-011` |  |
+| `VMOD-021` | proposed |  |  |
 | `WS-007` | proposed |  |  |
 | `WS-008` | proposed |  |  |
 

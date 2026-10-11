@@ -2,7 +2,8 @@
 
 Two tagged copies of this repository are served over `git://`. Two workspaces pin different tags.
 The launcher, built from this tree, must run each workspace's own Vendomat, find it again with the
-network off, and fall back to the host release only where the guide says.
+network off, and fall back to the host release only where the guide says. In a workspace it
+serves `sync` only (`DEL-020`).
 """
 
 from __future__ import annotations
@@ -150,6 +151,7 @@ def test_the_launcher_story(tmp_path, served):
     assert again_b.stdout.strip() == "vendomat 0.6.1", again_b.stderr
     assert "host release" not in again_a.stderr
 
-    # `check` reaches the pinned build: a branch pin is named.
+    # In a workspace the launcher serves `sync` only; the shell carries the pinned `check` (DEL-020).
     checked = run(a, "check", "--no-version")
-    assert checked.returncode == 0, checked.stderr
+    assert checked.returncode == 3, checked.stdout + checked.stderr
+    assert "runs in the workspace shell" in checked.stderr

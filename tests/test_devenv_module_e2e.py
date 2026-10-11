@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import textwrap
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -110,7 +111,7 @@ class Workspace:
         for name in ("flake.nix", "flake.lock", "pyproject.toml", "README.md"):
             if (ROOT / name).exists():
                 shutil.copy2(ROOT / name, self.vendomat / name)
-        for name in ("src", "nix", "preflight", "direnv", "launcher"):
+        for name in ("src", "nix", "preflight", "direnv", "launcher", "templates"):
             shutil.copytree(ROOT / name, self.vendomat / name, ignore=shutil.ignore_patterns("__pycache__"))
         self.libs = libs
         self.env = {"HOME": os.environ["HOME"], "PATH": os.environ["PATH"]}
@@ -411,3 +412,51 @@ def test_the_input_paths_output_carries_every_source_in_its_closure(tmp_path):
     sources = ws.value("vendomat.inputPaths")
     for name, source in sources.items():
         assert source in closure, name
+
+
+# --- The pinned command in the shell (VMOD-020, VMOD-021) --------------------------------------------
+
+
+def _shell(ws: Workspace, *argv: str):
+    return subprocess.run(
+        [str(DEVENV), "--no-eval-cache", *argv],
+        cwd=ws.root,
+        capture_output=True,
+        text=True,
+        env=ws.env,
+        timeout=1800,
+    )
+
+
+def test_the_shell_carries_the_pinned_vendomat_and_its_check_task(tmp_path):
+    ws = Workspace(tmp_path, [])
+    ws.write_nix(None)
+    done = _shell(ws, "shell", "--", "sh", "-c", "command -v vendomat; vendomat --version")
+    assert done.returncode == 0, done.stderr[-3000:]
+    where, version = done.stdout.strip().splitlines()[-2:]
+    assert where.startswith("/nix/store/"), where
+    # The package prints the normalized version: `0.7.0-rc.1` in pyproject.toml prints as `0.7.0rc1`.
+    expected = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"].replace("-rc.", "rc")
+    assert version == f"vendomat {expected}"
+    listed = _shell(ws, "tasks", "list")
+    assert listed.returncode == 0, listed.stderr[-3000:]
+    assert "vendomat:check" in listed.stdout + listed.stderr
+    assert "vendomat:push" not in listed.stdout + listed.stderr
+
+
+def test_vendomat_push_runs_the_pinned_push_with_the_cache_and_attic(tmp_path):
+    ws = Workspace(tmp_path, [])
+    stub = (
+        "  vendomat.package = inputs.nixpkgs.legacyPackages.x86_64-linux.writeShellScriptBin \"vendomat\" ''\n"
+        '    echo "STUB $* ATTIC=$VENDOMAT_ATTIC"\n'
+        "  '';\n"
+        '  vendomat.cache = { push = true; name = "main"; attic = "my-attic"; };\n'
+    )
+    ws.write_nix(None, workspace_extra=stub)
+    default = _shell(ws, "shell", "--", "vendomat-push")
+    assert default.returncode == 0, default.stderr[-3000:]
+    assert "STUB push --cache main ATTIC=my-attic" in default.stdout
+    other = _shell(ws, "shell", "--", "vendomat-push", "other", "--dry-run")
+    assert "STUB push --cache other --dry-run ATTIC=my-attic" in other.stdout, other.stderr[-3000:]
+    listed = _shell(ws, "tasks", "list")
+    assert "vendomat:push" in listed.stdout + listed.stderr

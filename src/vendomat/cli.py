@@ -3,7 +3,8 @@
 A thin Typer app. Exit status: 0 ok, 1 a decision is needed (a refused entry, an unknown
 input), 2 infrastructure or configuration (a Git, Nix, or registry fault), 3 invalid usage.
 
-The command is installed on the host (``DEL-006``, ``DEL-007``). A project never imports it.
+The workspace shell carries the build that the lock pins (``VMOD-020``). On the host, a launcher
+runs ``sync`` with that build before the shell exists, and the host release elsewhere (``DEL-020``).
 """
 
 from __future__ import annotations

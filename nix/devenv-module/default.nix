@@ -3,9 +3,10 @@
 #   imports = [ inputs.vendomat.devenvModules.default ];
 #   vendomat.cache = { push = true; name = "vendomat"; };
 #
-# Every part is inert until a workspace uses it: a face does nothing until `enable = true`, the
-# inventory builds nothing until a host is listed, and the pin check reads `devenv.lock` only.
-_self:
+# The shell carries the `vendomat` command that the workspace lock pins (VMOD-020). The `vendomat:check`
+# task and, with a cache, the `vendomat:push` task run it. Every other part is inert until a workspace
+# uses it: the inventory builds nothing until a host is listed, and the pin check reads `devenv.lock` only.
+self:
 { inputs, config, options, lib, pkgs, ... }:
 let
   cfg = config.vendomat;
@@ -17,40 +18,13 @@ let
   lockPath = "${config.devenv.root}/devenv.lock";
   unpinned = lockPin.unpinned lockPath;
 
-  # The same rule, for a command that builds or pushes. `devenv build` does not evaluate assertions
-  # (NAT-025), so a push runs this first (VMOD-006).
-  checkScript = pkgs.writeShellScript "vendomat-check-lock" ''
-    set -euo pipefail
-    lock="''${DEVENV_ROOT:-$PWD}/devenv.lock"
-    if [ ! -f "$lock" ]; then
-      echo "vendomat: no devenv.lock at $lock; run 'vendomat sync'" >&2
-      exit 1
-    fi
-    bad=$(${pkgs.jq}/bin/jq -r '
-      .nodes | to_entries[]
-      | select(.value.original.type? == "git")
-      | select((((.value.original.ref // "") | startswith("refs/tags/")) and ((.value.locked.rev // "") | test("^[0-9a-f]{40}$"))) | not)
-      | "  input node \(.key): \(.value.original.url) ref=\(.value.original.ref // "<none>")"
-    ' "$lock")
-    if [ -n "$bad" ]; then
-      echo "vendomat: these git inputs are not pinned to a tag and a 40-hex revision:" >&2
-      echo "$bad" >&2
-      exit 1
-    fi
-  '';
-
+  # VMOD-021: one push path. `vendomat push` runs the checks first, because `devenv build` does not
+  # evaluate assertions (NAT-025, VMOD-006). An argument names another cache; later arguments pass through.
   pushScript = pkgs.writeShellScriptBin "vendomat-push" ''
     set -euo pipefail
     cache="''${1:-${toString cfg.cache.name}}"
-    ${checkScript}
-    roots=$(devenv build | ${pkgs.jq}/bin/jq -r '.[]')
-    if [ -z "$roots" ]; then
-      echo "vendomat-push: devenv build produced no store paths" >&2
-      exit 1
-    fi
-    echo "vendomat-push: pushing to cache '$cache':" >&2
-    echo "$roots" >&2
-    printf '%s\n' "$roots" | ${cfg.cache.attic} push "$cache" --stdin
+    [ "$#" -gt 0 ] && shift
+    VENDOMAT_ATTIC="''${VENDOMAT_ATTIC:-${cfg.cache.attic}}" exec ${lib.getExe cfg.package} push --cache "$cache" "$@"
   '';
 
   # --- Machines (VMOD-011, VMOD-016) ---------------------------------------------------------
@@ -100,6 +74,15 @@ let
 in
 {
   options.vendomat = {
+    # VMOD-020: the pinned command on the shell PATH.
+    package = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      # A module-only snapshot of the flake exports no package; then the shell carries no command.
+      default = self.packages.${pkgs.stdenv.hostPlatform.system}.vendomat or null;
+      defaultText = lib.literalExpression "inputs.vendomat.packages.\${system}.vendomat or null";
+      description = "The vendomat command in the shell. The default is the build that the workspace lock pins.";
+    };
+
     inventory = lib.mkOption {
       default = { };
       description = "Hosts. A host listed here gets the guard in machines.<host>.nixos.";
@@ -166,7 +149,7 @@ in
     };
 
     cache = {
-      push = lib.mkEnableOption "the vendomat-push script and the vendomat:push task";
+      push = lib.mkEnableOption "the vendomat-push script and the vendomat:push task, which run `vendomat push`";
       name = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
@@ -175,7 +158,7 @@ in
       attic = lib.mkOption {
         type = lib.types.str;
         default = "attic";
-        description = "Attic client command, looked up on PATH at run time.";
+        description = "Attic client command, looked up on PATH at run time. vendomat-push passes it as VENDOMAT_ATTIC.";
       };
     };
 
@@ -214,6 +197,14 @@ in
       profiles.hostname = lib.genAttrs cfg.hosts (h: { module = { env.VENDOMAT_HOST = lib.mkDefault h; }; });
       profiles.user = lib.genAttrs cfg.users (u: { module = { env.VENDOMAT_USER = lib.mkDefault u; }; });
     }
+    (lib.mkIf (cfg.package != null) {
+      # VMOD-020: inside the shell, `vendomat` is the pinned build. The host launcher serves `sync` only (DEL-020).
+      packages = [ cfg.package ];
+      tasks."vendomat:check" = {
+        description = "Check tag pins, the devenv version, and the generated fragment";
+        exec = "${lib.getExe cfg.package} check";
+      };
+    })
     {
       env = lib.mapAttrs'
         (n: v: lib.nameValuePair "VENDOMAT_PATH_${lib.toUpper (builtins.replaceStrings [ "-" "." ] [ "_" "_" ] n)}" v)
@@ -224,13 +215,19 @@ in
       outputs.vendomat.inputPaths = pkgs.writeText "vendomat-input-paths.json" (builtins.toJSON cfg.inputPaths);
     })
     (lib.mkIf cfg.cache.push {
-      assertions = [{
-        assertion = cfg.cache.name != null;
-        message = "vendomat.cache.push = true needs vendomat.cache.name.";
-      }];
+      assertions = [
+        {
+          assertion = cfg.cache.name != null;
+          message = "vendomat.cache.push = true needs vendomat.cache.name.";
+        }
+        {
+          assertion = cfg.package != null;
+          message = "vendomat.cache.push = true needs vendomat.package; this Vendomat input exports no package.";
+        }
+      ];
       packages = [ pushScript ];
       tasks."vendomat:push" = {
-        description = "Check the lock, then push the roots of `devenv build` to the Attic cache";
+        description = "Check the workspace, then push the roots of `devenv build` to the Attic cache";
         exec = "${pushScript}/bin/vendomat-push";
       };
     })

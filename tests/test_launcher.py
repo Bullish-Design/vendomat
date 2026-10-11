@@ -1,4 +1,4 @@
-"""The host launcher runs each workspace's pinned Vendomat and the host release elsewhere (`DEL-017`)."""
+"""The host launcher syncs each workspace with its pinned Vendomat and runs the host release elsewhere (`DEL-020`)."""
 
 from __future__ import annotations
 
@@ -118,9 +118,30 @@ def test_a_new_workspace_with_no_lock_bootstraps_with_the_host_release(env):
 
 def test_a_lock_without_a_vendomat_node_uses_the_host_release_and_says_so(env):
     root = env.workspace("nolock", None)
-    done = env.run(root, "check")
-    assert done.stdout.strip() == "HOST check"
+    done = env.run(root, "sync")
+    assert done.stdout.strip() == "HOST sync"
     assert "pins no vendomat input" in done.stderr
+
+
+@pytest.mark.parametrize(
+    "argv", [("check",), ("path", "x"), ("push", "--cache", "c"), ("bump", "v1"), ("machine", "install", "h")]
+)
+def test_in_a_workspace_every_command_but_sync_is_sent_to_the_shell(env, argv):
+    env.source("aa")
+    root = env.workspace("a", "aa")
+    done = env.run(root, *argv)
+    assert done.returncode == 3
+    assert done.stdout == ""
+    assert f"'{argv[0]}' runs in the workspace shell" in done.stderr
+    assert "devenv shell -- vendomat " + " ".join(argv) in done.stderr
+    assert env.builds() == []
+
+
+def test_outside_a_workspace_every_command_reaches_the_host_release(env, tmp_path):
+    elsewhere = tmp_path / "fleet"
+    elsewhere.mkdir()
+    done = env.run(elsewhere, "bump", "v1", "--root", str(elsewhere))
+    assert done.stdout.strip() == f"HOST bump v1 --root {elsewhere}"
 
 
 def test_a_pinned_workspace_runs_its_own_build_found_by_nar_hash(env):

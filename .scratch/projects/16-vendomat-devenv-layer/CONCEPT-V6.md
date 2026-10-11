@@ -111,7 +111,8 @@ The workspace integration does this:
 | --- | --- | --- |
 | Imports selected workspace modules | The generated fragment names authored devenv modules. An unselected source changes no shell output | G3A passed in a template-created consumer (`evidence/step-3a.md`) |
 | Refuses an unpinned input | An **assertion** reads `devenv.lock`: every git node must name `refs/tags/…`. A task cannot stop shell entry | Agents I Q5, K Q2 |
-| Pushes outputs to Attic | `vendomat.cache.push` adds a `vendomat:push` task and a `vendomat-push` script | Agent K Q3 (stand-in `attic`) |
+| Carries the pinned command | `vendomat` in the shell is the build that the lock pins; the `vendomat:check` task runs `vendomat check` (`VMOD-020`) | `evidence/wrapper-spikes-2026-10-10.md`; module fixture |
+| Pushes outputs to Attic | `vendomat.cache.push` adds a `vendomat:push` task and a `vendomat-push` script; both run the pinned `vendomat push` (`VMOD-021`) | Agent K Q3 (stand-in `attic`); module fixture |
 | Exposes input store paths | `vendomat.inputPaths`, and a JSON output whose closure holds every input source | Agent K Q4 |
 | Exports host paths | `vendomat.paths` from `/etc/vendomat/paths.json`, as `VENDOMAT_PATH_<NAME>` | Agent K Q5 |
 | Sets host and user defaults | `profiles.hostname.<host>` and `profiles.user.<user>` with `lib.mkDefault` | Agent K Q6 |
@@ -279,6 +280,25 @@ A disk has a role: `install-target` (fresh hosts only), `keep` (a protected disk
 - Root and a sudo-capable operator can still run `disko` or `nixos-install` by hand. No evaluation
   check stops that. The guards cover the supported patched command.
 
+## Vendomat inside devenv
+
+The owner asked on 2026-10-10 whether Vendomat can be only a devenv module: scripts, tasks,
+assertions, and outputs, with no step before shell entry. Three spikes answered it
+([evidence](./evidence/wrapper-spikes-2026-10-10.md)):
+
+- A failing assertion stops `devenv tasks run` before any task runs. A task cannot repair a stale
+  fragment.
+- A task that rewrites the fragment takes effect one entry late, and a failing task does not stop
+  the shell. No native hook runs before input resolution.
+- A fork patch that inherits an imported source's `devenv.yaml` inputs is medium-sized (+526 −76
+  lines) and passes its fixtures. Upstream PR cachix/devenv#3055 covers the same need.
+
+So `vendomat sync` stays the one step before shell entry. Everything else runs in the shell: the
+module puts the pinned `vendomat` on the shell `PATH` and exposes `vendomat:check` and
+`vendomat:push`. The host launcher keeps its lock-to-build lookup for `sync` only. When devenv
+inherits inputs, through upstream or the fork, `sync`, the `.vendomat/` fragment, and the launcher's
+workspace role go away.
+
 ## Authority
 
 devenv composes, locks, and activates. Nix builds and substitutes. disko partitions. Attic stores.
@@ -309,7 +329,9 @@ add a machine adapter without changing workspace selection or input resolution.
 ## Open decisions
 
 1. ~~Where the Vendomat command runs from.~~ Decided 2026-10-09: a host launcher runs the version each
-   workspace pins, or the host release outside a workspace (SPEC `DEL-017`).
+   workspace pins, or the host release outside a workspace (SPEC `DEL-017`). Revised 2026-10-10: the
+   workspace shell carries the pinned command, and the launcher serves only `sync` inside a workspace
+   (SPEC `DEL-020`, `VMOD-020`). See "Vendomat inside devenv" below.
 2. **Module authoring.** Revised 2026-10-10: module authors may write native Nix modules. The
    description builder and required three-target face are superseded as the concept contract.
 3. **Machine host settings in TOML** (V5 `SYS-*`, `fromToml`, `vendomat set` and `diff`). Still deferred.

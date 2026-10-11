@@ -44,6 +44,13 @@ It found and led to fixes for `dir=` source discovery and a lock update with two
 It uses stock devenv and a Vendomat module snapshot; it does not close the patched-fork or fleet
 gate.
 
+**Vendomat inside devenv (2026-10-10).** Spikes showed that `vendomat sync` must stay the one step
+before shell entry ([evidence](projects/16-vendomat-devenv-layer/evidence/wrapper-spikes-2026-10-10.md)).
+The shell now carries the pinned `vendomat` and runs `check` and `push` as tasks; the host launcher
+serves `sync` only inside a workspace (`DEL-020`, `VMOD-020`, `VMOD-021`). Next: test upstream PR
+cachix/devenv#3055, then remove `sync` when devenv inherits inputs. Collection work moves to the
+`server` role in a later change.
+
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
 
