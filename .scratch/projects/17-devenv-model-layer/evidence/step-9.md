@@ -86,3 +86,19 @@ Run in the devenv shell of the workspace, after both changes.
 ## Gate GM6
 
 The suite passes with the `nix` language. The tag part of the gate is open.
+
+## Addendum, 2026-10-11: later state of the Templateer pin
+
+1. `devenv-py` first pinned Templateer at `d3304db4bbcf` (Step 10, `74826b8d99b9`).
+2. RT7 on `services.postgres` then showed `mismatch` cases: a float such as `0.0` came back as the
+   integer `0`. Observation: the report `pg-after-s1` shows 22 mismatches of 554 cases; `pg-after-s2`
+   shows 17 of 515. Cause (orchestrator, Templateer commit `ac02b48c`): MiniJinja 2.22 turns an
+   integral float into an integer when a template reads a scalar. The `nix` templates now tag
+   integral floats.
+3. Templateer `main` is at `ac02b48c`. `devenv-py` pins it by revision `ac02b48c015d`
+   (`8c24fb61f028`: build: pin templateer to ac02b48c015d, the integral-float fix). The tag `v0.4.2`
+   is still on the `v6-flake` branch and lacks the `nix` language. No tag exists on `main`.
+4. After the pin, RT7 on `services.postgres` passes 554 of 554 (seed 1) and 515 of 515 (seed 2).
+
+The GM6 tag item stays open. The harness pins a revision, not a tag. The owner decides the tag and
+the version.

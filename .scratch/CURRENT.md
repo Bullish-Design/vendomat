@@ -60,14 +60,14 @@ superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the d
 ## Draft concept: project 17 — typed models for devenv modules
 
 `.scratch/projects/17-devenv-model-layer/`: `CONCEPT.md`, `GUIDE-HARNESS.md`, and `evidence/`
-(`step-0-probe.md`, `step-1.md`, `phase-a.md`, `step-9.md`). Pydantic models are generated from
-native option declarations and checked by a round-trip harness against Nix evaluation. Steps 1 and 9
-are done: the `devenv-py` repository exists with pin `devenv-2.4.0-b904dcb5-c2f38fe7`, and Templateer
-has a `nix` output language on `main` (no tag yet). Phase A proved prototypes outside the repository
-for the options export, the oracle with five golden fixtures, the normalizer, and the syntax reader;
-Steps 2 to 6, 8, and 11 are "prototype proved, in-repo port in progress". The corpus survey is
-static, the Step 3 batch and timing report is still missing, and the project does not change the
-authority of project 14 or project 16.
+(`GATES.md` and one record per step). Pydantic models are generated from native option
+declarations and checked by a round-trip harness against Nix evaluation. The harness exists in
+`devenv-py` (private, `Bullish-Design/devenv-py`, pin `devenv-2.4.0-b904dcb5-c2f38fe7`): Steps 1 to
+14 are done, and gates GM0 to GM8 pass (GM0 and GM6 keep named open items). Both pilot models, `services.postgres` and
+`languages.python`, pass RT7 and RT8 under two seeds, and the three Step 16 skills exist. GM9 (pilot
+thresholds) and GM10 (the `services.redis` skills trial) are IN PROGRESS, and the open work is
+package identity by full `$name`, a warm evaluation cache, and the final pilot run. The project does
+not change the authority of project 14 or project 16.
 
 ## Active: project 14 — Vendomat V5
 
