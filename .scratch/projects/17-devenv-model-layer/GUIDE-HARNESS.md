@@ -1,6 +1,7 @@
 # Guide: the round-trip harness for typed devenv models
 
-**Date:** 2026-10-10. **Status:** Draft for owner review. **Concept:** [CONCEPT.md](./CONCEPT.md).
+**Date:** 2026-10-10. **Updated:** 2026-10-11 with the findings of phase A and Steps 1 and 9.
+**Status:** Draft for owner review. **Concept:** [CONCEPT.md](./CONCEPT.md).
 
 This guide builds the harness in order. Each step names its goal, its actions, the expected result,
 the record to write, and its gate. Do not start a step before the gate of the step before it passes.
@@ -22,7 +23,11 @@ and the code together.
   results. Keep observation apart from inference.
 - **Pin.** A pin is the devenv CLI version, the `devenv` input revision, and the `nixpkgs` input
   revision. Its identifier is `devenv-<cli>-<devenv-rev:8>-<nixpkgs-rev:8>`. Every output file
-  carries the pin identifier.
+  carries the pin identifier. The first pin is `devenv-2.4.0-b904dcb5-c2f38fe7`. Read each revision
+  through `nodes.root.inputs` in `devenv.lock`: the root `nixpkgs` points at the node `nixpkgs_2`.
+- **Step states.** Phase A proved prototypes outside the repository
+  ([evidence/phase-a.md](./evidence/phase-a.md)). A step marked "prototype proved, in-repo port in
+  progress" passes its gate only after the code and tests live in `devenv-py`.
 
 ## Repository layout (target)
 
@@ -36,6 +41,7 @@ devenv-py/
     introspect.nix                           the request module that the base imports
     options.nix                              options export
     serialize.nix                            tagged JSON values
+    touched.nix                              option paths that a fixture mentions
     oracle.nix                               per-file contributions
   reader-module/default.nix                  Path T fixed reader
   src/devenv_py/
@@ -77,7 +83,9 @@ The command-line tool is `dpy` (proposed). Its subcommands appear in the steps t
 **Repeat on each pin bump.** Run the probe commands in the record against the new pin. If any fact
 fails, stop and update the concept before you continue.
 
-**Gate GM0.** Passed for the probe pin. It must pass again for the pin that Step 1 selects.
+**Gate GM0.** Passed for the probe pin. It must pass again for the pin that Step 1 selects. Phase A
+used that pin (`b904dcb5`) and the surfaces worked, but nobody reran the probe commands one by one.
+See [evidence/phase-a.md](./evidence/phase-a.md), section 7. Record GM0 as passed only after that rerun.
 
 ---
 
@@ -85,25 +93,48 @@ fails, stop and update the concept before you continue.
 
 **Goal.** A repository with a working shell and one base project per pin.
 
-**Actions.**
+**Status.** Done on 2026-10-11. See [evidence/step-1.md](./evidence/step-1.md). The repository is
+`~/Documents/Projects/devenv-py`, with the private GitHub copy `Bullish-Design/devenv-py`.
 
-1. Create the `devenv-py` repository with the owner's usual repository tooling. Use Gitman
-   workspaces for every later change.
-2. Write `devenv.nix` with Python 3.13, uv, Nix tools (`nix-instantiate`), and the Testee module.
-   Copy the Testee import pattern from Vendomat's `devenv.nix`.
-3. Write `pyproject.toml` with these dependencies: `pydantic`, `hypothesis`, `tomli-w`,
-   `pydantree-sitter`, `tree-sitter`, `tree-sitter-nix`, and `templateer`. Point `pydantree-sitter`
-   and `templateer` at their pinned tags. Use the `devenv-extract` pattern from pydantree for the
-   Nix grammar.
-4. Create the first base project at `pins/<pin-id>/`:
+**Facts the later steps rely on.**
 
-   ```nix
-   # pins/<pin-id>/devenv.nix: the empty base that candidates extend.
-   { }
-   ```
+- The first pin is `devenv-2.4.0-b904dcb5-c2f38fe7`. The `devenv` input is `b904dcb5…`, the
+  `nixpkgs` input is `c2f38fe7…`, and `nixpkgs-python` is `5821ac52…`. Full revisions are in the
+  record.
+- The `devenv.lock` root maps `nixpkgs` to the node `nixpkgs_2`. A node named `nixpkgs` exists with
+  another revision. `pin.py` must follow `nodes.root.inputs` to find each input. It must not look up a
+  node by its name.
+- The shell Python is 3.14.7. The repository sets no Python version pin. The dependencies import in
+  that version.
+- Dependencies come from HTTPS git tags, except `tree-sitter-nix`:
+
+  | Dependency | Source |
+  | --- | --- |
+  | `pydantree-sitter` | tag `v0.4.0`, subdirectory `src/pydantree_sitter` |
+  | `templateer` | tag `v0.4.2`. The tag is on the `v6-flake` branch of `templateer_v2`, not on `main`. Step 9 landed on `main`; a new tag must follow. |
+  | `loci-core` | tag `v0.4.5`, with `mancore` `v0.1.0` source |
+  | `tree-sitter-nix` | PyPI `0.1.0`, wheel `cp310-abi3` |
+
+- Testee is `v0.5.1`. The pytest check appends the host `PATH`.
+- The host profile lacks `repoman` and `copyroom`. `devenv.nix` pins the CLIs `repoman` `v0.13.0` and
+  `copyroom` `v0.8.1` in `packages`.
+- `copyroom new` with `template-py` does not work under copyroom `0.8.x`. The repository was built by
+  hand, with `talkee` and `agentman` as models.
+
+**Actions (as done).**
+
+1. Create the repository. Use Gitman workspaces for every later change.
+2. Write `devenv.nix` with uv, Nix tools (`nix-instantiate`), the pinned CLIs above, and the Testee
+   module. Set no Python version.
+3. Write `pyproject.toml` with `pydantic`, `hypothesis`, `tomli-w`, `pydantree-sitter`, `tree-sitter`,
+   `tree-sitter-nix`, and `templateer`. Use the pins in the table above. Use the `devenv-extract`
+   pattern from pydantree for the Nix grammar. Phase A found that the pydantree shell does not start
+   under devenv 2.4.0, so load the grammar from the project venv (Step 11).
+4. Create the first base project at `pins/<pin-id>/`. `devenv.nix` is `{ imports = [ ../../nix/introspect.nix ]; }`
+   once Step 2 lands. `devenv.yaml` pins `devenv`, `nixpkgs` (`github:cachix/devenv-nixpkgs/rolling`),
+   and `nixpkgs-python` (which follows `nixpkgs`):
 
    ```yaml
-   # pins/<pin-id>/devenv.yaml
    inputs:
      devenv:
        url: github:cachix/devenv/<rev>      # pin the module source (probe I5)
@@ -122,22 +153,23 @@ fails, stop and update the concept before you continue.
 6. Write `pin.toml` from the lock and the CLI:
 
    ```toml
-   id = "devenv-2.4.0-a73c5b84-c2f38fe7"
+   id = "devenv-2.4.0-b904dcb5-c2f38fe7"
    cli = "2.4.0+b904dcb"
-   devenv_rev = "a73c5b84c9527760f009232988466763068f9f61"
+   devenv_rev = "b904dcb51fe48c30db250038241507f60752f222"
    nixpkgs_rev = "c2f38fe7f9e04d9aadd354d380f2bd40531d9737"
    inputs = ["devenv", "nixpkgs", "nixpkgs-python"]
    ```
 
-7. Write `src/devenv_py/pin.py`. It reads `pin.toml`, checks it against `devenv.lock` and
-   `devenv --version`, and fails on any difference.
+7. Write `src/devenv_py/pin.py`. It reads `pin.toml`, checks it against `devenv.lock` (through
+   `nodes.root.inputs`) and `devenv --version`, and fails on any difference.
 
 **Expected result.** `devenv shell -- python -c "import pydantree_sitter, templateer, tree_sitter_nix"`
 exits 0. `pin.py` accepts the pin.
 
-**Record.** `evidence/step-1.md`: the tag of each dependency, the pin, and the commands.
+**Record.** [evidence/step-1.md](./evidence/step-1.md): the tag of each dependency, the pin, and the
+commands. Testee run `20261011T044545Z-8570615c953a` passed.
 
-**Gate.** The shell imports all three libraries, and the pin check passes.
+**Gate.** The shell imports all three libraries, and the pin check passes. Met.
 
 ---
 
@@ -145,73 +177,44 @@ exits 0. `pin.py` accepts the pin.
 
 **Goal.** One Python function sends a request to stock `devenv eval` and returns parsed JSON.
 
-The base project imports an introspection module. The module takes the `options` and
-`extendModules` module arguments. It reads a request file and puts its answer in a read-only config
-value. `devenv eval` then reads that value like any other config attribute (probe O10 to O12).
-No fork patch and no repl are needed.
+**Status.** Prototype proved, in-repo port in progress. See
+[evidence/phase-a.md](./evidence/phase-a.md), sections 1 and 2. The two prototypes of
+`introspect.nix` differ (the options prototype returns a JSON string, the oracle prototype returns
+an attribute set). The port merges them under the rules below.
+
+The base project imports an introspection module. The module takes the module arguments as
+`@moduleArgs`. It reads a request file and puts its answer in a read-only config value. `devenv eval`
+reads that value like any other config attribute (probe O10 to O12). No fork patch and no repl are
+needed.
+
+**Interface of `nix/introspect.nix`.** The repository file is the authority once ported. The
+prototypes are in `~/.local/state/devenv-py/phase-a/options/introspect.nix` and
+`~/.local/state/devenv-py/phase-a/oracle/base/nix/introspect.nix`.
+
+- Arguments: `{ lib, pkgs, options, extendModules, config, ... }@moduleArgs`. The oracle needs
+  `moduleArgs` (Step 5).
+- Option `introspect.request`: `nullOr path`, default `null`.
+- Option `introspect.result`: read-only. Its value is **a JSON string for every request kind**.
+  `devenv eval` fails with `Failed to get attribute 'mcp.devenv.sh'` when the result holds an
+  attribute name with a dot. A string hides the names. A key such as `d.e` in the `echo` payload
+  fails the same way if the result is not a string.
+- Option `introspect.optionsDoc`: read-only package. It is `nixosOptionsDoc` over the option tree
+  without `introspect`, with `warningsAreErrors = false`. The default `true` fails on a synthetic
+  option that has no description.
+- Request kinds: `echo` (returns `payload`), `options` (field `maxDepth`; Step 4), and `truth`
+  (field `candidates`; Step 5). Any other kind throws `unknown request kind: <kind>`.
+- The module passes `normalize` to the export: `config.devenv.root` becomes `<root>` and
+  `config.devenv.runtime` becomes `<runtime>` (Step 4).
+- The harness never reports on `introspect` itself: it removes that attribute from the option sets.
 
 **Actions.**
 
-1. Write `nix/introspect.nix`:
-
-   ```nix
-   # nix/introspect.nix: answer one harness request as a config value.
-   { lib, pkgs, options, extendModules, config, ... }:
-   let
-     cfg = config.introspect;
-     req = builtins.fromJSON (builtins.readFile cfg.request);
-     # The harness never reports on its own options.
-     own = opts: removeAttrs opts [ "introspect" ];
-     truthOf = c:
-       let extended = extendModules { modules = map (f: /. + f) c.modules; };
-       in import ./oracle.nix { inherit lib; options = own extended.options; roots = c.roots; };
-   in
-   {
-     options.introspect = {
-       request = lib.mkOption {
-         type = lib.types.nullOr lib.types.path;
-         default = null;
-         description = "The harness request file.";
-       };
-       result = lib.mkOption {
-         type = lib.types.raw;
-         readOnly = true;
-         description = "The answer to the harness request.";
-       };
-       optionsDoc = lib.mkOption {
-         type = lib.types.package;
-         readOnly = true;
-         description = "nixosOptionsDoc JSON for the completeness check of Step 4.";
-       };
-     };
-     config.introspect = {
-       result =
-         if cfg.request == null then null
-         else if req.kind == "echo" then req.payload
-         else if req.kind == "options" then
-           import ./options.nix { inherit lib; options = own options; maxDepth = req.maxDepth; }
-         else if req.kind == "truth" then lib.mapAttrs (_: truthOf) req.candidates
-         else throw "unknown request kind: ${req.kind}";
-       optionsDoc =
-         (pkgs.nixosOptionsDoc { options = removeAttrs (own options) [ "_module" ]; }).optionsJSON;
-     };
-   }
-   ```
-
-2. Make the base project import it. Replace `pins/<pin-id>/devenv.nix` with:
-
-   ```nix
-   # pins/<pin-id>/devenv.nix: the base that candidates extend.
-   { imports = [ ../../nix/introspect.nix ]; }
-   ```
-
-3. Write `src/devenv_py/driver.py`:
+1. Write `nix/introspect.nix` to the interface above.
+2. Make the base project import it: `pins/<pin-id>/devenv.nix` is
+   `{ imports = [ ../../nix/introspect.nix ]; }`.
+3. Write `src/devenv_py/driver.py`. The function below shows the required behavior:
 
    ```python
-   class DriverError(RuntimeError):
-       """devenv eval failed. The message holds the tail of its error output."""
-
-
    def run_request(
        pin_dir: Path, request: dict, run_dir: Path, timeout: int = 900, cache: bool = True
    ) -> Any:
@@ -224,24 +227,33 @@ No fork patch and no repl are needed.
        argv += ["-O", "introspect.request:path", str(request_file), "introspect.result"]
        proc = subprocess.run(
            argv, cwd=pin_dir, text=True, capture_output=True, timeout=timeout,
+           stdin=subprocess.DEVNULL,
            env={**os.environ, "NO_COLOR": "1"},
        )
        (run_dir / "eval.stdout").write_text(proc.stdout)
        (run_dir / "eval.stderr").write_text(proc.stderr)
        if proc.returncode != 0:
            raise DriverError(proc.stderr[-4000:])
-       return json.loads(proc.stdout)["introspect.result"]
+       # Decode twice: devenv prints {"introspect.result": "<json string>"}.
+       return json.loads(json.loads(proc.stdout)["introspect.result"])
    ```
 
-   `run_dir` is `~/.local/state/devenv-py/runs/<timestamp>-<kind>/`.
+   `DriverError` carries the tail of the error output. `run_dir` is
+   `~/.local/state/devenv-py/runs/<timestamp>-<kind>/`.
 4. Write `tests/test_driver.py`. Send an `echo` request with a payload that holds a double quote, a
    backslash, a newline, `${`, a non-ASCII character, and a nested list. Assert that the result
    equals the payload.
-5. Send an unknown request kind. Assert that `DriverError` holds the text `unknown request kind`.
-6. Test the cache. Send two different requests through the same file path. Assert two different
-   results (probe O12 saw this once). Keep `cache=False` as the switch if it ever fails.
+5. Add a dotted-key echo test. Send a payload with the keys `d.e` and `mcp.devenv.sh`. Assert that
+   the result equals the payload. This test fails if the result stops being a JSON string.
+6. Send an unknown request kind. Assert that `DriverError` holds the text `unknown request kind`.
+7. Test the cache. Send two different requests through the same file path. Assert two different
+   results (probe O12 saw this once). Keep `cache=False` as the switch if it ever fails. Phase A saw
+   that a new request path gave a cold run and a repeat gave a warm run; the cause is not isolated
+   (inference I5).
 
-**Expected result.** The echo test passes, and the cache test gives two different results.
+**Expected result.** The echo tests pass, and the cache test gives two different results.
+Phase A times: echo with no cache 0.30 to 0.32 s, echo with a cache hit 0.06 s, unknown kind 0.33 s
+with exit 1.
 
 **Fallback.** If a later pin breaks this route, use `devenv repl`. Pipe
 `:p import <nix-dir>/entry.nix { inherit devenv; requestFile = <file>; }` on standard input. Let the
@@ -249,10 +261,10 @@ entry wrap `builtins.toJSON` of the answer in fixed sentinel strings, and parse 
 them (probe O4). Use `devenv.project.options` and `devenv.project.extendModules` in place of the
 module arguments.
 
-**Record.** `evidence/step-2.md`: the echo payload, the cache result, and the wall time of one
+**Record.** `evidence/step-2.md`: the echo payloads, the cache result, and the wall time of one
 request with and without the cache.
 
-**Gate GM1 (part 1).** The echo and cache tests pass on the pin.
+**Gate GM1 (part 1).** The echo, dotted-key, and cache tests pass on the pin.
 
 ---
 
@@ -261,28 +273,43 @@ request with and without the cache.
 **Goal.** Evaluate many candidate modules in one `devenv eval` call. Find the bad one when a batch
 fails.
 
+**Status.** Prototype proved for the oracle batch, in-repo port in progress. The driver experiment
+has no report yet. TODO: add the driver facts (bisection log, timing table for 1, 10, 50, and 200
+candidates) from `~/.local/state/devenv-py/phase-a/driver/REPORT.md` when it exists. Until then, the
+actions below stay as the plan.
+
+**Facts from phase A** ([evidence/phase-a.md](./evidence/phase-a.md), section 2).
+
+- A `truth` request with five candidates costs 1.5 to 1.7 s, about the slowest single call. The
+  fixed start is about 0.3 s.
+- A candidate module given as an absolute path outside the base project is readable under pure
+  evaluation. Its path stays absolute in `definitionsWithLocations`. No copy is needed (action 3).
+- An undeclared option in a candidate (`foo.bar = 1`) makes the module check fail and aborts the
+  whole call. Bisection handles it.
+
 **Actions.**
 
-1. Write a temporary `oracle.nix` that returns the `env` definitions for each candidate. Step 5
-   replaces it.
+1. Use the Step 5 oracle with `scope = "touched"` as the batch workload. (The phase-A driver
+   experiment used its own temporary oracle.)
 2. Write three candidate modules under a temporary directory. Each one sets a different
    `env.MARK` value. Send one `truth` request with all three. Assert three different results.
-3. Confirm that a module given as an absolute path keeps its path in `definitionsWithLocations`.
-   Probe O8 saw `<unknown-file>` only for an inline module, and probe O12 used a relative path.
-   Also confirm that pure evaluation lets the module read candidate files outside the base project.
-   If it does not, let the driver copy each batch into `pins/<pin-id>/.candidates/<batch-id>/`.
+3. Confirm again, in the port, that a module given as an absolute path keeps its path and that pure
+   evaluation reads candidate files outside the base project. If it does not, let the driver copy
+   each batch into `pins/<pin-id>/.candidates/<batch-id>/`.
 4. Write `driver.run_batch(candidates)`. On `DriverError`, split the batch in two halves and retry
    each half. A single candidate that still fails gets the status `eval-error` and keeps its error
    tail (MDL-013).
 5. Write a test with five good candidates and one candidate that sets
    `env.MARK = builtins.abort "dm-bisect";`. `tryEval` does not catch `abort`, so the whole batch
-   fails. Assert five results and one `eval-error` whose tail holds `dm-bisect`.
+   fails. Assert five results and one `eval-error` whose tail holds `dm-bisect`. Add a second bad
+   candidate that sets an undeclared option.
 6. Measure wall time for batches of 1, 10, 50, and 200 candidates that each enable one service.
 
 **Expected result.** Batch evaluation works. Bisection isolates the bad candidate. The time per
 candidate falls as the batch grows.
 
 **Record.** `evidence/step-3.md`: the timing table, the bisection log, and the answer to action 3.
+The phase-A record line for this step is a TODO until the driver report exists.
 
 **Gate GM1.** Batch and bisection tests pass. The timing table exists.
 
@@ -292,70 +319,85 @@ candidate falls as the batch grows.
 
 **Goal.** A complete, structured JSON export of the option tree for the pin.
 
+**Status.** Prototype proved, in-repo port in progress. The first draft failed in eleven places. The
+proven exporter replaces the draft. Evidence: [evidence/phase-a.md](./evidence/phase-a.md), section 1.
+
+**The exporter.** The repository file `nix/options.nix` is the authority once ported. The prototype is
+`~/.local/state/devenv-py/phase-a/options/options.nix`. Its arguments are `options` (the tree without
+`introspect`), `maxDepth`, and `normalize` (a list of `{ from; to; }` replacements). The result is a
+list of option records, one per option outside any submodule. Sub-options appear inside
+`type.options`. Rules the port keeps:
+
+- **Type nodes.** Each node holds `name`, `description`, `payload`, `nested`, `options`, and
+  `depthCut`. A hand-written walk converts payloads: a type becomes `{"$type": name}`, a function
+  `{"$fn": true}`, a derivation `{"$pkg": name}`, and a path `{"$path": ...}`. The payload keys
+  `modules`, `staticModules`, and `specialArgs` are dropped. `builtins.toJSON` on a payload fails and
+  `tryEval` does not catch the failure.
+- **Locations.** `loc` is a list. A `listOf` submodule adds `*`. An `attrsOf` submodule adds the
+  placeholder from `functor.payload.placeholder`. A `functionTo` adds `<function body>`.
+  Elements of `loc` can hold dots.
+- **Freeform.** `getSubOptions` adds `_freeformOptions`. The exporter removes it. Freeform options
+  stay under `nested.freeformType`.
+- **Depth.** `maxDepth` defaults to 8. The deepest chain at the pin has 5 submodule levels. A cut
+  node sets `depthCut: true`. The driver must fail the export when any node has `depthCut`.
+- **Recursive types.** JSON, YAML, and TOML value types expand without end. A node whose
+  `description` repeats an ancestor's becomes `{name, description, recursive: true}`. A safety limit
+  of 12 sets `truncated: true`. It did not fire at the pin.
+- **Defaults.** A default can be a function, a derivation, or a `throw`. A `safe` walk guards it. A
+  failure gives `default: null, defaultError: true`. An option that has `defaultText` skips
+  `default` and sets `defaultSkipped: true` (226 options at the pin). This keeps the export out of
+  the project directory and keeps the evaluation cache usable.
+- **Text.** `description` and `defaultText` pass through `text`: a string, `literalExpression`,
+  `literalMD`, or null. `lib.mdDoc` no longer exists.
+- **Normalization.** `/nix/store/<32 characters>-` becomes `<store>/`. The project root becomes
+  `<root>`. The runtime directory becomes `<runtime>`. Without this the hash depends on the checkout.
+- **Record fields.** `loc`, `type`, `hasDefault`, `default`, `defaultError`, `defaultSkipped`,
+  `defaultText`, `description`, `readOnly`, `internal`, `visible` (raw), and `declarations`.
+- **Markers.** `recursive`, `truncated`, `depthCut` (on type nodes). `defaultSkipped` and
+  `defaultError` (on options).
+
 **Actions.**
 
-1. Write `nix/options.nix`:
-
-   ```nix
-   # nix/options.nix: export the option tree with structured types.
-   { lib, options, maxDepth }:
-   let
-     json = v:
-       let r = builtins.tryEval (builtins.toJSON v);
-       in if r.success then builtins.fromJSON r.value else null;
-     text = d: if d == null then null else if builtins.isString d then d else d.text or null;
-     typeTree = depth: t: {
-       name = t.name;
-       description = t.description or null;
-       payload = json (t.functor.payload or null);
-       nested = lib.mapAttrs (_: typeTree depth) (t.nestedTypes or { });
-       options =
-         if t.name == "submodule" && depth < maxDepth
-         then walk (depth + 1) (t.getSubOptions [ "<name>" ])
-         else null;
-     };
-     leaf = depth: o: {
-       loc = o.loc;
-       type = typeTree depth o.type;
-       hasDefault = o ? default;
-       default = if o ? default then json o.default else null;
-       defaultText = text (o.defaultText or null);
-       description = text (o.description or null);
-       readOnly = o.readOnly or false;
-       internal = o.internal or false;
-       visible = o.visible or true;
-       declarations = map toString (o.declarations or [ ]);
-     };
-     walk = depth: attrs:
-       lib.concatLists (lib.mapAttrsToList (_: v:
-         if lib.isOption v then [ (leaf depth v) ]
-         else if builtins.isAttrs v then walk depth v
-         else [ ]) (removeAttrs attrs [ "_module" ]));
-   in walk 0 options
-   ```
-
+1. Port `nix/options.nix` and the `options` request kind of `nix/introspect.nix`.
 2. Write `src/devenv_py/options.py` with `dpy export`. It sends an `options` request with
-   `maxDepth = 3`, adds the pin, adds a SHA-256 of the canonical JSON, and writes
-   `exports/<pin-id>/options.json`.
+   `maxDepth = 8`, fails when any node has `depthCut`, adds the pin, adds a SHA-256 of the canonical
+   JSON, and writes `exports/<pin-id>/options.json`. Canonical form:
+   `json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`.
 3. Write the completeness check. Run `devenv build introspect.optionsDoc` and read
-   `share/doc/nixos/options.json`. Take its keys.
-   Take the joined `loc` of every exported option that is visible and not internal, including
-   sub-options. The two sets must be equal. List every difference. `optionsJSON` writes `<name>`
-   for an attribute-set element and `*` for a list element; map the export's names the same way.
-4. Write a type census: count options per `type.name`, including nested names. Some names carry a
-   payload in the name itself, such as `strMatching <pattern>`. Record each such form.
-5. Spot-check three options by hand: `services.postgres.port` (`unsignedInt16`), `packages`
-   (`listOf` of `package`), and `env` (freeform `submodule`).
-6. Check `enum` payloads. Record whether the payload is `{ values = [...]; }` or a bare list at this
-   nixpkgs revision.
+   `share/doc/nixos/options.json`. Take its keys. Take the joined `loc` of every exported option
+   that the **doc rule** lists, including sub-options. The two sets must be equal. Map names as
+   `optionsJSON` does: `<name>` for an attribute-set element and `*` for a list element.
 
-**Expected result.** About 1144 top-level visible options at the probe pin (probe O5). The two key
-sets are equal, or every difference has a named cause. The spot checks match.
+   **The doc rule** (from `optionAttrSetToDocList'`). List an option when `visible` is `true` or
+   `"shallow"` and it is not `internal`. Walk its sub-options only when `visible` is `true` or
+   `"transparent"`. `internal` does not stop the walk. The naive rule "visible and not internal" lists
+   1199 options at the pin and fails by 55: each has a hidden ancestor. Test the rule on a synthetic
+   module that uses every `visible` form.
+4. Write a type census: count options per `type.name`, including nested names. Record each name that
+   carries a payload in the name, such as `strMatching "<pattern>"`.
+5. Spot-check by hand: `services.postgres.port` (`unsignedInt16`, default 5432), `packages` (`listOf`
+   of `package`, default `[]`), `env` (freeform `submodule`: `nested.freeformType` is
+   `lazyAttrsOf anything`, own options empty, default `{}`), `languages.python.version` (`nullOr
+   str`, default null), `scripts` and `tasks` (`attrsOf submodule`).
+6. Check `enum` payloads. At the pin the payload is `{ values = [...]; }`, not a bare list.
+7. Hash stability: call the export four times (two with `--no-eval-cache`, one with
+   `--refresh-eval-cache`, one cache hit) and once from another directory. All hashes must match.
 
-**Record.** `evidence/step-4.md`: the export hash, the census, the completeness result, and the
-enum payload form.
+**Expected result at the pin.** `optionsDoc` lists 1144 keys under 45 top-level names. The export
+holds 1330 records, 845 of them outside any submodule. The doc rule gives 1144 with 0 differences.
+The type census has 26 distinct names (see the record). The canonical export is 833,807 bytes with
+SHA-256 `a1126c7d…7fc4e` (full value in the record). Time: about 4 s uncached, 0.11 s on a cache
+hit. These are values for one pin. The test asserts the equalities, not the byte count.
 
-**Gate GM2.** The export is complete, or each gap is named, and the hash is stable over two runs.
+**Known limits.** A future default that fails with `abort` or a type error breaks the whole export,
+and bisection cannot help. The `recursive` rule keys on descriptions, so two different types with one
+description would be cut wrongly. The `attrTag` branch is untested.
+
+**Record.** `evidence/step-4.md`: the export hash, the census, the completeness result, the enum
+payload form, and the timings. The prototype values are in `evidence/phase-a.md`.
+
+**Gate GM2.** The export is complete, or each gap is named. The hash is stable over repeated runs.
+The export has no `depthCut`.
 
 ---
 
@@ -363,88 +405,127 @@ enum payload form.
 
 **Goal.** Truth: the definitions that a fixture's files give to each option, as tagged JSON.
 
+**Status.** Prototype proved, in-repo port in progress. The first draft aborted on some fixtures.
+Evidence: [evidence/phase-a.md](./evidence/phase-a.md), section 2.
+
+**Why the draft failed, and the scope rule.** `definitionsWithLocations` forces each definition that
+survives the priority filter to weak head normal form. When no fixture file defines an option, its
+default survives, and the call forces the default. A default that throws is catchable. A default or
+`mkDefault` value with a type error aborts the whole evaluation, and `tryEval` does not catch it.
+Phase A saw this: devenv's own default for `process.manager.command` coerces `null` to a string
+when the fixture has no processes. The full walk therefore cannot be safe for every fixture.
+
+The oracle now queries **only the options that the fixture files mention** (`scope = "touched"`, the
+default). `scope = "all"` walks every option and takes a `deny` list. It is the cross-check, not the
+normal mode. Touched scope also cuts time: 0.3 to 1.7 s, against 4.5 to 8.5 s for the full walk.
+
+**The files.** The repository files are the authority once ported. The prototypes are in
+`~/.local/state/devenv-py/phase-a/oracle/base/nix/`.
+
+- `nix/touched.nix`. It loads each fixture module, and the `imports` that lie under `roots`, with the
+  module arguments. It walks the module `config` text and stops at the first declared option. It
+  ignores `mkIf` conditions, so the set is a superset. It reads no option value and no default. It
+  handles `config =` form, shorthand form, `mkMerge`, `mkIf`, `mkOverride`, inline attribute sets,
+  and function imports. Untested forms: `disabledModules`, a `specialArgs`-only argument, `imports`
+  of a non-path key. Use `scope = "all"` as the cross-check for them.
+- `nix/oracle.nix`. For each option path, it keeps the definitions whose `file` lies under a root.
+  On a catchable error it compares with the base option set: if the base option throws too, it
+  returns no entry (a throwing default means no fixture definition); otherwise it returns
+  `error = "definition-throws"`. The `error` field is a string. A definition that throws on an
+  option whose default also throws is dropped silently. The `undeclared` entry is unreachable,
+  because an undeclared option aborts the call earlier (Step 3).
+- `nix/serialize.nix`. It writes the tagged forms below.
+
+**Request.** `{"kind": "truth", "candidates": {"<label>": {"modules": ["/abs/devenv.nix"],
+"roots": ["/abs/source/"], "scope": "touched", "deny": []}}}`. `scope` and `deny` are optional.
+**Every `roots` entry ends in `/`.** Without it `.../source` also matches `.../source-other`.
+
+**Tagged forms.**
+
+| Nix value | Serialized form |
+| --- | --- |
+| Derivation | `{"$pkg": pname, "$name": name, "$output": outputName}` |
+| Path | `{"$path": "<absolute path>"}`; a path inside a string is copied to the store at once |
+| Function | `{"$fn": true}` |
+| Attribute set with `_type` | `{"$type": "<_type>"}`, except `merge` |
+| `mkMerge` inside a value | `{"$merge": [...]}` |
+| A `throw` or `assert` failure | `{"$error": "throw or assert"}`: a fixed marker with no message |
+| Depth over 64 | `{"$deep": true}` |
+
+`definitionsWithLocations` strips property wrappers only at the top of a definition. Inside a
+freeform `env` or an `attrsOf submodule` they stay. The serializer therefore peels them inside
+attribute sets and lists: a false `mkIf` drops the element; a true `mkIf`, `mkOverride`, and
+`mkOrder` keep the content. A wrapper never reaches the output.
+
 **Actions.**
 
-1. Write `nix/serialize.nix`:
-
-   ```nix
-   # nix/serialize.nix: turn a Nix value into JSON data with tagged forms.
-   { lib }:
-   let
-     tag = v:
-       if lib.isDerivation v then {
-         "$pkg" = v.pname or (lib.getName v);
-         "$name" = v.name;
-         "$output" = v.outputName or "out";
-       }
-       else if builtins.isFunction v then { "$fn" = true; }
-       else if builtins.isPath v then { "$path" = toString v; }
-       else null;
-     go = depth: v:
-       let t = tag v; in
-       if depth > 64 then { "$deep" = true; }
-       else if t != null then t
-       else if builtins.isAttrs v then
-         (if v ? _type then { "$type" = v._type; } else lib.mapAttrs (_: go (depth + 1)) v)
-       else if builtins.isList v then map (go (depth + 1)) v
-       else v;
-   in v:
-     let r = builtins.tryEval (let s = go 0 v; in builtins.deepSeq s s);
-     in if r.success then r.value else { "$error" = "throw or assert"; }
-   ```
-
-   `tryEval` does not return the message. The driver's bisection gives the message for other
-   errors.
-2. Write `nix/oracle.nix`:
-
-   ```nix
-   # nix/oracle.nix: the definitions that files under `roots` give to each option.
-   { lib, options, roots }:
-   let
-     serialize = import ./serialize.nix { inherit lib; };
-     mine = d: lib.any (root: lib.hasPrefix root (toString d.file)) roots;
-     leaf = opt:
-       let r = builtins.tryEval (builtins.filter mine opt.definitionsWithLocations);
-       in if !r.success then [ { loc = opt.loc; error = true; } ]
-          else if r.value == [ ] then [ ]
-          else [ {
-            loc = opt.loc;
-            defs = map (d: { file = toString d.file; value = serialize d.value; }) r.value;
-          } ];
-     walk = attrs:
-       lib.concatLists (lib.mapAttrsToList (_: v:
-         if lib.isOption v then leaf v
-         else if builtins.isAttrs v then walk v
-         else [ ]) (removeAttrs attrs [ "_module" ]));
-   in walk options
-   ```
-
-3. Write `src/devenv_py/truth.py` with `dpy truth <fixture>...`. It builds a batch request. Each
+1. Port `nix/serialize.nix`, `nix/touched.nix`, and `nix/oracle.nix`. Extend `nix/introspect.nix`
+   with the `truth` kind, `@moduleArgs`, and the candidate keys `scope` and `deny` (Step 2).
+2. Write `src/devenv_py/truth.py` with `dpy truth <fixture>...`. It builds a batch request. Each
    candidate's `modules` is the fixture's `source/devenv.nix`. Its `roots` is the fixture's
-   `source/` directory.
-4. Write five golden fixtures under `tests/golden/`. Write each expected truth by hand. Use the
-   probe fixture as the first one. Its expected truth, before normalization:
+   `source/` directory with a trailing `/`.
+3. Write five golden fixtures under `tests/golden/`. Each has `source/`, a hand-written
+   `expected.json`, and the raw and normalized truth. The prototypes are in
+   `~/.local/state/devenv-py/phase-a/oracle/fixtures/`.
 
-   | `loc` | `defs[].value` |
+   | Fixture | Content |
    | --- | --- |
-   | `languages.python.enable` | `true` |
-   | `env` | `{"GREETING": "hi"}` |
-   | `packages` | `[{"$pkg": "jq", "$name": "jq-1.8.2", "$output": "bin"}]` |
-   | `services.postgres.enable` | `true` |
-   | `enterShell` | `"echo hi"` |
+   | `a-probe` | python enable, `env.GREETING`, `packages = [ pkgs.jq ]`, postgres enable, `enterShell` |
+   | `b-scripts-tasks` | `scripts.hello`, `scripts.greet` (multi-line `exec`, description), `tasks."app:build"`, `tasks."app:test"` |
+   | `c-imports` | `imports = [ ./extra.nix ]`; `env`, `packages`, `enterShell` set in both files |
+   | `d-priority` | `mkForce`, `mkDefault`, `mkIf false`, `mkIf true`; a second file `loser.nix` with plain definitions |
+   | `e-paths` | `env.DATA_FILE = ./data.txt`; `"${pkgs.jq}/bin/jq"`; a plain string; `scripts.show.exec = "cat ${./data.txt}"` |
 
-   The other four golden fixtures: a `scripts` and `tasks` fixture; a fixture with `imports` of a
-   second file; a fixture with `lib.mkForce`, `lib.mkDefault`, and a false `lib.mkIf`; and a fixture
-   with a path value and a string that holds a store path.
-5. Run each golden fixture twice. Compare the two runs byte for byte.
+   Do not put `env.<name> = mkIf false ...` in a fixture. Devenv rejects it: reading `config.env`
+   throws `The option env.GATED was accessed but has no value defined`. Use `scripts.<name> = mkIf
+   false {...}` instead.
+4. Compare with wildcards in the expected strings: `{FIXTURE}` for the fixture directory, `<hash>`
+   for 32 store-hash characters, `<version>` for a version. `file` compares relative to `source/`.
+5. Run each golden fixture twice, and the batch of five. Compare the runs byte for byte, with and
+   without the evaluation cache.
+6. Run each golden fixture with `scope = "all"` and the deny list `["process.manager.command"]`.
+   The result must equal the touched scope.
 
-**Expected result.** The truth equals the golden values. The `mkIf false` definition is absent.
-`mkForce` and `mkDefault` values appear without their priority (concept: Truth). Two runs are equal.
+**Expected result.**
 
-**Record.** `evidence/step-5.md`: the five truths, the run times, and each observed difference from
-the golden values with its cause.
+- `a-probe` gives this table before normalization:
 
-**Gate GM3 (part 1).** All five golden fixtures match, and truth is stable.
+  | `loc` | `defs[].value` |
+  | --- | --- |
+  | `languages.python.enable` | `true` |
+  | `env` | `{"GREETING": "hi"}` |
+  | `packages` | `[{"$pkg": "jq", "$name": "jq-1.8.2", "$output": "bin"}]` |
+  | `services.postgres.enable` | `true` |
+  | `enterShell` | `"echo hi"` |
+
+- A `mkIf false` definition is absent. `mkForce` and `mkDefault` values appear without their
+  priority (concept: Truth), at the top and inside freeform values.
+- **Loser rule.** A definition that loses on priority is absent. In `d-priority`,
+  `services.postgres.enable = mkForce true` beats plain `false` in `loser.nix`; the truth is `true`
+  from `devenv.nix`. `services.postgres.port = mkDefault 5433` loses to plain `5434` in `loser.nix`;
+  the truth is `5434` from `loser.nix`.
+- **Nested wrapper rule.** `env.FORCED = mkForce "forced"` and `env.DEFAULTED = mkDefault "defaulted"`
+  give the value `{"FORCED": "forced", "DEFAULTED": "defaulted"}`.
+- **Empty value.** `scripts.gated = mkIf false {...}` gives `scripts` the value `{}`. The option has
+  a definition with no element.
+- **Imports.** `c-imports` gives two definitions each for `enterShell`, `env`, and `packages`, with
+  `extra.nix` first.
+- **Error.** An option that fails on a catchable error gives a record with an `error` string, not a
+  value. Normalization makes it `{"$error": <string>}`.
+- Two runs are byte-identical, with and without the cache. The batch of five costs about as much as
+  the slowest single call (1.5 to 1.7 s).
+
+**Limits.** The oracle does not force `config`, so it cannot tell whether a fixture evaluates. The
+`env.GATED` fixture produced a truth although devenv rejects it. Step 7 needs its own validity check
+for the `fails` class. The oracle cannot see priority between two definitions inside one freeform
+attribute set (inference I6, untested).
+
+**Record.** `evidence/step-5.md`: the five truths, the run times, the touched-against-all comparison,
+and each observed difference from the golden values with its cause. Phase A found four causes:
+absolute `file` paths, store hashes in e, `$path` absolute in e, and `$name` versions in c.
+
+**Gate GM3 (part 1).** All five golden fixtures match, touched scope equals `scope = "all"` with the
+deny list, and truth is stable.
 
 ---
 
@@ -452,24 +533,47 @@ the golden values with its cause.
 
 **Goal.** Compare truths without false differences from store hashes, paths, or definition counts.
 
+**Status.** Prototype proved, in-repo port in progress. The prototype is
+`~/.local/state/devenv-py/phase-a/oracle/normalize.py` with `test_normalize.py` and `twin_test.py`.
+
 **Actions.**
 
 1. Write `src/devenv_py/normalize.py`:
    - Sort object keys.
    - Replace `/nix/store/<32 chars>-` with `<store>/` in every string.
    - Rewrite `$path` values under the fixture root as relative paths that start with `./`.
-   - Drop the `file` field of each definition after the root check.
-   - Fold the definitions of one option with the option's merge rule from the export:
-     `listOf` concatenates, `attrsOf` and `submodule` take a recursive union, and
-     `separatedString` joins with its separator. Mark any other option with more than one
-     definition as `multi-def`.
+   - Drop the `file` field of each definition after the root check. A definition outside the root
+     raises.
    - Drop `$name` from `$pkg` values, because it carries a version. Keep `$pkg` and `$output`.
+   - Turn a record that has `error` into `{"$error": <error>}`.
+   - Fold the definitions of one option with the merge rule of its type. Read the rule from the
+     options export. The merge table:
+
+     | Option type (from the export) | Rule |
+     | --- | --- |
+     | `listOf` | concatenate, in definition order |
+     | `attrsOf`, `lazyAttrsOf`, freeform or ordinary `submodule` | recursive union |
+     | `separatedString` | join with `payload.sep` |
+     | any other type, with more than one definition | `{"$multi-def": [...]}` |
+
+     A key clash inside a union also becomes `$multi-def`. The prototype used a hard-coded table
+     (`enterShell` joined by newline; `env`, `scripts`, `tasks` recursive union; `packages`
+     concatenation). The port derives the same rules from the export, and a test checks that the
+     derived rules equal the hard-coded ones for these four options.
 2. Write `src/devenv_py/compare.py`. It returns a list of differences. Each difference holds
    the option path, the JSON path inside the value, the expected value, and the actual value.
 3. Write unit tests for each rule in action 1, and for a comparison with zero, one, and many
    differences.
+4. Write the two-directory test. Copy the five golden fixtures to two directories at the same depth
+   (`A/deeper/`, `B/deeper/`). Change `data.txt` on side B, so the store hash differs. Send one
+   batch. All five normalized truths must be equal.
 
-**Expected result.** Two truths of the same source in two directories compare equal.
+**Expected result.** Two truths of the same source in two directories compare equal. Phase A: the
+prototype passed all assertions, and the two-directory test passed for all five fixtures. Raw truth
+differed only by the directory prefix, and by the store hash for `e-paths`.
+
+**Limit.** Priority between two definitions inside one freeform attribute set is invisible in truth.
+The normalizer would report `$multi-def` at `env.X`.
 
 **Record.** `evidence/step-6.md`: the rules, the test count, and the result of the two-directory
 test.
@@ -481,6 +585,9 @@ test.
 ## Step 7. Harvest and triage the corpus
 
 **Goal.** A corpus of real fixtures, each with provenance, triage, and truth.
+
+**Status.** Not started. A static survey ran in phase A. It evaluated no fixture. See
+[evidence/phase-a.md](./evidence/phase-a.md), section 5.
 
 **Actions.**
 
@@ -495,23 +602,49 @@ test.
    ```
 
 2. Harvest `devenv-examples` from the pinned `devenv` input's `examples/` directory. Read the source
-   path from the export's `declarations` or from the lock. Record the license from the source.
+   path from the export's `declarations` or from the lock. Record the license from the source: Apache
+   License 2.0 at the pin. Vendoring needs the license text and a NOTICE of origin. Phase A counts:
+   69 top-level directories and 72 `devenv.nix` files, because 3 nested files exist
+   (`compose/projectA`, `compose/projectB`, `imports/folder`).
 3. Harvest `devenv-tests` from the input's `tests/` directory. Keep only entries with a `devenv.nix`.
-4. Harvest `fleet`: every `devenv.nix` under `~/Documents/Projects`, excluding `.devenv/`,
-   `gitman-workspaces/`, and `node_modules/`. Set `private = true`. Never copy a
-   `devenv.local.nix`. Fleet fixtures stay in a private repository or in local state.
+   Phase A counts: 150 entries and 159 `devenv.nix` files, because some entries nest.
+4. Harvest `fleet`: every `devenv.nix` under `~/Documents/Projects`. Exclude `.devenv/`,
+   `gitman-workspaces/`, `node_modules/`, **`.archive/`, and `.worktrees/`**. Then **deduplicate by
+   content hash**. Set `private = true`. Never copy a `devenv.local.nix` (71 fleet directories hold
+   one; 69 are symlinks). Handle a broken symlink as `broken` and leave it out of the counts. Fleet
+   fixtures stay in a private repository or in local state.
+
+   Phase A counts for the fleet: 407 files with the spec exclusions only. 266 sit under `.archive/`
+   or `.worktrees/`. 140 are primary paths. Unique content: 157 over all paths, 104 over primary
+   paths. The exclusion drops old unique files; the owner accepted that (decision D7).
 5. Triage each fixture into one class:
 
    | Class | Rule |
    | --- | --- |
-   | `batch` | Its inputs are a subset of the pin's inputs, and its `devenv.yaml` sets nothing else |
+   | `batch` | Its `devenv.yaml` inputs are a subset of {`devenv`, `nixpkgs`, `nixpkgs-python`}, and `devenv.yaml` has no other key (no `imports`, `allowUnfree`, `nixpkgs` block) |
    | `alone` | It needs other inputs or settings. Copy it to a temporary project with its own `devenv.yaml` and evaluate it alone |
-   | `secret` | It needs SecretSpec or other secrets |
+   | `secret` | It needs SecretSpec or other secrets: a `secretspec.toml`, a `secretspec` key or word in `devenv.yaml`, or a `secretspec` token in `devenv.nix` |
    | `fails` | It does not evaluate at the pin; keep the error tail |
 
-6. Compute truth for every `batch` and `alone` fixture. Compute it twice, and compare.
+   The `batch` test checks input names only. It does not check a changed `url` on an allowed input.
+   Add that check. The phase A survey did not detect other secret tools (sops, agenix, vault).
+6. Write a **validity check** for the `fails` class. The oracle does not force `config`, so a truth
+   can exist for a fixture that devenv rejects (`env.GATED = mkIf false` is an example). Proposed:
+   force a config value of the candidate with `tryEval`, and treat a failure as `fails`. Use
+   bisection for failures that `tryEval` misses. Design and prove this check with a fixture before
+   use.
+7. Compute truth for every `batch` and `alone` fixture. Compute it twice, and compare.
+
+**Fleet-module options.** Fleet fixtures set options from modules that a stock pin lacks:
+`repoman.*`, `testee.*`, `docman.*`, `zelligate.*`. A model for those needs those modules in the
+options export. Add them as a later pin variant (decision D8). Until then those options are outside
+the stock pilot.
 
 **Expected result.** Most devenv examples are `batch` or `alone`. Every `fails` entry has a reason.
+The static survey predicts, for the pilot gate: 87 deduplicated `languages.python` fixtures (8
+excluded, 9.2 percent) and 13 `services.postgres` fixtures (0 excluded). The public sources alone
+give 23 and 10. The prediction holds only if the public fixtures evaluate. Check it after the
+evaluation run reports `fails`.
 
 **Record.** `evidence/step-7.md`: counts per source and class, the `fails` reasons, and the run
 time.
@@ -524,6 +657,8 @@ time.
 
 **Goal.** Generated Pydantic models for any subtree, stamped with the pin.
 
+**Status.** Not started. The type facts from the phase A export are folded into the actions below.
+
 **Actions.**
 
 1. Write `src/devenv_py/values.py` with the shared value types: `PkgRef`, `PathRef`,
@@ -531,7 +666,21 @@ time.
    returns the tagged JSON form of Step 5.
 2. Write `src/devenv_py/generator.py` with `dpy gen <subtree>`. It reads the export, selects
    options whose `loc` starts with the subtree, and maps each type tree with the concept's table.
-   - Match parameterized names by prefix, such as `strMatching <pattern>`.
+   - Match parameterized names by prefix, such as `strMatching "<pattern>"`. Read the raw pattern
+     from `payload.pattern`.
+   - Read `output` and `outputOf` (devenv types from `src/modules/outputs.nix`).
+   - Fold `either int float` (the type of `number`) to `float`. `oneOf` already folds into `either`.
+   - Recognise a format type (JSON, YAML, TOML value) by the `recursive` marker and the description
+     of its node. These are `nullOr` or `either` nodes (28 options at the pin).
+   - Read `path` from its payload `{absolute, inStore}`. `pathInStore` and `externalPath` appear as
+     `path`.
+   - Types never seen at the pin (`nonEmptyStr`, `singleLineStr`, `signedInt*`, `positiveInt`,
+     `raw`, `module`, `attrTag`) need synthetic export entries in the unit tests.
+   - Read freeform options from `nested.freeformType`. A `loc` is a list; its elements can hold
+     dots, so never join and split it on dots.
+   - Read the export markers: `recursive`, `truncated`, `depthCut`, `defaultSkipped`, and
+     `defaultError`. A `defaultSkipped` or `defaultError` option has no usable default value; use
+     `defaultText` in the field description.
    - Read integer bounds by name for fixed types (`unsignedInt16`: 0 to 65535). For `intBetween`,
      read the bounds from the description through the fixed patterns that MDL-007 allows.
    - Generate a nested class for each submodule. Allow extra keys for a freeform submodule, with
@@ -543,7 +692,7 @@ time.
 
    ```python
    # Generated by devenv-py. Do not edit.
-   # pin: devenv-2.4.0-a73c5b84-c2f38fe7
+   # pin: devenv-2.4.0-b904dcb5-c2f38fe7
    # export: sha256:<hash>
    # subtree: services.postgres
    ```
@@ -570,49 +719,66 @@ type names across the whole export.
 
 **Goal.** Templateer renders Nix text with safe escaping and a parse check.
 
-Make this change in the `templateer_v2` repository, in its own Gitman workspace, with its own
-tests and release tag. The harness then pins that tag.
+**Status.** Done on 2026-10-11. The change landed on `templateer_v2` `main` at `d3304db4` and was
+pushed. No release tag exists yet. See [evidence/step-9.md](./evidence/step-9.md). The harness pins a
+tag, and the pinned tag `v0.4.2` is on the `v6-flake` branch, so it lacks the `nix` language.
+A new tag on `main` is an open item for the owner.
 
-**Actions.**
+**What exists.**
 
-1. In `models.py`, add `nix` to the language set. Put it in a new class: parsed, but not in
-   `STRUCTURED_LANGUAGES`, because a module is a function and does not round-trip as data.
-2. In `escaping.py`, add `escape_nix_string`. Nix double-quoted strings do not share JSON's escape
-   grammar. Nix has no `\uXXXX` escape. Use these rules:
+- `nix` is a parsed language. It is not in `STRUCTURED_LANGUAGES` or `_QUOTED_STRING_LANGUAGES`.
+  The finalizer passes strings unchanged and writes `true` and `false`. A `None` value raises.
+- `escape_nix_string` follows the table below. A lone surrogate raises too.
 
-   | Character | Output |
-   | --- | --- |
-   | `\` | `\\` |
-   | `"` | `\"` |
-   | `${` | `\${` |
-   | newline | `\n` |
-   | carriage return | `\r` |
-   | tab | `\t` |
-   | U+0000 | raise `EscapeError`; a Nix string cannot hold it |
-   | any other character | unchanged |
+  | Character | Output |
+  | --- | --- |
+  | `\` | `\\` |
+  | `"` | `\"` |
+  | `${` | `\${` |
+  | newline | `\n` |
+  | carriage return | `\r` |
+  | tab | `\t` |
+  | U+0000 | raise `EscapeError` |
+  | any other character | unchanged |
 
-   Booleans render as `true` and `false`. A `None` value raises, as for other languages.
-   Keep `nix` out of `_QUOTED_STRING_LANGUAGES`. The finalizer then passes strings unchanged, so it
-   does not escape the Nix text that the `nix` filter returns. Every value must therefore go
-   through the `nix` filter. Add an audit rule that flags an interpolation without it.
-3. Add a `nix` filter for `nix` templates. It renders a tagged JSON value as a Nix expression:
-   strings through `escape_nix_string`; numbers and booleans as literals; lists as `[ a b ]`;
-   objects as `{ "key" = value; }` with every key quoted; `$pkg` as `pkgs.<attr>` and its output;
-   `$path` as a relative path; `$nix` (from `NixExpr`) as its source in parentheses; `$priority` as
-   `lib.mkDefault`, `lib.mkForce`, or `lib.mkOverride n`.
-4. Add the built-in parse validator. Pipe the artifact into `nix-instantiate --parse -`. Confirm
-   that `-` reads standard input on the pinned Nix before you rely on it.
-5. Write an exhaustive escape test like `test_escape_string_round_trips_every_codepoint`. Put every
-   codepoint in U+0001 to U+011F, plus U+2028, U+2029, U+FEFF, one astral character, and the text
-   `${x}`, into one Nix list. Evaluate it once with `nix-instantiate --eval --strict --json -`.
-   Compare the result with the input.
-6. Write filter tests for each tagged form. Parse each output with the validator.
+- Filters `nix` and `nix_attr` (in `src/templateer/nix_render.py`). The `nix` filter renders tagged
+  JSON: strings, numbers, booleans, lists, objects, `$pkg` (with `$output`), `$path` (safe relative
+  paths only), `$nix` (raw source; the caller owns it), and `$priority`. A tagged object with extra
+  keys raises. `nix_attr` takes a string, or a list of strings joined with dots. It writes a bare
+  identifier when valid, and a quoted name for other names and for keywords.
+- The parse validator pipes the artifact into `nix-instantiate --parse -`. A missing program and a
+  NUL byte are errors.
+- The lint requires the last filter of every `{{ }}` site to be `nix` or `nix_attr`. `indent` may
+  follow. A loose operator outside the filter is a finding.
+- `templateer check` renders each fixture and parses it with Nix. It runs no injection probe.
 
-**Expected result.** The escape test passes in one Nix call. The filter output parses.
+**Facts that change this guide.**
 
-**Record.** `evidence/step-9.md`: the Templateer tag, the test counts, and the Nix version.
+1. `-` reads standard input on Nix 2.34.7 for `--parse` and for `--eval --strict --json`. The guide
+   claim holds.
+2. `--parse` also binds variables. A fragment such as `pkgs.git` fails with "undefined variable".
+   **A module must start with `{ pkgs, lib, ... }:`** for `--parse`. The validator tests wrap fragments
+   in that head.
+3. **Atom parenthesis rules.** A list element or a function argument must be one atom.
+   - `[ -1 ]` is a syntax error. The filter writes `[ (-1) ]`.
+   - `[ lib.mkForce 1 ]` is two elements. The filter writes `[ (lib.mkForce 1) ]`.
+   - `lib.mkDefault (lib.mkForce 1)` and `lib.mkOverride (-5) (-1)` need parentheses.
+   - At the top level and as an attribute value, the filter writes none: `lib.mkDefault 1`.
+4. **Float exponent.** `1e20` and `1e+20` are not Nix floats. Nix needs a decimal point. The filter
+   writes `1.0e+20`. `1.5e-07` is already valid.
+5. **Integer range.** Nix cannot write `-9223372036854775808` as a literal, and `9223372036854775808`
+   is invalid. The filter accepts -(2^63-1) to 2^63-1 and raises outside it.
+6. The earlier guide text wrote `$nix` "in parentheses". The filter writes `$nix` source raw. The
+   record does not say whether it adds parentheses in an atom position. Check this in Step 10.
 
-**Gate GM6.** The Templateer suite passes with the `nix` language, and the tag exists.
+**Tests.** 213 tests in `tests/test_nix_language.py` pass; 58 carry the `needs_nix` marker and skip
+without `nix-instantiate`. One exhaustive escape test covers U+0001 to U+011F, U+2028, U+2029,
+U+FEFF, one astral character, and `${x}` in one `nix-instantiate --eval --strict --json -` call. The
+whole suite passes: `659 passed, 9 skipped`.
+
+**Record.** [evidence/step-9.md](./evidence/step-9.md).
+
+**Gate GM6.** The Templateer suite passes with the `nix` language. The tag part is open.
 
 ---
 
@@ -630,13 +796,13 @@ tests and release tag. The harness then pins that tag.
    { pkgs, lib, ... }:
    {
      {% for d in definitions %}
-     {{ d.loc | join(".") }} = {{ d.value | nix }};
+     {{ d.loc | nix_attr }} = {{ d.value | nix }};
      {% endfor %}
    }
    ```
 
-   Quote any `loc` segment that is not a plain Nix identifier. Add that rule to the `nix` filter
-   tests.
+   The `nix_attr` filter of Step 9 takes a list and writes a bare identifier or a quoted name for
+   each segment. It already quotes names that are not plain identifiers and keywords.
 2. Write `src/devenv_py/writer_nix.py`. It takes a model, or a normalized truth, and produces
    the `ModuleContribution`. It renders through Templateer's Python interface. An option without a
    model uses the generic tagged value. A `$fn` value makes the fixture `has-fn`; RT2 skips it with
@@ -678,6 +844,10 @@ value that its path cannot carry.
 
 **Goal.** Turn truth or source text into a model instance.
 
+**Status.** Prototype proved for the syntax reader, in-repo port in progress. The eval reader has no
+prototype. Evidence: [evidence/phase-a.md](./evidence/phase-a.md), section 4. The prototype is
+`~/.local/state/devenv-py/phase-a/syntax/read_syntax.py`.
+
 **Actions.**
 
 1. Write `src/devenv_py/read_eval.py`. It takes a normalized truth and validates the subtree
@@ -685,25 +855,104 @@ value that its path cannot carry.
    - Resolve each `$pkg` to an attribute path. Try the candidates `pname` and
      `pname.<output>` in one batch evaluation, and keep the one whose `outPath` matches. Record an
      ambiguous or missing result as a miss (concept open question 3).
-2. Write `src/devenv_py/read_syntax.py` with pydantree. Load the grammar from
-   `tree_sitter_nix` and the vendored `node-schema.json`, as in pydantree's `devenv-extract`
-   example. Read node kinds from the vendored schema. Do not trust the names in this guide.
-   - Accept a function head such as `{ pkgs, lib, ... }:` and read its body.
-   - Read `binding` nodes. Expand dotted attribute paths and nested attribute sets into one tree.
-   - Read literals: strings without interpolation, integers, floats, `true`, `false`, `null`, and
-     lists and attribute sets of literals.
-   - Read `pkgs.x.y` as `PkgRef`. Read `with pkgs; [ a b ]` as a list of `PkgRef`.
-   - Read `lib.mkDefault v`, `lib.mkForce v`, and `lib.mkOverride n v` as `Priority`.
-   - Keep every other value as `NixExpr` with its exact source span (MDL-010). This includes
-     `lib.mkIf`, interpolated strings, and function calls.
-   - If the body is a `let ... in` expression, keep the whole body as one `NixExpr` in this version.
+2. Write `src/devenv_py/read_syntax.py` with pydantree.
+
+   **Load route.** `devenv shell` in pydantree fails today (`dotenv.resolved` has no value). Load the
+   grammar from the `devenv-py` project venv: `tree-sitter>=0.26,<0.27`, `tree-sitter-nix`, `pydantic`,
+   and `pydantree-sitter` at its pinned tag. Pin the vendored `node-schema.json` by hash (phase A:
+   sha256 `d34e9bdf2acd…`, 84 entries, from pydantree `c0ccabc`). `Grammar.load` runs a conformance
+   check against the schema; the PyPI grammar (ABI 14) and the nixpkgs grammar (ABI 13) both pass.
+
+   **Node kinds.** Read kinds from the vendored schema. These are the real kinds, observed at the
+   pin. The earlier guesses were wrong in several places.
+
+   | Construct | Real kind | Fields and children |
+   | --- | --- | --- |
+   | root | `source_code` | `expression` |
+   | function head | `function_expression` | `formals`, `universal` (`args@` name, or a bare `x:`), `body` |
+   | formals, one formal | `formals`, `formal` | `formal` (many), `ellipses`; `name`, `default` |
+   | attrset | `attrset_expression`, `rec_attrset_expression` | child `binding_set` |
+   | binding set | `binding_set` | `binding`, `inherit`, or `inherit_from` (many) |
+   | binding | `binding` | `attrpath`, `expression` |
+   | attrpath | `attrpath` | `attr` (many): `identifier`, `string_expression`, or `interpolation` |
+   | `inherit a;`, `inherit (a) b;` | `inherit`, `inherit_from` | `attrs`; `attrs`, `expression` |
+   | string | `string_expression` | `string_fragment`, `escape_sequence`, `dollar_escape`, `interpolation` |
+   | indented string | `indented_string_expression` | the same children; no indented fragment kind |
+   | integer, float | `integer_expression`, `float_expression` | none; the text is the value |
+   | negative number, `!` | `unary_expression` | `operator`, `argument` |
+   | `true`, `false`, `null`, any name | `variable_expression` | `name`; no boolean or null kind |
+   | list | `list_expression` | `element` (many) |
+   | select | `select_expression` | `expression`, `attrpath`, `default` (the `or` form) |
+   | with | `with_expression` | `environment`, `body` |
+   | apply | `apply_expression` | `function`, `argument`; curried |
+   | let | `let_expression` | child `binding_set`, `body` |
+   | if, parentheses, binary | `if_expression`, `parenthesized_expression`, `binary_expression` | |
+   | path | `path_expression` | `path_fragment`, `interpolation` |
+
+   `comment` nodes appear between bindings and are not in the `binding` field. A `dollar_escape`
+   node holds only the marker; the next `string_fragment` holds the `$`. `a or 1` outside a select
+   parses as an apply to a variable named `or`.
+
+   **Reader rules (decisions D3 to D6, and prototype behavior).**
+   - **Parse errors.** Refuse a file that the grammar reports as having an error (for example
+     version-control conflict markers). Raise `SyntaxReadError`.
+   - **Function head.** Accept a head such as `{ pkgs, lib, ... }:`, including a curried head, and
+     read its body. Keep the names the head binds.
+   - **Root `let`.** Keep the `let` header as **verbatim prefix text**. Read the attribute set in
+     the `in` body, and write the prefix back unchanged. (The earlier rule, "keep the whole body as
+     one `NixExpr`", gives no typed field for half the fleet: 28 of 58 files.) Names bound in the
+     header are unknown to the reader, so any value that uses them stays `NixExpr`.
+   - **Bindings.** Expand dotted attribute paths and nested attribute sets into one tree. A binding
+     with a dynamic attribute name, an `inherit`, an `inherit (x)`, or a path collision goes in
+     `extra_bindings`, as a `NixExpr` of the binding text including the `;`. (The prototype used the
+     list key `$nix-binding`.)
+   - **Literals.** Read strings without interpolation, integers, floats, `true`, `false`, `null`,
+     and lists and attribute sets of literals. Remove parentheses. Read `-` before a number
+     literal as a negative number.
+   - **Strings.** Decode `\n`, `\r`, `\t`, and `\X` in a double-quoted string. Remove the common
+     indent of an indented string, as Nix does. Keep a string with an interpolation as **one
+     `NixExpr`** (decision D5). Any `''\` escape in an indented string makes it `NixExpr`. The
+     `'''` escape decodes.
+   - **Packages.** Read `pkgs.x.y` as `PkgRef` only when every attribute is a plain name and there is
+     no `or` default. Read a bare name in `with pkgs; [ a b ]` as `PkgRef`. A name that the function
+     head binds (`lib`, `config`) shadows the `with` scope, so it is not a package: keep it
+     `NixExpr`.
+   - **Priority.** `lib.mkDefault v` is priority 1000. `lib.mkForce v` is 50. `lib.mkOverride n v`
+     is `n` when `n` is an integer literal. **Record the function name** as well as the number
+     (decision D6): `lib.mkDefault 1` and `lib.mkOverride 1000 1` must stay apart, or RT5 cannot
+     be idempotent.
+   - **Everything else** is `NixExpr` with its exact source span (MDL-010). This includes
+     `lib.mkIf`, other function calls, paths in a list, selects whose root is not `pkgs`, `rec { }`,
+     and legacy `let { }`.
+   - **Leaf counts.** Report, for each file, leaves as `typed` (no `NixExpr` inside), `nix` (the
+     leaf is a `NixExpr`), or `partial` (a list with some `NixExpr` elements).
+
+   **Implementation notes.** pydantree narrowing works one level at a time: a subclass is used for a
+   child only when the parent class redeclares the field. Narrow two levels and use `isinstance`
+   below. Do not use `from __future__ import annotations` in the module that declares node
+   subclasses; it caused `SchemaCheckError: optionality disagrees`.
 3. Test the syntax reader on the five golden fixtures. Assert the literal fields and the `NixExpr`
    spans.
+4. **Span check.** For every `NixExpr`, assert that the source slice at its span equals its text,
+   that the text parses alone as one expression (or one binding in `{ }`), and that the tree and the
+   records match one to one. Run it on non-ASCII files.
+5. **Value check.** Evaluate the source slice of every typed scalar literal with `nix-instantiate`.
+   Compare type and value. Add synthetic snippets for indented strings. Phase A found three decoder
+   bugs only this way.
+6. **Fleet run.** Run the reader over the fleet `devenv.nix` files (Step 7 selection) and record the
+   counts per file, the typed ratio, and the reasons for `NixExpr`. The golden fixtures cannot show
+   the root `let` cost.
 
-**Expected result.** Both readers produce valid instances for the golden fixtures.
+**Expected result.** Both readers produce valid instances for the golden fixtures. Phase A, for the
+prototype with the old `let` rule: 58 of 59 fleet files parse (one has conflict markers); 423
+leaves, 358 typed, 6 partial, 59 nix (84.6 percent typed, inflated by the root `let`); 90.6 percent
+for the 30 files without a root `let`; 79.1 percent typed when `let` bodies are followed (a lower
+bound). Interpolation causes 81 percent of the remaining `NixExpr` values. The span check passed for
+65 values, and the value check for 339 literals, with 0 failures. Time: 1.0 s for 58 files. The
+`let` prefix rule should lift the file-level ratio. Measure it in the port.
 
-**Record.** `evidence/step-11.md`: the node kinds that the pinned grammar uses, and the number of
-`NixExpr` values per golden fixture.
+**Record.** `evidence/step-11.md`: the node kinds that the pinned grammar uses, the number of
+`NixExpr` values per golden fixture, and the fleet counts.
 
 **Gate GM7.** Both readers pass their tests.
 
