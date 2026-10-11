@@ -818,22 +818,46 @@ the time per case.
    - Syntax reader gaps: add a node rule, or accept the `NixExpr` and count it.
 3. Run again until the thresholds hold.
 
-**Proposed thresholds** (concept open question 5):
+**Thresholds** (owner decision, 2026-10-11; concept open question 5). The thresholds fall into
+four groups.
+
+*Correctness. Any failure blocks the gate.*
 
 | Check | Threshold |
 | --- | --- |
-| RT1 | 100 percent of `batch` and `alone` fixtures that use the subtree |
-| RT2 | 100 percent, except fixtures marked `has-fn` |
-| RT3 | 100 percent; `NixExpr` values are allowed and counted |
-| RT4 | No disagreement |
-| RT5 | 100 percent |
-| RT6 | 100 percent of data-only instances |
-| RT7 | 500 cases per subtree, with no `type-error` or `mismatch` |
-| RT8 | 200 cases per subtree, with no accepted invalid value |
+| RT2, RT3, RT4, RT5, RT6 | 100 percent of eligible cases |
+| Exclusions | Only by a named class: `has-fn`, `fails`, or `secret`. The report lists each excluded fixture. |
+| RT7 | No `type-error` and no `mismatch`. An `assertion` failure counts only after it becomes a validator in the narrowed model, so the rerun has none. |
+| RT8 | No invalid value that Nix accepts |
+| Truth stability | Two runs give byte-identical truth |
 
-**Record.** `evidence/step-15.md`: the final report, the seed, and every remaining `NixExpr` field.
+*Coverage. Measure it; after the gate, it must not fall.*
 
-**Gate GM9.** Both subtrees meet the thresholds.
+| Check | Threshold |
+| --- | --- |
+| RT1 | 100 percent of fixtures validate. The pilot models have no `NixExpr` field, except for options whose type is a function. The record lists each one. |
+| RT3 | At least 90 percent of the pilot-subtree bindings in the corpus are typed fields. The rest are `NixExpr` values. |
+
+*Generated cases. Size them by coverage, not by count.*
+
+| Check | Threshold |
+| --- | --- |
+| RT7 | Every field is set in at least 20 cases. Every enum value, and both ends of every integer bound, occur at least once. At least 500 cases per subtree. Run under two seeds. |
+| RT8 | One case per field for each mutation that applies to it: wrong type, out of bounds, unknown enum value, and null where null is not allowed. Enumerate the cases; do not sample them. |
+
+*Corpus and time.*
+
+| Check | Threshold |
+| --- | --- |
+| Corpus size | At least 10 real fixtures that use `languages.python`, and at least 5 that use `services.postgres` |
+| Exclusion share | At most 20 percent of those fixtures are excluded |
+| Small corpus | If the corpus is below these sizes, record GM9 as BLOCKED, not passed |
+| Run time | `testee check rt-pilot` finishes in 15 minutes or less with a warm evaluation cache |
+
+**Record.** `evidence/step-15.md`: the final report, both seeds, the RT7 coverage counts, the
+excluded fixtures, and every remaining `NixExpr` field.
+
+**Gate GM9.** Both subtrees meet every threshold above.
 
 ---
 

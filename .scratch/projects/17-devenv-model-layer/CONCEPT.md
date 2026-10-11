@@ -346,7 +346,8 @@ learner's request. The model is validated before any Nix is written.
 3. How should the eval reader name packages: a package index per pin, or a rule that prefers the
    syntax reader for `packages`?
 4. Which subtrees come after the pilot (`languages.python`, `services.postgres`)?
-5. What pass thresholds should GM9 use? The guide proposes 100 percent of evaluable fixtures for
-   RT2, and 500 generated cases without a mismatch for RT7.
+5. Resolved 2026-10-11: GM9 uses the thresholds in Step 15 of the guide. Correctness checks
+   must be perfect, coverage must not fall, generated cases are sized by coverage, and a small
+   corpus blocks the gate.
 6. Should Path T support tagged values (`{"$pkg": ...}`) in TOML, or should such models use Path N
    only?
