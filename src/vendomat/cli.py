@@ -213,7 +213,7 @@ def bump_command(
     devenv_ref: str | None = typer.Option(None, "--devenv", help="Also set the devenv input's tag or ref."),
     apply: bool = typer.Option(False, "--apply", help="Write the registries and run each gate. Default: dry run."),
     gate: str = typer.Option(
-        "testee verify --full", "--gate", help="The verify command that runs in each workspace after --apply."
+        "testee verify", "--gate", help="The verify command that runs in each workspace after --apply."
     ),
     only: Annotated[
         list[str] | None, typer.Option("--only", help="Limit to a workspace directory name (repeatable).")

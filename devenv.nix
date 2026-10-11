@@ -31,7 +31,8 @@ in
   # The host `testee` (0.6) checks the commit in its own workspace. The module comes from the
   # locked `testee` input in devenv.yaml. `testee.prepare` fills the workspace venv from
   # `uv.lock`, so the checks keep naming tools by their absolute venv path.
-  # The checks. `quick` is ruff and ruff-format; `full` adds ty and pytest. Tools come from the
+  # The checks. `testee verify --profile quick` runs ruff and ruff-format; `full` adds ty and pytest,
+  # and `testee verify` runs every required check. Tools come from the
   # uv venv (the `dev` group in pyproject.toml), so each argv holds an absolute path.
   testee.prepare = [ [ "uv" "sync" "--locked" ] ];
   testee.checks = {
@@ -58,7 +59,7 @@ in
       structured = { parser = "junit-xml"; file = "pytest.junit.xml"; };
     };
     # Opt-in end-to-end check. It builds real consumer shells with Nix, so no profile selects it
-    # and it is not required. Run it with `testee check e2e`. The Testee shell drops the host
+    # and it is not required. Run it with `testee verify e2e`. The Testee shell drops the host
     # PATH and HOME, so the argv sets VENDOMAT_E2E, HOME, and a nix on PATH itself.
     e2e = {
       argv = [
@@ -69,6 +70,8 @@ in
           export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
           # The sync fixture runs a real devenv. Use the host's, which is the pinned release build.
           export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
+          # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
+          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.venv/bin/templateer}"
           # Keep every fixture command, exit status, and output outside the repository.
           export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
           ${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/e2e.junit.xml"
@@ -87,6 +90,8 @@ in
           export HOME="$(eval echo "~$(id -un)")" VENDOMAT_E2E=1
           export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
           export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
+          # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
+          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.venv/bin/templateer}"
           export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
           ${venvBin}/python -m pytest -q tests/test_workspace_user_e2e.py --junitxml="$TESTEE_RUN_DIR/workspace-e2e.junit.xml"
         ''
@@ -98,8 +103,8 @@ in
     };
     # Opt-in live cache checks (CACHE-012). They push to the host Attic with the push credential,
     # ask for every path with the pull credential, and copy cold into an empty store. They write
-    # real objects to the live cache, so no profile selects them. Run `testee check live-cache`
-    # (a 1 MiB unique object) or `testee check live-cache-load` (a 64 MiB unique object, about
+    # real objects to the live cache, so no profile selects them. Run `testee verify live-cache`
+    # (a 1 MiB unique object) or `testee verify live-cache-load` (a 64 MiB unique object, about
     # 1000 chunks). They read ~/.config/attic/config.toml and print no token. The report goes
     # under ~/.local/state/vendomat/v6/live-cache/<UTC time>/.
     live-cache = liveCache 1048576;

@@ -1,7 +1,7 @@
 """The live cache check: push to the host Attic, then pull cold through the pull credential.
 
 This module holds the whole procedure. `tests/test_live_cache.py` runs it with fakes in every
-`testee verify` and against the real cache in `testee check live-cache`.
+`testee verify` and against the real cache in `testee verify live-cache`.
 
 The procedure:
 

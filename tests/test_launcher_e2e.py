@@ -1,4 +1,4 @@
-"""The host launcher against real Nix and real tags (Step 4). Opt in with `testee check e2e`.
+"""The host launcher against real Nix and real tags (Step 4). Opt in with `testee verify e2e`.
 
 Two tagged copies of this repository are served over `git://`. Two workspaces pin different tags.
 The launcher, built from this tree, must run each workspace's own Vendomat, find it again with the

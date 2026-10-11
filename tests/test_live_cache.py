@@ -3,7 +3,7 @@
 The fake tests run in every `testee verify`. They prove the retry, report, and cleanup rules.
 `test_live_cache_against_the_host_attic` talks to the real cache. It is opt-in:
 
-    testee check live-cache
+    testee verify live-cache
 
 A passing fake test does not replace the live run (`CACHE-012`).
 """
@@ -294,7 +294,7 @@ def test_force_remove_deletes_a_read_only_tree(tmp_path):
 LIVE = os.environ.get("VENDOMAT_LIVE_CACHE") == "1"
 
 
-@pytest.mark.skipif(not LIVE, reason="live cache; run `testee check live-cache` (sets VENDOMAT_LIVE_CACHE=1)")
+@pytest.mark.skipif(not LIVE, reason="live cache; run `testee verify live-cache` (sets VENDOMAT_LIVE_CACHE=1)")
 def test_live_cache_against_the_host_attic():
     settings = Settings.from_env(os.environ, flake=f"path:{ROOT}")
     report = run_check(settings)

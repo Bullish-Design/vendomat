@@ -1,4 +1,4 @@
-"""Source, cache, and builder infrastructure in NixOS VMs (V6 Step 5). Opt in with `testee check e2e`.
+"""Source, cache, and builder infrastructure in NixOS VMs (V6 Step 5). Opt in with `testee verify e2e`.
 
 Each test builds the Vendomat package from this repository, then runs one NixOS VM test under
 `tests/nix/infra/`. The VM tests make every key and token inside the VM. The checks here read the

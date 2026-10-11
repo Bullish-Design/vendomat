@@ -1,6 +1,6 @@
 """`vendomat sync` for a devenv workspace, against real Nix and a real `devenv` (Step 2).
 
-Opt in with `testee check e2e`. The fixture builds four local Git repositories, each with a tag,
+Opt in with `testee verify e2e`. The fixture builds four local Git repositories, each with a tag,
 then runs the real `sync` and the real `devenv`. It proves that a three-level imported-input chain
 locks one node per source, that every stale case is named, that an unchanged workspace does no
 work, that a failed update keeps the prior lock, and that sources need not be reachable once the

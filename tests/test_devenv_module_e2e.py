@@ -1,6 +1,6 @@
 """The Vendomat machine and lock module against a real `devenv` (Step 3, `VMOD-*`).
 
-Opt in with `testee check e2e`. Each case writes a small devenv workspace that imports
+Opt in with `testee verify e2e`. Each case writes a small devenv workspace that imports
 `inputs.vendomat.devenvModules.default` from this repository, plus library flakes in a temporary
 directory, then evaluates with the host `devenv`. The cases need the network once, to fetch the
 pinned nixpkgs, disko, and Home Manager. They never write outside the temporary directory.
