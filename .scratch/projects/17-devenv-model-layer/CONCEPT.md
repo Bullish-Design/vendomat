@@ -51,7 +51,7 @@ Two differences from devenv shape this concept:
 6. **A curated layer exists only where an audience needs it.** Basix learners are that audience.
    A curated layer is written as Nix modules with its own options. Its models are generated through
    the same pipeline.
-7. **The harness lives in its own repository.** Proposed name: `devenv-models`. Vendomat and Basix
+7. **The harness lives in its own repository, `devenv-py`** (owner decision, 2026-10-11). Vendomat and Basix
    consume its outputs. Reason: it depends on `pydantree` and `templateer`, and it is useful outside
    Vendomat.
 
@@ -75,7 +75,7 @@ Two differences from devenv shape this concept:
 native modules (devenv, Vendomat, Basix, workspace)
         |
         v
-  devenv repl + options.nix ------------------> options export (JSON, per pin)
+  devenv eval + introspect.nix --------------> options export (JSON, per pin)
         |                                               |
         |                                               v
         |                                   model generator (Python)
@@ -96,13 +96,15 @@ corpus fixtures --> oracle.nix --> truth      generated models + narrowed subcla
 ### Evaluation driver
 
 `devenv eval` reaches only `devenv.config.*` (probe O2). The typed options and per-file definitions
-sit under `devenv.project` (probe O6, O7). The driver therefore runs `devenv repl`, feeds it a short
-script on standard input, and reads the JSON result (probe O4). The driver is the only part of the
-harness that talks to devenv. A later fork patch can add a direct command, such as
-`devenv eval --root project`, without a change to the rest of the harness.
+are not config values. A module can still reach them: the module system passes `options` and
+`extendModules` to every module. The harness base project therefore imports an introspection
+module. The module reads a request file and writes its answer to a read-only config value,
+`introspect.result`. Stock `devenv eval` reads that value (probe O10 to O12). This route needs no
+fork patch, and it uses devenv's evaluation cache. The driver is the only part of the harness that
+talks to devenv. `devenv repl` is the fallback route (probe O4).
 
-One repl process can evaluate many candidate modules through `extendModules` (probe O8). Batch
-evaluation is the normal mode. Single-project evaluation is the fallback for fixtures that need
+One `devenv eval` call can evaluate many candidate modules through `extendModules` (probe O8, O12).
+Batch evaluation is the normal mode. Single-project evaluation is the fallback for fixtures that need
 their own inputs or settings.
 
 ### Options export
@@ -246,9 +248,9 @@ The harness turns authoring into a loop with a mechanical verdict. Three skills 
 
 | Skill | Input | Output | Verdict |
 | --- | --- | --- | --- |
-| `devenv-models-harvest` | a source of examples | fixtures with provenance and truth | the fixture evaluates and its truth is stable across two runs |
-| `devenv-models-author` | one subtree, its options export, and its fixtures | a narrowed model, templates, and syntax-reader rules | RT1 to RT8 for that subtree |
-| `devenv-models-roundtrip` | a failing report | a fix to the model, template, or reader | the failing case passes and no passing case fails |
+| `devenv-py-harvest` | a source of examples | fixtures with provenance and truth | the fixture evaluates and its truth is stable across two runs |
+| `devenv-py-author` | one subtree, its options export, and its fixtures | a narrowed model, templates, and syntax-reader rules | RT1 to RT8 for that subtree |
+| `devenv-py-roundtrip` | a failing report | a fix to the model, template, or reader | the failing case passes and no passing case fails |
 
 The existing `copyroom-template-edit` skill covers Templateer source edits. The author skill uses it.
 
@@ -294,7 +296,7 @@ learner's request. The model is validated before any Nix is written.
 | --- | --- |
 | The models drift from devenv | Generate from the options export; compare export hashes on each pin bump; rerun the corpus |
 | A reader and a writer share an error and still agree | The oracle is Nix evaluation of the original source (decision 4) |
-| The repl interface changes | One driver module owns it; a fork patch can replace it |
+| The introspection route breaks on a later pin | One driver module owns it; the repl route is the fallback |
 | Batch evaluation hides a failure in one candidate | `tryEval` catches only `throw` and `assert`; on any other batch error, bisect the batch |
 | Evaluation cost limits generated cases | Batch through `extendModules`; cap cases per subtree; measure first |
 | Nix string escaping errors | The `nix` language in Templateer owns escaping, with its own tests |
@@ -316,7 +318,7 @@ learner's request. The model is validated before any Nix is written.
 | MDL-009 | A narrowed model class adds no field that the option tree lacks. |
 | MDL-010 | The syntax reader keeps every non-literal value as a `NixExpr` with its exact source span. |
 | MDL-011 | A subtree is supported only when RT1 to RT8 pass for it at the current pin. |
-| MDL-012 | The harness keeps raw logs outside the repository, under `~/.local/state/devenv-models/`. |
+| MDL-012 | The harness keeps raw logs outside the repository, under `~/.local/state/devenv-py/`. |
 | MDL-013 | A batch failure that `tryEval` does not catch leads to bisection, not to a failed batch. |
 | MDL-014 | A curated layer is written as Nix modules with their own options. |
 
@@ -338,9 +340,9 @@ learner's request. The model is validated before any Nix is written.
 
 ## Open questions
 
-1. Is `devenv-models` the right repository name and home?
-2. Should the fork carry a patch for direct project evaluation, so that the driver does not need the
-   repl?
+1. Resolved 2026-10-11: the repository is `devenv-py`.
+2. Resolved 2026-10-11: no fork patch. The introspection module works with stock `devenv eval`
+   (probe O10 to O12). Revisit only if a later pin breaks that route and the repl fallback.
 3. How should the eval reader name packages: a package index per pin, or a rule that prefers the
    syntax reader for `packages`?
 4. Which subtrees come after the pilot (`languages.python`, `services.postgres`)?

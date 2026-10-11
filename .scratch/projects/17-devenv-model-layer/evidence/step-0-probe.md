@@ -98,3 +98,30 @@ given as a path keeps its path (inference from module system behavior; not yet t
   in `optionsJSON`. (From O5, O6.)
 - I5. A harness pin must set `inputs.devenv`. Without it, the module source drifts from the CLI.
   (From the input table.)
+
+## Addendum, same day: an introspection module with stock `devenv eval`
+
+Fixture: `~/.local/state/vendomat/p17-probe/introspect/`, with the same `devenv.yaml` and
+`devenv.lock` as `simple/`. `devenv.nix` imports `introspect.nix`, a plain module. The module takes
+the `options` and `extendModules` module arguments. It declares `introspect.request` (`nullOr path`)
+and a read-only `introspect.result` (`raw`). The result holds a type name, the definitions of one
+option, an `extendModules` result, and the parsed request file.
+
+**O10. Stock `devenv eval` returns typed options and definitions through a config value.**
+Command: `devenv eval introspect.result`. Result: exit 0 in 0.37 s.
+`portType = "unsignedInt16"`, `pyDefs = [ { file = ".../introspect/devenv.nix"; value = true; } ]`,
+`ext = true`.
+
+**O11. A request file reaches the module through `-O`.**
+Command: `devenv eval -O introspect.request:path /tmp/dm-req.json introspect.result`.
+Result: exit 0 in 0.32 s; `req = { hello = "world"; }`.
+
+**O12. The evaluation cache tracks the request file and the candidate files.**
+A repeat run took 0.078 s. After the request file changed to `{"hello":"changed"}`, the result
+changed too. A candidate module `./cand.nix`, added through `extendModules`, gave
+`services.redis.port = 7001`. After an edit to 7002, the next run printed 7002. `devenv eval` also
+has `--no-eval-cache` and `--refresh-eval-cache`.
+
+**Inference I6.** The harness does not need the repl or a fork patch. An introspection module in
+the base project, read through stock `devenv eval`, gives the options export, the truth, and batch
+evaluation. The repl remains a fallback. (From O10 to O12.)

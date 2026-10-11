@@ -11,12 +11,12 @@ and the code together.
 
 ## Conventions
 
-- **Repository.** The harness lives in a new repository, proposed name `devenv-models`. Paths below
+- **Repository.** The harness lives in a new repository, `devenv-py` (owner decision, 2026-10-11). Paths below
   are relative to its root unless they start with `~` or `/`.
-- **Version control.** Use a Gitman workspace for each step: `gitman work dm-step-N`.
+- **Version control.** Use a Gitman workspace for each step: `gitman work dpy-step-N`.
 - **Verification.** The harness repository verifies through Testee, like Vendomat. Step 14 adds the
   checks. Before Step 14, run the step's commands inside `devenv shell`.
-- **Raw logs.** Write raw logs under `~/.local/state/devenv-models/` (MDL-012). Never commit them.
+- **Raw logs.** Write raw logs under `~/.local/state/devenv-py/` (MDL-012). Never commit them.
 - **Records.** Write one record per step in this project directory:
   `evidence/step-N.md`. Record the pin, the exact commands, the expected results, and the actual
   results. Keep observation apart from inference.
@@ -27,18 +27,18 @@ and the code together.
 ## Repository layout (target)
 
 ```text
-devenv-models/
+devenv-py/
   devenv.nix  devenv.yaml  devenv.lock      harness toolchain and Testee checks
   pyproject.toml  uv.lock
   pins/<pin-id>/                             base project for one pin
     devenv.nix  devenv.yaml  devenv.lock  pin.toml
   nix/
-    entry.nix                                one driver request
+    introspect.nix                           the request module that the base imports
     options.nix                              options export
     serialize.nix                            tagged JSON values
     oracle.nix                               per-file contributions
   reader-module/default.nix                  Path T fixed reader
-  src/devenv_models/
+  src/devenv_py/
     pin.py  driver.py  options.py  truth.py  normalize.py  compare.py
     corpus.py  values.py  generator.py  writer_nix.py  writer_toml.py
     read_eval.py  read_syntax.py  roundtrip.py  generate_cases.py  report.py  cli.py
@@ -52,7 +52,7 @@ devenv-models/
   .agents/skills/                            Step 16
 ```
 
-The command-line tool is `dm` (proposed). Its subcommands appear in the steps that add them.
+The command-line tool is `dpy` (proposed). Its subcommands appear in the steps that add them.
 
 ---
 
@@ -64,8 +64,11 @@ The command-line tool is `dm` (proposed). Its subcommands appear in the steps th
 
 **Facts the later steps rely on.**
 
-- `devenv eval` reaches only `devenv.config.*` (O2). The harness cannot use it for options.
-- `devenv repl` reads commands from standard input (O4).
+- `devenv eval` reaches only `devenv.config.*` (O2). A module can still expose options there.
+- An introspection module with the `options` and `extendModules` arguments works through stock
+  `devenv eval`. A request file reaches it through `-O`. The evaluation cache tracks changed files
+  (O10 to O12).
+- `devenv repl` reads commands from standard input (O4). It is the fallback route.
 - `devenv.project` is the `lib.evalModules` result. Its `options` carry `type.name`,
   `nestedTypes`, and `definitionsWithLocations` (O6, O7).
 - `devenv.project.extendModules` evaluates added modules in the same process (O8).
@@ -84,7 +87,7 @@ fails, stop and update the concept before you continue.
 
 **Actions.**
 
-1. Create the `devenv-models` repository with the owner's usual repository tooling. Use Gitman
+1. Create the `devenv-py` repository with the owner's usual repository tooling. Use Gitman
    workspaces for every later change.
 2. Write `devenv.nix` with Python 3.13, uv, Nix tools (`nix-instantiate`), and the Testee module.
    Copy the Testee import pattern from Vendomat's `devenv.nix`.
@@ -126,7 +129,7 @@ fails, stop and update the concept before you continue.
    inputs = ["devenv", "nixpkgs", "nixpkgs-python"]
    ```
 
-7. Write `src/devenv_models/pin.py`. It reads `pin.toml`, checks it against `devenv.lock` and
+7. Write `src/devenv_py/pin.py`. It reads `pin.toml`, checks it against `devenv.lock` and
    `devenv --version`, and fails on any difference.
 
 **Expected result.** `devenv shell -- python -c "import pydantree_sitter, templateer, tree_sitter_nix"`
@@ -140,93 +143,134 @@ exits 0. `pin.py` accepts the pin.
 
 ## Step 2. The evaluation driver
 
-**Goal.** One Python function sends a request to `devenv repl` and returns parsed JSON.
+**Goal.** One Python function sends a request to stock `devenv eval` and returns parsed JSON.
+
+The base project imports an introspection module. The module takes the `options` and
+`extendModules` module arguments. It reads a request file and puts its answer in a read-only config
+value. `devenv eval` then reads that value like any other config attribute (probe O10 to O12).
+No fork patch and no repl are needed.
 
 **Actions.**
 
-1. Write `nix/entry.nix`. The driver passes a request file. The entry wraps its answer in
-   sentinels so that the driver can find it in the repl output.
+1. Write `nix/introspect.nix`:
 
    ```nix
-   # nix/entry.nix: answer one driver request.
-   { devenv, requestFile }:
+   # nix/introspect.nix: answer one harness request as a config value.
+   { lib, pkgs, options, extendModules, config, ... }:
    let
-     lib = devenv.pkgs.lib;
-     req = builtins.fromJSON (builtins.readFile requestFile);
-     result =
-       if req.kind == "echo" then req.payload
-       else if req.kind == "options" then
-         import ./options.nix { inherit lib; project = devenv.project; maxDepth = req.maxDepth; }
-       else if req.kind == "truth" then
-         lib.mapAttrs (_: c: import ./oracle.nix {
-           inherit lib;
-           project = devenv.project.extendModules { modules = map (f: /. + f) c.modules; };
-           roots = c.roots;
-         }) req.candidates
-       else throw "unknown request kind: ${req.kind}";
-   in "@@DM-BEGIN@@" + builtins.toJSON result + "@@DM-END@@"
+     cfg = config.introspect;
+     req = builtins.fromJSON (builtins.readFile cfg.request);
+     # The harness never reports on its own options.
+     own = opts: removeAttrs opts [ "introspect" ];
+     truthOf = c:
+       let extended = extendModules { modules = map (f: /. + f) c.modules; };
+       in import ./oracle.nix { inherit lib; options = own extended.options; roots = c.roots; };
+   in
+   {
+     options.introspect = {
+       request = lib.mkOption {
+         type = lib.types.nullOr lib.types.path;
+         default = null;
+         description = "The harness request file.";
+       };
+       result = lib.mkOption {
+         type = lib.types.raw;
+         readOnly = true;
+         description = "The answer to the harness request.";
+       };
+       optionsDoc = lib.mkOption {
+         type = lib.types.package;
+         readOnly = true;
+         description = "nixosOptionsDoc JSON for the completeness check of Step 4.";
+       };
+     };
+     config.introspect = {
+       result =
+         if cfg.request == null then null
+         else if req.kind == "echo" then req.payload
+         else if req.kind == "options" then
+           import ./options.nix { inherit lib; options = own options; maxDepth = req.maxDepth; }
+         else if req.kind == "truth" then lib.mapAttrs (_: truthOf) req.candidates
+         else throw "unknown request kind: ${req.kind}";
+       optionsDoc =
+         (pkgs.nixosOptionsDoc { options = removeAttrs (own options) [ "_module" ]; }).optionsJSON;
+     };
+   }
    ```
 
-2. Write `src/devenv_models/driver.py`:
+2. Make the base project import it. Replace `pins/<pin-id>/devenv.nix` with:
+
+   ```nix
+   # pins/<pin-id>/devenv.nix: the base that candidates extend.
+   { imports = [ ../../nix/introspect.nix ]; }
+   ```
+
+3. Write `src/devenv_py/driver.py`:
 
    ```python
-   SENTINEL = re.compile(r"@@DM-BEGIN@@(.*?)@@DM-END@@", re.S)
-
-
    class DriverError(RuntimeError):
-       """The repl gave no result. The message holds the tail of its error output."""
+       """devenv eval failed. The message holds the tail of its error output."""
 
 
-   def run_request(pin_dir: Path, request: dict, run_dir: Path, timeout: int = 900) -> Any:
+   def run_request(
+       pin_dir: Path, request: dict, run_dir: Path, timeout: int = 900, cache: bool = True
+   ) -> Any:
        run_dir.mkdir(parents=True, exist_ok=True)
        request_file = run_dir / "request.json"
        request_file.write_text(json.dumps(request))
-       script = (
-           f":p import {NIX_DIR}/entry.nix "
-           f"{{ inherit devenv; requestFile = {request_file}; }}\n:q\n"
-       )
+       argv = ["devenv", "eval"]
+       if not cache:
+           argv.append("--no-eval-cache")
+       argv += ["-O", "introspect.request:path", str(request_file), "introspect.result"]
        proc = subprocess.run(
-           ["devenv", "repl"], input=script, cwd=pin_dir, text=True,
-           capture_output=True, timeout=timeout, env={**os.environ, "NO_COLOR": "1"},
+           argv, cwd=pin_dir, text=True, capture_output=True, timeout=timeout,
+           env={**os.environ, "NO_COLOR": "1"},
        )
-       (run_dir / "repl.stdout").write_text(proc.stdout)
-       (run_dir / "repl.stderr").write_text(proc.stderr)
-       match = SENTINEL.search(proc.stdout)
-       if match is None:
+       (run_dir / "eval.stdout").write_text(proc.stdout)
+       (run_dir / "eval.stderr").write_text(proc.stderr)
+       if proc.returncode != 0:
            raise DriverError(proc.stderr[-4000:])
-       return json.loads(match.group(1))
+       return json.loads(proc.stdout)["introspect.result"]
    ```
 
-   `run_dir` is `~/.local/state/devenv-models/runs/<timestamp>-<kind>/`.
-3. Write `tests/test_driver.py`. Send an `echo` request with a payload that holds a double quote, a
+   `run_dir` is `~/.local/state/devenv-py/runs/<timestamp>-<kind>/`.
+4. Write `tests/test_driver.py`. Send an `echo` request with a payload that holds a double quote, a
    backslash, a newline, `${`, a non-ASCII character, and a nested list. Assert that the result
    equals the payload.
-4. Test the fallback trigger: send an unknown request kind. Assert that `DriverError` holds the text
-   `unknown request kind`.
+5. Send an unknown request kind. Assert that `DriverError` holds the text `unknown request kind`.
+6. Test the cache. Send two different requests through the same file path. Assert two different
+   results (probe O12 saw this once). Keep `cache=False` as the switch if it ever fails.
 
-**Expected result.** The echo test passes. The repl prints the sentinel string raw, without quotes
-(probe O4 printed JSON raw). If the repl quotes or colors the string, fall back: return
-`devenv.pkgs.writeText "dm-result.json" json` with `:b`, and read the store path from the output.
-Record which mode works.
+**Expected result.** The echo test passes, and the cache test gives two different results.
 
-**Record.** `evidence/step-2.md`: the mode, the echo payload, the wall time of one request.
+**Fallback.** If a later pin breaks this route, use `devenv repl`. Pipe
+`:p import <nix-dir>/entry.nix { inherit devenv; requestFile = <file>; }` on standard input. Let the
+entry wrap `builtins.toJSON` of the answer in fixed sentinel strings, and parse the text between
+them (probe O4). Use `devenv.project.options` and `devenv.project.extendModules` in place of the
+module arguments.
 
-**Gate GM1 (part 1).** The echo round trip passes on the pin.
+**Record.** `evidence/step-2.md`: the echo payload, the cache result, and the wall time of one
+request with and without the cache.
+
+**Gate GM1 (part 1).** The echo and cache tests pass on the pin.
 
 ---
 
 ## Step 3. Batch evaluation and bisection
 
-**Goal.** Evaluate many candidate modules in one repl process. Find the bad one when a batch fails.
+**Goal.** Evaluate many candidate modules in one `devenv eval` call. Find the bad one when a batch
+fails.
 
 **Actions.**
 
-1. Write a temporary `oracle.nix` that returns `project.config.env` for each candidate. Step 5
+1. Write a temporary `oracle.nix` that returns the `env` definitions for each candidate. Step 5
    replaces it.
 2. Write three candidate modules under a temporary directory. Each one sets a different
    `env.MARK` value. Send one `truth` request with all three. Assert three different results.
-3. Confirm that a module given as a path keeps its path in `definitionsWithLocations`. Probe O8 saw
-   `<unknown-file>` only for an inline module. This is an inference until this test passes.
+3. Confirm that a module given as an absolute path keeps its path in `definitionsWithLocations`.
+   Probe O8 saw `<unknown-file>` only for an inline module, and probe O12 used a relative path.
+   Also confirm that pure evaluation lets the module read candidate files outside the base project.
+   If it does not, let the driver copy each batch into `pins/<pin-id>/.candidates/<batch-id>/`.
 4. Write `driver.run_batch(candidates)`. On `DriverError`, split the batch in two halves and retry
    each half. A single candidate that still fails gets the status `eval-error` and keeps its error
    tail (MDL-013).
@@ -254,7 +298,7 @@ candidate falls as the batch grows.
 
    ```nix
    # nix/options.nix: export the option tree with structured types.
-   { lib, project, maxDepth }:
+   { lib, options, maxDepth }:
    let
      json = v:
        let r = builtins.tryEval (builtins.toJSON v);
@@ -287,13 +331,14 @@ candidate falls as the batch grows.
          if lib.isOption v then [ (leaf depth v) ]
          else if builtins.isAttrs v then walk depth v
          else [ ]) (removeAttrs attrs [ "_module" ]));
-   in walk 0 project.options
+   in walk 0 options
    ```
 
-2. Write `src/devenv_models/options.py` with `dm export`. It sends an `options` request with
+2. Write `src/devenv_py/options.py` with `dpy export`. It sends an `options` request with
    `maxDepth = 3`, adds the pin, adds a SHA-256 of the canonical JSON, and writes
    `exports/<pin-id>/options.json`.
-3. Write the completeness check. Build `devenv.optionsJSON` through the repl (`:b`). Take its keys.
+3. Write the completeness check. Run `devenv build introspect.optionsDoc` and read
+   `share/doc/nixos/options.json`. Take its keys.
    Take the joined `loc` of every exported option that is visible and not internal, including
    sub-options. The two sets must be equal. List every difference. `optionsJSON` writes `<name>`
    for an attribute-set element and `*` for a list element; map the export's names the same way.
@@ -354,7 +399,7 @@ enum payload form.
 
    ```nix
    # nix/oracle.nix: the definitions that files under `roots` give to each option.
-   { lib, project, roots }:
+   { lib, options, roots }:
    let
      serialize = import ./serialize.nix { inherit lib; };
      mine = d: lib.any (root: lib.hasPrefix root (toString d.file)) roots;
@@ -371,10 +416,10 @@ enum payload form.
          if lib.isOption v then leaf v
          else if builtins.isAttrs v then walk v
          else [ ]) (removeAttrs attrs [ "_module" ]));
-   in walk project.options
+   in walk options
    ```
 
-3. Write `src/devenv_models/truth.py` with `dm truth <fixture>...`. It builds a batch request. Each
+3. Write `src/devenv_py/truth.py` with `dpy truth <fixture>...`. It builds a batch request. Each
    candidate's `modules` is the fixture's `source/devenv.nix`. Its `roots` is the fixture's
    `source/` directory.
 4. Write five golden fixtures under `tests/golden/`. Write each expected truth by hand. Use the
@@ -409,7 +454,7 @@ the golden values with its cause.
 
 **Actions.**
 
-1. Write `src/devenv_models/normalize.py`:
+1. Write `src/devenv_py/normalize.py`:
    - Sort object keys.
    - Replace `/nix/store/<32 chars>-` with `<store>/` in every string.
    - Rewrite `$path` values under the fixture root as relative paths that start with `./`.
@@ -419,7 +464,7 @@ the golden values with its cause.
      `separatedString` joins with its separator. Mark any other option with more than one
      definition as `multi-def`.
    - Drop `$name` from `$pkg` values, because it carries a version. Keep `$pkg` and `$output`.
-2. Write `src/devenv_models/compare.py`. It returns a list of differences. Each difference holds
+2. Write `src/devenv_py/compare.py`. It returns a list of differences. Each difference holds
    the option path, the JSON path inside the value, the expected value, and the actual value.
 3. Write unit tests for each rule in action 1, and for a comparison with zero, one, and many
    differences.
@@ -439,7 +484,7 @@ test.
 
 **Actions.**
 
-1. Write `src/devenv_models/corpus.py` with `dm harvest <source>`. Each fixture gets this layout:
+1. Write `src/devenv_py/corpus.py` with `dpy harvest <source>`. Each fixture gets this layout:
 
    ```text
    corpus/<source>/<name>/
@@ -481,10 +526,10 @@ time.
 
 **Actions.**
 
-1. Write `src/devenv_models/values.py` with the shared value types: `PkgRef`, `PathRef`,
+1. Write `src/devenv_py/values.py` with the shared value types: `PkgRef`, `PathRef`,
    `NixExpr`, `Priority[T]`, `Lines`, and `JsonValue`. Each has a `to_tagged()` method that
    returns the tagged JSON form of Step 5.
-2. Write `src/devenv_models/generator.py` with `dm gen <subtree>`. It reads the export, selects
+2. Write `src/devenv_py/generator.py` with `dpy gen <subtree>`. It reads the export, selects
    options whose `loc` starts with the subtree, and maps each type tree with the concept's table.
    - Match parameterized names by prefix, such as `strMatching <pattern>`.
    - Read integer bounds by name for fixed types (`unsignedInt16`: 0 to 65535). For `intBetween`,
@@ -497,21 +542,21 @@ time.
 3. Write the module header:
 
    ```python
-   # Generated by devenv-models. Do not edit.
+   # Generated by devenv-py. Do not edit.
    # pin: devenv-2.4.0-a73c5b84-c2f38fe7
    # export: sha256:<hash>
    # subtree: services.postgres
    ```
 
-4. Write `dm schema <subtree>`. It writes JSON Schema from the generated model.
+4. Write `dpy schema <subtree>`. It writes JSON Schema from the generated model.
 5. Write the narrowing loader. It imports `narrowed/<subtree>.py` and checks that each class adds no
    field that the option tree lacks (MDL-009).
 6. Write unit tests for each row of the type table, from small synthetic export entries. Write a
    golden test for `services.postgres`.
-7. Write the drift check: `dm drift <old-pin> <new-pin>`. It lists added, removed, and retyped
+7. Write the drift check: `dpy drift <old-pin> <new-pin>`. It lists added, removed, and retyped
    options per subtree.
 
-**Expected result.** `dm gen languages.python` and `dm gen services.postgres` write importable
+**Expected result.** `dpy gen languages.python` and `dpy gen services.postgres` write importable
 modules. The coverage list names every `NixExpr` field.
 
 **Record.** `evidence/step-8.md`: the coverage for both pilot subtrees and the census of unmapped
@@ -592,7 +637,7 @@ tests and release tag. The harness then pins that tag.
 
    Quote any `loc` segment that is not a plain Nix identifier. Add that rule to the `nix` filter
    tests.
-2. Write `src/devenv_models/writer_nix.py`. It takes a model, or a normalized truth, and produces
+2. Write `src/devenv_py/writer_nix.py`. It takes a model, or a normalized truth, and produces
    the `ModuleContribution`. It renders through Templateer's Python interface. An option without a
    model uses the generic tagged value. A `$fn` value makes the fixture `has-fn`; RT2 skips it with
    that reason.
@@ -615,7 +660,7 @@ tests and release tag. The harness then pins that tag.
    ```
 
    Path T does not carry `$nix` or `$priority`. A model with those values uses Path N only.
-4. Write `src/devenv_models/writer_toml.py`. It writes the nested option tree as TOML with
+4. Write `src/devenv_py/writer_toml.py`. It writes the nested option tree as TOML with
    `tomli-w`, beside a copy of the reader module.
 5. Test both writers on the five golden fixtures. Evaluate the output. Compare its truth with the
    golden truth.
@@ -635,12 +680,12 @@ value that its path cannot carry.
 
 **Actions.**
 
-1. Write `src/devenv_models/read_eval.py`. It takes a normalized truth and validates the subtree
+1. Write `src/devenv_py/read_eval.py`. It takes a normalized truth and validates the subtree
    with the generated or narrowed model.
    - Resolve each `$pkg` to an attribute path. Try the candidates `pname` and
      `pname.<output>` in one batch evaluation, and keep the one whose `outPath` matches. Record an
      ambiguous or missing result as a miss (concept open question 3).
-2. Write `src/devenv_models/read_syntax.py` with pydantree. Load the grammar from
+2. Write `src/devenv_py/read_syntax.py` with pydantree. Load the grammar from
    `tree_sitter_nix` and the vendored `node-schema.json`, as in pydantree's `devenv-extract`
    example. Read node kinds from the vendored schema. Do not trust the names in this guide.
    - Accept a function head such as `{ pkgs, lib, ... }:` and read its body.
@@ -670,7 +715,7 @@ value that its path cannot carry.
 
 **Actions.**
 
-1. Write `src/devenv_models/roundtrip.py` with `dm rt --subtree <s> --checks RT1,...`. For each
+1. Write `src/devenv_py/roundtrip.py` with `dpy rt --subtree <s> --checks RT1,...`. For each
    `batch` or `alone` fixture:
 
    | Check | Steps |
@@ -683,7 +728,7 @@ value that its path cannot carry.
    | RT6 | For a data-only instance: write TOML with `writer_toml`. Evaluate. Compare with truth. |
 
 2. Evaluate every rendered candidate of one run in one batch (Step 3).
-3. Write each case result as one JSON line under `~/.local/state/devenv-models/rt/<run-id>/`:
+3. Write each case result as one JSON line under `~/.local/state/devenv-py/rt/<run-id>/`:
    fixture, subtree, check, status (`pass`, `fail`, `skip`), reason, and differences.
 
 **Expected result.** RT2 passes on most `batch` fixtures before any narrowing, because it renders
@@ -701,7 +746,7 @@ the truth back as data. Its failures show writer and serializer gaps.
 
 **Actions.**
 
-1. Write `src/devenv_models/generate_cases.py`. Build Hypothesis strategies from each generated
+1. Write `src/devenv_py/generate_cases.py`. Build Hypothesis strategies from each generated
    model. Use custom strategies for the value types:
    - `PkgRef` from a short vetted list of attribute paths that evaluate at the pin.
    - `PathRef` from files that the case creates in its candidate directory.
@@ -738,7 +783,7 @@ the time per case.
 
 **Actions.**
 
-1. Write `src/devenv_models/report.py` with `dm report <run-id>`. It writes Markdown and JSON with:
+1. Write `src/devenv_py/report.py` with `dpy report <run-id>`. It writes Markdown and JSON with:
    - a table per subtree: options, mapped options, `NixExpr` misses, fixtures, and pass counts for
      RT1 to RT8,
    - each failure: fixture, check, class, the first differences, and the log path,
@@ -766,7 +811,7 @@ the time per case.
 
 **Actions.**
 
-1. Run `dm rt` with all checks for both subtrees. Read the report.
+1. Run `dpy rt` with all checks for both subtrees. Read the report.
 2. Fix each failure in the right place:
    - Generator, writer, serializer, or normalizer errors: fix the code, with a unit test.
    - Cross-field rules from RT7: add validators in `narrowed/<subtree>.py`.
@@ -798,13 +843,13 @@ the time per case.
 
 **Actions.**
 
-1. Write `.agents/skills/devenv-models-harvest/SKILL.md`. Inputs: a source. Steps: `dm harvest`,
-   triage, `dm truth` twice. Done when every fixture has a class and a stable truth.
-2. Write `.agents/skills/devenv-models-author/SKILL.md`. Inputs: a subtree. Steps: `dm gen`, read the
+1. Write `.agents/skills/devenv-py-harvest/SKILL.md`. Inputs: a source. Steps: `dpy harvest`,
+   triage, `dpy truth` twice. Done when every fixture has a class and a stable truth.
+2. Write `.agents/skills/devenv-py-author/SKILL.md`. Inputs: a subtree. Steps: `dpy gen`, read the
    coverage list and the fixtures, write `narrowed/<subtree>.py`, add syntax reader rules if needed,
-   run `dm rt`. Done when GM9's thresholds hold for the subtree. Point to the
+   run `dpy rt`. Done when GM9's thresholds hold for the subtree. Point to the
    `copyroom-template-edit` skill for template changes.
-3. Write `.agents/skills/devenv-models-roundtrip/SKILL.md`. Inputs: a report. Steps: pick one
+3. Write `.agents/skills/devenv-py-roundtrip/SKILL.md`. Inputs: a report. Steps: pick one
    failure, find its class, fix it in the right place, rerun the failing case and then the subtree.
    Done when the case passes and no other case fails.
 4. Put these rules in all three skills (MDL-005):
