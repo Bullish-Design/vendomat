@@ -47,6 +47,14 @@ gate.
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
 
+## Draft concept: project 17 — typed models for devenv modules
+
+`.scratch/projects/17-devenv-model-layer/`: `CONCEPT.md`, `GUIDE-HARNESS.md`, and
+`evidence/step-0-probe.md`. Pydantic models are generated from native option declarations and
+checked by a round-trip harness against Nix evaluation. Agent skills do the authoring. Only Step 0
+(the probe of devenv's evaluation surfaces) is done. It does not change the authority of project 14
+or project 16.
+
 ## Active: project 14 — Vendomat V5
 
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
