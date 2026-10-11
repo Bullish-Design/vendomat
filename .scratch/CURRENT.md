@@ -49,10 +49,15 @@ before shell entry ([evidence](projects/16-vendomat-devenv-layer/evidence/wrappe
 The shell now carries the pinned `vendomat` and runs `check` and `push` as tasks; the host launcher
 serves `sync` only inside a workspace (`DEL-020`, `VMOD-020`, `VMOD-021`). Upstream PR
 cachix/devenv#3055 does not cover the need on 2.4.0, so the fork carries it. Fork `v2.4.0-vendomat.3`
-(built and tested, not yet published) adds input inheritance (patch 0007, `DVN-011`) and fixes a cold
-first entry that fails on `.2` (patch 0008, `DVN-012`)
-([evidence](projects/16-vendomat-devenv-layer/evidence/fork-3-inheritance.md)). Next: publish `.3`,
-then remove `sync`. Collection work moves to the `server` role in a later change.
+(published in the collection) adds input inheritance (patch 0007, `DVN-011`) and fixes a cold first
+entry that fails on `.2` (patch 0008, `DVN-012`)
+([evidence](projects/16-vendomat-devenv-layer/evidence/fork-3-inheritance.md)).
+
+**Draft under owner review: project 20, Vendomat as the front door to devenv (2026-10-11).**
+`.scratch/projects/20-vendomat-front-door/CONCEPT.md`. The user runs Vendomat, and Vendomat runs
+devenv. One user file, `vendomat.yaml`, holds sources, imports, and values for real option names.
+It replaces `vendomat.toml`, `[settings]`, and `sync`, answers project 19's open question 2, and would
+reverse `DEL-020`. Collection work moves to the `server` role in a later change.
 
 Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
 superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
