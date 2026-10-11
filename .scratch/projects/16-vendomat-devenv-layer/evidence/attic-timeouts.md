@@ -357,3 +357,70 @@ Raw output is in
 [max4/](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/max4/). The soak run
 the owner stopped is in
 [soak/](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/soak/).
+
+## Follow-up, 2026-10-11
+
+### Switch outcomes
+
+The owner reported that the second and third switches (the patched Attic with `acquire-timeout`, then
+four connections) succeeded. The exit codes were not captured. The first switch returned exit 4 for
+the Argentic port conflict. After each later switch, `atticd` was `active (running)` with the new
+checked TOML, and the journal showed the start, migrations, and listen lines.
+
+### Uptime run
+
+The goal was to test whether the original failure returns on a long-lived process.
+
+| Item | Value |
+| --- | --- |
+| Process | `atticd` PID 1881924, active since 2026-10-10 20:57:43 EDT (four connections) |
+| Run time | 2026-10-11 04:10:00 UTC, so the process was 3 h 12 min old |
+| Command | `testee check live-cache-load` |
+| Result | pass, 1 attempt, 9.581 s, 0 narinfo errors, cold substitution passed |
+| Report | `20261011T041001Z`; Testee run `20261011T041000Z-22d5fa275a22` |
+| Journal since the restart | 5 lines (startup only); 0 lines match timeout, pool, locked, busy, error, 500, or panic |
+
+Observation: one load push on a 3-hour-old process matches the runs minutes after the restart (8.5–10.5 s).
+Limit: one run at one age. The journal does not log requests, so the traffic volume since the restart
+is unknown.
+
+### Concurrent writes
+
+The owner ran the burst test from a terminal on 2026-10-11 at 04:15:42 UTC. The agent session had not
+been allowed to run it. The server was `atticd` PID 1881924 (four connections, about 3 h 18 min old).
+The test pushed unique random objects with `attic push -j 1` through `vendomat-server`, and read one
+cached path's narinfo every 0.5 s through `vendomat-pull-check`. Raw output:
+`~/.local/state/vendomat/v6/attic-investigation/pool-options/burst/20261011T041542Z/`.
+
+| Round | Concurrent pushes | Push exits | Wall time | Narinfo reads | Statuses | p95 / max latency | Paths absent after |
+| --- | --- | --- | ---: | ---: | --- | --- | ---: |
+| A | 4 × 64 MiB | 0, 0, 0, 0 | 53.3 s | 89 | all 200 | 0.149 s / 0.383 s | 0 |
+| B | 8 × 16 MiB | eight 0 | 29.6 s | 41 | all 200 | 0.391 s / 0.412 s | 0 |
+
+The atticd journal had no entry from 00:15 EDT onward. No push printed an error line.
+
+Observation: with four connections, 4 and 8 concurrent writers produced no "database is locked" error,
+no HTTP 500, and no read slower than 0.42 s. Narinfo reads stayed fast during the writes. With one
+connection, a single 64 MiB push had earlier made a read wait 30 s in production.
+
+Limits. The test ran while two Rust builds loaded the CPU (load average 10–15), so the timings are
+pessimistic and not a clean measurement. One run of each round. The objects were random and did not
+overlap, so they do not show lock behavior with chunk reuse across concurrent uploads. Two rounds of
+about 80 s in total do not cover a long mixed workload. The 30 s `busy-timeout` would hide lock waits
+shorter than that, so a wait under 30 s would not appear as an error. Peak write rate was not
+measured. The cause of the original timeouts remains **not established**.
+
+### Requirement and patch header
+
+`CACHE-013` in `SPEC-V6.md` now holds the pool-key requirement and its four checks. One check is that the
+daemon binary contains the key strings. On 2026-10-11 the stock build `4fwzb3rc…` had 0 matches for each
+of `acquire-timeout`, `max-connections`, and `busy-timeout`. The patched build `yp3z60h1…` had 4, 4, and 7.
+The patch file in `nix-meta` now carries a header that states the keys, the defaults, the migration rule,
+the pinned source revision, and `CACHE-013`.
+
+The header is committed as nix-meta `main` revision `2b08179b`. The header changes the patch file's
+content, so the derivation changed. The rebuild passed: `/nix/store/ig7fb0lrs6bw75d0ck9qc7ky023nbi4m-attic-0-unstable-2026-06-26`
+holds the same key-string counts (4, 4, and 7) and gives the same `check-config` results (a valid file
+exits 0; `max-connections = 0` and a bad duration exit 1). The running service still uses
+`yp3z60h1…`, which has the same behavior. The next switch will start `atticd` with the rebuilt binary.
+Raw build log: `~/.local/state/vendomat/v6/attic-investigation/pool-options/header/`.

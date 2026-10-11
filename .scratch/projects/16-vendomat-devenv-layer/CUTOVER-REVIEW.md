@@ -234,7 +234,7 @@ one). Promote the new entry to default only after repeated good boots (`MACH-009
    `fe848434`) sets none of these. A stock Attic ignores the keys without an error, so a role with the
    keys and no patch would silently run one connection and a 30 s wait. That is the setting under
    which the pool timeouts occurred (cause not established;
-   [attic-timeouts.md](./evidence/attic-timeouts.md)). Owner decision: carry the patch, the
+   [attic-timeouts.md](./evidence/attic-timeouts.md)). The requirement is `CACHE-013`. Owner decision: carry the patch, the
    `overrideAttrs`, and the three keys into the role, or accept the stock setting. Carrying them needs
    a services VM rerun with the patched package.
 

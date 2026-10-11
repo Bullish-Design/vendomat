@@ -54,6 +54,7 @@ Run directories are under `~/.local/state/vendomat/v6/live-cache/`.
 | `20261011T005821Z` | live-cache-load | pass | 1 (8.477 s) | 0 retries, 0 narinfo errors |
 | `20261011T005847Z` | live-cache-load | pass | 1 (9.382 s) | 0 retries, 0 narinfo errors |
 | `20261011T005914Z` | live-cache-load | pass | 1 (10.543 s) | 0 retries, 0 narinfo errors |
+| `20261011T041001Z` | live-cache-load | pass | 1 (9.581 s) | Four connections; the process was 3 h 12 min old; 0 retries, 0 narinfo errors |
 
 The four new checks ran in the listed order with `testee check live-cache`, then
 `testee check live-cache-load` three times. Each command exited 0. Each cold substitution passed.
