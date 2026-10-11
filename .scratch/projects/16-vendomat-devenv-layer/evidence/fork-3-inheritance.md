@@ -96,9 +96,28 @@ before the shell runs. Without the pre-resolver, every cold first entry would fa
 It copies an unregistered tree into the store with the expected hash, and returns a registered path
 unchanged. It is fork-only; report it on PR #3244.
 
+## Publication
+
+Date: 2026-10-11, on `server`. Raw log: `~/.local/state/vendomat/v7/2026-10-11/publish-3.log`.
+
+Method. The collection is the local repository `/home/andrew/vendor/devenv`, the same remote that
+published `.2` (`collection`). The `.3` materialized repo is a plain git repo, so a git push sent
+only the tag.
+
+| Step | Command | Expected | Actual |
+| --- | --- | --- | --- |
+| Check | `git -C ~/.local/state/vendomat/v7/2026-10-11/devenv-v2.4.0-vendomat.3 rev-parse HEAD v2.4.0-vendomat.3^{commit} HEAD^` | `fb5d382b…`, `fb5d382b…`, parent `1d431d51…` | as expected; `git status` clean |
+| Push | `git -C <that repo> push /home/andrew/vendor/devenv refs/tags/v2.4.0-vendomat.3:refs/tags/v2.4.0-vendomat.3` | one new tag, no other ref changes | `* [new tag] v2.4.0-vendomat.3`; exit 0 |
+| Read side | `git ls-remote git://server/devenv` | tag `.3` at `fb5d382b…`; `.2` unchanged | `.3` at `fb5d382b822f6ecf58365a77f2f872ba6f7ce79d`; `.2` at `e2acb5b0…` |
+| Prefetch | `nix flake prefetch --json 'git://server/devenv?ref=refs/tags/v2.4.0-vendomat.3&dir=src/modules'` | rev `fb5d382b…` | `rev` `fb5d382b822f6ecf58365a77f2f872ba6f7ce79d`, `dir` `src/modules`, `revCount` 7377 |
+| Build | `nix build --no-link --print-out-paths 'git://server/devenv?ref=refs/tags/v2.4.0-vendomat.3#devenv' --accept-flake-config` | the existing patched CLI path | `/nix/store/mmmrsi96mgab54ccgs6l8cpkvh5lh2xm-devenv-wrapped-2.4.0` |
+
+The push hook of the collection printed `working tree now shows v2.4.0-vendomat.3`. Nothing went to
+GitHub. Live pins in templates, tests, and `CONCEPT-V6.md` moved to `.3` after this publication.
+
 ## Not proved
 
-- The tag is not published to the collection or to GitHub. Templates and examples still pin `.2`.
+- The tag is not on GitHub. The owner did not ask for it there.
 - No GitHub or GitLab source was tested with inheritance.
 - A nested `follows` through an input that has no URL still cannot reach Nix; the patch fails with a
   message there (spike S3).

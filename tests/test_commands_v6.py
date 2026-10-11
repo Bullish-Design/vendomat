@@ -183,12 +183,12 @@ def devenv_node(rev: str, directory: str = "src/modules") -> dict:
                 "dir": directory,
                 "type": "git",
                 "narHash": sri("cc"),
-                "ref": "refs/tags/v2.4.0-vendomat.2",
+                "ref": "refs/tags/v2.4.0-vendomat.3",
             },
             "original": {
                 "type": "git",
                 "url": "git://s/devenv",
-                "ref": "refs/tags/v2.4.0-vendomat.2",
+                "ref": "refs/tags/v2.4.0-vendomat.3",
                 "dir": directory,
             },
         }

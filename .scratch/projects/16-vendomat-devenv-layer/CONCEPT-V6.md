@@ -53,7 +53,7 @@ not yet define that interface. New machine capabilities remain work for module a
 ## 1. One pinned devenv
 
 Vendomat ships a fork of devenv in the collection: upstream `v2.4.0` plus a short patch series.
-The current fixture tag is `v2.4.0-vendomat.2`; `v2.4.0-vendomat.3` adds input inheritance (patch 0007, `DVN-011`) and a cold-store fix (patch 0008, `DVN-012`). It is built and tested but not yet published. The builder on `server` builds it. The host core
+The current fixture tag is `v2.4.0-vendomat.3`. It adds input inheritance (patch 0007, `DVN-011`) and a cold-store fix (patch 0008, `DVN-012`) to `.2`, and it is published to the collection. The builder on `server` builds it. The host core
 installs it after the live distribution and cache gates pass.
 
 | Patch | Upstream | Kept until |

@@ -23,7 +23,7 @@ passed; see [evidence](projects/16-vendomat-devenv-layer/evidence/live-release-2
 installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
 privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot
 order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
-proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.2`.
+proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.3`, published to the collection on 2026-10-11 (the review above still names `.2`).
 
 The live cache checks `testee check live-cache` and `live-cache-load` (`CACHE-012`) pass on
 `server`. The original 64 MiB runs needed a second push attempt and showed server pool timeouts.
