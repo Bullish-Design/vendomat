@@ -53,7 +53,7 @@ not yet define that interface. New machine capabilities remain work for module a
 ## 1. One pinned devenv
 
 Vendomat ships a fork of devenv in the collection: upstream `v2.4.0` plus a short patch series.
-The current fixture tag is `v2.4.0-vendomat.2`. The builder on `server` builds it. The host core
+The current fixture tag is `v2.4.0-vendomat.2`; `v2.4.0-vendomat.3` adds input inheritance (patch 0007, `DVN-011`) and a cold-store fix (patch 0008, `DVN-012`). It is built and tested but not yet published. The builder on `server` builds it. The host core
 installs it after the live distribution and cache gates pass.
 
 | Patch | Upstream | Kept until |
@@ -64,6 +64,8 @@ installs it after the live distribution and cache gates pass.
 | `isRelease = true`, so `require_version: true` is enforced | none; fork-only | Always |
 | `machines install` refuses an `adopt-existing` machine before any contact (patch 0005) | none; fork-only | Always |
 | `machines install` runs the target-side preflight of a `fresh-install` machine before disko (patch 0006) | none; fork-only | Always |
+| An input-style import brings the inputs of its source's `devenv.yaml`; nested `follows` reach the lock (patch 0007, from `v2.4.0-vendomat.3`) | issue #2205; PR #3055 is open and fails on non-path sources on v2.4.0 | Upstream inherits inputs with a conflict error |
+| A locked source whose store path is visible to evaluation but not registered is copied into the store (patch 0008, from `v2.4.0-vendomat.3`) | none; fork-only. It corrects patch 0003 | Upstream PR #3244 lands with the same fix |
 
 Every devenv project sets `require_version: "2.4.0"` and pins `inputs.devenv` to the fork revision. A
 fleet check reports any project that differs. On each upstream bump, a fixed checklist runs (SPEC

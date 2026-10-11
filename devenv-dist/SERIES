@@ -5,3 +5,5 @@
 0004-vendomat-build-the-devenv-CLI-as-a-release-DEVENV_IS.patch
 0005-vendomat-refuse-machines-install-for-an-adopted-mach.patch
 0006-vendomat-require-a-target-bound-preflight-before-a-f.patch
+0007-vendomat-inherit-the-inputs-of-an-imported-source-s-.patch
+0008-vendomat-copy-a-lazily-mounted-locked-source-into-the-store.patch

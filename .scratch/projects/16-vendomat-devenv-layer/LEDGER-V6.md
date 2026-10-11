@@ -13,7 +13,7 @@ V6 stays a **draft**. V5 stays authoritative until the owner accepts V6.
 | V5 requirement IDs in tables (active 152, superseded 32, withdrawn 4, narrowed 1) | 189 |
 | V5 withdrawn IDs listed as ranges, not rows (`PROJ-*`, `RES-*`, `EMIT-*`) | 25 |
 | V5 `NAT-*` facts | 17 |
-| V6 IDs defined (active 55, proposed 26, to build 0, superseded 37, decided 2) | 120 |
+| V6 IDs defined (active 55, proposed 28, to build 0, superseded 37, decided 2) | 122 |
 | V6 `NAT-*` facts | 31 |
 | V5 IDs that section 0 names | 53 |
 
@@ -304,6 +304,8 @@ withdrew it, and V6 adds nothing.
 | `DVN-008` | active |  |  |
 | `DVN-009` | proposed |  |  |
 | `DVN-010` | active |  |  |
+| `DVN-011` | proposed |  |  |
+| `DVN-012` | proposed |  |  |
 | `FACE-001` | superseded |  | by `FACE-006` |
 | `FACE-002` | superseded |  | by `FACE-008`, `INP-006` |
 | `FACE-003` | superseded |  | by `FACE-008` |

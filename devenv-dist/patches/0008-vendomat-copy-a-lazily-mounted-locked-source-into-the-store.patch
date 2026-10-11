@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Sun, 11 Oct 2026 00:00:00 +0000
+Subject: [PATCH 8/8] vendomat: copy a lazily mounted locked source into the
+ store
+
+Patch 0003 (PR #3244) reuses a locked source when its store path
+exists, and marks the path as a store dependency with appendContext.
+The in-process locker can mount a fetched source at that path without
+registering it. `builtins.pathExists` is then true, but the store lacks
+the path, and the shell fails with "path ... is required, but there is
+no substituter that can build it". This happens on the first entry of
+any workspace whose git sources are not yet in the store.
+
+Produce the path with `builtins.path` and the locked narHash. Nix
+copies a mounted tree into the store with the expected hash, and
+returns a registered path without reading it.
+
+Upstream: fork-only. It corrects patch 0003 under lazy trees; report it
+on cachix/devenv PR #3244.
+---
+ devenv-nix-backend/bootstrap/resolve-lock.nix | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/devenv-nix-backend/bootstrap/resolve-lock.nix b/devenv-nix-backend/bootstrap/resolve-lock.nix
+index bcf9c68c..d7a00515 100644
+--- a/devenv-nix-backend/bootstrap/resolve-lock.nix
++++ b/devenv-nix-backend/bootstrap/resolve-lock.nix
+@@ -117,7 +117,15 @@ let
+                 revCount = null;
+               } locked
+               // {
+-                outPath = builtins.appendContext storedPath { ${storedPath}.path = true; };
++                # The in-process locker can mount a fetched source at this path without
++                # registering it, so pathExists is true while the store lacks the path.
++                # builtins.path with the locked hash copies such a tree into the store, and
++                # returns a registered path unchanged.
++                outPath = builtins.path {
++                  path = storedPath;
++                  name = "source";
++                  sha256 = locked.narHash;
++                };
+               }
+               // (
+                 if locked ? lastModified then
