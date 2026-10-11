@@ -8,6 +8,10 @@ production service, cache, or configuration changed.
 [REQUIREMENTS-DELTA.md](REQUIREMENTS-DELTA.md). **Decisions:** [OPEN-DECISIONS.md](OPEN-DECISIONS.md).
 This draft does not change the authority of project 14 or project 16.
 
+**Superseded in direction (2026-10-11):** [project 19](../19-vendomat-foundation-layer/CONCEPT.md)
+chose candidate A (the serving host's store, through harmonia) with release roots. The evidence
+here stays valid; the recommendation of B does not.
+
 ## Answer
 
 **Yes, as a mechanism. Not yet established on the target.** On `server`, three Attic-free designs
