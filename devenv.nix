@@ -3,14 +3,11 @@
 # This shell is for developing the command. The installed `vendomat` is a host program; a project
 # never imports it (DEL-006, DEL-007).
 #
-# Run the gate from the repository root with the host wrapper: `testee verify --full`.
+# Run the gate from the repository root with the host command: `testee verify`.
 # Run other in-repo commands through here: `devenv shell -- <command>`.
 { pkgs, lib, config, inputs, ... }:
 
 let
-  # The Testee module and the Testee package come from the same pinned tag. Keep this tag equal
-  # to the host `testee` wrapper version. The uv venv does not carry Testee.
-  testeeFlake = builtins.getFlake "git+https://github.com/Bullish-Design/testee?ref=refs/tags/v0.5.1";
   venvBin = "${config.devenv.state}/venv/bin";
   # One live cache check. The Testee shell drops host variables, so the size is set here.
   liveCache = size: {
@@ -31,18 +28,12 @@ let
   };
 in
 {
-  # Verification entrypoints (testee:quick, testee:full, testee:doctor, testee:report, and
-  # enterTest). They call the host `testee` wrapper. Route checks through `testee verify`, not
-  # pytest/ruff directly.
-  imports = [
-    testeeFlake.devenvModules.default
-    ./nix/testee.nix
-  ];
-
-  testee.package = testeeFlake.packages.${pkgs.stdenv.hostPlatform.system}.testee;
-
+  # The host `testee` (0.6) checks the commit in its own workspace. The module comes from the
+  # locked `testee` input in devenv.yaml. `testee.prepare` fills the workspace venv from
+  # `uv.lock`, so the checks keep naming tools by their absolute venv path.
   # The checks. `quick` is ruff and ruff-format; `full` adds ty and pytest. Tools come from the
   # uv venv (the `dev` group in pyproject.toml), so each argv holds an absolute path.
+  testee.prepare = [ [ "uv" "sync" "--locked" ] ];
   testee.checks = {
     ruff = {
       argv = [ "${venvBin}/ruff" "check" "--output-format" "json" "." ];
