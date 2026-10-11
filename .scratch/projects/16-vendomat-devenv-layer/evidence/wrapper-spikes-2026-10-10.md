@@ -1,15 +1,15 @@
 # Wrapper spikes: can Vendomat live inside devenv? (2026-10-10)
 
 **Question.** Can every Vendomat capability be a devenv script, task, assertion, or output, with no
-step before shell entry? Three spikes tested the parts that could block it. A fourth tests the
-upstream route and is recorded separately when it ends.
+step before shell entry? Three spikes tested the parts that could block it. A fourth (S4) tested the
+upstream route.
 
 **Tools.** `devenv 2.4.0+b904dcb (x86_64-linux)` (stock), `nix (Nix) 2.34.7`, nixpkgs `e7439b6b`.
 Spike S3 also built the fork `v2.4.0-vendomat.2` with one added patch. S1 ran with every
 `DEVENV_*` variable removed from the environment.
 
 **Raw logs.** `~/.local/state/vendomat/v7-spikes/2026-10-10/` (`s1-assert-vs-tasks/`,
-`s2-task-rewrites-fragment/`, `s3-fork-inheritance/`). The `.devenv` directories and the S3 build
+`s2-task-rewrites-fragment/`, `s3-fork-inheritance/`, `s4-pr3055/`). The `.devenv` directories and the S3 build
 root were removed afterwards to free disk space. The logs, fixtures, and the patch remain.
 
 ## S1: does a failing assertion block a repair task?
@@ -94,6 +94,41 @@ check stay outside the patch.
 **Upstream (evidence about upstream only).** Issue cachix/devenv#2205 is open; a maintainer plans a
 two-pass locking fix. PR cachix/devenv#3055, open since 2026-07-31 with no review, implements the
 same loop in about 830 lines. No upstream item covers nested follows.
+
+## S4: does upstream PR #3055 cover the same need?
+
+**Expected.** Unknown. If #3055 covers Vendomat's need, track it instead of carrying `0007`.
+
+**Built.** PR head `a653caf1d597104594c6eb13945e655b224048de` (base `3d4859de`, 355 commits behind
+v2.4.0; it builds as devenv 2.2.1). On the fork and on stock v2.4.0, the PR met two conflicts
+(`devenv/src/main.rs` and one docs file); the six fork patches caused neither. Four trees were built:
+fork plus PR, the PR head, stock v2.4.0 plus PR, and that tree plus a one-line fix. Fork plus `0007`
+was rebuilt so each case ran on both.
+
+| Case | `0007` | #3055 on v2.4.0 |
+| --- | --- | --- |
+| Inherit one input; lock stable on a second run and after `devenv update` | pass | pass |
+| Consumer entry wins | pass | pass |
+| Two sources declare one input differently | error that names both imports | no error; the later import wins |
+| Transitive import | pass | pass |
+| `tarball+file://` source | pass | fails: "Failed to canonicalize source for imported input"; passes with the fix |
+| No input-style import | unchanged | unchanged |
+| `git daemon` source at `ref=refs/tags/v1` | pass; lock keeps the tag ref and rev | fails as above; with the fix, the same lock shape |
+| Source declares `path:../extra` | error | resolves inside the source |
+| Shared child without `follows` | duplicate nodes | duplicate nodes |
+| Inherited nested `follows` `a.b.c -> c` | honored | dropped without a message |
+| Consumer-declared nested `follows` | honored | dropped without a message |
+| Source declares `nixpkgs` and `devenv`; consumer does not | consumer defaults stay | the source replaces both |
+
+**Observed.** On v2.4.0 the PR fails for every non-path source. Replacing `require_string` with
+`realise_string(&value, false)` in `input_paths_from_json` (`lock.rs`) fixed the tarball and git cases.
+**Inference:** Nix 2.35 gives a lazy store path that does not exist on disk until it is realised.
+The PR merges the whole imported `devenv.yaml`, not only `inputs`.
+
+**Inference.** #3055 covers the inheritance core but not Vendomat's conflict error, nested `follows`,
+or default pins. It is not mergeable today. Review notes, not posted: realise before `canonicalize`
+and test a non-path source on Nix 2.35; rebase onto v2.4.0; error on conflicting inputs across
+imports; warn on dropped nested `follows`; reject or document relative `path:` inputs in sources.
 
 ## Decision (owner, 2026-10-10)
 
