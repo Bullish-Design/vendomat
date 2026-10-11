@@ -142,7 +142,7 @@ toplevel. Verify that equality (section 8, step 4).
 | Secrets | sops-nix; host key is the age identity; `secrets/secrets.yaml` is the old ciphertext | built; the first recipient equals the server's host key (`ssh-to-age`); decrypt proven in a VM with a test key only |
 | Tailnet | `services.tailscale` with `tailscale-auth-key` | built |
 | Source collection | `services.gitDaemon` over `/home/andrew/vendor`, port 9418 on `tailscale0` | built; services VM PASS (ls-remote, no export file means not served, push refused); data must be copied (section 8) |
-| Attic | `services.atticd` on loopback; Tailscale Serve publishes `/attic`; data on `/mnt/wd_green1` | built; services VM PASS except Tailscale Serve (needs a joined tailnet) |
+| Attic | `services.atticd` on loopback; Tailscale Serve publishes `/attic`; data on `/mnt/wd_green1`. Stock Attic with no database keys: one connection, 30 s pool wait (see section 11, item 6) | built; services VM PASS except Tailscale Serve (needs a joined tailnet) |
 | Dagu | `services.devman-dagu` from `devman` v0.8.0 with a store-path registry (`mkRegistry`) for the tooling repositories | built; services VM PASS (API lists 26 DAGs; one DAG ran) |
 | Library faces | `docman` v0.3.1 `vendomat` description, enabled with `vendomat.libs.docman` | built; services VM PASS (`docman --help`) |
 | Pull credential for a cold installer (PV-09) | `/etc/nix/netrc` has no source | **owner decision** |
@@ -222,7 +222,21 @@ one). Promote the new entry to default only after repeated good boots (`MACH-009
    owner's push.
 3. `agentman` and its PostgreSQL unit are not in the new role (deferred; see the Step 8 record).
 4. A `nixos-facter` report: optional replacement for the hardware module.
-5. A live push to the production Attic: not run in this work.
+5. The machine closure push (`vendomat push --cache vendomat --machine server`, section 8 step 5)
+   has not run. Other pushes to the production Attic did run on 2026-10-10: the patched devenv
+   closure (`DVN-006`) and the `live-cache` and `live-cache-load` checks
+   ([live-release-2026-10-10.md](./evidence/live-release-2026-10-10.md),
+   [live-cache.md](./evidence/live-cache.md)).
+6. **Attic tuning is not in this role.** The running host (`nix-meta` `machines/server.nix`, `main`
+   `e4939739`) uses `nix/attic-database-pool-options.patch` with
+   `database.acquire-timeout = "1 minute"`, `database.max-connections = 4`, and
+   `database.busy-timeout = "30 seconds"`. The role in `nixos/server.nix` (`nix-systems` `main`
+   `fe848434`) sets none of these. A stock Attic ignores the keys without an error, so a role with the
+   keys and no patch would silently run one connection and a 30 s wait. That is the setting under
+   which the pool timeouts occurred (cause not established;
+   [attic-timeouts.md](./evidence/attic-timeouts.md)). Owner decision: carry the patch, the
+   `overrideAttrs`, and the three keys into the role, or accept the stock setting. Carrying them needs
+   a services VM rerun with the patched package.
 
 ## 12. Defects that the VM runs found, and where they stand
 
