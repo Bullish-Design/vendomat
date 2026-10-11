@@ -29,8 +29,8 @@ The live cache checks `testee check live-cache` and `live-cache-load` (`CACHE-01
 `server`. The original 64 MiB runs needed a second push attempt and showed server pool timeouts.
 After an approved Attic chunk change, one small and three 64 MiB checks passed with zero retries.
 The owner then restored the original chunks and applied a patched Attic with configurable database
-pool keys and a 60 s wait. The same four checks passed again with zero retries. The timeouts' cause
-remains not established
+pool keys and a 60 s wait, then four database connections. The same four checks passed again each
+time with zero retries. The timeouts' cause remains not established
 ([evidence](projects/16-vendomat-devenv-layer/evidence/live-cache.md)).
 
 The 2026-10-10 concept revision makes no-Nix workspace use the first user goal. Module authors

@@ -50,6 +50,10 @@ Run directories are under `~/.local/state/vendomat/v6/live-cache/`.
 | `20261011T003511Z` | live-cache-load | pass | 1 (14.438 s) | 0 retries, 0 narinfo errors |
 | `20261011T003544Z` | live-cache-load | pass | 1 (14.270 s) | 0 retries, 0 narinfo errors |
 | `20261011T003618Z` | live-cache-load | pass | 1 (14.776 s) | 0 retries, 0 narinfo errors |
+| `20261011T005757Z` | live-cache | pass | 1 (1.015 s) | Four connections, 30 s busy timeout; 0 retries, 0 narinfo errors |
+| `20261011T005821Z` | live-cache-load | pass | 1 (8.477 s) | 0 retries, 0 narinfo errors |
+| `20261011T005847Z` | live-cache-load | pass | 1 (9.382 s) | 0 retries, 0 narinfo errors |
+| `20261011T005914Z` | live-cache-load | pass | 1 (10.543 s) | 0 retries, 0 narinfo errors |
 
 The four new checks ran in the listed order with `testee check live-cache`, then
 `testee check live-cache-load` three times. Each command exited 0. Each cold substitution passed.
@@ -73,6 +77,13 @@ and each command exited 0. Testee run IDs are `20261011T003437Z-eaf1091af6bc`,
 `20261011T003617Z-8a9f21838d99`. Each cold substitution passed, and the service journal recorded no
 pool timeout. The load pushes took about 14 s with the original chunks, against 3–6 s with larger
 chunks and 228–239 s in the first two runs.
+
+The last four rows ran after the owner set `max-connections = 4` and `busy-timeout = "30 seconds"`
+(see `attic-timeouts.md`, "Four-connection trial"). Testee run IDs are
+`20261011T005756Z-358a1e1a3ede`, `20261011T005820Z-fb8debe001ee`,
+`20261011T005846Z-e93eeab483e1`, and `20261011T005913Z-2e6770f5cb39`. The service journal recorded
+no pool timeout and no lock error. The load pushes took 8.5–10.5 s, against 14.3–14.8 s with one
+connection.
 
 ## Observations
 

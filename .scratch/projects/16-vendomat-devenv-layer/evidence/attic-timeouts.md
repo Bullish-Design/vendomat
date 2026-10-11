@@ -308,3 +308,52 @@ Raw files stay outside the repository:
 
 - [Pool option patch, build logs, and throwaway runs](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/)
 - [Live-cache Testee output](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/live/)
+
+## Four-connection trial, 2026-10-10
+
+The owner chose to set `max-connections = 4` and `busy-timeout = "30 seconds"` on production. These
+are the values tested on the throwaway server. The pool wait (`acquire-timeout = "1 minute"`) and
+the 16/64/256 KiB chunks stayed the same. This is a TOML change only. The binary did not change.
+
+The deployed generation had one connection. The new generation differed in one place: the checked
+TOML path in `atticd.service`. The closure had no package difference. The owner ran
+`/run/wrappers/bin/sudo nixos-rebuild switch --flake .#server`. At 20:57:43 EDT `atticd` restarted,
+ran migrations, and listened on `127.0.0.1:8089`. The module change is nix-meta `main` revision
+`e4939739`.
+
+The commands ran serially from the Vendomat repository root. Each exited 0 with zero retries and a
+passing cold substitution.
+
+| Check | UTC run | Result | Push attempts | Push time | Narinfo errors |
+| --- | --- | --- | ---: | ---: | ---: |
+| `live-cache` | `20261011T005757Z` | pass | 1 | 1.015 s | 0 |
+| `live-cache-load` | `20261011T005821Z` | pass | 1 | 8.477 s | 0 |
+| `live-cache-load` | `20261011T005847Z` | pass | 1 | 9.382 s | 0 |
+| `live-cache-load` | `20261011T005914Z` | pass | 1 | 10.543 s | 0 |
+
+The atticd journal since the restart had five lines and no match for timeout, pool, locked, busy,
+error, 500, or panic. Narinfo reads took 0.12–0.18 s.
+
+| Arm | Connections | 64 MiB push time (n) |
+| --- | ---: | --- |
+| One connection, 60 s wait | 1 | 14.3–14.8 s (3), plus 14.5 s in the stopped soak run |
+| Four connections, 60 s wait | 4 | 8.5–10.5 s (3) |
+
+Observation: the load push took about 35% less time with four connections. Inference: the single
+connection serialized chunk writes. The throwaway test showed a larger gain (5.5 s to 1.5 s) on an
+empty database with no other load. The production gain is smaller, so something else limits the
+push. This trial does not show which part.
+
+**Limits.** Three runs, one host, one workload of one 64 MiB random file. Each run followed a
+restart minutes earlier. The checks did not generate concurrent write bursts, so they do not show
+that four connections avoid "database is locked" under production traffic. The `busy-timeout` of 30
+seconds hides lock waits up to that length. The original 228 s pushes have not returned in any arm
+since the first restart. **Cause: not established.**
+
+**Rollback.** `sudo nixos-rebuild switch --rollback` returns to the one-connection generation.
+Removing the two keys from `machines/server.nix` has the same effect.
+
+Raw output is in
+[max4/](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/max4/). The soak run
+the owner stopped is in
+[soak/](/home/andrew/.local/state/vendomat/v6/attic-investigation/pool-options/soak/).
