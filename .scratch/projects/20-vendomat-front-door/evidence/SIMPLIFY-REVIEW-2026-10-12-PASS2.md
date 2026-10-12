@@ -8,9 +8,9 @@ consumer, machine, or real disk changed.
 
 ## Evidence
 
-Five spikes and one audit ran in isolation. Each spike record holds the question, the hypotheses,
+Five spikes and one audit ran in isolation. A sixth spike (P2F) ran later the same day. Each spike record holds the question, the hypotheses,
 the exact inputs, the commands, the expected and actual results, and the limits. Raw logs stay
-under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-audit/`).
+under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-audit/`, and `F2-yaml-handoff/`).
 
 | Record | Question | Result on the pinned fork `devenv 2.4.0+fb5d382` |
 | --- | --- | --- |
@@ -20,6 +20,7 @@ under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-aud
 | [P2D](P2D-machine-path.md) | What is the simplest first install for one machine? | The fork's Machines install works only over SSH from a controller (`machines.rs:1704`); it has no local mode. A local install from a Basix ISO removes the controller, the target address, the installer key, the admin key as a required field, and the host-key re-pin from the learner path. Native `switch-to-configuration` already exits non-zero on a failed unit. |
 | [P2E](P2E-cache-key.md) | Must an administrator place the cache signing key? | No. In one NixOS VM test, a oneshot made the key on first start, Harmonia started after it, and a client verified the signature. A wrong client key refused the path. Nix refused an unsigned path unless `require-sigs = false`, so unsigned sharing is rejected. Harmonia serves and signs any path in its store, built there or not. |
 | F audit | What did the first pass keep by habit, miss, or contradict? | It counted 21 learner concepts, not 7. It found eleven contradictions, for example `DECISIONS.md` S18 against S24 and two validators in `CONCEPT.md`. It proposed cuts for `test`, `build`, the `vendomat devenv` prefix, the failed-unit gate, and the update protocol. |
+| [P2F](P2F-yaml-handoff.md) | Can the user file be YAML, parsed by our own strict-subset parser, with no stored copy? | Parsing works: 173 lines of stdlib Python, 39 ms, every scalar a string, and Nix types give the meaning. The hand-off to Nix does not work on every entry point. Only plain `builtins.exec` with `readFile` (H3b) works on a fresh clone, direct devenv, direnv, and Testee. It needs the machine-wide `allow-unsafe-native-code-during-evaluation = true`. Plain `exec` without `readFile` (H3) gives a silent stale eval and a false GREEN under Testee. |
 
 P2A and P2C disagree on `follows`. P2A used a catalog input with `flake: false`, so
 `follows: vendomat/nixpkgs` failed. P2C used a flake input, so the same line worked. The
@@ -93,7 +94,7 @@ capability the owner may value.
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| Q1 | Accept direct TOML with a bounded catalog in place of the 2026-10-11 YAML decision? (Open since the first pass.) | Yes. |
+| Q1 | Accept TOML for the first release, with a bounded catalog, in place of the 2026-10-11 YAML decision? (Open since the first pass.) | Yes. YAML returns only if a fork patch passes the same entry-point table (spike running). |
 | Q2 | Make the learner install local from a Basix ISO, and move remote install to the native door? The owner's `server` install would use the native door. | Yes. |
 | Q3 | Defer the source collection, mirrors, and keep clones from the first release? This touches the "two tracked things" rule from project 14. | Yes. |
 | Q4 | Close the V5 and V6 ledgers as history at cutover, and replace the 521-row map with the rows that cite live IDs? (Open since the first pass.) | Yes, at cutover, not before, because V5 code still runs. |
@@ -107,6 +108,49 @@ recorded in [DECISIONS.md](../DECISIONS.md).
 The first pass minted five IDs and superseded them the same day. This pass supersedes the six
 proposed IDs with five (`DOOR-069` to `DOOR-073`). From now on, mint an ID only when the owner
 accepts a design or a fixture proves its interface. Keep drafts ID-free in the review.
+
+## YAML hand-off (P2F)
+
+**Question.** Can the user file be `vendomat.yaml`, parsed by our own strict-subset parser,
+with no stored copy of the data? The spike used the pinned fork `devenv 2.4.0+fb5d382`. The
+parser is 173 lines of stdlib Python and runs in 39 ms. Every scalar stays a string, and the
+catalog module's Nix types give the meaning. `version: 3.10` and `name: no` stay text.
+`enable: no` is rejected with the file and field. Unit checks gave `vendomat.yaml:LINE:COL` on
+15 inputs. No fuzz or oracle test ran.
+
+Four candidates moved the parsed data into the Nix evaluation.
+
+| Candidate | Edit detection | Direct devenv, no wrapper | Fresh clone | direnv | Testee | Error line | Traps | Cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| H1: wrapper passes JSON in an env var | All 5 edits seen. The eval cache keys on `getEnv`. | Fails with a JSON parse error. Silent stale if the variable leaks from a wrapper shell. | Wrapper only | Fails | Fails: Testee drops the variable | One line `vendomat.yaml:LINE:COL`, before devenv starts | Stale when the variable leaks | None measured |
+| H2: wrapper writes an ignored `.devenv/` file | All 5 edits seen through the wrapper | Silent stale. The old file stays. | Fails | Fails | Fails with a misleading `module_missing` | One line, before devenv starts | Silent stale; wrong error text | None measured |
+| H3: plain `builtins.exec` of the parser on the file | None seen. Silent stale. | Stale after an edit | Works with the setting | Stale after an edit | False GREEN | Parser line first, then 237 lines of trace | Silent stale | Machine-wide unsafe setting |
+| H3b: Nix `readFile`, text passed to the parser by `builtins.exec` | All 5 edits seen | Works with the setting | Works with the setting | Works | Works, if `nix.conf` holds the setting | Parser line first, then 237 lines of trace. Lost under Testee. | Needs the setting on every machine | Machine-wide unsafe setting |
+
+**Surprise: a false GREEN.** H3 passed under Testee at version 3.10. After the file changed to
+3.11, Testee passed again, and the check file still said 3.10. The eval cache does not track what
+`builtins.exec` reads, so the change stayed hidden. H3b fixes this: Nix reads the file, so the
+cache tracks it.
+
+**Why H3b has a cost.** `builtins.exec` exists only when the Nix setting
+`allow-unsafe-native-code-during-evaluation` is `true`. No per-project switch exists in the
+fork. `nixConfig:` and `nix_options:` keys in `devenv.yaml` had no effect. A flag or `NIX_CONFIG`
+works, but Testee drops `NIX_CONFIG`. With the setting, any evaluated Nix code can run any
+program as the user, including third-party flakes and every `nix eval` on the machine. A test
+printed `"ran as andrew"` with the setting and `attribute 'exec' missing` without it. No
+hostile `devenv.nix` ran.
+
+**Conclusion.**
+
+1. Only H1 and H2 give a good error line, and neither survives direct devenv, direnv, or Testee.
+2. Only H3b works on every entry point, and it needs a machine-wide unsafe setting. Reject it.
+3. TOML needs no hand-off step. The fork reads it directly (P2A). Keep TOML for the first release.
+4. A fork patch that lets devenv read `vendomat.yaml` itself would give YAML the TOML behavior.
+   A spike for that patch is running. YAML returns only if the patch passes the same
+   entry-point table.
+
+Limits: very large files, a concurrent edit, a symlinked file, integer fields, and a Testee hook
+that runs a data step first are unproved.
 
 ## Handoff
 

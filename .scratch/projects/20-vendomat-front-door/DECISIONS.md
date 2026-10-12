@@ -138,3 +138,12 @@ defer the source collection and its modes; Q4 close the V5 and V6 ledgers as his
 cutover. O10 disappears (S32). O2 folds into Q2 and S34. O5, O7, and O9 stay open: Attic stays
 until the real Harmonia check, no real disk write is authorized, and the Basix ISO still needs
 a proof.
+
+## YAML hand-off result, 2026-10-12
+
+The [P2F record](evidence/P2F-yaml-handoff.md) tested YAML for the user file. This row does not
+change S27 to S35. It restates Q1.
+
+| Proposal | Earlier row or question | Effect | Evidence |
+| --- | --- | --- | --- |
+| S36. Keep `vendomat.toml` for the first release. Do not hand YAML to Nix by `builtins.exec`. YAML returns only if a fork patch lets devenv read `vendomat.yaml` itself and passes the same entry-point table. | Q1 | Our own YAML parser works (173 lines, 39 ms). The hand-off fails: an env var or a generated file breaks on direct devenv, direnv, or Testee. Plain `exec` gave a false GREEN. `exec` with `readFile` works everywhere but needs the machine-wide setting `allow-unsafe-native-code-during-evaluation`. Q1 now reads: accept TOML for the first release. A fork-patch spike is running. | P2F |

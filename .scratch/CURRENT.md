@@ -59,7 +59,7 @@ with the pinned-fork direct-read fixture, not the strict YAML reader.
 
 **Second simplification pass (2026-10-12).** The
 [second review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md)
-ran five spikes (P2A to P2E) on the pinned fork and one VM, and audited the
+ran five spikes (P2A to P2E; P2F followed) on the pinned fork and one VM, and audited the
 documents. It proved, at fixture level: a direct read with no stale eval cache,
 one parse step that stops every tested command, update as a native lock update
 of a `release` branch, and a self-made cache signing key. It found that the fork
@@ -67,7 +67,11 @@ installs only over SSH, so the learner path becomes a local ISO install. It
 supersedes `DOOR-060` and `DOOR-064` to `DOOR-068` with `DOOR-069` to `DOOR-073`
 and adds decisions S27 to S35. The owner must rule on Q1 to Q4: TOML in place of
 YAML, local install, deferring the source collection, and closing the V5 and V6
-ledgers at cutover. The next session records those rulings, then starts slice 1.
+ledgers at cutover. The next session records those rulings, then starts slice 1. A sixth spike
+([P2F](projects/20-vendomat-front-door/evidence/P2F-yaml-handoff.md)) showed that no
+hand-off of parsed YAML to Nix works on every entry point without a machine-wide unsafe Nix
+setting. Decision S36 keeps TOML for the first release. Q1 now reads: accept TOML; YAML returns
+only if a fork patch that reads `vendomat.yaml` passes the same entry-point table (spike running).
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 
