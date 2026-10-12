@@ -244,7 +244,7 @@ TOML parser" still means the V5 Python reader of the V5 `vendomat.toml` format.
 | `DOOR-074` | A workspace MUST hold four files: user-owned `vendomat.yaml`, and template-owned `devenv.yaml`, `devenv.nix`, and `devenv.lock`. `devenv.yaml` MUST name the Vendomat flake input on its `release` branch with a URL that locks a `rev`, MUST set `nixpkgs` to follow the Vendomat `nixpkgs`, and MUST import the catalog module. `devenv.nix` MUST be `{ }`. The catalog module MUST read `config.devenv.root + "/vendomat.yaml"` with `builtins.readFile` and MUST parse the text with the fork primop `vendomatFromYAML`. A missing file MUST mean an empty catalog. No generated file, wrapper, or unsafe Nix setting MAY exist. The pinned fork MUST carry the primop as patch 0009, and the PATH that Testee inherits MUST put the fork first. | Pinned fork: a fresh workspace from `vendomat new` enters the shell; an edit, a create, and a delete of `vendomat.yaml` show in the next shell with no other step; a fresh clone, direnv, and Testee give the same result, with `allow-unsafe-native-code-during-evaluation` false. P2A, P2C, and P2G passed at fixture level. |
 | `DOOR-075` | The catalog MUST be a bounded set of named, typed entries: programs, languages, services, and environment values. The strict YAML subset MUST hold maps, lists, and string scalars only. The primop MUST reject tabs, anchors, aliases, tags, flow style, block scalars, document markers, duplicate keys, unknown escapes, and lists of maps. It MUST report a syntax error as `vendomat.yaml:LINE:COL: reason`. Every scalar MUST stay a string, and the option types MUST give the strings their meaning. The catalog module MUST report every bad field and every unknown program name in one error that names `vendomat.yaml` and the field. Every mapping to a native option MUST read only the parsed values. An unknown key MUST fail. No other validator, schema export, or schema cache MAY exist. Vendomat verbs SHOULD print the error from its last `error:` line. | Pinned fork: an unknown key, a bad used value, a bad unused value, and an unknown program each stop `shell`, `test`, `build`, and `tasks run` before work; one run lists all bad fields. Each rejected construct gives the line and column. `3.10` and `name: no` stay text. P2B and P2G passed at fixture level. Slice 1 later passed 27 Rust unit tests and built fork `2.4.0+c66ba87`; see [DOOR-075 evidence](evidence/slice-1/DOOR-075.md). |
 
-## Slice 1 gate results, 2026-10-12
+## Pre-publication slice 1 gate results, 2026-10-12
 
 The three slice 1 gates passed on the local `.4` fork build. The host launcher created a workspace.
 The gate served a throwaway Vendomat flake from a loopback Git server with a movable `release`
@@ -253,11 +253,26 @@ branch. It did not use the collection URL because the release branch was not yet
 | ID | Result | Evidence |
 | --- | --- | --- |
 | `DOOR-071` | Gate passed | [Gate record](evidence/slice-1/DOOR-071.md) |
-| `DOOR-074` | Gate passed on the loopback channel; collection smoke pending | [Gate record](evidence/slice-1/DOOR-074.md) |
+| `DOOR-074` | Gate passed on the loopback channel; collection smoke pending at this stage | [Gate record](evidence/slice-1/DOOR-074.md) |
 | `DOOR-075` | Gate passed; Testee refuses invalid input before checks | [Gate record](evidence/slice-1/DOOR-075.md) |
 
 The host PATH still resolves stock devenv first. The gate command prefixes the `.4` fork for
 Testee. A host-wide PATH change or a Testee binary setting remains outside this repository.
+
+## Published slice 1 result, 2026-10-12
+
+The `.4` fork tag and Vendomat `release` branch are published. The final smoke used a fresh
+workspace and the unchanged template URL. Its lock records `ref: release` and Vendomat commit
+`d3c279e02c41649addfdd0715a7aadb6159e975b`. The launcher entered the catalog shell and printed
+`CHANNEL=release`; `ripgrep` resolved from the Nix store. See the
+[published-channel record](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md).
+
+| ID | Final result | Evidence |
+| --- | --- | --- |
+| `DOOR-071` | Gate passed; published launcher passed the shell command through to the fork | [Gate record](evidence/slice-1/DOOR-071.md), [smoke record](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md) |
+| `DOOR-074` | Gate and published-channel smoke passed | [Gate record](evidence/slice-1/DOOR-074.md), [smoke record](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md) |
+| `DOOR-075` | Gate passed on the published fork and catalog source | [Gate record](evidence/slice-1/DOOR-075.md) |
+| `DOOR-076` | Two-VM hook test and published-channel smoke passed | [Gate record](evidence/slice-1/DOOR-076.md), [smoke record](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md) |
 
 ## Owner rulings, 2026-10-12
 
@@ -286,4 +301,4 @@ collection repository. The historical V5 ledger stays unchanged.
 
 | ID | Requirement | Proof gate | Status |
 | --- | --- | --- | --- |
-| `DOOR-076` | The collection pre-receive hook MUST accept new release tags and MUST refuse tag updates or deletions. For the `vendomat` repository only, it MUST also accept creation and fast-forward updates to `refs/heads/release`. It MUST refuse deletion or rewind of that branch. It MUST refuse every other branch in every repository. The `git://server/vendomat?ref=release` URL MUST resolve to a locked `rev`. | A two-VM NixOS test creates and advances the Vendomat branch, then rejects rewind, deletion, and another branch. It rejects the `release` branch in another collection repository. Installed hooks match the repository hook and the generated `collection-add` hook. A fresh workspace then locks and enters the shell through the published collection URL. | NixOS VM gate passed; published-channel smoke pending. |
+| `DOOR-076` | The collection pre-receive hook MUST accept new release tags and MUST refuse tag updates or deletions. For the `vendomat` repository only, it MUST also accept creation and fast-forward updates to `refs/heads/release`. It MUST refuse deletion or rewind of that branch. It MUST refuse every other branch in every repository. The `git://server/vendomat?ref=release` URL MUST resolve to a locked `rev`. | A two-VM NixOS test creates and advances the Vendomat branch, then rejects rewind, deletion, and another branch. It rejects the `release` branch in another collection repository. Installed hooks match the repository hook and the generated `collection-add` hook. A fresh workspace then locks and enters the shell through the published collection URL. | NixOS VM gate and published-channel smoke passed. See [evidence](evidence/slice-1/DOOR-076.md). |

@@ -1,7 +1,7 @@
 # `DOOR-074`: workspace and release channel gate
 
-Date: 2026-10-12. Result: the workspace gate passes with the `.4` fork and a loopback release
-channel. The actual collection branch remains to be published and checked.
+Date: 2026-10-12. Result: the workspace gate passes with the `.4` fork and the published
+collection release channel.
 
 ## Inputs and versions
 
@@ -36,6 +36,7 @@ channel. The actual collection branch remains to be published and checked.
 | `git clone DIR CLONE`, then `.4 devenv shell` | Enter the cloned workspace | Clone saw `one:3.10` | `workspace-clone.log`, `clone-shell.log` |
 | `testee verify` in the consumer | Use the fork evaluator | GREEN | `testee-green.log` |
 
-The test changed only the Vendomat source URL in the throwaway workspace to a local `git://`
-server. The repository template still contains `git://server/vendomat?ref=release`. That URL has
-not been tested against the collection yet.
+The initial consumer gate changed the Vendomat source URL to a loopback `git://` server. The final
+published-channel smoke then used the unchanged template URL against the collection. It locked the
+release branch to the published Vendomat commit and read the catalog in a fresh shell. See the
+[published-channel record](PUBLISHED-CHANNEL-2026-10-12.md).

@@ -17,12 +17,12 @@ the advanced door. The owner accepted the four grouped questions on 2026-10-12.
 A fresh Basix core still must boot without keys.
 
 The current CLI and live consumers still use the project 14 workflow. Project 14 remains the
-current implementation contract, but no longer directs future design. Slice 1 code is implemented.
-The required Testee profile, the front-door consumer gate, and the full end-to-end gate pass. The
-collection VM accepts only the Vendomat `release` branch in addition to new tags. The `.4` fork tag
-and Vendomat branch still need publication and a read-side smoke check. The host PATH still puts
-stock devenv first, so the gates used an explicit fork PATH prefix. No machine gate has passed. The
-owner has not authorized real disk writes.
+current implementation contract, but no longer directs future design. Slice 1 is complete: the
+required Testee profile, front-door consumer gate, full end-to-end gate, and published-channel
+smoke pass. The collection serves fork tag `v2.4.0-vendomat.4` and Vendomat branch `release`.
+A fresh workspace locked the branch to Vendomat `d3c279e0` and entered the catalog shell. The host
+PATH still puts stock devenv first, so the smoke used the `.4` fork explicitly. No host profile
+switch or Basix machine gate has run. The owner has not authorized real disk writes.
 
 **Authority split.** The project 20 documents are the future design authority. Project 14 stays the
 current implementation contract until a release supports the project 20 gates.
@@ -93,9 +93,9 @@ fresh clone, direnv, and Testee with no unsafe Nix setting. Decision S37 superse
 the fork primop (`vendomat.yaml`) in place of TOML. The host must put the fork first on the PATH
 that Testee inherits. Slice 1 later passed the Rust unit tests, built the fork, and ran the real
 catalog module through a host-created workspace, a local Git release channel, direnv, and Testee.
-The local fixture did not prove the published `git://server/vendomat?ref=release` channel. The
-fork tag and release branch remain unpublished. No Basix machine gate has passed. The later slice 1
-tests are recorded in `projects/20-vendomat-front-door/evidence/slice-1/`.
+The final published-channel smoke also passed against `git://server/vendomat?ref=release`. The fork
+tag and release branch are published. No Basix machine gate has passed. The later slice 1 tests are
+recorded in `projects/20-vendomat-front-door/evidence/slice-1/`.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 

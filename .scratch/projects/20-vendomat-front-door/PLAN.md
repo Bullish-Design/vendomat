@@ -5,9 +5,9 @@ user path. [REQUIREMENTS.md](REQUIREMENTS.md) holds the active IDs `DOOR-071` to
 (`DOOR-074` and `DOOR-075` supersede `DOOR-069` and `DOOR-070`), with `DOOR-036`, `DOOR-038`,
 and `DOOR-063`. The
 [second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) records the lost capability and
-the owner questions. The owner accepted R1 to R5. The slice 1 Testee profile, front-door gate, and
-full end-to-end gate pass. `DOOR-076` passes its two-VM hook test. The `.4` tag and `release` branch
-still need publication and a smoke check against the collection. No Basix machine gate has passed.
+the owner questions. The owner accepted R1 to R5. Slice 1 is complete. The Testee profile, front-door
+gate, full end-to-end gate, two-VM hook test, and published-channel smoke pass. The `.4` tag and
+`release` branch are published. No Basix machine gate has passed.
 
 ## Before slice 1
 
@@ -18,7 +18,7 @@ Slice 1 may start.
 
 | Slice | Result | Gate | Rollback |
 | --- | --- | --- | --- |
-| 1. Workspace | The catalog module, parser, fixed template, host `vendomat` with `new` and pass-through, fork patch 0009, and Vendomat-only fast-forward release branch rule are implemented. The `.4` fork and branch still need publication and a collection smoke check. | `DOOR-071`, `DOOR-074`, and `DOOR-075` pass on the local fork and loopback source channel. The `DOOR-076` NixOS hook test passes; its published-channel smoke remains. Testee is GREEN on the current tree. | Revert the slice; the current runtime stays. |
+| 1. Workspace | The catalog module, parser, fixed template, host `vendomat` with `new` and pass-through, fork patch 0009, and Vendomat-only fast-forward release branch rule are implemented. The `.4` fork and `release` branch are published. | `DOOR-071`, `DOOR-074`, and `DOOR-075` pass. The `DOOR-076` NixOS hook test and published-channel smoke pass. Testee is GREEN on the current tree. | Revert the slice; the current runtime stays. |
 | 2. Basix machine | The machine catalog table, `vendomat apply`, and then the Basix ISO with `vendomat install` and a local preflight mode. | `DOOR-072` in a VM: install to a blank virtual disk, refuse the boot medium and a used disk, zero failed units, apply, boot-menu rollback. | Revert the Basix module. No real disk. |
 | 3. Sharing | `serve = true` with a self-made key, and derived client settings. | `DOOR-073` with two VMs, then a real two-machine check. | Revert the cache module. Attic stays. |
 | Release | Hand-move the two live consumers to the new `vendomat.yaml`, release the host command, remove old paths after the real cache check. | `DOOR-063`. Consumer checks pass. The host keeps a rollback generation. | Switch to the earlier host generation. |
@@ -37,7 +37,8 @@ The end-to-end profile passes 395 tests and skips two. See [Testee evidence](evi
 The Testee gate refuses an
 invalid catalog during evaluation with exit 2; it does not mark that commit RED. A valid catalog
 change can make a consumer check RED, and restoring the file returns GREEN. This matches the
-observed Testee 0.6.1 interface. The real collection refs remain unpublished.
+observed Testee 0.6.1 interface. The actual collection read-side smoke later passed; see
+[published-channel evidence](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md).
 
 1. Add patch 0009 (`vendomatFromYAML`, from `evidence/fixtures/p2g/`) to the fork series in
    `devenv-dist/`. Run its Rust unit tests with `cargo test` or a Nix build with `runTests`.
@@ -54,11 +55,9 @@ observed Testee 0.6.1 interface. The real collection refs remain unpublished.
 5. **Done on the local fixture channel:** prove the three gates on the patched fork. The gate also
    builds an attribute that reads no mapped value.
 
-The slice 1 gate used a loopback Git server because the collection refs remain unpublished. It
-checked the template URL in source, then replaced it with the loopback `release` URL in the
-throwaway workspace. The NixOS collection test passed `DOOR-076`. After this final tree lands, publish
-`v2.4.0-vendomat.4` and the Vendomat `release` branch. Run a fresh shell through the actual
-collection URL before slice 2.
+The initial slice 1 gate used a loopback Git server. After publication, a fresh workspace used the
+template URL and entered the shell through the actual collection. See the
+[published-channel record](evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md).
 
 If a fixture disproves the surface, revise the concept, the requirements, and the plan together.
 

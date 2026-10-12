@@ -43,6 +43,7 @@ Date: 2026-10-12. Result: the catalog gate passes on the `.4` fork build.
 ## Limits
 
 The module and catalog gate used the real Vendomat source from the throwaway release repository.
-The source URL was local. The published `.4` tag and `git://server/vendomat?ref=release` branch
-still need a read-side smoke check. The Testee RED result requires a valid value that fails the
-consumer's check. Invalid catalog evaluation produces a refusal, not RED.
+The source URL was local during that gate. The later published-channel smoke used the template URL
+and passed; see the [published-channel record](PUBLISHED-CHANNEL-2026-10-12.md). The Testee RED
+result requires a valid value that fails the consumer's check. Invalid catalog evaluation produces
+a refusal, not RED.

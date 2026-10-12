@@ -1,6 +1,6 @@
 # `DOOR-076`: collection release branch gate
 
-Date: 2026-10-12. Result: the two-VM collection gate passes. The published channel smoke remains.
+Date: 2026-10-12. Result: the two-VM collection gate and published-channel smoke pass.
 
 ## Inputs
 
@@ -13,6 +13,8 @@ Date: 2026-10-12. Result: the two-VM collection gate passes. The published chann
 | Gate | `testee verify e2e` |
 | Testee run | `20261012T213552Z-f0e2e647d00a` |
 | Collection log | `~/.local/state/vendomat/p20/20261012T213553Z/slice-1/F-infra/infra-collection.log` |
+| Live hook change | `nix-meta` `main` at `0640a6c905f3c76719ec56a9382fc47d484b393b` |
+| Published-channel record | [Smoke record](PUBLISHED-CHANNEL-2026-10-12.md) |
 
 ## Observations
 
@@ -23,6 +25,11 @@ Date: 2026-10-12. Result: the two-VM collection gate passes. The published chann
 - The hook refused `refs/heads/release` in `lib-a`.
 - The generic `lib-a` repository still accepted a new release tag and rejected branches and moved tags.
 - `testee verify e2e` passed. It ran 395 tests and skipped two in 569 seconds.
+- The landed `collection-add --hooks vendomat` refreshed the live collection hook.
+- The live collection accepted the `.4` tag and the `refs/heads/release` branch.
+- The read-only Git daemon served the tag and branch at the expected revisions.
+- A fresh template workspace locked `release` to Vendomat `d3c279e02c41649addfdd0715a7aadb6159e975b`.
+- The published catalog shell printed `CHANNEL=release` and found `ripgrep`.
 
 ## Command and result
 
@@ -35,5 +42,6 @@ JUnit file are under `~/.local/state/testee/repos/e6fc47612c7a1650/slots/p20-gat
 
 ## Limits
 
-The VM used a test collection. It did not update the live hook or publish a branch. The
-`git://server/vendomat?ref=release` read-side smoke still needs to run after publication.
+The VM used a test collection. The live hook update, fork tag, and branch publication are recorded
+in the published-channel smoke record. The host profile still selects stock devenv first, and no
+Basix machine or disk-write gate ran.
