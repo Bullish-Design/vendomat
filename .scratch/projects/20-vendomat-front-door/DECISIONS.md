@@ -92,3 +92,22 @@ preserves every ID and keeps their existing disposition map active pending that
 ruling. O6 is already closed by the disk cleanup. O7 remains withheld; no real
 disk write is authorized. O2 still needs a Basix repository placement. O9 still
 needs a real installer ISO proof.
+
+## Layer correction, 2026-10-12
+
+The owner reminded us that Vendomat may constrain workflows above devenv.
+The [review correction](evidence/SIMPLIFY-REVIEW-2026-10-12.md#layer-correction)
+records the effect. These rows supersede parts of S16 to S21. They remain
+proposals until the owner rules on the data format and fixtures pass.
+
+| Proposal | Earlier row | Effect |
+| --- | --- | --- |
+| S23. The routine surface is a bounded Vendomat catalog. Native files are an explicit advanced door. | S16, S17; O2 | Routine users need no input URL, import path, or merge priority. The template imports only the fixed catalog module. Basix owns its machine catalog. |
+| S24. Vendomat owns new, test, build, update, and machine workflows. Other devenv commands use `vendomat devenv ...`. | S18; O4, O10 | Restore a small workflow layer. A machine workflow runs disk preflight and a failed-unit gate before native actions. The `path`, `check`, and `bump` question stays closed. |
+| S25. Vendomat moves a supported release ref and native lock together. | S18, S21 | The user updates by one intent. Devenv still owns exact lock contents. The edit protocol needs a pinned-fork fixture. |
+| S26. One optional cache host supplies client settings. | S20; O5 | Keep signing-key placement manual. Derive each client's URL, trust, and fallback from one host record. A two-machine fixture must prove the route. |
+
+O10 remains open at the owner level: the proposal now answers **yes** to a
+failed-unit gate in Vendomat's machine workflow. O5, O7, and O9 remain open
+as described above. The owner still needs to rule on TOML and the V5/V6
+ledger status. The correction does not authorize a machine or disk change.

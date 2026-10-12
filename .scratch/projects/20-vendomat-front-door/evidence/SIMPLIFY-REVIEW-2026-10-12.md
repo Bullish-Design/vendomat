@@ -32,7 +32,7 @@ fixture records; a fixture does not pass an implementation gate.
 
 | Current mechanism | Why it exists | Simpler shape; machinery removed | Lost capability | Evidence | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| `vendomat.yaml` with inputs, imports, and arbitrary option paths | One routine user file without Nix | Direct `vendomat.toml` data plus native `devenv.yaml` inputs and imports; remove YAML front door | One-file input edits and arbitrary option paths as data | [S1](S1-yaml-subset.md), [S9](S9-native-follows.md), [direct TOML fixture](#direct-toml-fixture) | simplify |
+| `vendomat.yaml` with inputs, imports, and arbitrary option paths | One routine user file without Nix | Bounded TOML catalog; keep native inputs and imports behind an advanced door | Arbitrary option paths and imports on the routine path | [S1](S1-yaml-subset.md), [S9](S9-native-follows.md), [direct TOML fixture](#direct-toml-fixture) | simplify |
 | 168-case YAML grammar and hand parser | Reject ambiguous YAML and locate errors | Nix `fromTOML`; remove custom grammar and parser | YAML block strings, null, exact YAML error contract | [S1](S1-yaml-subset.md), direct TOML fixture | cut |
 | Canonical JSON generator and write-on-change | Stable output bytes for Nix | Read user data directly; remove copy and canonicalization | Stable generated JSON for other tools | [S1](S1-yaml-subset.md), direct TOML fixture | cut |
 | Committed `.vendomat/` input fragment and data copy | Testee and clones work before `prepare` | Native `devenv.yaml` and direct data read; remove derived tree | Generated inputs from one file | [S5](S5-front-door.md) shows why a generated tree had to be committed | cut |
@@ -43,10 +43,10 @@ fixture records; a fixture does not pass an implementation gate.
 | Python validation and nine fault exits | Precise file, line, key, reason before operation | Nix type errors and native exit status; force set values at operation gate | Precise data line and single-pass error list | [S4](S4-machine-inventory.md) shows lazy type risk; direct TOML fixture | simplify |
 | Secret-name recognizer | Catch likely secret strings in generated data | No generated data; document secret-free data contract and scan real outputs in gates | Heuristic early warning | [S1](S1-yaml-subset.md) reports incomplete recall | cut |
 | Generic package and path coercion | Map strings onto every declared option type | Narrow data surface with explicit program mapping; native Nix for other types | Arbitrary package or path option as data | [S2](S2-merge-priority.md) | simplify |
-| Plain generated definitions and priority matrix | Match native Nix merge | Keep native merge; libraries use `mkDefault` for overridable scalars | Guaranteed data override of a plain scalar | [S2](S2-merge-priority.md) | keep |
+| Plain generated definitions and priority matrix | Match native Nix merge | Own catalog fields in the routine template; keep native merge for advanced modules | Arbitrary library override through routine data | [S2](S2-merge-priority.md) | simplify |
 | Transitive input discovery and generated `follows` | Share imported child inputs | Native `follows`; remove resolver | Automatic shared-child discovery | [S9](S9-native-follows.md) | cut |
-| Conditional lock update sequence | Repair a generated fragment's lock | User edits native inputs; devenv updates native lock | Automatic lock repair on shell entry | [S3](S3-schema-export.md), [S9](S9-native-follows.md) | cut |
-| Ten named Vendomat commands | Place every operation behind one CLI | Bare `vendomat` for shell, `vendomat new`, other args pass through | Special `path`, `check`, `bump`, `prepare` behavior | [S5](S5-front-door.md) proves pass-through mechanics | simplify |
+| Conditional lock update sequence | Repair a generated fragment's lock | Vendomat updates one supported ref and native lock together; remove fragment repair | Automatic repair of arbitrary native inputs on shell entry | [S3](S3-schema-export.md), [S9](S9-native-follows.md) | simplify |
+| Ten named Vendomat commands | Place every operation behind one CLI | Bare shell; new, test, build, update, machine workflows; explicit native escape | Special `path`, `check`, `bump`, `prepare` behavior | [S5](S5-front-door.md) proves pass-through mechanics, not the reduced workflow | simplify |
 | Per-workspace pinned Vendomat launcher and protocol | Run each workspace's Vendomat release | One host Vendomat release with pinned devenv; remove NAR lookup, protocol, host override | Per-workspace Vendomat release routing | [S5](S5-front-door.md) proves protocol, not its need | cut |
 | Pinned devenv fork | Inherited inputs and consistent operations | Keep one fork in host Vendomat release and matching module pin | Direct stock devenv compatibility | [S9](S9-native-follows.md); [S3](S3-schema-export.md) found pin mismatch | keep |
 | `use vendomat` direnv hook | Prepare then enter and fail clearly | Defer hook until direct entry works; no prepare step | Automatic direnv entry in first release | [S5](S5-front-door.md) | defer |
@@ -57,7 +57,7 @@ fixture records; a fixture does not pass an implementation gate.
 | Generic SSH secret receiver and path activation | Deliver keys after boot and rotate services | Administrator configures cache after key placement; remove receiver and path unit | Automatic post-boot delivery, rotation, recovery | [S6](S6-harmonia-two-vm.md), [S7](S7-keyless-secrets.md) | defer |
 | SecretSpec host and controller routes | Supply future secrets | No provider on keyless core; native option later | Secret-managed service on day one | [S7](S7-keyless-secrets.md) | defer |
 | Harmonia cache and signing key | Share outputs across two machines | Keep optional signed service after key placement | No automatic cache availability at first boot | [S6](S6-harmonia-two-vm.md) | simplify |
-| Cache mark and derived client settings | Auto-wire trust from inventory | Explicit URL, public key, fallback, and timeout in client configuration | Automatic cache selection | [S6](S6-harmonia-two-vm.md) | simplify |
+| Cache mark and derived client settings | Auto-wire trust from inventory | One named cache host, address, and public key; derive client settings | Multiple cache hosts and per-client override | [S6](S6-harmonia-two-vm.md); this interface remains unproved | simplify |
 | Cache fallback and network restriction | Preserve builds when cache fails; limit store visibility | Keep both; prove timeout with fallback | No safe reduction found | [S6](S6-harmonia-two-vm.md) found default failure and whole-store visibility | keep |
 | Collection mirror, keep clone, hook, source modes | Private source availability and local checkouts | Native tagged Git source URLs and lock | Offline source mirror and keep checkout | [R3](R3-migration-inventory.md): no live mode use | defer |
 | Collection builder and root per tag | Retain every built release | Build on cache host; root selected outputs with native Nix links | Automatic release retention | [S6](S6-harmonia-two-vm.md) proves root survival only | simplify |
@@ -69,8 +69,8 @@ fixture records; a fixture does not pass an implementation gate.
 ## Validation and format trade
 
 TOML is a proposed change to the owner's 2026-10-11 YAML decision. It is data-only
-for common options, but a module author edits native `devenv.yaml` for inputs.
-The native file is a visible cost. The direct read removes the copy, guard, parser,
+for common options. A module author can edit native `devenv.yaml` for advanced
+inputs. The direct read removes the copy, guard, parser,
 schema exporter, and validator. The data surface cannot accept every Nix value.
 Nix errors lose the proposed `file:line:col:key:reason` contract. The direct fixture
 showed a file and option in a type error; it did not show a TOML line number.
@@ -106,9 +106,9 @@ native escape-hatch content. The explicit lists make the comparison reproducible
 
 | Measure | Before | Proposed first path |
 | --- | --- | --- |
-| Concepts | 20: YAML grammar, generated tree, digest, guard, prepare, schema, schema cache, Python validation, package coercion, merge priority, lock repair, launcher, protocol, command codes, source modes, collection, release roots, machine mode, secret route, cache mark | 9: data file, native inputs, native lock, Nix types, native merge, host command, fresh machine, disk preflight, optional cache |
+| Concepts | 20: YAML grammar, generated tree, digest, guard, prepare, schema, schema cache, Python validation, package coercion, merge priority, lock repair, launcher, protocol, command codes, source modes, collection, release roots, machine mode, secret route, cache mark | 7: catalog data, native lock, Vendomat workflow, Nix type check, fresh machine, disk preflight, optional cache |
 | Files | 5: `vendomat.yaml`, `devenv.yaml`, `devenv.nix`, `devenv.lock`, `.vendomat/` | 4: `vendomat.toml`, `devenv.yaml`, `devenv.nix`, `devenv.lock` |
-| Vendomat commands | 10 named: shell, build, test, tasks, up, update, machines, prepare, path, check; plus pass-through | 1 named: new; bare entry; all other args pass through |
+| Vendomat commands | 10 named: shell, build, test, tasks, up, update, machines, prepare, path, check; plus pass-through | 5 routine: new, test, build, update, machine; bare shell; one advanced `devenv` door |
 | Machine modes | 2: fresh-install and adopt-existing | 1: fresh install |
 
 ## Owner questions and handoff
@@ -124,11 +124,30 @@ native escape-hatch content. The explicit lists make the comparison reproducible
 | O7 real disk authorization | Remains withheld. No real disk write is in this plan. |
 | O8 adoption comparison | Deferred with adoption. |
 | O9 installer route | Remains: use an installer ISO before a real device. |
-| O10 failed-unit wrapper gate | Disappears from Vendomat command routing; test the native safety gate in the machine slice. |
+| O10 failed-unit wrapper gate | Remains: Vendomat owns the machine workflow and runs the gate before apply or deploy. |
 
 This review asks the owner to rule on two design choices before implementation:
-accept direct TOML with native input edits, and allow the V5 and V6 ledgers to close
+accept direct TOML with a bounded catalog and native files as an advanced door,
+and allow the V5 and V6 ledgers to close
 as history. The second ruling is required by the kickoff. Until then, their
 disposition maps remain live records. The next session starts with the direct-read
 and eager-validation slice in [PLAN.md](../PLAN.md). No consumer migration or
 hardware step starts from this review alone.
+
+## Layer correction
+
+The owner reminded us that Vendomat is a layer above devenv and may restrict
+its supported workflow. The earlier command proposal treated Vendomat as a
+thin pass-through. That would make learners edit native inputs and handle
+machine safety steps. The corrected routine path uses a fixed catalog and
+named workflows. Native devenv remains available through an explicit door.
+The routine template imports no third-party module, so ordinary catalog
+fields have one owner. An advanced import can still use Nix merge rules.
+
+This changes the alternative for command routing, option conflicts, updates,
+and cache client settings in the table above. Vendomat can reject unsupported
+catalog entries instead of accepting every devenv option. It can run disk
+preflight and a failed-unit gate before native machine operations. A single
+cache-host selection can derive client trust. These are design inferences from
+the permitted layer boundary. The direct-TOML fixture proves none of these
+workflows. The [new gates](../PLAN.md) must prove them on the pinned fork.

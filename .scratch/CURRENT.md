@@ -10,8 +10,9 @@ future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) 
 Its [requirement ledger](projects/20-vendomat-front-door/REQUIREMENTS.md) preserves the first
 draft's IDs. Its [plan](projects/20-vendomat-front-door/PLAN.md) names the proof gates.
 Vendomat becomes the user command. The 2026-10-12 simplification proposal uses
-direct TOML data, native devenv inputs, a fresh Basix machine type, and optional
-signed Harmonia sharing. The owner has not yet ruled on this change from YAML.
+a bounded TOML catalog, Vendomat workflows, a fresh Basix machine type, and
+optional signed Harmonia sharing. Native devenv remains an advanced door.
+The owner has not yet ruled on this change from YAML.
 A fresh Basix core still must boot without keys.
 
 The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
@@ -42,8 +43,9 @@ balanced the disk (23.09 GiB unallocated, metadata 71.6 %), so VM work may resum
 
 **Simplification review (2026-10-12).** The
 [review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12.md)
-proposes direct TOML data, native inputs and locks, no generated `.vendomat/`,
-one fresh Basix machine type, and optional signed output sharing. The
+proposes direct TOML data, a bounded Vendomat catalog, no generated
+`.vendomat/`, one fresh Basix machine type, and optional signed output sharing.
+Vendomat owns the routine workflow; native devenv files are an advanced door. The
 [concept](projects/20-vendomat-front-door/CONCEPT.md),
 [requirements](projects/20-vendomat-front-door/REQUIREMENTS.md),
 [decisions](projects/20-vendomat-front-door/DECISIONS.md), and

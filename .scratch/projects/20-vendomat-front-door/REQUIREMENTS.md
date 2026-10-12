@@ -163,3 +163,31 @@ implementation gates. No ID from an earlier ledger is reused.
 | `DOOR-061` | After key placement, a host MAY serve its store through signed Harmonia. Each client MUST set an explicit URL, public key, fallback, and bounded connection timeout. The serving host MUST restrict network access, keep the key outside the store, and root selected outputs with native Nix roots. Shared outputs MUST be built on that host. | Two-VM cold substitution, bad-signature refusal, absent-path and down-cache fallback, root survival, then a real two-machine gate. |
 | `DOOR-062` | Workspaces MUST use native source URLs with explicit release refs and `devenv.lock` for exact revisions. Updating MUST be an explicit lock and source-ref change. Version control MUST restore the prior configuration and lock. The first release MUST NOT require a collection mirror or a second lock. | Change a release ref and lock; restore both; prove the old shell and machine plan. |
 | `DOOR-063` | The two live consumers MUST migrate by hand with a source-to-destination record and no machine activation. The Attic route MUST remain until a real Harmonia substitution gate passes. After cutover the runtime MUST have no old TOML parser, `sync`, Attic push, or two-marker launcher path. | Consumer checks, repo-shape check, real cache gate, and host rollback review. |
+
+## Layer correction, 2026-10-12
+
+The owner's reminder established that Vendomat may constrain the supported
+workflow above devenv. The prior proposal exposed native inputs and passed
+most commands through. This correction keeps native files as an advanced
+door and gives Vendomat a small routine catalog and workflows.
+[Review correction](evidence/SIMPLIFY-REVIEW-2026-10-12.md#layer-correction)
+records the reason. Earlier claims stay unchanged.
+
+| ID | New status | Successor |
+| --- | --- | --- |
+| `DOOR-057` | Superseded | `DOOR-064`: catalog data is the routine surface; native files are advanced. |
+| `DOOR-058` | Superseded | `DOOR-065`: Vendomat owns catalog fields and checks them before actions. |
+| `DOOR-059` | Superseded | `DOOR-066`: named routine workflows and an explicit native door. |
+| `DOOR-061` | Superseded | `DOOR-068`: select one cache host and derive clients. |
+| `DOOR-062` | Superseded | `DOOR-067`: Vendomat owns the supported update workflow. |
+
+`DOOR-060` and `DOOR-063` remain proposed. These five new IDs remain
+proposed until their pinned-tool fixtures pass.
+
+| ID | Requirement | Proof gate |
+| --- | --- | --- |
+| `DOOR-064` | Routine work MUST use a bounded Vendomat catalog in user-owned `vendomat.toml`: programs, languages, services, settings, and fresh machine facts. A fixed module MUST read the file directly with `builtins.fromTOML`. The routine template MUST import only the fixed catalog module. A catalog entry MUST have one owner. The template MUST own native `devenv.yaml` and `devenv.nix`. Advanced users MAY edit those files. `devenv.lock` MUST remain the only dependency lock. | A learner adds each catalog kind without editing native files. Unknown entries fail. No native definition conflicts on the routine template. Advanced native input and import fixtures still work. |
+| `DOOR-065` | Vendomat MUST check all set catalog values before shell, test, build, update, or machine actions. Nix option types MUST be the type authority. An error MUST name the data file and field. The routine catalog MUST NOT expose merge priority controls. Native Nix merge rules MUST remain available to advanced modules. | Used and unused bad values fail before each action on the pinned fork; no evaluation cycle; file and field appear in errors. |
+| `DOOR-066` | Bare `vendomat` MUST enter the shell. Vendomat MUST offer `new`, `test`, `build`, `update`, and `machine` as routine intents. It MUST invoke the pinned devenv fork after its required checks. `vendomat devenv ...` MUST expose other native commands as an explicit advanced door. A fresh machine operation MUST run disk preflight before a write; apply and deploy MUST check failed units before activation. | End-to-end command fixture for each intent, native escape, exit status, disk refusal, and failed-unit refusal. |
+| `DOOR-067` | A supported update MUST move one selected release ref and the native `devenv.lock` together through Vendomat. It MUST leave one source of truth and allow version control to restore the prior data and lock. Vendomat MUST NOT resolve a second dependency graph or create a second lock. | Change a supported release, enter the new shell, restore the old data and lock, and re-enter. Failures leave the old working pair available. |
+| `DOOR-068` | The optional cache data MUST select at most one serving machine by name and declare its reachable address and public key once. Vendomat MUST derive client URL, trust, fallback, and bounded timeout from that record. The serving host MUST start only after a signing key exists outside the store and MUST restrict network access. Shared outputs MUST be built and rooted on that host. | Two-machine fixture with no cache selection, one valid selection, unknown-host refusal, cold substitution, bad signature, absent and down cache fallback, root survival, and a real live check. |

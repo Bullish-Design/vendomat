@@ -1,7 +1,7 @@
 # Project 20: smaller implementation plan
 
 **Proposal, 2026-10-12.** [CONCEPT.md](CONCEPT.md) states the proposed user path.
-[REQUIREMENTS.md](REQUIREMENTS.md) preserves old claims and gives seven proposed
+[REQUIREMENTS.md](REQUIREMENTS.md) preserves old claims and gives the active
 successor IDs. The [review](evidence/SIMPLIFY-REVIEW-2026-10-12.md) records the
 lost capability. No project 20 runtime gate has passed. The direct-TOML
 `lib.evalModules` fixture is evidence only.
@@ -15,16 +15,17 @@ custom disk layouts wait for a later decision.
 
 | Slice | Result | Needs | Gate and rollback |
 | --- | --- | --- | --- |
-| 1. Direct workspace | A fixed module reads `vendomat.toml` directly. Native `devenv.yaml` owns inputs and imports. The host command opens a shell or passes through to pinned devenv. | Owner ruling on TOML before runtime wiring. `DOOR-057` to `DOOR-059`, `DOOR-062`. | On the pinned fork, a fresh workspace adds a program, language, service, and tagged input. Used and unused bad values fail before shell, test, and build. Type errors name the user file. A changed ref updates the native lock; version control restores the old result. `testee verify`, `testee verify --profile full`, and `testee verify e2e` pass. Revert the slice to restore the old runtime. |
-| 2. Fresh Basix | One typed fresh-install record, keyless core, installer ISO route, and real disk preflight. The controller uses separate installer and admin keys. | Slice 1; Basix repository placement; installer ISO fixture. `DOOR-060`. | A fresh virtual machine boots with zero failed units and no user key or cache. A wrong target and a protected disk fail before a write. Re-pin the host key. Test native generation rollback. `testee verify` and the named virtual-machine check pass. Revert the Basix module; do not touch real disks. |
-| 3. Optional sharing | A second fresh machine can substitute signed output from a configured Harmonia host. Clients use explicit trust and fallback. | Slice 2. `DOOR-061`. | One two-VM run proves cold substitution, bad-signature refusal, absent-path fallback, down-cache fallback with bounded timeout, and selected-root survival. A real two-machine check then proves the network route. Keep Attic until that check passes. Revert the new cache module if it fails. |
+| 1. Vendomat workspace | A fixed catalog module reads `vendomat.toml` directly. Vendomat owns shell, test, build, and supported update. Native files stay template-owned on the routine path. | Owner ruling on TOML before runtime wiring. `DOOR-064` to `DOOR-067`. | On the pinned fork, a learner adds a program, language, and service without editing native files. Unknown and unused bad values fail before actions. A supported update moves a ref and native lock together; version control restores both. The explicit `vendomat devenv` door still works. `testee verify`, `testee verify --profile full`, and `testee verify e2e` pass. Revert the slice to restore the old runtime. |
+| 2. Fresh Basix | One typed fresh-install record, keyless core, installer ISO route, and Vendomat machine workflow. | Slice 1; Basix repository placement; installer ISO fixture. `DOOR-060`, `DOOR-066`. | A fresh virtual machine boots with zero failed units and no user key or cache. Wrong and protected disks fail before a write. A failed-unit state stops apply or deploy. Re-pin the host key and test native rollback. `testee verify` and the named virtual-machine check pass. Revert the Basix module; do not touch real disks. |
+| 3. Optional sharing | A second fresh machine substitutes signed output. One cache-host record derives client trust and fallback. | Slice 2. `DOOR-068`. | A two-VM run proves one-host selection, unknown-host refusal, cold substitution, bad-signature refusal, absent-path and down-cache fallback, and root survival. A real two-machine check then proves the network route. Keep Attic until that check passes. Revert the new cache module if it fails. |
 | Release and migration | Hand-migrate the two live consumers, release the host command, and remove old paths after gates pass. | Slices 1 to 3; `DOOR-063`. | Each migration records source-to-destination mapping and activates no machine. Consumer checks pass. The host release has an explicit rollback generation. A repository-shape check finds no old parser, `sync`, Attic push, or two-marker launcher after the live cache gate. |
 
-The critical path is **direct workspace → fresh Basix → two-machine sharing → release**.
-The first implementation slice is the direct workspace. Start it with a small
+The critical path is **Vendomat workspace → fresh Basix → two-machine sharing → release**.
+The first implementation slice is the Vendomat workspace. Start it with a small
 fixture on the pinned devenv fork that extends the isolated direct-TOML probe:
-program mapping, native input, module source location, and eager invalid-value
-failure. If the fixture disproves the direct surface, revise the concept,
+catalog mapping, module source location, eager invalid-value failure, and one
+supported update that changes the native lock. Also prove that the routine
+template needs no native edit. If the fixture disproves the surface, revise the concept,
 requirements, and plan together before production wiring.
 
 ## Hardware gate
@@ -56,12 +57,13 @@ authorization. Run only the named commands the owner later authorizes.
 
 ## Decisions and next session
 
-The owner must rule on direct TOML with native input edits before slice 1
+The owner must rule on direct TOML with a bounded catalog before slice 1
 changes the runtime. The owner must separately rule on closing the V5 and V6
 ledgers as history. Basix repository placement (O2), a real installer ISO (O9),
 Attic removal after the live cache gate (O5), and real disk authorization (O7)
 remain later decisions. O6 was resolved on 2026-10-12. Adoption and its O8
-comparison are deferred.
+comparison are deferred. O10 returns as a machine-workflow decision; the
+proposal runs the failed-unit gate before apply or deploy.
 
 The next session first runs the pinned-fork direct-read fixture. It then records
 the owner's format ruling and implements slice 1. Do not copy the S1 YAML parser
