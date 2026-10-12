@@ -8,9 +8,9 @@ consumer, machine, or real disk changed.
 
 ## Evidence
 
-Five spikes and one audit ran in isolation. A sixth spike (P2F) ran later the same day. Each spike record holds the question, the hypotheses,
+Five spikes and one audit ran in isolation. Two more spikes (P2F and P2G) ran later the same day. Each spike record holds the question, the hypotheses,
 the exact inputs, the commands, the expected and actual results, and the limits. Raw logs stay
-under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-audit/`, and `F2-yaml-handoff/`).
+under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-audit/`, `F2-yaml-handoff/`, and `G-fork-yaml/`).
 
 | Record | Question | Result on the pinned fork `devenv 2.4.0+fb5d382` |
 | --- | --- | --- |
@@ -21,6 +21,7 @@ under `~/.local/state/vendomat/p20/2026-10-12/` (`A-fork-direct-read/` to `F-aud
 | [P2E](P2E-cache-key.md) | Must an administrator place the cache signing key? | No. In one NixOS VM test, a oneshot made the key on first start, Harmonia started after it, and a client verified the signature. A wrong client key refused the path. Nix refused an unsigned path unless `require-sigs = false`, so unsigned sharing is rejected. Harmonia serves and signs any path in its store, built there or not. |
 | F audit | What did the first pass keep by habit, miss, or contradict? | It counted 21 learner concepts, not 7. It found eleven contradictions, for example `DECISIONS.md` S18 against S24 and two validators in `CONCEPT.md`. It proposed cuts for `test`, `build`, the `vendomat devenv` prefix, the failed-unit gate, and the update protocol. |
 | [P2F](P2F-yaml-handoff.md) | Can the user file be YAML, parsed by our own strict-subset parser, with no stored copy? | Parsing works: 173 lines of stdlib Python, 39 ms, every scalar a string, and Nix types give the meaning. The hand-off to Nix does not work on every entry point. Only plain `builtins.exec` with `readFile` (H3b) works on a fresh clone, direct devenv, direnv, and Testee. It needs the machine-wide `allow-unsafe-native-code-during-evaluation = true`. Plain `exec` without `readFile` (H3) gives a silent stale eval and a false GREEN under Testee. |
+| [P2G](P2G-fork-yaml.md) | Can our devenv fork parse `vendomat.yaml` itself, with no stored copy and no unsafe Nix setting? | Yes. A Rust primop `vendomatFromYAML name text` (patch 0009, 403 lines) parses a strict subset. The catalog passes it the text of `builtins.readFile`, so the eval cache tracks every edit. Edit detection, direct `shell` and `test`, a fresh clone, direnv, and Testee 0.6.1 all passed with no unsafe setting. The Rust parser matched the P2F Python parser on 27 of 27 case files. Syntax errors give `vendomat.yaml:LINE:COL: reason`. Condition: the process that evaluates must run the fork, not stock devenv. |
 
 P2A and P2C disagree on `follows`. P2A used a catalog input with `flake: false`, so
 `follows: vendomat/nixpkgs` failed. P2C used a flake input, so the same line worked. The
@@ -43,9 +44,9 @@ through native Nix.
 
 | Mechanism | Why it exists | Simpler shape | Removes | Lost | Evidence | Verdict |
 | --- | --- | --- | --- | --- | --- | --- |
-| `vendomat.toml` read directly by a fixed module | One routine file without Nix | Keep. Read `config.devenv.root + "/vendomat.toml"`; a missing file is an empty catalog | A "missing file" failure | None | P2A | keep |
+| `vendomat.toml` read directly by a fixed module | One routine file without Nix | Keep, now as `vendomat.yaml`. Read `config.devenv.root + "/vendomat.yaml"` with `builtins.readFile` and parse it with the fork primop; a missing file is an empty catalog | A "missing file" failure | None | P2A, P2G | keep |
 | Template-owned `devenv.yaml`, `devenv.nix`, `devenv.lock` | Native devenv needs them | Fixed content: one input, one `follows` line, one import; `devenv.nix` is `{ }` | Routine edits of native files | None | P2A, P2C | keep |
-| Two validators: Vendomat checks before devenv, then Nix types | Early errors | One parse step inside the catalog module. Every mapping reads only the parsed value, so no command can skip it | Release skew between host and pinned catalog; a second validator | Precise TOML line and column | P2B | simplify |
+| Two validators: Vendomat checks before devenv, then Nix types | Early errors | One parse step inside the catalog module. Every mapping reads only the parsed value, so no command can skip it | Release skew between host and pinned catalog; a second validator | Line and column of a type error (a syntax error keeps its line) | P2B, P2G | simplify |
 | Per-leaf `deepSeq` guard | Force unused values | Fold into the parse step: the module maps from one parsed value | A rule that each mapping must remember | None | P2B | simplify |
 | Unbounded "settings" catalog kind | Cover the long tail | Named entries only; the rest uses `devenv.nix` | Arbitrary option paths as data | Long-tail options as data | F audit | cut |
 | Program name lookup | Map names to packages | Parse step resolves each name and lists every unknown name | Raw `attribute missing` with no file | None | P2B | keep |
@@ -66,9 +67,11 @@ through native Nix.
 | Collection, source modes, keep clones | Private source store | Defer from the first release | Source modes and the collection builder | Offline source mirror | R3 | defer (owner ruling) |
 | Separate Basix repository and input | Ownership split (O2) | Ship the machine catalog in the Vendomat release for the first release | One input, one release channel, O2 | Independent Basix releases | Inference | simplify (owner ruling) |
 
+**Note (P2G).** Rows above that name `vendomat.toml` or TOML now read `vendomat.yaml`. The fork primop reads it (P2G) in place of `builtins.fromTOML` (P2A). The parse step still lists type errors by field without a line number. A syntax error now carries `vendomat.yaml:LINE:COL`. The same swap applies to the journeys table and the "Before and after" table.
+
 ## New mental model
 
-1. You describe a workspace or a machine in one file, `vendomat.toml`; Vendomat owns every other file.
+1. You describe a workspace or a machine in one file, `vendomat.yaml`; Vendomat owns every other file.
 2. `vendomat` opens the shell, and any other command runs in the pinned devenv.
 3. `vendomat update` moves to the newest Vendomat release; version control or the boot menu takes you back.
 4. You install a machine from the Basix USB stick, then `vendomat apply` switches it to your file.
@@ -94,7 +97,7 @@ capability the owner may value.
 
 | # | Question | Recommendation |
 | --- | --- | --- |
-| Q1 | Accept TOML for the first release, with a bounded catalog, in place of the 2026-10-11 YAML decision? (Open since the first pass.) | Yes. YAML returns only if a fork patch passes the same entry-point table (spike running). |
+| Q1 | Confirm YAML through the fork primop (`vendomat.yaml`) in place of TOML. (Open since the first pass; restated after P2G.) | Yes. P2G passed the entry-point table with no unsafe setting. It keeps the 2026-10-11 YAML decision. |
 | Q2 | Make the learner install local from a Basix ISO, and move remote install to the native door? The owner's `server` install would use the native door. | Yes. |
 | Q3 | Defer the source collection, mirrors, and keep clones from the first release? This touches the "two tracked things" rule from project 14. | Yes. |
 | Q4 | Close the V5 and V6 ledgers as history at cutover, and replace the 521-row map with the rows that cite live IDs? (Open since the first pass.) | Yes, at cutover, not before, because V5 code still runs. |
@@ -152,6 +155,53 @@ hostile `devenv.nix` ran.
 Limits: very large files, a concurrent edit, a symlinked file, integer fields, and a Testee hook
 that runs a data step first are unproved.
 
+P2G (next section) ran that spike. Its result replaces conclusion items 3 and 4.
+
+## YAML through a fork primop (P2G)
+
+**Question.** Can our devenv fork parse `vendomat.yaml` itself, so that every entry point sees
+current data, with no stored copy and no unsafe Nix setting? The fork (`devenv 2.4.0+fb5d382`)
+evaluates Nix in process through the Nix C API. It already has a primop registry
+(`devenv-nix-backend/src/primops.rs`, with `loadDotenv` and `allocatePort`). Modules receive the
+registry as the `devenvPrimops` argument.
+
+**Design.** Patch 0009 adds the pure primop `vendomatFromYAML name text`. It has 403 lines:
+a new `yaml_subset.rs` of 299 lines, 58 lines in `primops.rs`, 3 in `lib.rs`, and 1 in
+`devenv/src/devenv/mod.rs`. It applies on top of patch 0008. A hand-written Rust parser accepts
+maps, lists, and string scalars only. The catalog calls
+`devenvPrimops.vendomatFromYAML "vendomat.yaml" (builtins.readFile p)`, guarded by
+`builtins.pathExists p`. The eval cache tracks `readFile` and `pathExists`, and the primop reads
+no file, so no input is hidden. The patch is in
+[fixtures/p2g/](fixtures/p2g/0009-vendomat-add-the-vendomatFromYAML-primop.patch).
+
+| Check | Result with no unsafe Nix setting |
+| --- | --- |
+| Edit detection | Passed: value, same size with restored mtime, added key, delete, restore |
+| Direct `devenv shell` and `devenv test` | Passed |
+| Fresh git clone | Passed |
+| direnv `use devenv` | Passed (an interactive hook was not tested) |
+| Testee 0.6.1 | Passed: GREEN, RED, GREEN, no false green |
+| Traps | `3.10` and `name: no` stay text; `enable: no` and `enable: yes` are rejected |
+| Parser match | The Rust parser matched the P2F Python parser on 27 of 27 case files |
+| Unsafe setting | `allow-unsafe-native-code-during-evaluation = false` in every run |
+
+**Errors.** A syntax error is the last line of a trace of about 238 lines, for example
+`vendomat.yaml:4:1: tabs are not accepted; use spaces`. Testee shows that line on one line. A
+type error names the file and field and has no line number.
+
+**Catch.** The PATH that Testee inherits on this host puts stock devenv first. Stock devenv fails
+with `attribute 'vendomatFromYAML' missing`. The host must put the fork first on that PATH.
+
+**Cost.** Maintenance is low to medium. The new file cannot conflict. The `primops.rs` block and
+the plugin line in `mod.rs` may need a rebase. The Nix bindings API can move with a Nix bump.
+
+**Conclusion.** YAML through the fork primop works on every entry point that P2F tested, and it
+needs no unsafe setting. It replaces TOML, supersedes S36, and returns the user file to the
+2026-10-11 name `vendomat.yaml`. Slice 1 must carry patch 0009 in the fork series.
+
+Not proved: Rust unit tests, a release build, the real catalog, a NixOS machine entry,
+interactive direnv, very large or symlinked files, and a concurrent edit.
+
 ## Handoff
 
 - **Changed.** `CONCEPT.md` is rewritten around the five-sentence model. `REQUIREMENTS.md`
@@ -162,7 +212,7 @@ that runs a data step first are unproved.
   the "settings" catalog kind, and the hand-migration table.
 - **Moved to the advanced door.** Remote install and deploy, the installer and admin keys, and
   the host-key re-pin.
-- **Owner rulings needed.** Q1 to Q4 above. O5, O7, and O9 stay open.
+- **Owner rulings needed.** Q1 to Q4 above (Q1 restated after P2G). O5, O7, and O9 stay open.
 - **Next session.** Record the owner's rulings. Then start slice 1 in [PLAN.md](../PLAN.md) from
   the P2A, P2B, and P2C fixtures.
 

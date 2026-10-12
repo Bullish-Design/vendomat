@@ -10,7 +10,7 @@ future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) 
 Its [requirement ledger](projects/20-vendomat-front-door/REQUIREMENTS.md) preserves the first
 draft's IDs. Its [plan](projects/20-vendomat-front-door/PLAN.md) names the proof gates.
 Vendomat becomes the user command. The 2026-10-12 second simplification
-pass proposes one user file (`vendomat.toml`, read directly by a catalog module),
+pass proposes one user file (`vendomat.yaml`, read by a catalog module through a fork primop),
 three verbs plus pass-through to the pinned fork, a local Basix install from an
 ISO, and a serving machine that makes its own signing key. Native devenv remains
 the advanced door. The owner has not yet ruled on the four grouped questions.
@@ -44,17 +44,16 @@ balanced the disk (23.09 GiB unallocated, metadata 71.6 %), so VM work may resum
 
 **Simplification review (2026-10-12).** The
 [review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12.md)
-proposes direct TOML data, a bounded Vendomat catalog, no generated
+proposes direct data (first TOML, now YAML), a bounded Vendomat catalog, no generated
 `.vendomat/`, one fresh Basix machine type, and optional signed output sharing.
 Vendomat owns the routine workflow; native devenv files are an advanced door. The
 [concept](projects/20-vendomat-front-door/CONCEPT.md),
 [requirements](projects/20-vendomat-front-door/REQUIREMENTS.md),
 [decisions](projects/20-vendomat-front-door/DECISIONS.md), and
 [plan](projects/20-vendomat-front-door/PLAN.md) record the proposal. An isolated
-Nix fixture proved direct TOML reading and file-level type errors. It did not
+Nix fixture proved direct file reading and file-level type errors. It did not
 prove eager validation or a pinned-devenv workspace. No production code or
-consumer changed. The owner still needs to rule on the change from YAML to
-TOML and on closing the V5 and V6 ledgers as history. The next session starts
+consumer changed. The owner still needs to rule on the user file format (now Q1, YAML) and on closing the V5 and V6 ledgers as history. The next session starts
 with the pinned-fork direct-read fixture, not the strict YAML reader.
 
 **Second simplification pass (2026-10-12).** The
@@ -65,13 +64,21 @@ one parse step that stops every tested command, update as a native lock update
 of a `release` branch, and a self-made cache signing key. It found that the fork
 installs only over SSH, so the learner path becomes a local ISO install. It
 supersedes `DOOR-060` and `DOOR-064` to `DOOR-068` with `DOOR-069` to `DOOR-073`
-and adds decisions S27 to S35. The owner must rule on Q1 to Q4: TOML in place of
-YAML, local install, deferring the source collection, and closing the V5 and V6
+and adds decisions S27 to S35. The owner must rule on Q1 to Q4: YAML through the fork
+primop, local install, deferring the source collection, and closing the V5 and V6
 ledgers at cutover. The next session records those rulings, then starts slice 1. A sixth spike
 ([P2F](projects/20-vendomat-front-door/evidence/P2F-yaml-handoff.md)) showed that no
 hand-off of parsed YAML to Nix works on every entry point without a machine-wide unsafe Nix
-setting. Decision S36 keeps TOML for the first release. Q1 now reads: accept TOML; YAML returns
-only if a fork patch that reads `vendomat.yaml` passes the same entry-point table (spike running).
+setting. Decision S36 kept TOML for the first release, pending a fork patch.
+
+**YAML through a fork primop (2026-10-12).** The seventh spike
+([P2G](projects/20-vendomat-front-door/evidence/P2G-fork-yaml.md)) tested that patch. Patch 0009
+adds the primop `vendomatFromYAML` to the fork. The catalog reads `vendomat.yaml` with
+`builtins.readFile` and parses it with the primop. It passed edit detection, direct devenv, a
+fresh clone, direnv, and Testee with no unsafe Nix setting. Decision S37 supersedes S36, and
+`DOOR-074` and `DOOR-075` supersede `DOOR-069` and `DOOR-070`. Q1 now reads: confirm YAML through
+the fork primop (`vendomat.yaml`) in place of TOML. The host must put the fork first on the PATH
+that Testee inherits. Not proved: the Rust unit tests, a release build, and the real catalog.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 

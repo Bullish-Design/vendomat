@@ -8,7 +8,7 @@ capability, and the open owner questions.
 
 ## The mental model
 
-1. You describe a workspace or a machine in one file, `vendomat.toml`; Vendomat owns every other file.
+1. You describe a workspace or a machine in one file, `vendomat.yaml`; Vendomat owns every other file.
 2. `vendomat` opens the shell, and any other command runs in the pinned devenv.
 3. `vendomat update` moves to the newest Vendomat release; version control or the boot menu takes you back.
 4. You install a machine from the Basix USB stick, then `vendomat apply` switches it to your file.
@@ -16,16 +16,19 @@ capability, and the open owner questions.
 
 ## Workspaces
 
-`vendomat new` makes a workspace with four files. The user edits only `vendomat.toml`. The
+`vendomat new` makes a workspace with four files. The user edits only `vendomat.yaml`. The
 template owns `devenv.yaml` (the Vendomat input on its `release` branch, `nixpkgs` following
 Vendomat's `nixpkgs`, and one import), `devenv.nix` (`{ }`), and `devenv.lock`. No generated
 file exists.
 
-`vendomat.toml` holds a bounded catalog: programs, languages, services, and environment values.
-A fixed Nix module in the Vendomat release reads the file directly. It parses the file once into
-typed values and lists every bad field, with the file name, before any command does work. Every
-mapping to a native option reads only the parsed values. A command therefore cannot run with a
-bad value. Errors name the file and the field, but not the line.
+`vendomat.yaml` holds a bounded catalog: programs, languages, services, and environment values.
+It uses a strict subset of YAML: maps, lists, and string scalars only. A fixed Nix module in the
+Vendomat release reads the file with `builtins.readFile` and parses the text with
+`vendomatFromYAML`, a function that the pinned devenv fork adds. The module parses the file once
+into typed values and lists every bad field, with the file name, before any command does work.
+Every mapping to a native option reads only the parsed values. A command therefore cannot run
+with a bad value. A syntax error names the file, line, and column. A type error names the file
+and the field.
 
 A value outside the catalog goes in `devenv.nix` or `devenv.yaml`. That is the advanced door.
 Native Nix merge rules apply there.
@@ -40,13 +43,13 @@ restores the earlier release.
 
 ## Machines
 
-A Basix machine is a workspace whose `vendomat.toml` also has a machine table. The learner boots
+A Basix machine is a workspace whose `vendomat.yaml` also has a machine table. The learner boots
 the Basix ISO on the machine and runs `vendomat install`. The installer lists blank disks by
 `/dev/disk/by-id/`, excludes the boot medium, and refuses a disk with partitions or signatures.
 The learner types the full by-id name to confirm. The installer partitions, installs, writes the
 machine workspace, and sets a console password. The core boots with no key and no secret.
 
-After boot, the learner edits `vendomat.toml` and runs `vendomat apply`. It builds the machine
+After boot, the learner edits `vendomat.yaml` and runs `vendomat apply`. It builds the machine
 and switches to it. It reports the native switch status and any failed unit. The boot menu
 gives the earlier generation back.
 

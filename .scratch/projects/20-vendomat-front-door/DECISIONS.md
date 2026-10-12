@@ -147,3 +147,17 @@ change S27 to S35. It restates Q1.
 | Proposal | Earlier row or question | Effect | Evidence |
 | --- | --- | --- | --- |
 | S36. Keep `vendomat.toml` for the first release. Do not hand YAML to Nix by `builtins.exec`. YAML returns only if a fork patch lets devenv read `vendomat.yaml` itself and passes the same entry-point table. | Q1 | Our own YAML parser works (173 lines, 39 ms). The hand-off fails: an env var or a generated file breaks on direct devenv, direnv, or Testee. Plain `exec` gave a false GREEN. `exec` with `readFile` works everywhere but needs the machine-wide setting `allow-unsafe-native-code-during-evaluation`. Q1 now reads: accept TOML for the first release. A fork-patch spike is running. | P2F |
+
+## YAML through a fork primop, 2026-10-12
+
+The [P2G record](evidence/P2G-fork-yaml.md) tested a fork patch that parses `vendomat.yaml`. It
+passed the entry-point table that P2F set, with no unsafe Nix setting. This row supersedes S36.
+Older rows stay unchanged.
+
+| Proposal | Earlier row or question | Effect | Evidence |
+| --- | --- | --- | --- |
+| S37. The user file is `vendomat.yaml`. The catalog module reads it with `builtins.readFile` and parses it with the fork primop `vendomatFromYAML`. | S36; the TOML part of S16 and S28; Q1 | The strict subset holds maps, lists, and string scalars. Nix types give the strings their meaning. No unsafe Nix setting, wrapper, or generated file exists. The V5 `vendomat.toml` file-name clash ends, because the new file has a new name. Patch 0009 joins the fork series in slice 1. The host must put the fork first on the PATH that Testee inherits. | P2G |
+
+**Q1 restated.** Confirm YAML through the fork primop (`vendomat.yaml`) in place of TOML. The
+recommendation is yes. Q2 to Q4 do not change. S27 to S35 stand, with `vendomat.yaml` read for
+`vendomat.toml` and the fork primop read for `builtins.fromTOML`.
