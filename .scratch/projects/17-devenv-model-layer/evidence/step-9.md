@@ -102,3 +102,12 @@ The suite passes with the `nix` language. The tag part of the gate is open.
 
 The GM6 tag item stays open. The harness pins a revision, not a tag. The owner decides the tag and
 the version.
+
+## Addendum, 2026-10-12: Templateer v0.5.0 is tagged on main
+
+1. The tag `v0.5.0` now exists on Templateer `main`. It points at `55af56f91ecf5ea30cf2bb90d0aefd056830bd65`.
+   Observation: `git ls-remote --tags` on `Bullish-Design/templateer_v2` returns that SHA.
+2. The tag carries the `nix` language and the flake outputs. The tag contains the integral-float
+   fix `ac02b48c`.
+3. The open item above ("no tag exists on `main`") is now met. The harness pin still names the
+   revision `ac02b48c015d`. Nobody has moved it to the tag. The owner decides when to move it.
