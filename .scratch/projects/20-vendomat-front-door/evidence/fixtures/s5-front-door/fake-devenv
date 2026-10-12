@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+# S5 fixture, NON-PRODUCTION. A fake `devenv` for pass-through tests.
+# It prints its argv and tty state, then acts on the first argument:
+#   exit N        exit with code N
+#   cat           copy stdin to stdout
+#   up            wait for a signal; on SIGINT print GOT-SIGINT and exit 42; on SIGTERM exit 43
+#   segv          kill itself with SIGSEGV
+#   sleep N       sleep N seconds (no handler)
+import os, signal, sys, time
+a = sys.argv[1:]
+print("FAKE-DEVENV argv=%r stdin_tty=%s stdout_tty=%s pid=%d pgrp=%d" % (
+    a, os.isatty(0), os.isatty(1), os.getpid(), os.getpgrp()), flush=True)
+cmd = a[0] if a else ""
+if cmd == "exit":
+    sys.exit(int(a[1]))
+elif cmd == "cat":
+    sys.stdout.write(sys.stdin.read())
+elif cmd == "up":
+    def on_int(sig, frm):
+        print("GOT-SIGINT", flush=True); sys.exit(42)
+    def on_term(sig, frm):
+        print("GOT-SIGTERM", flush=True); sys.exit(43)
+    signal.signal(signal.SIGINT, on_int); signal.signal(signal.SIGTERM, on_term)
+    print("UP-READY", flush=True)
+    time.sleep(60)
+elif cmd == "segv":
+    os.kill(os.getpid(), signal.SIGSEGV); time.sleep(5)
+elif cmd == "sleep":
+    time.sleep(float(a[1]))

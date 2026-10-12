@@ -1,0 +1,15 @@
+# NON-PRODUCTION spike fixture (project 20, spike S4). Pins from nix-systems/vendomat.toml.
+inputs:
+  # The fork's modules (tag v2.4.0-vendomat.3, commit fb5d382, dir src/modules). The run script rewrites
+  # @FORK@ to a read-only checkout of that tag.
+  devenv:
+    url: path:@FORK@/src/modules
+  nixpkgs:
+    url: github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8
+  disko:
+    url: github:nix-community/disko/de5708739256238fb912c62f03988815db89ec9a
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  nixos-facter-modules:
+    url: github:nix-community/nixos-facter-modules/139dcef4dfc97009629c445806f197883351ab4a

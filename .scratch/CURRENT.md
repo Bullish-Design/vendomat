@@ -17,6 +17,29 @@ The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Pr
 current implementation contract, but no longer directs future design. No project 20 runtime or
 machine gate has passed. The owner has not authorized real disk writes.
 
+**Authority split.** The project 20 documents are the future design authority. Project 14 stays the
+current implementation contract until a release supports the project 20 gates.
+
+**State on 2026-10-11 (research session).** Spikes ran on the pinned tools (fork devenv
+`v2.4.0-vendomat.3`). Each passed at fixture level only; see the
+[research report](projects/20-vendomat-front-door/evidence/RESEARCH-2026-10-11.md).
+
+- S1: a strict YAML grammar and canonical JSON passed the 53 accept and 115 reject corpus.
+- S2: the native merge matrix passed on the fork; generated data stay plain definitions.
+- S3: a neutral schema export, a cache key, and a warm offline store passed.
+- S4: the Basix machine inventory evaluated, and the disk guards fired. No machine was activated.
+- S5: the guard, committed `.vendomat/`, launcher protocol, pass-through, and direnv hook passed in prototypes.
+- S6: a two-VM Harmonia run passed a keyless boot, a cold substitution, and release roots. It also
+  showed that a down cache blocks a build under default Nix settings.
+- S7: a keyless core, a post-boot secret route, a fresh install to a separate VM, and an adoption
+  without disk writes passed on fixtures.
+- S9: native `follows` passed 19 cases and 2 stock-devenv control runs.
+
+No implementation, consumer migration, machine deployment, or real disk write happened.
+**Blocker:** btrfs unallocated space on `/` fell to 93 MiB during the VM spikes. The owner must
+run a balance (root) before more VM work. The first implementation slice is the strict YAML reader
+(proposed `src/vendomat/yamldata.py`, ported from S1, with the S1 corpus as tests).
+
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 
 `.scratch/projects/16-vendomat-devenv-layer/`: `CONCEPT-V6.md`, `SPEC-V6.md`, `GUIDE-V6.md`,
@@ -35,7 +58,7 @@ QEMU). The revised no-Nix workspace gate G3A passes in a template-created local 
 BLOCKED by named items: cold substitution on another host or VM (the same-host live Attic proof
 passed; see [evidence](projects/16-vendomat-devenv-layer/evidence/live-release-2026-10-10.md)), PV-09 (the
 installer's pull credential), V4 removal in repositories that hold open work, `agentman`, and the
-privileged scan with the `nixos-facter` report (they need root). No real disk, firmware entry, or boot
+privileged scan with the `nixos-facter` report (they need root). S7 of project 20 found that G7 is not a keyless proof (it carried `install.secrets`, `extraFiles`, `copyHostKeys`, and one failed unit). No real disk, firmware entry, or boot
 order changed. `CUTOVER-REVIEW.md` holds the verdict, the read-only facts, the built closure, and every
 proposed command marked NOT RUN. The patched devenv is the fork `v2.4.0-vendomat.3`, published to the collection on 2026-10-11 (the review above still names `.2`).
 
@@ -95,7 +118,7 @@ Testee 0.5.1. The project does not change the authority of project 14 or project
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 
 1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 194 requirement IDs in its tables, 151 active, 32 superseded, 10 withdrawn, 1 narrowed; 19 withdrawn resolver and emitter IDs are preserved.
+2. `SPEC-V5.md` — normative. 195 requirement IDs in its tables, 152 active, 32 superseded, 10 withdrawn, 1 narrowed (count verified in [R1](projects/20-vendomat-front-door/evidence/R1-requirements-v5.md)); 19 withdrawn resolver and emitter IDs are preserved.
 3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
 4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
 

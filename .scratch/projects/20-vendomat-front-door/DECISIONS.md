@@ -13,6 +13,57 @@ concept and plan only. The current implementation remains in place until the new
 | 6 | A new pin may require Nix to produce its option schema. | Syntax lint runs first; schema validation finishes before the requested operation. |
 | 7 | There is one new runtime format after cutover. | A one-time converter may help, but the runtime has no permanent TOML compatibility path. |
 
-The following choices need fixtures before they become implementation requirements: exact Basix
-machine option names, the generated module priority, schema refresh after a pin change, the
-post-install secret route, and the value of a one-time converter. See [PLAN.md](PLAN.md).
+## Research results, 2026-10-11
+
+Each row is a recommendation that a fixture backs. The owner may revise it. A fixture result proves
+an interface; it does not pass an implementation gate. See the
+[research report](evidence/RESEARCH-2026-10-11.md).
+
+| # | Decision (recommendation backed by fixture) | Evidence | Effect |
+| --- | --- | --- | --- |
+| 8 | D1. Parse `vendomat.yaml` with a stdlib hand parser. Use S1 `hand.py` as the basis. PyYAML is a test oracle in the dev group only. Do not use `yamlsubset.py` (another grammar), ruamel, or StrictYAML. | [S1](evidence/S1-yaml-subset.md) | DOOR-020 and DOOR-021. First slice is the strict reader. |
+| 9 | D2. Generated data are plain definitions. Native merging decides. R2 open decision 4 proposed `mkOverride 90`; S2 disproves it, because a priority below 100 beats plain `devenv.nix` definitions and drops devenv's own list values. | [S2](evidence/S2-merge-priority.md) | DOOR-023. The documents never say "YAML always wins". |
+| 10 | D3. Accept block scalars `\|` and `\|-`. R2 decision 16 proposed to reject them; S1 found 43 `types.lines` options that need them. | [S1](evidence/S1-yaml-subset.md) | DOOR-020. |
+| 11 | D4. Store the schema in the user cache, not in the repository. R2 decision 8 proposed a committed schema; S3 found that a committed schema does not make an offline fresh clone work. The exporter lives in Vendomat (a Nix module and a Python reader). `devenv-py` stays a reference. | [S3](evidence/S3-schema-export.md) | DOOR-025, DOOR-026, DOOR-027. |
+| 12 | D5. Commit `.vendomat/`. Testee evaluates before `prepare`, and an ignored fragment fails with no Vendomat hint. | [S5](evidence/S5-front-door.md) | DOOR-028. |
+| 13 | D6. The guard is a module-wide throw with the escape variable `VENDOMAT_ALLOW_STALE`. | [S5](evidence/S5-front-door.md) | DOOR-029. The effect of `getEnv` on the eval cache is unproved. |
+| 14 | D7. The launcher follows the S5 protocol and exit codes (64 to 72). | [S5](evidence/S5-front-door.md) | DOOR-030, DOOR-031, DOOR-033. |
+| 15 | D8. Unnamed commands pass through with `exec`. | [S5](evidence/S5-front-door.md) | DOOR-033. |
+| 16 | D9. Input following is native. Drop `_Discovery` and `NixResolver` in `devenvgen.py`. | [S9](evidence/S9-native-follows.md) | DOOR-022 and DOOR-036. |
+| 17 | D10. `vendomat.yaml` has no format version key. The pinned release defines the format, and the host release only creates the first lock. R2 decision 6 proposed a `version` key; reject it to keep two reserved keys. Open proof: a host release older than the pin must exit 65 with a "use the pinned release" hint. | [R2](evidence/R2-requirements-v6-door.md), [S5](evidence/S5-front-door.md) | DOOR-022, DOOR-030. |
+| 18 | D11. Harmonia starts through a path unit, and clients set `fallback = true`. This corrects project 19 and the first concept: a down cache blocks a build under default Nix settings. | [S6](evidence/S6-harmonia-two-vm.md) | DOOR-045, DOOR-046. |
+| 19 | D12. Secret route 1 is the controller push. `install.secrets` is an install-time convenience only. | [S7](evidence/S7-keyless-secrets.md) | DOOR-040. |
+| 20 | D13. The installer key is separate from the admin key. The controller re-pins the host key after a first boot or a disk loss. | [S7](evidence/S7-keyless-secrets.md) | DOOR-041. |
+| 21 | D14. Write no converter. The inventory found 29 TOML files, 2 live V5 or V6 consumers, and 22 V4 files to delete. | [R3](evidence/R3-migration-inventory.md) | DOOR-052, DOOR-053. Supersedes the "one-time converter" idea in decision 7. |
+| 22 | D15. The inventory schema follows S4. Mode names follow the fork: `fresh-install` and `adopt-existing`. | [S4](evidence/S4-machine-inventory.md) | DOOR-037. The `basix` name stays proposed. |
+
+## Open owner decisions
+
+| # | Question | Options | Recommendation |
+| --- | --- | --- | --- |
+| O1 | Flake target (GEN-\*, PRE-001, CLI-016, INP-008) | Withdraw; port; keep the TOML reader | Withdraw. |
+| O2 | The `basix` option name and the repository that declares the inventory | Basix declares `basix.*`; or Vendomat declares it | Basix declares `basix.*`. Vendomat ships the guards that it consumes. |
+| O3 | Source modes and collection commands (DOOR-055) | A `vendomat.sources` option, the hook refresh, and `prepare` clones; or a separate `vendomat collection` command | The option, the hook refresh, and `prepare` clones. Drop `backup` and the forge shorthand. |
+| O4 | `path`, `check`, `bump` | Keep `path` and `check`, and let `bump` edit only `vendomat.yaml`; or withdraw `bump` | Keep all three on that basis. |
+| O5 | Attic removal timing (DOOR-050) | Remove at cutover; or keep Attic push and live checks until the Harmonia live gate passes | Keep them until the Harmonia live gate passes. |
+| O6 | Disk space on `/` (btrfs unallocated 93 MiB) | Run `btrfs balance` as root before more VM work; or stop VM work | Run the balance. This is a blocker for VM gates. |
+| O7 | Real disk and hardware authorization | Grant it for named disks; or keep it withheld | Not given. This blocks the cutover gates. |
+| O8 | Adopted-host capability comparison (BOOT-008 parity) | A read-only report of services and units before the first adopted switch; or none | Write the report. |
+| O9 | Fresh-install route for real devices | A live installer ISO with a temporary key; or kexec | The ISO first. Kexec later. |
+| O10 | May the front door run the failed-unit gate before `machines deploy` and `apply` (`MACH-022` against `MACH-005`)? | Yes, as a named exception to `MACH-005`; or no, the user runs it | Yes. A degraded host should not receive a new generation silently. |
+
+## Status of the earlier open choices
+
+Decision 7 listed five choices that need fixtures. The 2026-10-11 session settled four at fixture
+level. Each still needs an implementation proof.
+
+- **Settled by fixtures:** the shape of the Basix machine options (D15, [S4](evidence/S4-machine-inventory.md);
+  the `basix` name and child names stay proposed under O2),
+  the generated module priority (D2, [S2](evidence/S2-merge-priority.md)), schema refresh after a
+  pin change ([S3](evidence/S3-schema-export.md)), and the post-install secret route (D12,
+  [S7](evidence/S7-keyless-secrets.md)).
+- **Settled by evidence:** a one-time converter has no value (D14).
+- **Still open:** the `basix` name and owner (O2), source modes (O3), the real Basix core and installer
+  route (O9), the offline missing-schema message, and the eval-cache effect of the guard.
+
+See [PLAN.md](PLAN.md).

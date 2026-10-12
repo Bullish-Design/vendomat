@@ -1,0 +1,7 @@
+# S2 fixture (NON-PRODUCTION): workspace devenv.yaml. Imports the probe and the generated module.
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+imports:
+  - ./probe.nix
+  - ./.vendomat

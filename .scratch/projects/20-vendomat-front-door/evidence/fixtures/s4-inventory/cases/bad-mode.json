@@ -1,0 +1,53 @@
+{
+  "basix": {
+    "machines": {
+      "laptop": {
+        "mode": "adopt",
+        "stateVersion": "23.11",
+        "target": {
+          "host": "root@192.0.2.20"
+        },
+        "disks": {
+          "system": {
+            "byId": "/dev/disk/by-id/nvme-EXAMPLE-LAPTOP-0003",
+            "role": "existing-system"
+          }
+        },
+        "filesystems": {
+          "/": {
+            "device": "/dev/disk/by-uuid/11111111-2222-4333-8444-555555555555",
+            "fsType": "ext4"
+          },
+          "/boot": {
+            "device": "/dev/disk/by-uuid/ABCD-1234",
+            "fsType": "vfat",
+            "options": [
+              "fmask=0022",
+              "dmask=0022"
+            ]
+          }
+        },
+        "hardware": {
+          "report": null,
+          "initrdModules": [
+            "xhci_pci",
+            "nvme",
+            "usb_storage",
+            "sd_mod"
+          ],
+          "kernelModules": [
+            "kvm-amd"
+          ]
+        },
+        "users": {
+          "owner": {
+            "admin": true,
+            "authorizedKeys": [
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEPUBLICKEYONLY owner@example"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

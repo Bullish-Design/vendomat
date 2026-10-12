@@ -1,0 +1,50 @@
+{
+  "basix": {
+    "machines": {
+      "box": {
+        "mode": "fresh-install",
+        "stateVersion": "26.05",
+        "target": {
+          "host": "root@192.0.2.10"
+        },
+        "disks": {
+          "newsys": {
+            "byId": "/dev/sda",
+            "role": "install-target",
+            "model": "Example SSD 1TB",
+            "serial": "EX0001",
+            "sizeBytes": 1000204886016
+          },
+          "oldsys": {
+            "byId": "/dev/disk/by-id/nvme-EXAMPLE-OLD-0002",
+            "role": "keep",
+            "model": "Example SSD 512",
+            "serial": "EX0002",
+            "sizeBytes": 512110190592
+          }
+        },
+        "layout": {
+          "swapSize": "8G"
+        },
+        "hardware": {
+          "report": ".machines/box/facter.json",
+          "modules": [
+            {
+              "input": "nixpkgs",
+              "path": "nixos/modules/installer/scan/not-detected.nix"
+            }
+          ]
+        },
+        "users": {
+          "owner": {
+            "admin": true,
+            "authorizedKeys": [
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEXAMPLEPUBLICKEYONLY owner@example"
+            ]
+          }
+        },
+        "timeZone": "UTC"
+      }
+    }
+  }
+}

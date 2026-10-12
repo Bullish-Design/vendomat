@@ -1,0 +1,6 @@
+# NON-PRODUCTION fixture for spike S7. How the runs were made. Raw logs: ~/.local/state/vendomat/p20/2026-10-11/S7/
+# nixosTest runs (nixpkgs e7439b6b14ad3cc35d05608ebca9bce01a25f5f8, Nix 2.34.7, KVM, unprivileged):
+#   drv=$(nix build --no-link --print-out-paths -f default.nix a.driver)      # or adopt.driver
+#   TMPDIR=<dir under /mnt/shared> $drv/bin/nixos-test-driver
+# Fresh install run (copy of devenv-dist/fixtures with fresh-install-project.diff applied, vm-keyless added at fixtures/vm-keyless):
+#   python3 -I vm-keyless <fork devenv> "git+file://<fork repo>?ref=refs/tags/v2.4.0-vendomat.3&dir=src/modules" <rundir> <logdir> <qemu> <ovmf> <nixpkgs rev>

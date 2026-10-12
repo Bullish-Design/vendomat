@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+# NON-PRODUCTION spike fixture (Vendomat project 20, spike S9). Not part of any gate.
+# Question: does native devenv.yaml `follows` on the pinned fork replace the shared-child
+# `follows` pass (PRE-005)?
+#
+# usage: python3 -I s9-follows PATCHED_DEVENV STOCK_DEVENV WORKDIR LOGDIR
+# WORKDIR must not exist. A loopback `git daemon` serves tag-pinned `git://` sources.
+# The script writes results.json in LOGDIR. It never garbage-collects the store.
+import hashlib
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REV = "256551e45f6303e142ab4a98be1bf243feb77dc0"  # devenv-nixpkgs rev in vendomat devenv.lock
+DEVENV_REV = "fe20b5cba7ab5e93ae73f956a8d3efc50e1753f4"  # devenv src/modules rev in the same lock
+NIXPKGS = f"github:cachix/devenv-nixpkgs/{REV}"
+DEVENV = f"github:cachix/devenv/{DEVENV_REV}?dir=src/modules"
+GIT_ENV = {
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_AUTHOR_NAME": "fixture",
+    "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+    "GIT_COMMITTER_NAME": "fixture",
+    "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+}
+
+
+def emit(value, indent=0):
+    pad = "  " * indent
+    out = ""
+    for key, val in value.items():
+        if isinstance(val, dict):
+            out += f"{pad}{key}:\n" + emit(val, indent + 1) if val else f"{pad}{key}: {{}}\n"
+        elif isinstance(val, bool):
+            out += f"{pad}{key}: {'true' if val else 'false'}\n"
+        elif isinstance(val, list):
+            out += f"{pad}{key}:\n" + "".join(f"{pad}  - {json.dumps(i)}\n" for i in val)
+        else:
+            out += f"{pad}{key}: {json.dumps(val)}\n"
+    return out
+
+
+def git(repo, *args):
+    subprocess.run(["git", *args], cwd=repo, env={**os.environ, **GIT_ENV}, check=True, capture_output=True)
+
+
+def main():
+    if len(sys.argv) != 5:
+        sys.exit(__doc__)
+    patched, stock, workdir, logdir = sys.argv[1], sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4])
+    if workdir.exists():
+        sys.exit(f"{workdir} exists")
+    workdir.mkdir(parents=True)
+    logdir.mkdir(parents=True, exist_ok=True)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    base = f"git://127.0.0.1:{port}"
+    repos = workdir / "repos"
+
+    def url(name, tag):
+        return f"{base}/{name}?ref=refs/tags/{tag}"
+
+    # --- sources -----------------------------------------------------------------------------
+    def new_repo(name):
+        r = repos / name
+        if r.exists():
+            for p in r.iterdir():
+                if p.name != ".git":
+                    subprocess.run(["rm", "-rf", str(p)], check=True)
+        else:
+            r.mkdir(parents=True)
+            git(r, "init", "-q", "-b", "main")
+        return r
+
+    def commit(r, tag):
+        git(r, "add", "-A")
+        git(r, "commit", "-q", "--allow-empty", "-m", tag)
+        git(r, "tag", tag)
+
+    # shared: data only. v1 and v2 differ.
+    r = new_repo("shared")
+    for tag in ("v1", "v2"):
+        (r / "marker.txt").write_text(f"shared-{tag}\n")
+        commit(r, tag)
+
+    # sub: a flake with its own nixpkgs. tool: a flake with nixpkgs and sub.
+    r = new_repo("sub")
+    (r / "flake.nix").write_text(
+        f'{{ inputs.nixpkgs.url = "{NIXPKGS}"; outputs = {{ self, ... }}: {{ }}; }}\n'
+    )
+    commit(r, "v1")
+    r = new_repo("tool")
+    (r / "flake.nix").write_text(
+        f'{{ inputs.nixpkgs.url = "{NIXPKGS}"; inputs.sub.url = "{url("sub", "v1")}"; '
+        "outputs = { self, ... }: { }; }\n"
+    )
+    commit(r, "v1")
+
+    def lib(name, tags):
+        """tags: tag -> dict(yaml=shared tag in devenv.yaml, flake=shared tag in flake.nix, tool=bool, toolfollow=bool)"""
+        r = new_repo(name)
+        for tag, spec in tags.items():
+            (r / "flake.nix").write_text(
+                f'{{ inputs.nixpkgs.url = "{NIXPKGS}"; inputs.shared.url = "{url("shared", spec["flake"])}"; '
+                "inputs.shared.flake = false; outputs = { self, ... }: { }; }\n"
+            )
+            yaml_inputs = {"shared": {"url": url("shared", spec["yaml"]), "flake": False}, "nixpkgs": {"url": NIXPKGS}}
+            if spec.get("tool"):
+                tool = {"url": url("tool", "v1")}
+                if spec.get("toolfollow"):
+                    tool["inputs"] = {"nixpkgs": {"follows": "nixpkgs"}}
+                yaml_inputs["tool"] = tool
+            (r / "devenv").mkdir(exist_ok=True)
+            (r / "devenv" / "devenv.yaml").write_text(emit({"inputs": yaml_inputs}))
+            var = "SHARED_" + name[-1].upper()
+            (r / "devenv" / "devenv.nix").write_text(
+                f'{{ inputs, ... }}: {{ env.{var} = "${{inputs.shared}}"; }}\n'
+            )
+            commit(r, tag)
+
+    lib("lib-a", {
+        "v1": dict(yaml="v1", flake="v1"),
+        "v2": dict(yaml="v1", flake="v1", tool=True, toolfollow=True),  # source-declared nested follows
+    })
+    lib("lib-b", {
+        "v1": dict(yaml="v1", flake="v1"),
+        "v2": dict(yaml="v2", flake="v2"),  # conflicts with lib-a v1 in devenv.yaml
+        "v3": dict(yaml="v1", flake="v2"),  # devenv.yaml agrees, flake.nix child differs
+    })
+
+    daemon = subprocess.Popen(
+        ["git", "daemon", "--reuseaddr", "--export-all", f"--base-path={repos}", "--listen=127.0.0.1",
+         f"--port={port}", str(repos)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    for _ in range(50):
+        if subprocess.run(["git", "ls-remote", f"{base}/shared"], capture_output=True).returncode == 0:
+            break
+        time.sleep(0.2)
+
+    results = []
+
+    def devenv(binary, consumer, label, *args):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("DEVENV_")}
+        done = subprocess.run([binary, "--no-eval-cache", *args], cwd=consumer, capture_output=True, text=True,
+                              env=env, timeout=1800, stdin=subprocess.DEVNULL)
+        (logdir / f"{label}.log").write_text(
+            f"$ {binary} {' '.join(args)}\nexit {done.returncode}\n--- stdout\n{done.stdout}\n--- stderr\n{done.stderr}")
+        return done
+
+    def analyse(consumer):
+        lock = consumer / "devenv.lock"
+        if not lock.exists():
+            return None
+        nodes = json.loads(lock.read_text())["nodes"]
+
+        def text(n):
+            return json.dumps(nodes[n].get("locked", {}))
+
+        shared = sorted(n for n in nodes if n != "root" and "/shared" in text(n))
+        nixpkgs = sorted(n for n in nodes if n != "root" and nodes[n].get("locked", {}).get("repo") == "devenv-nixpkgs")
+        return {
+            "nodes": len(nodes) - 1,
+            "shared_nodes": shared,
+            "shared_revs": sorted({nodes[n]["locked"].get("rev", "")[:8] + "/" + nodes[n]["original"].get("ref", "") for n in shared}),
+            "nixpkgs_nodes": nixpkgs,
+            "root_inputs": nodes["root"].get("inputs", {}),
+            "node_inputs": {n: v.get("inputs", {}) for n, v in nodes.items() if v.get("inputs") and n != "root"},
+        }
+
+    def run(name, inputs, imports=("lib-a/devenv", "lib-b/devenv"), binary=None, command=None, note=""):
+        binary = binary or patched
+        consumer = workdir / name / "consumer"
+        consumer.mkdir(parents=True)
+        (consumer / "devenv.nix").write_text("{ ... }: { }\n")
+        doc = {"inputs": inputs}
+        if imports:
+            doc["imports"] = list(imports)
+        (consumer / "devenv.yaml").write_text(emit(doc))
+        cmd = command or ["shell", "--", "sh", "-c", 'echo "A=${SHARED_A:-} B=${SHARED_B:-}"']
+        one = devenv(binary, consumer, f"{name}-1", *cmd)
+        first = (consumer / "devenv.lock").read_bytes() if (consumer / "devenv.lock").exists() else b""
+        two = devenv(binary, consumer, f"{name}-2", "shell", "--", "true")
+        second = (consumer / "devenv.lock").read_bytes() if (consumer / "devenv.lock").exists() else b""
+        info = analyse(consumer)
+        row = {
+            "case": name, "note": note, "cli": "patched" if binary == patched else "stock",
+            "exit1": one.returncode, "exit2": two.returncode,
+            "stdout": one.stdout.strip()[-300:], "stderr_tail": one.stderr.strip()[-900:],
+            "lock_sha": hashlib.sha256(first).hexdigest()[:12], "lock_stable": bool(first) and first == second,
+            "lock": info,
+        }
+        results.append(row)
+        print(json.dumps({k: row[k] for k in ("case", "exit1", "exit2", "lock_stable")} | {
+            "shared": len(info["shared_nodes"]) if info else None,
+            "nixpkgs": len(info["nixpkgs_nodes"]) if info else None}), flush=True)
+        (logdir / "results.json").write_text(json.dumps(results, indent=2) + "\n")
+        return row
+
+    a1, b1 = url("lib-a", "v1"), url("lib-b", "v1")
+    sh = {"url": url("shared", "v1"), "flake": False}
+    root = {"nixpkgs": {"url": NIXPKGS}, "devenv": {"url": DEVENV}}
+
+    def libs(a_inputs=None, b_inputs=None, a=a1, b=b1):
+        la = {"url": a, **({"inputs": a_inputs} if a_inputs else {})}
+        lb = {"url": b, **({"inputs": b_inputs} if b_inputs else {})}
+        return {"lib-a": la, "lib-b": lb}
+
+    try:
+        run("c0-baseline", {**root}, imports=(), note="no libs")
+        run("c1-no-follows", {**root, **libs()})
+        run("c2a-consumer-shared-v1", {**root, "shared": sh, **libs()})
+        run("c2b-consumer-shared-v2", {**root, "shared": {"url": url("shared", "v2"), "flake": False}, **libs()},
+            command=["shell", "--", "sh", "-c", 'echo "A=$(cat $SHARED_A/marker.txt) B=$(cat $SHARED_B/marker.txt)"'])
+        nf = {"nixpkgs": {"follows": "nixpkgs"}, "shared": {"follows": "shared"}}
+        run("c3a-nested-follows-consumer-declares", {**root, "shared": sh, **libs(nf, nf)})
+        run("c3b-nested-follows-shared-inherited-only", {**root, **libs(nf, nf)})
+        run("c4a-toplevel-nixpkgs-follows-lib-a-path", {"nixpkgs": {"follows": "lib-a/nixpkgs"}, "devenv": {"url": DEVENV}, **libs()})
+        run("c4b-toplevel-alias-follows", {**root, "shared": sh, "shared-alias": {"follows": "shared"},
+                                           "nixpkgs-alias": {"follows": "nixpkgs"}, **libs()})
+        run("c4c-nested-follows-path-form", {**root, "shared": sh,
+                                             **libs(None, {"shared": {"follows": "lib-a/shared"}})})
+        tool = url("tool", "v1")
+        sub = url("sub", "v1")
+        run("c5a-flake-no-follows", {**root, "tool": {"url": tool}}, imports=(), command=["shell", "--", "true"])
+        run("c5b-flake-nested-follows-depth1", {**root, "tool": {"url": tool, "inputs": {"nixpkgs": {"follows": "nixpkgs"}}}},
+            imports=(), command=["shell", "--", "true"])
+        deep = {**root, "tool": {"url": tool, "inputs": {"nixpkgs": {"follows": "nixpkgs"},
+                                                         "sub": {"url": sub, "inputs": {"nixpkgs": {"follows": "nixpkgs"}}}}}}
+        run("c5c-flake-depth2-with-url", deep, imports=(), command=["shell", "--", "true"])
+        run("c5c-stock", deep, imports=(), command=["shell", "--", "true"], binary=stock, note="stock devenv, same yaml")
+        nourl = {**root, "tool": {"url": tool, "inputs": {"sub": {"inputs": {"nixpkgs": {"follows": "nixpkgs"}}}}}}
+        run("c5d-flake-depth2-no-url", nourl, imports=(), command=["shell", "--", "true"])
+        run("c5d-stock", nourl, imports=(), command=["shell", "--", "true"], binary=stock, note="stock devenv, same yaml")
+        run("c6a-conflict-yaml", {**root, **libs(b=url("lib-b", "v2"))})
+        run("c6b-flake-child-differs-no-follows", {**root, **libs(b=url("lib-b", "v3"))})
+        run("c6c-flake-child-differs-with-follows", {**root, "shared": sh, **libs(None, {"shared": {"follows": "shared"}}, b=url("lib-b", "v3"))})
+        run("c8a-follow-on-nonexistent-child", {**root, "shared": sh,
+                                                **libs({"nixpkgs": {"follows": "nixpkgs"}, "bogus": {"follows": "shared"}})})
+        run("c8b-follows-to-nonexistent-toplevel", {**root, **libs({"shared": {"follows": "nope"}})})
+        run("c7-source-declared-nested-follows", {**root, **libs(a=url("lib-a", "v2"))})
+    finally:
+        daemon.terminate()
+    print("done", len(results), flush=True)
+
+
+if __name__ == "__main__":
+    main()

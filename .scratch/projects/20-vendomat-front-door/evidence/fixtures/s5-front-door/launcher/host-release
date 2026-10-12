@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# S5 fixture, NON-PRODUCTION.
+# fake host release: in a workspace without a pin, `sync` writes a first lock.
+echo "HOST-RELEASE ran: $* (cwd=$PWD)"
+if [ "$1" = sync ] && [ ! -f devenv.lock ]; then
+  echo '{"nodes":{"vendomat":{"locked":{"narHash":"sha256-ODtyRYDLfS6X01FY+kZSudanmP025JIJapt44rrpHPs=","rev":"0000000000000000000000000000000000000000"},"original":{"type":"git","url":"file:///nonexistent/vendomat","ref":"refs/tags/v1"}}},"root":"root","version":7}' > devenv.lock
+  echo "HOST-RELEASE wrote first devenv.lock"
+fi

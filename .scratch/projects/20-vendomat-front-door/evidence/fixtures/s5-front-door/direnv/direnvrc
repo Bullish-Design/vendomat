@@ -1,0 +1,14 @@
+# S5 fixture, NON-PRODUCTION. Isolated direnvrc for the S5 run.
+# The fork's own direnvrc supplies use_devenv.
+eval "$("$DEVENV_BIN" direnvrc)"
+
+# use_vendomat: run the prep step, then hand over to devenv's own direnv route.
+use_vendomat() {
+  watch_file vendomat.yaml devenv.yaml devenv.lock devenv.nix
+  watch_file .vendomat/devenv.yaml .vendomat/devenv.nix .vendomat/config.json .vendomat/digest
+  if ! "${VENDOMAT_PREP:?}" "$PWD"; then
+    log_error "vendomat: prepare failed; the environment is not updated"
+    exit 1
+  fi
+  use devenv "$@"
+}

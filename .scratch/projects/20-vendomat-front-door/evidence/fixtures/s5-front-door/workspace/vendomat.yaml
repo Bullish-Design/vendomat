@@ -1,0 +1,11 @@
+# S5 fixture, NON-PRODUCTION.
+inputs:
+  tools:
+    url: "path:/home/andrew/.local/state/vendomat/p20/2026-10-11/S5/toolsrc"
+    flake: false
+imports:
+  - "tools/mod.nix"
+packages:
+  - "hello"
+env:
+  GREETING: "hi"

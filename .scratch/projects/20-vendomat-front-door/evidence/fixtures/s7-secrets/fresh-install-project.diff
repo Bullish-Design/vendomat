@@ -1,0 +1,61 @@
+# NON-PRODUCTION fixture for spike S7. Diff of the G7 project fixture (devenv-dist/fixtures/project) against the keyless variant.
+# The variant drops install.secrets and install.extraFiles, drops SecretSpec, and imports basix-core.nix and basix-dep.nix.
+diff -ru /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/devenv.nix.in /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/devenv.nix.in
+--- /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/devenv.nix.in	2026-10-09 22:47:09.477213090 -0400
++++ /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/devenv.nix.in	2026-10-11 22:57:38.431039884 -0400
+@@ -33,13 +33,13 @@
+ in
+ {
+   # Fresh install with a stand-in preflight program and install payloads.
+-  machines.fresh = common // payloads // {
++  machines.fresh = common // {
+     vendomat.mode = "fresh-install";
+     vendomat.preflight.program = standin;
+   };
+ 
+   # Same, with a one-second time to live for the expiry test.
+-  machines.fresh-short = common // payloads // {
++  machines.fresh-short = common // {
+     vendomat.mode = "fresh-install";
+     vendomat.preflight.program = standin;
+     vendomat.preflight.ttlSeconds = 1;
+diff -ru /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/devenv.yaml.in /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/devenv.yaml.in
+--- /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/devenv.yaml.in	2026-10-09 22:47:09.477358000 -0400
++++ /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/devenv.yaml.in	2026-10-11 22:57:38.431154007 -0400
+@@ -1,8 +1,4 @@
+ require_version: "2.4.0"
+-secretspec:
+-  enable: true
+-  provider: env
+-  profile: default
+ inputs:
+   nixpkgs:
+     url: github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8
+Only in /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/nixos: basix-core.nix
+Only in /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/nixos: basix-dep.nix
+diff -ru /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/nixos/vm.nix /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/nixos/vm.nix
+--- /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project/nixos/vm.nix	2026-10-09 22:47:09.477543776 -0400
++++ /home/andrew/.local/state/vendomat/p20/2026-10-11/S7/fx/project/nixos/vm.nix	2026-10-11 22:57:38.431475847 -0400
+@@ -2,6 +2,8 @@
+ # disk by its virtio serial. It never names a host disk.
+ { lib, ... }:
+ {
++  imports = [ ./basix-core.nix ./basix-dep.nix ];
++  basix.adminKeys = [ (lib.removeSuffix "\n" (builtins.readFile ../vm/id_ed25519.pub)) ];
+   networking.hostName = "vmfresh";
+   disko.devices.disk.main = {
+     device = "/dev/disk/by-id/virtio-TARGETDISK";
+@@ -31,12 +33,6 @@
+   boot.loader.timeout = 1;
+   boot.kernelParams = [ "console=ttyS0" ];
+   boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "nvme" "xhci_pci" "ahci" ];
+-  services.openssh = {
+-    enable = true;
+-    settings.PermitRootLogin = "prohibit-password";
+-    settings.PasswordAuthentication = false;
+-  };
+-  users.users.root.openssh.authorizedKeys.keyFiles = [ ../vm/id_ed25519.pub ];
+   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+   nix.settings.trusted-users = [ "root" ];
+   environment.etc."vendomat-fixture-marker".text = "GENERATION-1\n";
+Only in /home/andrew/Documents/Projects/vendomat/devenv-dist/fixtures/project: secretspec.toml
