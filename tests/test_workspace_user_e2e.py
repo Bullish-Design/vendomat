@@ -18,7 +18,7 @@ DEVENV = os.environ.get("VENDOMAT_DEVENV") or shutil.which("devenv")
 TEMPLATEER = (
     os.environ.get("VENDOMAT_TEMPLATEER")
     or shutil.which("templateer")
-    or str(ROOT.parent / "templateer_v2/.venv/bin/templateer")
+    or str(ROOT.parent / "templateer_v2/.devenv/state/venv/bin/templateer")
 )
 ENABLED = os.environ.get("VENDOMAT_E2E") == "1" and all(shutil.which(t) for t in ("nix", "git")) and bool(DEVENV)
 pytestmark = pytest.mark.skipif(not ENABLED, reason="Nix, devenv, and Templateer fixture; set VENDOMAT_E2E=1")

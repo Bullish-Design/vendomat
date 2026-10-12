@@ -71,7 +71,8 @@ in
           # The sync fixture runs a real devenv. Use the host's, which is the pinned release build.
           export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
           # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
-          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.venv/bin/templateer}"
+          # The default is the live devenv environment. The old .venv is stale.
+          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.devenv/state/venv/bin/templateer}"
           # Keep every fixture command, exit status, and output outside the repository.
           export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p20/$(date -u +%Y%m%dT%H%M%SZ)/slice-1/F-infra}"
           ${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/e2e.junit.xml"
@@ -92,7 +93,8 @@ in
           export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
           export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
           # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
-          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.venv/bin/templateer}"
+          # The default is the live devenv environment. The old .venv is stale.
+          export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.devenv/state/venv/bin/templateer}"
           export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
           ${venvBin}/python -m pytest -q tests/test_workspace_user_e2e.py --junitxml="$TESTEE_RUN_DIR/workspace-e2e.junit.xml"
         ''
