@@ -1,7 +1,10 @@
 # Project 20 requirement ledger
 
-**Date:** 2026-10-11, research revision. These IDs preserve the first project 20 draft. A new
+**Date:** 2026-10-12, simplification proposal. These IDs preserve the first project 20 draft. A new
 interface remains proposed until a fixture proves it on pinned tools. Do not reuse or renumber an ID.
+
+The [2026-10-12 disposition](#simplification-disposition-2026-10-12) is the latest
+status. Earlier rows remain unchanged as a record of their original claims.
 
 The research revision changes only the disposition of `DOOR-001` to `DOOR-018`. It adds
 `DOOR-019` to `DOOR-056`. A fixture proof in this ledger means a spike fixture proved the interface.
@@ -87,3 +90,76 @@ The disposition map at
 maps every V5, V6, project 17 to 19, and DOOR requirement to a disposition and a successor.
 Counts: 18 original IDs (10 original rows, 8 successor rows) and 38 research IDs (`DOOR-019` to
 `DOOR-056`), 56 in all. 37 research rows are Proposed and 1 (`DOOR-055`) is Open.
+
+## Simplification disposition, 2026-10-12
+
+This table changes status, not the original claim. A successor ID names the new
+claim. **Deferred** means outside the proposed first release, not proved or
+silently accepted. [Review evidence](evidence/SIMPLIFY-REVIEW-2026-10-12.md)
+explains each capability loss. The owner's ruling on TOML is pending.
+
+| ID | New status | Reason or successor |
+| --- | --- | --- |
+| `DOOR-003` | Superseded | `DOOR-057`; native inputs and a narrow data surface replace two reserved keys. |
+| `DOOR-004` | Superseded | `DOOR-057`; only supported program fields map strings to packages. |
+| `DOOR-007` | Withdrawn | No generated file remains. |
+| `DOOR-008` | Superseded | `DOOR-058`; Nix types replace an exported schema. |
+| `DOOR-019` | Superseded | `DOOR-057`; direct TOML plus native inputs replaces YAML. |
+| `DOOR-020` | Withdrawn | Native TOML parser replaces the custom YAML grammar. |
+| `DOOR-021` | Withdrawn | No canonical JSON copy remains. |
+| `DOOR-022` | Superseded | `DOOR-057`; inputs and imports stay in native `devenv.yaml`. |
+| `DOOR-023` | Superseded | `DOOR-058`; native merge remains, but no generated JSON exists. |
+| `DOOR-024` | Superseded | `DOOR-057`; only a narrow data mapping remains. |
+| `DOOR-025` | Withdrawn | No neutral schema exporter or authoring restriction remains. |
+| `DOOR-026` | Withdrawn | No schema cache remains. |
+| `DOOR-027` | Superseded | `DOOR-058`; no preparation or automatic lock repair remains. |
+| `DOOR-028` | Withdrawn | No generated tree or prepare check remains. |
+| `DOOR-029` | Withdrawn | No derived tree can become stale. |
+| `DOOR-030` | Superseded | `DOOR-059`; the host release runs its pinned fork. |
+| `DOOR-031` | Withdrawn | Per-command version report is not required on the first path. |
+| `DOOR-032` | Superseded | `DOOR-059`; keep the pinned fork and matching module. |
+| `DOOR-033` | Superseded | `DOOR-059`; one named command and native pass-through replace ten names and nine codes. |
+| `DOOR-034` | Deferred | Direnv integration follows a working direct entry. |
+| `DOOR-035` | Withdrawn | No heuristic secret-name linter or generated data exists. |
+| `DOOR-036` | Kept | Native `follows` and no second input graph still apply. |
+| `DOOR-037` | Superseded | `DOOR-060`; a typed fresh record replaces two modes and the wide inventory. |
+| `DOOR-038` | Kept | No owner-specific host, user, or path default. |
+| `DOOR-039` | Superseded | `DOOR-060`; keyless core remains without generic secret-dependent units. |
+| `DOOR-040` | Deferred | Automated later secret delivery is outside the first release. |
+| `DOOR-041` | Kept | Installer and admin keys stay separate; re-pin the host key. |
+| `DOOR-042` | Superseded | `DOOR-060`; the core has no SecretSpec requirement. |
+| `DOOR-043` | Superseded | `DOOR-060`; keep a fresh SSH install and real preflight. |
+| `DOOR-044` | Deferred | Adoption stays a separate disk-free future flow. |
+| `DOOR-045` | Deferred | The first release enables cache only after key placement; no path unit. |
+| `DOOR-046` | Superseded | `DOOR-061`; clients set explicit trust and fallback. |
+| `DOOR-047` | Withdrawn | Native roots of selected outputs replace the collection builder. |
+| `DOOR-048` | Superseded | `DOOR-061`; signed cache serves its host store on a restricted network. |
+| `DOOR-049` | Kept | Signing key remains outside the store and tracked files. |
+| `DOOR-050` | Superseded | `DOOR-063`; remove Attic only after the real Harmonia gate. |
+| `DOOR-051` | Superseded | `DOOR-061`; build shared outputs on the serving host. |
+| `DOOR-052` | Superseded | `DOOR-063`; hand migration remains, with a concise record. |
+| `DOOR-053` | Withdrawn | No two-marker transition launcher remains. |
+| `DOOR-054` | Superseded | `DOOR-063`; remove old paths after verified cutover. |
+| `DOOR-055` | Deferred | No source mode in the first release. |
+| `DOOR-056` | Withdrawn | No per-workspace Vendomat build or generated module import. |
+
+The earlier `DOOR-001` to `DOOR-018` dispositions remain recorded above.
+`DOOR-003`, `DOOR-004`, `DOOR-007`, and `DOOR-008` are the only
+earlier rows whose status changes here. Do not edit the V5 or V6 claims. Their
+[existing map](evidence/REQUIREMENT-DISPOSITION-2026-10-11.md) stays active until
+the owner decides whether to close those ledgers as history.
+
+## Proposed active successor IDs
+
+These seven claims are the proposed first-release contract. They have not passed
+implementation gates. No ID from an earlier ledger is reused.
+
+| ID | Requirement | Proof gate |
+| --- | --- | --- |
+| `DOOR-057` | The workspace MUST keep supported routine data in user-owned `vendomat.toml`. A fixed Nix module MUST read it directly with `builtins.fromTOML`. Native `devenv.yaml` MUST own inputs and imports, and native `devenv.lock` MUST own revisions. The first data surface MUST cover common programs, languages, services, settings, and fresh machine facts. Unsupported values MAY use `devenv.nix`. | Pinned-fork workspace with no generated tree; program, language, service, and input changes. The isolated direct-TOML fixture is partial evidence only. |
+| `DOOR-058` | Nix option types MUST validate the data. The entry operation MUST force each set data value before it performs the requested action. A type error MUST name the option and the user file. Native Nix merge priorities MUST apply; a library MUST use `mkDefault` for a scalar that users may replace. | Invalid used and unused options fail for shell, build, test, and machine plan; plain, default, force, list, and attribute-set matrix on pinned fork. |
+| `DOOR-059` | Bare `vendomat` MUST enter the shell. `vendomat new` MUST create a fixed workspace. Other arguments MUST pass to the host release's pinned devenv fork with their exit status, signals, and terminal. The workspace MUST pin the matching devenv module through native inputs. Vendomat MUST NOT route to a per-workspace Vendomat binary. | Fresh workspace, pinned module match, `exec` behavior, and host-release rollback fixture. |
+| `DOOR-060` | Basix MUST install a fresh keyless core on a supported UEFI, single-disk machine. A typed record MUST require stable disk identity, system, state version, target, and admin public key. A real preflight MUST reject a wrong or protected disk. The temporary installer key MUST differ from the installed admin key. The controller MUST re-pin the host key after first boot. The core MUST need no private key, SecretSpec provider, or cache service. | Real Basix core in an installer-ISO VM, keyless boot with zero failed units, wrong-disk refusal, and rollback. No real disk without owner authorization. |
+| `DOOR-061` | After key placement, a host MAY serve its store through signed Harmonia. Each client MUST set an explicit URL, public key, fallback, and bounded connection timeout. The serving host MUST restrict network access, keep the key outside the store, and root selected outputs with native Nix roots. Shared outputs MUST be built on that host. | Two-VM cold substitution, bad-signature refusal, absent-path and down-cache fallback, root survival, then a real two-machine gate. |
+| `DOOR-062` | Workspaces MUST use native source URLs with explicit release refs and `devenv.lock` for exact revisions. Updating MUST be an explicit lock and source-ref change. Version control MUST restore the prior configuration and lock. The first release MUST NOT require a collection mirror or a second lock. | Change a release ref and lock; restore both; prove the old shell and machine plan. |
+| `DOOR-063` | The two live consumers MUST migrate by hand with a source-to-destination record and no machine activation. The Attic route MUST remain until a real Harmonia substitution gate passes. After cutover the runtime MUST have no old TOML parser, `sync`, Attic push, or two-marker launcher path. | Consumer checks, repo-shape check, real cache gate, and host rollback review. |

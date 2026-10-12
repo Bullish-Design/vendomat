@@ -1,6 +1,6 @@
 # Current project
 
-**Updated:** 2026-10-11. This file names the active project. `AGENTS.md` holds durable rules and
+**Updated:** 2026-10-12. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
 ## Active future design: project 20 — Vendomat as the front door
@@ -9,9 +9,10 @@ The owner chose [project 20](projects/20-vendomat-front-door/CONCEPT.md) on 2026
 future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) records the switch.
 Its [requirement ledger](projects/20-vendomat-front-door/REQUIREMENTS.md) preserves the first
 draft's IDs. Its [plan](projects/20-vendomat-front-door/PLAN.md) names the proof gates.
-Vendomat becomes the user command and prepares a `vendomat.yaml` workspace before it runs devenv.
-The Basix system workspace uses the same data surface for machine inventory. Source, release roots,
-and signed Harmonia cache sharing come from project 19. A fresh Basix core boots without keys.
+Vendomat becomes the user command. The 2026-10-12 simplification proposal uses
+direct TOML data, native devenv inputs, a fresh Basix machine type, and optional
+signed Harmonia sharing. The owner has not yet ruled on this change from YAML.
+A fresh Basix core still must boot without keys.
 
 The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
 current implementation contract, but no longer directs future design. No project 20 runtime or
@@ -39,10 +40,19 @@ No implementation, consumer migration, machine deployment, or real disk write ha
 The VM spikes drove btrfs unallocated space on `/` to 93 MiB. On 2026-10-12 the owner cleaned and
 balanced the disk (23.09 GiB unallocated, metadata 71.6 %), so VM work may resume.
 
-**Next (2026-10-12).** Before any implementation, a fresh session reviews the concept and the plan for
-over-engineering. The owner wants the simplest mental model and accepts lost capability for it. The
-prompt is [KICKOFF-SIMPLIFY.md](projects/20-vendomat-front-door/KICKOFF-SIMPLIFY.md). Implementation
-slice 1 (the strict YAML reader) waits for that review.
+**Simplification review (2026-10-12).** The
+[review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12.md)
+proposes direct TOML data, native inputs and locks, no generated `.vendomat/`,
+one fresh Basix machine type, and optional signed output sharing. The
+[concept](projects/20-vendomat-front-door/CONCEPT.md),
+[requirements](projects/20-vendomat-front-door/REQUIREMENTS.md),
+[decisions](projects/20-vendomat-front-door/DECISIONS.md), and
+[plan](projects/20-vendomat-front-door/PLAN.md) record the proposal. An isolated
+Nix fixture proved direct TOML reading and file-level type errors. It did not
+prove eager validation or a pinned-devenv workspace. No production code or
+consumer changed. The owner still needs to rule on the change from YAML to
+TOML and on closing the V5 and V6 ledgers as history. The next session starts
+with the pinned-fork direct-read fixture, not the strict YAML reader.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 

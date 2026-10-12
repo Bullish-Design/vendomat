@@ -67,3 +67,28 @@ level. Each still needs an implementation proof.
   route (O9), the offline missing-schema message, and the eval-cache effect of the guard.
 
 See [PLAN.md](PLAN.md).
+
+## Simplification proposal, 2026-10-12
+
+This section proposes changes to the 2026-10-11 decisions. The older rows remain
+as dated history. The owner has not yet ruled on the proposed TOML surface.
+[Review evidence](evidence/SIMPLIFY-REVIEW-2026-10-12.md) records the alternatives
+and capability losses. A fixture proves a mechanism, not an implementation gate.
+
+| Proposal | Earlier decision or question | Result |
+| --- | --- | --- |
+| S16. Read user-owned `vendomat.toml` in Nix; keep inputs and imports in native `devenv.yaml`. | Decision 2; D1, D3, D4, D5, D6, D10 | Supersede the YAML choice, parser, schema export, generated tree, guard, and format-version debate. The isolated direct-TOML fixture supports file-level type errors. Pinned-devenv proof remains. |
+| S17. Use Nix types and native merge; force set values at the operation gate. | Decision 3; D2; O10 | Keep native priorities. Replace Python schema checks. The S4 lazy-value finding makes eager forcing a gate. No Vendomat failed-unit wrapper is proposed. |
+| S18. Use one host Vendomat release and its pinned fork. Bare entry opens the shell; one named `new` command creates a workspace; other args pass through. | Decision 1; D7, D8; O4 | Remove per-workspace Vendomat routing, launcher protocol, ten named commands, and nine special exits. Keep the pinned fork and native lock. |
+| S19. Install fresh Basix machines with one typed record and a real disk preflight. | Decision 4; D15; O2, O8, O9 | Basix owns the data options. Defer adoption and its comparison. Keep the installer ISO choice open. Keep key separation and host-key re-pin. |
+| S20. Boot the core without secrets. Configure Harmonia only after an administrator places a key. | Decision 5; D11, D12, D13; O5 | Defer the generic receiver, path unit, and SecretSpec routes. Keep signed cache, explicit client fallback, and the real live gate before Attic removal. |
+| S21. Use native tagged source URLs and selected Nix roots. | Decision 5; D9; O1, O3 | Withdraw the unused flake target from the first path. Defer collection modes, hook, and builder. Keep native `follows`. |
+| S22. Migrate the two live consumers by hand without a two-marker launcher. | Decision 7; D14; O5 | Keep concise conversion records. Retain the current Attic route until the real Harmonia gate. |
+
+The owner must decide whether S16 replaces the earlier YAML decision before an
+implementation changes a user format. The owner must also decide whether the V5
+and V6 ledgers may close as history. The [requirement ledger](REQUIREMENTS.md)
+preserves every ID and keeps their existing disposition map active pending that
+ruling. O6 is already closed by the disk cleanup. O7 remains withheld; no real
+disk write is authorized. O2 still needs a Basix repository placement. O9 still
+needs a real installer ISO proof.
