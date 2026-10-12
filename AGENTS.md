@@ -33,6 +33,9 @@ The `testee` command is the host program (see the nix profile). It checks the co
 workspace and runs `testee.prepare` before the checks. Do not wrap it in `devenv shell`. The uv
 dependency graph and the venv do not carry Testee.
 
+Run `devenv shell -- cleanup` to list the regenerable leftovers (Testee venvs, stale Testee slots,
+caches) with their sizes. Add `--yes` to delete them. It never deletes `.worktrees/`.
+
 Do not call pytest, ruff, or ty directly. This repository verifies through Testee.
 
 Use Gitman for every version-control action. Do not run raw `git` or `jj`.

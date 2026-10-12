@@ -133,6 +133,12 @@ in
     UV_PROJECT_ENVIRONMENT="$DEVENV_ROOT/../gitman/.venv" exec uv run --no-sync --project "$DEVENV_ROOT/../gitman" gitman "$@"
   '';
 
+  # `cleanup` deletes the regenerable leftovers of this repository: Testee venvs, stale Testee slots,
+  # and caches. It prints a dry run unless you add --yes. The logic lives in scripts/cleanup.py.
+  scripts.cleanup.exec = ''
+    exec python "$DEVENV_ROOT/scripts/cleanup.py" --root "$DEVENV_ROOT" "$@"
+  '';
+
   # https://devenv.sh/languages/
   languages.python = {
     enable = true;
