@@ -10,9 +10,12 @@
 | 2 | No off-host or off-disk copy of the cache. The cache is disposable | It is derived data; source rebuilds it |
 | 3 | No push from other hosts. One host per installation serves its own store | Removes push routes, credentials, and a second copy |
 | 4 | Harmonia is the one supported store server; the requirement says "a signed, read-only binary cache" | Tested here; sandboxed module; keeps signatures |
-| 5 | Cache wiring is derived from the inventory; the key is made at setup; the public key is committed | One fact, stated once |
+| 5 | Cache wiring is derived from the inventory; the key is made at setup; the public key is committed | Superseded by decisions 8 and 10 |
 | 6 | Each built release tag gets a GC root; keep every tag by default; GC only under disk pressure on the building host | More reuse; tags are immutable |
-| 7 | SecretSpec is required configuration from the first setup | Native to devenv; reaches a fresh install through `install.secrets` |
+| 7 | SecretSpec is required configuration from the first setup | Superseded by decisions 8 and 9 |
+| 8 | A fresh Basix install boots and works without private keys; users can create keys and enable dependent services after boot | The core role and local store need no private key |
+| 9 | SecretSpec becomes required when the first secret is needed, not during a keyless install | A provider and profile can be chosen after boot |
+| 10 | Generate and deliver the Harmonia signing key before enabling the cache server; commit its public key before clients trust it | Cache setup can follow initial installation |
 
 ## Configuration with defaults, decided later
 
@@ -32,9 +35,10 @@ These do not change the design. Planning picks a default for each.
 
 ## Open for planning
 
-1. **First secret delivery to an adopted host.** `install.secrets` runs only on a fresh install.
-   Options: a documented one-time copy over SSH; a fork patch that adds the same payload to `apply`;
-   or SecretSpec resolved on the host by a first-boot unit.
+1. **Secret delivery after installation.** `install.secrets` runs only during a fresh install. Fresh
+   hosts that add secrets after boot and adopted hosts need another route before activating a service
+   that uses the secret. Options: a documented copy over SSH, a fork patch that adds the same payload
+   to `apply`, or SecretSpec resolved on the host. None has passed a fixture yet.
 2. **Which code moves to Basix.** The machine inventory, the install wrapper, and the disk guards
    define the system, so they may belong to Basix rather than Vendomat. The workspace bridge
    (`[imports]`, `[settings]`) may also be Basix's user interface. Planning decides the split; this

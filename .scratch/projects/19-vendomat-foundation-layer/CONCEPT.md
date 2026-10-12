@@ -28,8 +28,8 @@ design target.
 ## 2. Principles
 
 1. **One installation, one owner.** Nothing is shared between installations.
-2. **It starts on one machine.** Every part works on a single machine with no extra service. A
-   second machine adds one thing: a cache to read.
+2. **It starts on one machine.** A fresh install boots and works without a private key or secret
+   provider. The local store needs no cache service. Add a shared cache when another machine needs it.
 3. **Native first.** Nix, devenv, devenv Machines, NixOS, Home Manager, disko, and SecretSpec do the
    work. Vendomat configures them. It runs no daemon of its own and holds no state of its own.
 4. **Derived data is disposable.** The store and the cache can be rebuilt from source. No backup,
@@ -72,40 +72,45 @@ design target.
 
 ### Cache
 
-- **One host per installation serves its store** as a signed, read-only binary cache. Harmonia does
-  this through its NixOS module, socket-activated and sandboxed. Whatever is in that host's store is
-  in the cache. There is no push, no push credential, and no second copy.
+- **When the shared cache is enabled, one host serves its store** as a signed, read-only binary
+  cache. Harmonia does this through its NixOS module, socket-activated and sandboxed. Whatever is in
+  that host's store is in the cache. There is no push, no push credential, and no second copy.
 - **Every other host** lists the cache after the upstream caches, with its public key, and with
   fallback on. A missing cache or a missing path never blocks a build.
 - **Shared work is built on the serving host.** An output built only on another host is not shared.
-- **Wiring comes from the inventory.** One host is marked as the cache server. Every other host
-  derives the cache address and the public key from that mark.
+- **Wiring comes from the inventory.** One host is marked as the cache server when the shared cache
+  is enabled. Every other host derives the cache address and the public key from that mark.
 - **On one machine**, nothing runs. The local store is the cache.
 
-## 5. Secrets: SecretSpec is required
+## 5. Secrets: configure them when needed
 
-Basix requires devenv's SecretSpec from the first setup. The user names a provider and a profile.
-`secretspec.toml` declares every secret the installation needs.
+Basix can install, boot, and run its core role without a private key, SecretSpec provider, or
+SecretSpec profile. The user can create keys after the first boot, then enable the services that need
+them. When the installation first needs a secret, the user names a SecretSpec provider and profile.
+`secretspec.toml` declares each secret the installation uses.
 
-- **Install-time secrets** reach a fresh host through `machines.<host>.install.secrets`. That option
+- **Optional install-time secrets** reach a fresh host through `machines.<host>.install.secrets` when
+  the user enables a dependent service at install. That option
   writes a named SecretSpec value to a path, owner, and mode in the installed system. The value never
   enters the Nix store (upstream documentation of the pinned fork, `docs/.../machines.md` lines
   301-357; evidence about the tool, not a passed gate).
-- **The cache signing key** is the first such secret. The setup creates it, stores it through
-  SecretSpec, and commits only the public key into the inventory.
+- **The cache signing key** is needed only when the user enables Harmonia. Create it and store it
+  through SecretSpec before enabling the service. Commit only the public key into the inventory
+  before other hosts trust the cache. An initial install does not need this key.
 - **Runtime secrets** use a NixOS secret module (sops-nix or agenix) when an installation wants one.
-  Its key arrives the same way. This is an installation's choice, not a Basix requirement.
-- **Two limits are known.** `install.secrets` runs only at install; a later deploy does not refresh
-  it. An adopted host never runs install, so it needs another first delivery.
+  Deliver its key before enabling the dependent service. This is an installation's choice.
+- **Post-install secret delivery needs a route.** `install.secrets` runs only at install; a later
+  deploy does not refresh it. A fresh host that adds a secret after boot, and an adopted host that
+  adds one, need another delivery route before activating a dependent service.
 
 ## 6. What Basix requires at setup
 
 1. The pinned devenv fork.
-2. SecretSpec with a provider and a profile.
-3. An inventory with at least one host, its mode (`fresh-install` or `adopt-existing`), and its disks
+2. An inventory with at least one host, its mode (`fresh-install` or `adopt-existing`), and its disks
    with roles.
-4. A collection location.
+3. A collection location.
 
+Configure SecretSpec when the first secret is needed. The initial install needs no secret or key.
 Every other value has a default and can change later (see [DECISIONS.md](DECISIONS.md)).
 
 ## 7. Kept from V6
@@ -136,11 +141,11 @@ Every other value has a default and can change later (see [DECISIONS.md](DECISIO
 
 ## 9. The owner's installation
 
-- `server` serves the cache, builds the collection's tags, and keeps release roots. Tailscale Serve
-  can publish harmonia on the tailnet. sops-nix stays for runtime secrets; its age key arrives through
-  `install.secrets`.
-- `framework` is adopted in place. It trusts `server`'s key from the inventory. Its first secret
-  delivery needs the adopted-host route (section 5).
+- `server` can boot before any cache or runtime key exists. After key delivery, it serves the cache,
+  builds the collection's tags, and keeps release roots. Tailscale Serve can publish Harmonia on the
+  tailnet. sops-nix stays for runtime secrets when its age key is ready.
+- `framework` is adopted in place. It trusts `server`'s public key when the cache is enabled. If it
+  needs a private key later, it uses the post-install delivery route (section 5).
 - Cutover step 8 stays: the old system mounts its data disks under `/mnt`, and the preflight refuses
   that. The new role needs no data disk.
 
@@ -151,9 +156,11 @@ Every other value has a default and can change later (see [DECISIONS.md](DECISIO
 | Pinned fork, sync, workspace flow, Machines flow, install route in QEMU | Passed in project 16 (gates G0, G2-G4, G3A, G6, G7) |
 | Harmonia serves the host store; signed cold substitution; NAR hashes equal; absent path 404; reads 1-3 ms during writes | Passed on loopback, as the owner's user ([project 18 evidence](../18-single-disk-cache-concept/evidence/exp-A-harmonia.md)) |
 | `install.secrets` writes SecretSpec values at install | Documented upstream; not run here |
+| Keyless first boot and post-install key delivery | Not proven |
 | The harmonia NixOS module, a second VM, release roots, GC under disk pressure, inventory wiring | Not proven |
 | Real hardware, firmware, and network | Not proven |
 
-The first proofs in planning: a two-VM test (serving host and a cold host with a store image, per
-`BOOT-027`) with the harmonia module, inventory wiring, a release root that survives GC, and a signing
-key delivered by `install.secrets`.
+The first proofs in planning: boot a fresh VM without keys, deliver the signing key after boot, and
+enable Harmonia. Then test cold substitution from a second VM with a store image (`BOOT-027`),
+inventory wiring, and a release root that survives GC. Test `install.secrets` separately for users
+who enable a secret-dependent service at install.
