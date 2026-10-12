@@ -76,12 +76,12 @@ Critical path: **A → B → C → F**, with D and E in parallel after A.
 
 ## Rules for every subagent
 
-- Each lane works in its own Gitman workspace:
-  `gitman work NAME --path /home/andrew/Documents/Projects/gitman-workspaces/NAME`. List the
-  existing workspaces first (`jj workspace list`) and report any work that `main` lacks. Use
-  native jj for status, describe, and diff. Never run raw `git` in a real repository; throwaway
-  fixtures may use git.
-- Subagents do not move `main`, push, forget, or delete a workspace. They report the change id,
+- Each lane works in its own Gitman workspace: `gitman work NAME`. The workspace lives in
+  `.gitman/workspaces/NAME`. List the existing workspaces first (`jj workspace list`) and report
+  any work that `main` lacks. Run `direnv allow` in the new workspace once. Use native jj for
+  status, describe, and diff. Never run raw `git` in a real repository; throwaway fixtures may
+  use git.
+- Subagents do not move `main`, push, or remove a workspace. They report the change id,
   the commit id, and the Testee verdicts. You land.
 - Verify with `~/.nix-profile/bin/testee verify`, `testee verify --profile full`, and
   `testee verify e2e` for module, toolchain, or consumer changes. Do not call pytest, ruff, or ty.
@@ -109,9 +109,11 @@ Critical path: **A → B → C → F**, with D and E in parallel after A.
 
 For each lane, after the subagent reports: check the diff summary and the Testee status of the
 exact revision (`testee status -r REV`). Move `main` and push as two separate commands. Run
-`jj new main` in the main checkout when its working copy is empty. Forget the workspace and
-remove its directory. Ask the owner before you land anything that touches CI configuration,
-secrets, or a release branch, or that publishes a tag.
+`jj new main` in the main checkout when its working copy is empty. After you move `main` and
+push, close the workspace: run `gitman done NAME` from the main checkout. If `gitman done`
+refuses, land or report the revisions it prints. Never force the removal. Ask the owner before
+you land anything that touches CI configuration, secrets, or a release branch, or that publishes
+a tag.
 
 ## Done when
 
