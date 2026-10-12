@@ -3,7 +3,21 @@
 **Updated:** 2026-10-11. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
-## Draft under owner review: project 16 — Vendomat V6, the devenv layer
+## Active future design: project 20 — Vendomat as the front door
+
+The owner chose [project 20](projects/20-vendomat-front-door/CONCEPT.md) on 2026-10-11 as the
+future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) records the switch.
+Its [requirement ledger](projects/20-vendomat-front-door/REQUIREMENTS.md) preserves the first
+draft's IDs. Its [plan](projects/20-vendomat-front-door/PLAN.md) names the proof gates.
+Vendomat becomes the user command and prepares a `vendomat.yaml` workspace before it runs devenv.
+The Basix system workspace uses the same data surface for machine inventory. Source, release roots,
+and signed Harmonia cache sharing come from project 19. A fresh Basix core boots without keys.
+
+The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
+current implementation contract, but no longer directs future design. No project 20 runtime or
+machine gate has passed. The owner has not authorized real disk writes.
+
+## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 
 `.scratch/projects/16-vendomat-devenv-layer/`: `CONCEPT-V6.md`, `SPEC-V6.md`, `GUIDE-V6.md`,
 `CONCEPT-UPDATE-2026-10-10.md`, `LEDGER-V6.md` (generated),
@@ -53,14 +67,9 @@ cachix/devenv#3055 does not cover the need on 2.4.0, so the fork carries it. For
 entry that fails on `.2` (patch 0008, `DVN-012`)
 ([evidence](projects/16-vendomat-devenv-layer/evidence/fork-3-inheritance.md)).
 
-**Draft under owner review: project 20, Vendomat as the front door to devenv (2026-10-11).**
-`.scratch/projects/20-vendomat-front-door/CONCEPT.md`. The user runs Vendomat, and Vendomat runs
-devenv. One user file, `vendomat.yaml`, holds sources, imports, and values for real option names.
-It replaces `vendomat.toml`, `[settings]`, and `sync`, answers project 19's open question 2, and would
-reverse `DEL-020`. Collection work moves to the `server` role in a later change.
-
-Until the owner accepts V6, project 14 below stays the authority, and V5 IDs are not yet marked
-superseded in `SPEC-V5.md`. `SPEC-V6.md` section 0 and `LEDGER-V6.md` hold the dispositions.
+Project 20 replaces this draft as the future design. The V6 records remain evidence. V5 and V6
+requirement IDs still need dispositions in the project 20 successor specification. Do not edit or
+renumber their original claims.
 
 ## Draft concept: project 17 — typed models for devenv modules
 
@@ -81,7 +90,7 @@ shared across checkouts; the end-to-end `VENDOMAT_TEMPLATEER` default is machine
 Devman push hook resolves `testee` from the session `PATH`, so a session from an old shell carries
 Testee 0.5.1. The project does not change the authority of project 14 or project 16.
 
-## Active: project 14 — Vendomat V5
+## Current implementation contract: project 14 — Vendomat V5
 
 Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
 

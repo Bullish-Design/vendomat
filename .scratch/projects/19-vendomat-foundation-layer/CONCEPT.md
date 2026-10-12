@@ -1,12 +1,13 @@
 # Project 19: Vendomat as the source, store, and cache layer of Basix
 
-**Date:** 2026-10-11. **Status:** Draft concept for owner review. A refined and simplified V6.
+**Date:** 2026-10-11. **Status:** Foundation and evidence incorporated into
+[project 20](../20-vendomat-front-door/CONCEPT.md). Project 20 directs future design.
 **Base:** [project 16](../16-vendomat-devenv-layer/CONCEPT-V6.md) (V6 concept and its gates) and
 [project 18](../18-single-disk-cache-concept/CONCEPT.md) (cache experiments).
 **Decisions:** [DECISIONS.md](DECISIONS.md).
 
-This draft changes no authority. Project 14 stays the authority, and project 16 stays the V6 draft,
-until the owner accepts this concept. `.scratch/CURRENT.md` is unchanged.
+This document records the foundation decisions. Project 20 adds the Vendomat front door and owns
+the full future concept. Project 14 remains the current implementation contract.
 
 ## 1. Purpose
 

@@ -1,6 +1,9 @@
 # Project 19 decisions
 
 **Date:** 2026-10-11. Concept: [CONCEPT.md](CONCEPT.md).
+Project 20 carries forward the source, store, Harmonia, and keyless-install decisions. It extends
+Vendomat's scope to the user configuration and command entry. See
+[project 20 decisions](../20-vendomat-front-door/DECISIONS.md).
 
 ## Decided by the owner, 2026-10-11
 
