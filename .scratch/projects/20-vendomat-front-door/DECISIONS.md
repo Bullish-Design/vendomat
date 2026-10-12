@@ -46,7 +46,7 @@ an interface; it does not pass an implementation gate. See the
 | O3 | Source modes and collection commands (DOOR-055) | A `vendomat.sources` option, the hook refresh, and `prepare` clones; or a separate `vendomat collection` command | The option, the hook refresh, and `prepare` clones. Drop `backup` and the forge shorthand. |
 | O4 | `path`, `check`, `bump` | Keep `path` and `check`, and let `bump` edit only `vendomat.yaml`; or withdraw `bump` | Keep all three on that basis. |
 | O5 | Attic removal timing (DOOR-050) | Remove at cutover; or keep Attic push and live checks until the Harmonia live gate passes | Keep them until the Harmonia live gate passes. |
-| O6 | Disk space on `/` (btrfs unallocated 93 MiB) | Run `btrfs balance` as root before more VM work; or stop VM work | Run the balance. This is a blocker for VM gates. |
+| O6 | Disk space on `/` (btrfs unallocated 93 MiB) | Run `btrfs balance` as root before more VM work; or stop VM work | **Resolved 2026-10-12.** The owner cleaned and balanced the disk: 23.09 GiB unallocated, metadata 71.6 %. |
 | O7 | Real disk and hardware authorization | Grant it for named disks; or keep it withheld | Not given. This blocks the cutover gates. |
 | O8 | Adopted-host capability comparison (BOOT-008 parity) | A read-only report of services and units before the first adopted switch; or none | Write the report. |
 | O9 | Fresh-install route for real devices | A live installer ISO with a temporary key; or kexec | The ISO first. Kexec later. |

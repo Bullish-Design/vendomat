@@ -36,9 +36,13 @@ current implementation contract until a release supports the project 20 gates.
 - S9: native `follows` passed 19 cases and 2 stock-devenv control runs.
 
 No implementation, consumer migration, machine deployment, or real disk write happened.
-**Blocker:** btrfs unallocated space on `/` fell to 93 MiB during the VM spikes. The owner must
-run a balance (root) before more VM work. The first implementation slice is the strict YAML reader
-(proposed `src/vendomat/yamldata.py`, ported from S1, with the S1 corpus as tests).
+The VM spikes drove btrfs unallocated space on `/` to 93 MiB. On 2026-10-12 the owner cleaned and
+balanced the disk (23.09 GiB unallocated, metadata 71.6 %), so VM work may resume.
+
+**Next (2026-10-12).** Before any implementation, a fresh session reviews the concept and the plan for
+over-engineering. The owner wants the simplest mental model and accepts lost capability for it. The
+prompt is [KICKOFF-SIMPLIFY.md](projects/20-vendomat-front-door/KICKOFF-SIMPLIFY.md). Implementation
+slice 1 (the strict YAML reader) waits for that review.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 
