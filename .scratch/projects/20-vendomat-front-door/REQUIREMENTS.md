@@ -191,3 +191,34 @@ proposed until their pinned-tool fixtures pass.
 | `DOOR-066` | Bare `vendomat` MUST enter the shell. Vendomat MUST offer `new`, `test`, `build`, `update`, and `machine` as routine intents. It MUST invoke the pinned devenv fork after its required checks. `vendomat devenv ...` MUST expose other native commands as an explicit advanced door. A fresh machine operation MUST run disk preflight before a write; apply and deploy MUST check failed units before activation. | End-to-end command fixture for each intent, native escape, exit status, disk refusal, and failed-unit refusal. |
 | `DOOR-067` | A supported update MUST move one selected release ref and the native `devenv.lock` together through Vendomat. It MUST leave one source of truth and allow version control to restore the prior data and lock. Vendomat MUST NOT resolve a second dependency graph or create a second lock. | Change a supported release, enter the new shell, restore the old data and lock, and re-enter. Failures leave the old working pair available. |
 | `DOOR-068` | The optional cache data MUST select at most one serving machine by name and declare its reachable address and public key once. Vendomat MUST derive client URL, trust, fallback, and bounded timeout from that record. The serving host MUST start only after a signing key exists outside the store and MUST restrict network access. Shared outputs MUST be built and rooted on that host. | Two-machine fixture with no cache selection, one valid selection, unknown-host refusal, cold substitution, bad signature, absent and down cache fallback, root survival, and a real live check. |
+
+## Second simplification pass, 2026-10-12
+
+The [second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) tested the first pass's
+claims on the pinned fork and audited the documents. Earlier claims stay unchanged. These rows
+change status only. Every new ID below stays proposed until the owner rules on the review's
+questions Q1 to Q4 and the named gate passes.
+
+| ID | New status | Successor or reason |
+| --- | --- | --- |
+| `DOOR-060` | Superseded | `DOOR-072`: local install from the Basix ISO; remote install is the advanced door. |
+| `DOOR-064` | Superseded | `DOOR-069`: fixed template files, direct read, missing file is an empty catalog. |
+| `DOOR-065` | Superseded | `DOOR-070`: one parse step inside the catalog module; no Vendomat-side check. |
+| `DOOR-066` | Superseded | `DOOR-071` and `DOOR-072`: three verbs and pass-through; no failed-unit refusal. |
+| `DOOR-067` | Superseded | `DOOR-071`: update is the native lock update of a release branch. |
+| `DOOR-068` | Superseded | `DOOR-073`: the serving machine makes its own key. |
+| `DOOR-041` | Deferred | Applies to the remote install on the advanced door only. |
+| `DOOR-045` | Withdrawn | `DOOR-073` removes the path unit and the start condition. |
+| `DOOR-049` | Superseded | `DOOR-073`: the generated key stays outside the store and tracked files. |
+
+`DOOR-036`, `DOOR-038`, and `DOOR-063` remain proposed. In `DOOR-063`, "old TOML parser"
+means the V5 Python reader of the V5 `vendomat.toml` format. The new format reuses the file
+name. The two live consumers move to the new format by hand at the release.
+
+| ID | Requirement | Proof gate |
+| --- | --- | --- |
+| `DOOR-069` | A workspace MUST hold four files: user-owned `vendomat.toml`, and template-owned `devenv.yaml`, `devenv.nix`, and `devenv.lock`. `devenv.yaml` MUST name the Vendomat flake input on its `release` branch with a URL that locks a `rev`, MUST set `nixpkgs` to follow the Vendomat `nixpkgs`, and MUST import the catalog module. `devenv.nix` MUST be `{ }`. The catalog module MUST read `config.devenv.root + "/vendomat.toml"` directly. A missing file MUST mean an empty catalog. No generated file MAY exist. | Pinned fork: a fresh workspace from `vendomat new` enters the shell; an edit, a create, and a delete of `vendomat.toml` show in the next shell with no other step; a fresh clone enters the shell. P2A and P2C passed at fixture level. |
+| `DOOR-070` | The catalog MUST be a bounded set of named, typed entries: programs, languages, services, and environment values. The catalog module MUST parse `vendomat.toml` once into typed values. It MUST report every bad field and every unknown program name in one error that names `vendomat.toml` and the field. Every mapping to a native option MUST read only the parsed values. An unknown key MUST fail. No other validator, schema export, or schema cache MAY exist. Vendomat verbs SHOULD print the error from its last `error:` line. | Pinned fork: an unknown key, a bad used value, a bad unused value, and an unknown program each stop `shell`, `test`, `build`, and `tasks run` before work; one run lists all bad fields. P2B passed at fixture level. |
+| `DOOR-071` | `vendomat` with no argument MUST enter the pinned devenv shell. Vendomat MUST define only the verbs `new`, `apply`, and `install`. It MUST pass every other argument to the pinned devenv fork of the host release, with its exit status, signals, and terminal. `vendomat update` therefore MUST be the native `devenv update`. A restored `devenv.lock` MUST restore the earlier release. | Pinned fork: each verb, pass-through of `test` and `update`, a release-branch move, and a lock restore. P2C passed the update and restore at fixture level. |
+| `DOOR-072` | Basix MUST install from its ISO on the target machine with one `vendomat install` command. The installer MUST list only blank, non-boot `/dev/disk/by-id/` disks, MUST refuse a disk with partitions or signatures, and MUST require the typed full by-id name. It MUST write the machine workspace and set a console password. The core MUST boot with no private key, secret provider, or cache. `vendomat apply` MUST build the machine from the workspace, switch to it on the same machine, and report the switch status and failed units. Remote install, remote deploy, and adoption MUST stay on native devenv Machines. | A VM boots the Basix ISO, installs to a blank virtual disk, refuses the boot medium and a used disk, boots with zero failed units, applies a changed `vendomat.toml`, and boots the earlier generation from the menu. No real disk. |
+| `DOOR-073` | A machine with `serve = true` MUST make its own signing key on first start, outside the store and tracked files, before Harmonia starts. It MUST serve its store only to the local network. A client machine MUST name one serving machine and its public key line. Vendomat MUST derive the cache URL, the trusted key, `fallback = true`, and a short connect timeout from them. | Two VMs: cold substitution, wrong-key refusal, absent-path and down-cache fallback, a reboot with an unchanged key. Then a real two-machine check before Attic removal. P2E passed one VM at fixture level. |

@@ -111,3 +111,30 @@ O10 remains open at the owner level: the proposal now answers **yes** to a
 failed-unit gate in Vendomat's machine workflow. O5, O7, and O9 remain open
 as described above. The owner still needs to rule on TOML and the V5/V6
 ledger status. The correction does not authorize a machine or disk change.
+
+## Second simplification pass, 2026-10-12
+
+The [second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) tested the first pass on
+the pinned fork (records P2A to P2E) and audited the documents. These rows supersede S16 to S26
+where they disagree. They also resolve the audit's contradictions: S18 against S24 on the
+command count, S17 against S24 on the failed-unit gate, and two validators in the concept. The
+older rows remain as dated history.
+
+| Proposal | Earlier row or question | Effect | Evidence |
+| --- | --- | --- | --- |
+| S27. The catalog module parses `vendomat.toml` once and maps only parsed values. It is the only validator. | S17, S23, S24 ("checks catalog data before it calls devenv") | No Vendomat-side check and no host-to-pin skew. One run lists every bad field. Errors give no line number. | P2B |
+| S28. The template is fixed: one Vendomat input on `release`, `nixpkgs` follows it, one import, `devenv.nix` is `{ }`. | S16, S23 | The user edits one file. A missing `vendomat.toml` is an empty catalog. | P2A, P2C |
+| S29. Vendomat has three verbs: `new`, `apply`, `install`. Every other argument passes through. | S18, S24; O4 | `test`, `build`, and the `vendomat devenv` prefix go. | F audit |
+| S30. `vendomat update` is the native `devenv update` of a release branch. Rollback restores `devenv.lock`. | S25 | No edit protocol and no release-ref concept. An older release needs the advanced door. | P2C |
+| S31. The learner installs locally from the Basix ISO and applies locally. Remote install and deploy stay on native Machines. | S19; D13; O9 | No controller, target address, installer key, required admin key, or host-key re-pin on the routine path. Used disks are refused. | P2D |
+| S32. No failed-unit refusal. `vendomat apply` reports the native switch status and failed units. | S24; O10 | O10 disappears. The boot menu is the rollback. | P2D |
+| S33. A serving machine makes its own signing key on first start. Clients paste one public key line. Building on the host is advice. | S20, S26; D11 | No key placement, path unit, or start condition. A reinstall changes the key. | P2E |
+| S34. The first release ships the Basix machine catalog in the Vendomat release. | O2 | One input and one release channel. A later release may split Basix out. | Inference |
+| S35. Mint a requirement ID only when the owner accepts a design or a fixture proves its interface. | Process | Fewer same-day supersessions. | F audit |
+
+**Owner questions.** The review asks four rulings as one group: Q1 direct TOML with a bounded
+catalog in place of YAML; Q2 local Basix install, with remote install on the native door; Q3
+defer the source collection and its modes; Q4 close the V5 and V6 ledgers as history at
+cutover. O10 disappears (S32). O2 folds into Q2 and S34. O5, O7, and O9 stay open: Attic stays
+until the real Harmonia check, no real disk write is authorized, and the Basix ISO still needs
+a proof.

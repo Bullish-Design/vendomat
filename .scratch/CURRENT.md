@@ -9,10 +9,11 @@ The owner chose [project 20](projects/20-vendomat-front-door/CONCEPT.md) on 2026
 future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) records the switch.
 Its [requirement ledger](projects/20-vendomat-front-door/REQUIREMENTS.md) preserves the first
 draft's IDs. Its [plan](projects/20-vendomat-front-door/PLAN.md) names the proof gates.
-Vendomat becomes the user command. The 2026-10-12 simplification proposal uses
-a bounded TOML catalog, Vendomat workflows, a fresh Basix machine type, and
-optional signed Harmonia sharing. Native devenv remains an advanced door.
-The owner has not yet ruled on this change from YAML.
+Vendomat becomes the user command. The 2026-10-12 second simplification
+pass proposes one user file (`vendomat.toml`, read directly by a catalog module),
+three verbs plus pass-through to the pinned fork, a local Basix install from an
+ISO, and a serving machine that makes its own signing key. Native devenv remains
+the advanced door. The owner has not yet ruled on the four grouped questions.
 A fresh Basix core still must boot without keys.
 
 The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
@@ -55,6 +56,18 @@ prove eager validation or a pinned-devenv workspace. No production code or
 consumer changed. The owner still needs to rule on the change from YAML to
 TOML and on closing the V5 and V6 ledgers as history. The next session starts
 with the pinned-fork direct-read fixture, not the strict YAML reader.
+
+**Second simplification pass (2026-10-12).** The
+[second review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md)
+ran five spikes (P2A to P2E) on the pinned fork and one VM, and audited the
+documents. It proved, at fixture level: a direct read with no stale eval cache,
+one parse step that stops every tested command, update as a native lock update
+of a `release` branch, and a self-made cache signing key. It found that the fork
+installs only over SSH, so the learner path becomes a local ISO install. It
+supersedes `DOOR-060` and `DOOR-064` to `DOOR-068` with `DOOR-069` to `DOOR-073`
+and adds decisions S27 to S35. The owner must rule on Q1 to Q4: TOML in place of
+YAML, local install, deferring the source collection, and closing the V5 and V6
+ledgers at cutover. The next session records those rulings, then starts slice 1.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 

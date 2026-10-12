@@ -1,70 +1,56 @@
-# Project 20: smaller implementation plan
+# Project 20: implementation plan
 
-**Proposal, 2026-10-12.** [CONCEPT.md](CONCEPT.md) states the proposed user path.
-[REQUIREMENTS.md](REQUIREMENTS.md) preserves old claims and gives the active
-successor IDs. The [review](evidence/SIMPLIFY-REVIEW-2026-10-12.md) records the
-lost capability. No project 20 runtime gate has passed. The direct-TOML
-`lib.evalModules` fixture is evidence only.
+**Proposal, 2026-10-12 (second simplification pass).** [CONCEPT.md](CONCEPT.md) states the
+user path. [REQUIREMENTS.md](REQUIREMENTS.md) holds the active IDs `DOOR-069` to `DOOR-073`,
+with `DOOR-036`, `DOOR-038`, and `DOOR-063`. The
+[second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) records the lost capability and
+the owner questions. No project 20 runtime gate has passed. Spikes P2A to P2E are fixture
+evidence only.
 
-The first release covers four journeys: one fresh Basix machine, a development
-workspace, explicit update and rollback, and optional output sharing with a
-second machine. Adoption, collection mirrors, automatic secret delivery, and
-custom disk layouts wait for a later decision.
+## Before slice 1
+
+The owner rules on the review's questions Q1 to Q4 as one group. Slice 1 needs Q1. Slice 2
+needs Q2. The release needs Q3 and Q4.
 
 ## Slices and gates
 
-| Slice | Result | Needs | Gate and rollback |
+| Slice | Result | Gate | Rollback |
 | --- | --- | --- | --- |
-| 1. Vendomat workspace | A fixed catalog module reads `vendomat.toml` directly. Vendomat owns shell, test, build, and supported update. Native files stay template-owned on the routine path. | Owner ruling on TOML before runtime wiring. `DOOR-064` to `DOOR-067`. | On the pinned fork, a learner adds a program, language, and service without editing native files. Unknown and unused bad values fail before actions. A supported update moves a ref and native lock together; version control restores both. The explicit `vendomat devenv` door still works. `testee verify`, `testee verify --profile full`, and `testee verify e2e` pass. Revert the slice to restore the old runtime. |
-| 2. Fresh Basix | One typed fresh-install record, keyless core, installer ISO route, and Vendomat machine workflow. | Slice 1; Basix repository placement; installer ISO fixture. `DOOR-060`, `DOOR-066`. | A fresh virtual machine boots with zero failed units and no user key or cache. Wrong and protected disks fail before a write. A failed-unit state stops apply or deploy. Re-pin the host key and test native rollback. `testee verify` and the named virtual-machine check pass. Revert the Basix module; do not touch real disks. |
-| 3. Optional sharing | A second fresh machine substitutes signed output. One cache-host record derives client trust and fallback. | Slice 2. `DOOR-068`. | A two-VM run proves one-host selection, unknown-host refusal, cold substitution, bad-signature refusal, absent-path and down-cache fallback, and root survival. A real two-machine check then proves the network route. Keep Attic until that check passes. Revert the new cache module if it fails. |
-| Release and migration | Hand-migrate the two live consumers, release the host command, and remove old paths after gates pass. | Slices 1 to 3; `DOOR-063`. | Each migration records source-to-destination mapping and activates no machine. Consumer checks pass. The host release has an explicit rollback generation. A repository-shape check finds no old parser, `sync`, Attic push, or two-marker launcher after the live cache gate. |
+| 1. Workspace | The catalog module in the Vendomat release (`devenv/`), its parse step, the fixed template, a `release` branch, and the host `vendomat` with `new` and pass-through. | `DOOR-069`, `DOOR-070`, `DOOR-071` gates on the pinned fork. `testee verify`, `testee verify --profile full`, and `testee verify e2e` pass. | Revert the slice; the current runtime stays. |
+| 2. Basix machine | The machine catalog table, `vendomat apply`, and then the Basix ISO with `vendomat install` and a local preflight mode. | `DOOR-072` in a VM: install to a blank virtual disk, refuse the boot medium and a used disk, zero failed units, apply, boot-menu rollback. | Revert the Basix module. No real disk. |
+| 3. Sharing | `serve = true` with a self-made key, and derived client settings. | `DOOR-073` with two VMs, then a real two-machine check. | Revert the cache module. Attic stays. |
+| Release | Hand-move the two live consumers to the new `vendomat.toml`, release the host command, remove old paths after the real cache check. | `DOOR-063`. Consumer checks pass. The host keeps a rollback generation. | Switch to the earlier host generation. |
 
-The critical path is **Vendomat workspace → fresh Basix → two-machine sharing → release**.
-The first implementation slice is the Vendomat workspace. Start it with a small
-fixture on the pinned devenv fork that extends the isolated direct-TOML probe:
-catalog mapping, module source location, eager invalid-value failure, and one
-supported update that changes the native lock. Also prove that the routine
-template needs no native edit. If the fixture disproves the surface, revise the concept,
-requirements, and plan together before production wiring.
+The critical path is **workspace → Basix machine → sharing → release**. Slice 3 may start on
+fixture VMs when slice 2 has the machine table and `vendomat apply`; it does not need the ISO.
+
+## First slice
+
+Start from the P2A, P2B, and P2C fixtures under `~/.local/state/vendomat/p20/2026-10-12/`.
+
+1. Write the catalog module with four kinds: programs, languages, services, environment values.
+   Name each entry. Parse once with `tryEval` and list all faults; map only parsed values.
+2. Write the fixed template and the `release` branch convention. Use a URL form that locks a
+   `rev`.
+3. Change the host `vendomat`: bare entry opens the shell, `new` copies the template, and every
+   other argument runs the pinned fork with `exec`. Keep `sync` and Attic push until the release.
+4. Prove the three gates on the pinned fork. Test a `build` of an attribute that reads no
+   mapped value; P2B did not.
+
+If a fixture disproves the surface, revise the concept, the requirements, and the plan together.
 
 ## Hardware gate
 
-Prepare a read-only package with stable disk identity, partition and signature
-scan, hardware report, planned commands, expected results, and undo steps.
-Mark every real write **NOT RUN**. The owner has not authorized a real disk
-write. No release gate, unit test, or virtual-machine result grants that
-authorization. Run only the named commands the owner later authorizes.
+Prepare a read-only package with stable disk identity, a partition and signature scan, a
+hardware report, the planned commands, the expected results, and the undo steps. Mark every real
+write **NOT RUN**. The owner has not authorized a real disk write. No gate grants it.
 
 ## Working rules
 
-- Treat every proposed name and interface as unproved until a fixture passes on
-  the pinned tools. Print `devenv version` in each devenv fixture log.
-- Record exact inputs, versions, commands, expected results, actual results,
-  inference, limits, and raw log path. Keep raw logs under
-  `~/.local/state/vendomat/p20/<date>/`.
-- Use the host `~/.nix-profile/bin/testee`. Run `testee verify --profile quick`
-  during edits. Run `testee verify` and `testee verify --profile full` before
-  landing. Add `testee verify e2e` for module, toolchain, and consumer changes.
-  Check `testee status -r REV` on the exact revision. Do not run pytest,
-  ruff, or ty directly.
-- Use Gitman for the workspace and native jj for its lifecycle. Keep existing
-  production paths until the successor passes its gate. Land verified work
-  on `main` and push it.
-- Before any virtual-machine build, run `btrfs filesystem usage /`. Stop if
-  unallocated space is below 2 GiB or metadata use exceeds 90 %. Run one
-  virtual-machine build at a time. Never run Nix store garbage collection.
-
-## Decisions and next session
-
-The owner must rule on direct TOML with a bounded catalog before slice 1
-changes the runtime. The owner must separately rule on closing the V5 and V6
-ledgers as history. Basix repository placement (O2), a real installer ISO (O9),
-Attic removal after the live cache gate (O5), and real disk authorization (O7)
-remain later decisions. O6 was resolved on 2026-10-12. Adoption and its O8
-comparison are deferred. O10 returns as a machine-workflow decision; the
-proposal runs the failed-unit gate before apply or deploy.
-
-The next session first runs the pinned-fork direct-read fixture. It then records
-the owner's format ruling and implements slice 1. Do not copy the S1 YAML parser
-into production. The new design has no generated data or YAML grammar.
+- Treat every name and interface as proposed until a fixture passes on the pinned tools. Print
+  `devenv version` in each devenv log. Keep raw logs under `~/.local/state/vendomat/p20/<date>/`.
+- Use the host `~/.nix-profile/bin/testee`. Do not call pytest, ruff, or ty.
+- Use Gitman for the workspace and jj for its lifecycle. Land verified work on `main`.
+- Before a VM build, run `btrfs filesystem usage /`. Stop below 2 GiB unallocated or above 90 %
+  metadata. Run one VM build at a time. Never run Nix store garbage collection.
+- Mint a requirement ID only when the owner accepts a design or a fixture proves its interface.
