@@ -60,7 +60,8 @@ with the pinned-fork direct-read fixture, not the strict YAML reader.
 a local Basix install from the ISO, no source collection in the first release, and closing the V5
 and V6 ledgers as history at cutover. The [decision log](projects/20-vendomat-front-door/DECISIONS.md)
 records them as R1 to R4. No gate has passed. The next session starts slice 1 of the
-[plan](projects/20-vendomat-front-door/PLAN.md). The sentences below that say the owner must
+[plan](projects/20-vendomat-front-door/PLAN.md) with the prompt
+[KICKOFF-SLICE-1.md](projects/20-vendomat-front-door/KICKOFF-SLICE-1.md). The sentences below that say the owner must
 still rule are history.
 
 **Second simplification pass (2026-10-12).** The

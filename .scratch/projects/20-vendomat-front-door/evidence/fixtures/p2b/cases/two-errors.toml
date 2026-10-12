@@ -1,0 +1,8 @@
+programs = ["ripgrep", 7]
+
+[env]
+GREETING = 5
+
+[languages.python]
+enable = "yes"
+version = 3.13

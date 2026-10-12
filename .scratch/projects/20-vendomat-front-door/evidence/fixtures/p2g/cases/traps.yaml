@@ -1,0 +1,6 @@
+name: no
+version: 3.10
+flag: yes
+num: 012
+null1: ~
+quoted: "a: b"

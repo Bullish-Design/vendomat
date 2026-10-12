@@ -1,5 +1,10 @@
 # Kickoff prompt: simplify the project 20 concept and plan
 
+**Status: done.** Two sessions ran this prompt on 2026-10-12. See the
+[first review](evidence/SIMPLIFY-REVIEW-2026-10-12.md), the
+[second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md), and the owner rulings R1 to R4 in
+[DECISIONS.md](DECISIONS.md). The next prompt is [KICKOFF-SLICE-1.md](KICKOFF-SLICE-1.md).
+
 **Date:** 2026-10-12. Paste everything below the line into a fresh session that starts in
 `/home/andrew/Documents/Projects/vendomat`.
 

@@ -1,8 +1,9 @@
 # Project 20: Vendomat and Basix
 
-**Design proposal, 2026-10-12 (second simplification pass).** The owner chose Vendomat as the
-user entry point on 2026-10-11. This concept is not yet the runtime, and the owner has not ruled
-on it. Fixtures on the pinned tools back each mechanism below. The
+**Accepted design, 2026-10-12.** The owner chose Vendomat as the user entry point on
+2026-10-11 and accepted this simplified design on 2026-10-12 ([decisions](DECISIONS.md) R1 to R4).
+It is not yet the runtime, and no gate has passed. Fixtures on the pinned tools back each
+mechanism below. The
 [second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) holds the evidence, the lost
 capability, and the open owner questions.
 
@@ -29,6 +30,25 @@ into typed values and lists every bad field, with the file name, before any comm
 Every mapping to a native option reads only the parsed values. A command therefore cannot run
 with a bad value. A syntax error names the file, line, and column. A type error names the file
 and the field.
+
+The fixed Nix module is the **catalog module**. It does three things, in order. It reads and
+parses `vendomat.yaml`; a missing file is an empty catalog. It declares the catalog entries as
+typed options, so the types give the strings their meaning: `"3.10"` stays a version, and `no`
+fails in a true-or-false field. It maps the typed values to native devenv or NixOS options; for
+example, `programs: [ripgrep]` becomes `packages = [ pkgs.ripgrep ]`. A short example:
+
+```yaml
+programs:
+  - ripgrep
+languages:
+  python:
+    version: "3.12"
+services:
+  postgres:
+    enable: true
+env:
+  GREETING: hello
+```
 
 A value outside the catalog goes in `devenv.nix` or `devenv.yaml`. That is the advanced door.
 Native Nix merge rules apply there.

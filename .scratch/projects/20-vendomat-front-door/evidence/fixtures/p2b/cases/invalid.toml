@@ -1,0 +1,2 @@
+programs = ["ripgrep"
+[env]

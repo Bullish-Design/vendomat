@@ -202,6 +202,21 @@ needs no unsafe setting. It replaces TOML, supersedes S36, and returns the user 
 Not proved: Rust unit tests, a release build, the real catalog, a NixOS machine entry,
 interactive direnv, very large or symlinked files, and a concurrent edit.
 
+## Format discussion and repository fixtures
+
+The first pass assumed that a YAML parser outside Nix needs a committed parsed copy and a guard.
+The owner disagreed. The owner was right: a parser does not cause drift; a *stored* parsed copy
+does. Vendomat may constrain its workflow, so the parser may live anywhere if no parsed copy is
+stored. P2F then showed that a hand-off by environment variable or by file fails under Testee,
+direnv, or a direct devenv call. P2G moved the parser into the fork as a pure function on text
+that Nix reads itself. The owner accepted that shape (R1).
+
+Small fixtures from this pass are in the repository under `fixtures/`: `p2g/workspace/` (the
+prototype catalog module and workspace files), `p2g/cases/` (27 strict-subset case files), the
+patch `p2g/0009-...patch`, `p2b/` (the parse-once catalog and its TOML cases), and `p2e/test.nix`
+(the self-keyed cache VM test). Raw logs and larger fixtures stay under
+`~/.local/state/vendomat/p20/2026-10-12/`.
+
 ## Handoff
 
 - **Changed.** `CONCEPT.md` is rewritten around the five-sentence model. `REQUIREMENTS.md`

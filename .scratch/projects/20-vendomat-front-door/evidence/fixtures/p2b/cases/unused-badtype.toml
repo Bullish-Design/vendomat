@@ -1,0 +1,8 @@
+programs = ["ripgrep", "jq"]
+
+[env]
+GREETING = "hello"
+
+[languages.python]
+enable = true
+version = 3.13
