@@ -7,3 +7,4 @@
 0006-vendomat-require-a-target-bound-preflight-before-a-f.patch
 0007-vendomat-inherit-the-inputs-of-an-imported-source-s-.patch
 0008-vendomat-copy-a-lazily-mounted-locked-source-into-the-store.patch
+0009-vendomat-add-the-vendomatFromYAML-primop.patch

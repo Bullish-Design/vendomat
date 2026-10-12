@@ -7,3 +7,4 @@ c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5  0003-fix-boots
 8b91f6770d3f3699e05c8f76e7769d7ec8f6732b4f112d813f00739cf956d37c  0006-vendomat-require-a-target-bound-preflight-before-a-f.patch
 f9547b233ecb082600fb1dad3a46b5f0a88479b1b6b234093cb8d6d31c85a0a2  0007-vendomat-inherit-the-inputs-of-an-imported-source-s-.patch
 0913d5c05800b8fff9fad3371e97c33282c6de3363696f69b486916e7c25b0ee  0008-vendomat-copy-a-lazily-mounted-locked-source-into-the-store.patch
+3ce1b78dc4f68f1b552cef88cf530eb9bf7ec51e3c6fbd8d6ac03644fbec27ad  0009-vendomat-add-the-vendomatFromYAML-primop.patch

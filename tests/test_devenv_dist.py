@@ -185,3 +185,15 @@ def test_patch_0008_copies_a_lazily_mounted_source_into_the_store():
     assert "resolve-lock.nix" in text
     assert "+                outPath = builtins.path {" in text
     assert "-                outPath = builtins.appendContext storedPath" in text
+
+
+def test_patch_0009_adds_the_yaml_primop_with_one_unit_test_for_each_spike_case():
+    """DOOR-074, DOOR-075: the fork carries `vendomatFromYAML` and its strict-subset tests."""
+    name = next(n for n in series() if n.startswith("0009-"))
+    text = (PATCHES / name).read_text()
+    assert "Upstream: fork-only." in header(name)
+    assert 'name: cstr!("vendomatFromYAML")' in text
+    assert "devenv-nix-backend/src/yaml_subset.rs" in text
+    assert "VendomatYamlPlugin" in text
+    assert text.count("\n+    fn case_") == 27
+    assert "NAME:LINE:COL: reason" in text
