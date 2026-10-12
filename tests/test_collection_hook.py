@@ -15,19 +15,7 @@ import pytest
 from vendomat.store import refresh_collection
 
 HOOK = Path(__file__).resolve().parent.parent / "hooks" / "collection-post-receive"
-
-#: The rule that `scripts/collection-add` in nix-meta installs. The hook under test sits beside it.
-PRE_RECEIVE = """#!/bin/sh
-zero=0000000000000000000000000000000000000000
-while read old new ref; do
-  case "$ref" in
-    refs/tags/*)
-      [ "$old" = "$zero" ] || { echo "collection: $ref exists; releases are immutable" >&2; exit 1; } ;;
-    *)
-      echo "collection: only release tags are accepted, not $ref" >&2; exit 1 ;;
-  esac
-done
-"""
+PRE_RECEIVE = Path(__file__).resolve().parent.parent / "hooks" / "collection-pre-receive"
 
 
 @pytest.fixture(autouse=True)
@@ -47,19 +35,28 @@ def git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProces
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=check)
 
 
-@pytest.fixture
-def collection(tmp_path: Path) -> Path:
-    """A collection repository as `collection-add` makes it, plus the post-receive hook."""
-    repo = tmp_path / "vendor" / "devman"
+def make_collection(root: Path, name: str) -> Path:
+    """A collection repository as `collection-add` makes it, plus both receive hooks."""
+    repo = root / "vendor" / name
     repo.mkdir(parents=True)
     git(repo, "init", "--quiet", "--initial-branch=main")
     hooks = repo / ".git" / "hooks"
-    (hooks / "pre-receive").write_text(PRE_RECEIVE)
+    (hooks / "pre-receive").write_text(PRE_RECEIVE.read_text())
     shutil.copy(HOOK, hooks / "post-receive")
     for name in ("pre-receive", "post-receive"):
         (hooks / name).chmod(0o755)
     (repo / ".git" / "git-daemon-export-ok").write_text("")
     return repo
+
+
+@pytest.fixture
+def collection(tmp_path: Path) -> Path:
+    return make_collection(tmp_path, "devman")
+
+
+@pytest.fixture
+def vendomat_collection(tmp_path: Path) -> Path:
+    return make_collection(tmp_path, "vendomat")
 
 
 @pytest.fixture
@@ -88,6 +85,8 @@ def head_tag(repo: Path) -> str:
 def test_the_hook_file_is_executable_shell():
     assert HOOK.stat().st_mode & 0o111
     assert subprocess.run(["sh", "-n", str(HOOK)]).returncode == 0
+    assert PRE_RECEIVE.stat().st_mode & 0o111
+    assert subprocess.run(["sh", "-n", str(PRE_RECEIVE)]).returncode == 0
 
 
 def test_a_first_tag_push_fills_the_empty_unborn_repository(collection: Path, author: Path):
@@ -156,6 +155,58 @@ def test_a_refused_branch_push_changes_neither_refs_nor_tree(collection: Path, a
     assert "only release tags are accepted" in done.stderr
     assert git(collection, "for-each-ref").stdout == before
     assert (collection / "README").read_text() == "one\n"
+
+
+def test_only_the_vendomat_release_branch_is_allowed_and_only_fast_forward(vendomat_collection: Path, author: Path):
+    release(author, "v1.0.0", "one\n")
+    first = git(author, "rev-parse", "HEAD").stdout.strip()
+    created = push(author, vendomat_collection, "HEAD:refs/heads/release")
+    assert created.returncode == 0, created.stderr
+
+    release(author, "v1.1.0", "two\n")
+    moved = push(author, vendomat_collection, "HEAD:refs/heads/release")
+    assert moved.returncode == 0, moved.stderr
+    assert git(vendomat_collection, "rev-parse", "refs/heads/release").stdout.strip() != first
+
+    git(author, "checkout", "--quiet", "--detach", "v1.0.0")
+    rewound = git(
+        author,
+        "push",
+        "--force",
+        f"file://{vendomat_collection}",
+        "HEAD:refs/heads/release",
+        check=False,
+    )
+    assert rewound.returncode != 0
+    assert "must move forward" in rewound.stderr
+
+    deleted = git(
+        author,
+        "push",
+        f"file://{vendomat_collection}",
+        ":refs/heads/release",
+        check=False,
+    )
+    assert deleted.returncode != 0
+    assert "cannot be deleted" in deleted.stderr
+
+    other_branch = git(
+        author,
+        "push",
+        f"file://{vendomat_collection}",
+        "HEAD:refs/heads/main",
+        check=False,
+    )
+    assert other_branch.returncode != 0
+    assert "only release tags are accepted" in other_branch.stderr
+
+
+def test_other_collection_repositories_still_reject_the_release_branch(collection: Path, author: Path):
+    release(author, "v1.0.0", "one\n")
+    done = push(author, collection, "HEAD:refs/heads/release")
+
+    assert done.returncode != 0
+    assert "only release tags are accepted" in done.stderr
 
 
 def test_the_hook_leaves_tags_alone_and_agrees_with_the_sync_refresh(collection: Path, author: Path):

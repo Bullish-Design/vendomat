@@ -1,22 +1,24 @@
 # Project 20: implementation plan
 
 **Proposal, 2026-10-12 (second simplification pass).** [CONCEPT.md](CONCEPT.md) states the
-user path. [REQUIREMENTS.md](REQUIREMENTS.md) holds the active IDs `DOOR-071` to `DOOR-075`
+user path. [REQUIREMENTS.md](REQUIREMENTS.md) holds the active IDs `DOOR-071` to `DOOR-076`
 (`DOOR-074` and `DOOR-075` supersede `DOOR-069` and `DOOR-070`), with `DOOR-036`, `DOOR-038`,
 and `DOOR-063`. The
 [second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md) records the lost capability and
-the owner questions. No project 20 runtime gate has passed. Spikes P2A to P2G are fixture
-evidence only.
+the owner questions. The owner accepted R1 to R5. The slice 1 Testee profile, front-door gate, and
+full end-to-end gate pass. `DOOR-076` passes its two-VM hook test. The `.4` tag and `release` branch
+still need publication and a smoke check against the collection. No Basix machine gate has passed.
 
 ## Before slice 1
 
-The owner accepted Q1 to Q4 on 2026-10-12 (`DECISIONS.md`, R1 to R4). Slice 1 may start.
+The owner accepted Q1 to Q4 and the collection rule on 2026-10-12 (`DECISIONS.md`, R1 to R5).
+Slice 1 may start.
 
 ## Slices and gates
 
 | Slice | Result | Gate | Rollback |
 | --- | --- | --- | --- |
-| 1. Workspace | The catalog module in the Vendomat release (`devenv/`), its parse step, the fixed template, a `release` branch, and the host `vendomat` with `new` and pass-through. The fork series in `devenv-dist/` gains patch 0009 (`vendomatFromYAML`) with its Rust unit tests. The host puts the fork first on the PATH that Testee inherits. | `DOOR-074`, `DOOR-075`, `DOOR-071` gates on the pinned fork. `testee verify`, `testee verify --profile full`, and `testee verify e2e` pass. | Revert the slice; the current runtime stays. |
+| 1. Workspace | The catalog module, parser, fixed template, host `vendomat` with `new` and pass-through, fork patch 0009, and Vendomat-only fast-forward release branch rule are implemented. The `.4` fork and branch still need publication and a collection smoke check. | `DOOR-071`, `DOOR-074`, and `DOOR-075` pass on the local fork and loopback source channel. The `DOOR-076` NixOS hook test passes; its published-channel smoke remains. Testee is GREEN on the current tree. | Revert the slice; the current runtime stays. |
 | 2. Basix machine | The machine catalog table, `vendomat apply`, and then the Basix ISO with `vendomat install` and a local preflight mode. | `DOOR-072` in a VM: install to a blank virtual disk, refuse the boot medium and a used disk, zero failed units, apply, boot-menu rollback. | Revert the Basix module. No real disk. |
 | 3. Sharing | `serve = true` with a self-made key, and derived client settings. | `DOOR-073` with two VMs, then a real two-machine check. | Revert the cache module. Attic stays. |
 | Release | Hand-move the two live consumers to the new `vendomat.yaml`, release the host command, remove old paths after the real cache check. | `DOOR-063`. Consumer checks pass. The host keeps a rollback generation. | Switch to the earlier host generation. |
@@ -28,9 +30,19 @@ fixture VMs when slice 2 has the machine table and `vendomat apply`; it does not
 
 Start from the P2A, P2B, P2C, and P2G fixtures under `~/.local/state/vendomat/p20/2026-10-12/`.
 
+**Status, 2026-10-12.** The catalog, template, host command, patch series, and local front-door
+gate are implemented. See [slice 1 gate records](evidence/slice-1/). Testee is GREEN on the current
+tree. The full profile passes all four required checks. The front-door gate passes one consumer test.
+The end-to-end profile passes 395 tests and skips two. See [Testee evidence](evidence/slice-1/TESTEE-2026-10-12.md).
+The Testee gate refuses an
+invalid catalog during evaluation with exit 2; it does not mark that commit RED. A valid catalog
+change can make a consumer check RED, and restoring the file returns GREEN. This matches the
+observed Testee 0.6.1 interface. The real collection refs remain unpublished.
+
 1. Add patch 0009 (`vendomatFromYAML`, from `evidence/fixtures/p2g/`) to the fork series in
    `devenv-dist/`. Run its Rust unit tests with `cargo test` or a Nix build with `runTests`.
-   Build a release (`v2.4.0-vendomat.4`). Put the fork first on the PATH that Testee inherits.
+   **Done:** 27 Rust unit tests pass, the fork builds as `2.4.0+c66ba87`, and Testee ran with the
+   fork first on its inherited PATH. Publish the release tag after the repository gates pass.
 2. Write the catalog module with four kinds: programs, languages, services, environment values.
    Name each entry. Read `vendomat.yaml` with `builtins.readFile` and parse it with
    `devenvPrimops.vendomatFromYAML`. Parse once with `tryEval` and list all faults; map only
@@ -39,8 +51,14 @@ Start from the P2A, P2B, P2C, and P2G fixtures under `~/.local/state/vendomat/p2
    `rev`.
 4. Change the host `vendomat`: bare entry opens the shell, `new` copies the template, and every
    other argument runs the pinned fork with `exec`. Keep `sync` and Attic push until the release.
-5. Prove the three gates on the pinned fork. Test a `build` of an attribute that reads no
-   mapped value; P2B did not.
+5. **Done on the local fixture channel:** prove the three gates on the patched fork. The gate also
+   builds an attribute that reads no mapped value.
+
+The slice 1 gate used a loopback Git server because the collection refs remain unpublished. It
+checked the template URL in source, then replaced it with the loopback `release` URL in the
+throwaway workspace. The NixOS collection test passed `DOOR-076`. After this final tree lands, publish
+`v2.4.0-vendomat.4` and the Vendomat `release` branch. Run a fresh shell through the actual
+collection URL before slice 2.
 
 If a fixture disproves the surface, revise the concept, the requirements, and the plan together.
 

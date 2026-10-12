@@ -1,5 +1,5 @@
 {
-  description = "Vendomat: write project inputs from vendomat.toml, check pins, push outputs, and keep source clones.";
+  description = "Vendomat: manage workspaces and their devenv catalog.";
 
   # The only input. Vendomat packages no one else's tools: every tool is its own flake input of
   # the machine or project that wants it. The revision is the plain nixpkgs that this release tests
@@ -11,9 +11,8 @@
       systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
 
-      # The pinned fork today: `devenv 2.4.0+fb5d382`, tag `v2.4.0-vendomat.3` (devenv-dist/RESULT).
-      # This fixed path holds no store reference.
-      defaultFork = "/nix/store/mmmrsi96mgab54ccgs6l8cpkvh5lh2xm-devenv-wrapped-2.4.0/bin/devenv";
+      # The pinned fork for slice 1: `devenv 2.4.0+c66ba87`, tag `v2.4.0-vendomat.4`.
+      defaultFork = "/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin/devenv";
 
       perSystem = forAllSystems (pkgs:
         let

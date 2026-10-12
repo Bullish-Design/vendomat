@@ -698,3 +698,9 @@ Two IDs that make the same claim, with the one that holds.
 - **Route 4 (sops-nix with a first-boot host key).** An optional slice 9 evaluation. No ID.
 - **Project 19 decision 9 and `REG-013`.** Confirmed as written in this map.
 
+## 12. Vendomat collection branch ruling (2026-10-12)
+
+Project 20 decision R5 and `DOOR-076` add one exception to `STORE-014`: the `vendomat`
+repository accepts fast-forward updates to `refs/heads/release`. It still refuses branch deletion,
+rewind, and every other branch. All other collection repositories remain tag only. The V5 ledger
+keeps its original wording as history.

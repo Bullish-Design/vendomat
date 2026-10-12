@@ -22,6 +22,9 @@ template owns `devenv.yaml` (the Vendomat input on its `release` branch, `nixpkg
 Vendomat's `nixpkgs`, and one import), `devenv.nix` (`{ }`), and `devenv.lock`. No generated
 file exists.
 
+The source collection serves the branch read only. Its write hook accepts fast-forward updates to
+`vendomat`'s `release` branch. Other collection repositories accept new release tags only.
+
 `vendomat.yaml` holds a bounded catalog: programs, languages, services, and environment values.
 It uses a strict subset of YAML: maps, lists, and string scalars only. A fixed Nix module in the
 Vendomat release reads the file with `builtins.readFile` and parses the text with

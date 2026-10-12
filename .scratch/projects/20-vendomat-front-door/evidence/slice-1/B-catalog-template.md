@@ -1,7 +1,7 @@
 # Slice 1, lanes B and C: the catalog module and the fixed workspace template
 
-Date: 2026-10-12. Serves `DOOR-074` and `DOOR-075`. This record is fixture-level evidence. No slice
-gate has run; lane F writes the gates.
+Date: 2026-10-12. Serves `DOOR-074` and `DOOR-075`. This lane record is fixture-level evidence.
+Later slice gates are in `DOOR-074.md` and `DOOR-075.md`.
 
 ## Inputs and versions
 
@@ -184,7 +184,7 @@ Testee verdicts: see the end of this file.
 
 ## What stays inference or open
 
-- No slice gate has run. Direnv, Testee with the fork first on `PATH`, and `vendomat new` are lane E and F work.
+- This lane record predates the slice gate. `DOOR-074.md` records the later direnv, Testee, and `vendomat new` checks.
 - The real `git://server/vendomat?ref=release` URL has not been tried. A force-pushed branch and a cold store are
   untested (P2C).
 - A full shell build of Python 3.12 or Rust from the inherited inputs was not run; only evaluation was.

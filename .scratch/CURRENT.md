@@ -16,9 +16,13 @@ ISO, and a serving machine that makes its own signing key. Native devenv remains
 the advanced door. The owner accepted the four grouped questions on 2026-10-12.
 A fresh Basix core still must boot without keys.
 
-The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
-current implementation contract, but no longer directs future design. No project 20 runtime or
-machine gate has passed. The owner has not authorized real disk writes.
+The current CLI and live consumers still use the project 14 workflow. Project 14 remains the
+current implementation contract, but no longer directs future design. Slice 1 code is implemented.
+The required Testee profile, the front-door consumer gate, and the full end-to-end gate pass. The
+collection VM accepts only the Vendomat `release` branch in addition to new tags. The `.4` fork tag
+and Vendomat branch still need publication and a read-side smoke check. The host PATH still puts
+stock devenv first, so the gates used an explicit fork PATH prefix. No machine gate has passed. The
+owner has not authorized real disk writes.
 
 **Authority split.** The project 20 documents are the future design authority. Project 14 stays the
 current implementation contract until a release supports the project 20 gates.
@@ -57,9 +61,10 @@ consumer changed. The owner still needs to rule on the user file format (now Q1,
 with the pinned-fork direct-read fixture, not the strict YAML reader.
 
 **Owner rulings (2026-10-12).** The owner accepted Q1 to Q4: YAML through the fork primop,
-a local Basix install from the ISO, no source collection in the first release, and closing the V5
-and V6 ledgers as history at cutover. The [decision log](projects/20-vendomat-front-door/DECISIONS.md)
-records them as R1 to R4. No gate has passed. The next session starts slice 1 of the
+a local Basix install from the ISO, deferral of user source modes and mirrors, and closing the V5
+and V6 ledgers as history at cutover. R5 permits the existing collection to serve the Vendomat
+`release` branch. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) records R1 to R5.
+No gate had passed when these rulings were recorded. The next session starts slice 1 of the
 [plan](projects/20-vendomat-front-door/PLAN.md) with the prompt
 [KICKOFF-SLICE-1.md](projects/20-vendomat-front-door/KICKOFF-SLICE-1.md). The sentences below that say the owner must
 still rule are history.
@@ -86,7 +91,11 @@ adds the primop `vendomatFromYAML` to the fork. The catalog reads `vendomat.yaml
 fresh clone, direnv, and Testee with no unsafe Nix setting. Decision S37 supersedes S36, and
 `DOOR-074` and `DOOR-075` supersede `DOOR-069` and `DOOR-070`. Q1 now reads: confirm YAML through
 the fork primop (`vendomat.yaml`) in place of TOML. The host must put the fork first on the PATH
-that Testee inherits. Not proved: the Rust unit tests, a release build, and the real catalog.
+that Testee inherits. Slice 1 later passed the Rust unit tests, built the fork, and ran the real
+catalog module through a host-created workspace, a local Git release channel, direnv, and Testee.
+The local fixture did not prove the published `git://server/vendomat?ref=release` channel. The
+fork tag and release branch remain unpublished. No Basix machine gate has passed. The later slice 1
+tests are recorded in `projects/20-vendomat-front-door/evidence/slice-1/`.
 
 ## Earlier draft and evidence: project 16 — Vendomat V6, the devenv layer
 

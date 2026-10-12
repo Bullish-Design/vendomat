@@ -2,8 +2,8 @@
 #
 # `server` holds the collection under /home/andrew/vendor and serves it with `git daemon`, with the
 # settings of nix-meta's machines/server.nix. `framework` pushes release tags over SSH and fetches
-# over git://. The repositories come from `collection-add` (a copy of the nix-meta script) and the
-# `hooks/collection-post-receive` of this repository.
+# over git://. Only Vendomat also accepts fast-forward updates to its `release` branch. The
+# repositories come from `collection-add` (a copy of the nix-meta script) and the collection hooks.
 #
 # Run (needs /dev/kvm and the `nixos-test` system feature):
 #   VENDOMAT_PACKAGE=$(nix build .#packages.x86_64-linux.vendomat --no-link --print-out-paths) \
@@ -12,6 +12,7 @@ let
   p = import ./pin.nix;
   inherit (p) pkgs keys vendomat;
   collectionAdd = pkgs.writeShellScriptBin "collection-add" (builtins.readFile ./collection-add);
+  repoPreReceive = ../../../hooks/collection-pre-receive;
   repoHook = ../../../hooks/collection-post-receive;
 in
 pkgs.testers.runNixOSTest {
@@ -78,14 +79,16 @@ pkgs.testers.runNixOSTest {
     # ---- STORE-023, STORE-014, STORE-015: the hooks install on a new repository ----
     print("RESULT collection-add: " + andrew(COL + "collection-add lib-a").strip())
     andrew(COL + "collection-add lib-b")
+    andrew(COL + "collection-add vendomat")
     andrew("git init -q ~/vendor/unmarked")
-    for repo in ("lib-a", "lib-b"):
+    for repo in ("lib-a", "lib-b", "vendomat"):
         for name in ("pre-receive", "post-receive"):
             andrew("test -x ~/vendor/" + repo + "/.git/hooks/" + name)
         andrew("test -e ~/vendor/" + repo + "/.git/git-daemon-export-ok")
-        # The installed text equals the file in this repository (it was a copy in nix-meta).
+        server.succeed("cmp ${repoPreReceive} /home/andrew/vendor/" + repo + "/.git/hooks/pre-receive")
         server.succeed("cmp ${repoHook} /home/andrew/vendor/" + repo + "/.git/hooks/post-receive")
     print("RESULT hook text: installed post-receive equals hooks/collection-post-receive")
+    print("RESULT hook text: installed pre-receive equals hooks/collection-pre-receive")
     status, out = andrew_status(COL + "collection-add lib-a")
     assert status != 0, "collection-add must refuse an existing repository"
     status, out = andrew_status(COL + "collection-add --hooks unmarked")
@@ -125,6 +128,52 @@ pkgs.testers.runNixOSTest {
     refs = andrew("git -C ~/vendor/lib-a for-each-ref --format='%(refname)'").split()
     assert refs == ["refs/tags/v1.0.0"], refs
     print("RESULT branch push refused; moved tag refused; tag delete refused; refs: " + " ".join(refs))
+
+    # ---- The Vendomat repository has one fast-forward-only release branch ----
+    framework.succeed(
+        "mkdir -p /root/vendomat && cd /root/vendomat && git init -q -b main"
+        " && git config user.name t && git config user.email t@example.invalid"
+        " && printf 'one\\n' > README && git add README && git commit -qm one"
+    )
+    out = framework.succeed(
+        "cd /root/vendomat && " + SSH + "git push " + DEST
+        + "vendomat HEAD:refs/heads/release 2>&1"
+    )
+    first_release = framework.succeed("git -C /root/vendomat rev-parse HEAD").strip()
+    assert andrew("git -C ~/vendor/vendomat rev-parse refs/heads/release").strip() == first_release
+    framework.succeed(
+        "cd /root/vendomat && printf 'two\\n' >> README && git add README"
+        " && git commit -qm two"
+    )
+    framework.succeed(
+        "cd /root/vendomat && " + SSH + "git push " + DEST
+        + "vendomat HEAD:refs/heads/release 2>&1"
+    )
+    assert "refs/heads/release" in framework.succeed(
+        "git ls-remote git://server/vendomat refs/heads/release"
+    )
+    out = framework.fail(
+        "cd /root/vendomat && " + SSH + "git push --force " + DEST
+        + "vendomat HEAD~1:refs/heads/release 2>&1"
+    )
+    assert "refs/heads/release must move forward" in out, out
+    out = framework.fail(
+        "cd /root/vendomat && " + SSH + "git push " + DEST
+        + "vendomat :refs/heads/release 2>&1"
+    )
+    assert "refs/heads/release cannot be deleted" in out, out
+    out = framework.fail(
+      "cd /root/vendomat && " + SSH + "git push " + DEST
+      + "vendomat main:refs/heads/main 2>&1"
+    )
+    assert "only release tags are accepted" in out, out
+    out = framework.fail(
+      "cd /root/lib-a && " + SSH + "git push " + DEST
+      + "lib-a main:refs/heads/release 2>&1"
+    )
+    assert "only release tags are accepted" in out, out
+    print("RESULT Vendomat release branch: create and fast-forward accepted; rewind, delete, and main refused")
+    print("RESULT other repositories reject refs/heads/release")
 
     # ---- STORE-023: version order, not push order ----
     out = framework.succeed("cd /root/lib-a && " + SSH + "git push " + DEST + "lib-a v1.0.1 2>&1")

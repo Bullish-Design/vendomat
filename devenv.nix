@@ -73,13 +73,14 @@ in
           # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
           export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.venv/bin/templateer}"
           # Keep every fixture command, exit status, and output outside the repository.
-          export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
+          export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p20/$(date -u +%Y%m%dT%H%M%SZ)/slice-1/F-infra}"
           ${venvBin}/python -m pytest -q tests --junitxml="$TESTEE_RUN_DIR/e2e.junit.xml"
         ''
       ];
       profiles = [ "e2e" ];
       required = false;
-      timeout_s = 1800;
+      # This check runs three NixOS VM builds. Each child build may need 3,000 seconds.
+      timeout_s = 10800;
       structured = { parser = "junit-xml"; file = "e2e.junit.xml"; };
     };
     workspace-e2e = {
@@ -100,6 +101,27 @@ in
       required = false;
       timeout_s = 900;
       structured = { parser = "junit-xml"; file = "workspace-e2e.junit.xml"; };
+    };
+    # Project 20 slice 1. This gate builds a workspace from the host launcher and exercises the
+    # catalog against the patched fork. Run it with the fork first on Testee's inherited PATH:
+    # `PATH=/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin:$PATH testee verify front-door-e2e`.
+    front-door-e2e = {
+      argv = [
+        "${pkgs.bash}/bin/bash"
+        "-c"
+        ''
+          export HOME="$(eval echo "~$(id -un)")" VENDOMAT_FRONT_DOOR_E2E=1
+          export PATH="/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin:${pkgs.nix}/bin:${pkgs.git}/bin:${pkgs.direnv}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+          export VENDOMAT_FRONT_DOOR_FORK="/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin/devenv"
+          export VENDOMAT_FRONT_DOOR_TESTEE="$HOME/.nix-profile/bin/testee"
+          export VENDOMAT_FRONT_DOOR_LOGS="$HOME/.local/state/vendomat/p20/$(date -u +%F)/slice-1/F-front-door"
+          ${venvBin}/python -m pytest -q tests/test_front_door_e2e.py --junitxml="$TESTEE_RUN_DIR/front-door-e2e.junit.xml"
+        ''
+      ];
+      profiles = [ "front-door-e2e" ];
+      required = false;
+      timeout_s = 3600;
+      structured = { parser = "junit-xml"; file = "front-door-e2e.junit.xml"; };
     };
     # Opt-in live cache checks (CACHE-012). They push to the host Attic with the push credential,
     # ask for every path with the pull credential, and copy cold into an empty store. They write
@@ -122,6 +144,7 @@ in
   packages = [
     pkgs.uv
     pkgs.git
+    pkgs.direnv
     pkgs.jq # the launcher tests run the launcher, which reads devenv.lock with jq
   ];
 

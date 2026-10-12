@@ -105,13 +105,16 @@ def test_no_infra_file_holds_a_credential():
 
 @needs_nix_fixture
 @needs_vm
-def test_the_collection_serves_tags_only_and_rebuilds_from_release_tags(vendomat_package, tmp_path):
+def test_the_collection_serves_immutable_tags_and_vendomat_release_branch(vendomat_package, tmp_path):
     log = _run_vm_test("collection", vendomat_package, tmp_path)
     _expect(
         log,
         "RESULT hook text: installed post-receive equals hooks/collection-post-receive",
+        "RESULT hook text: installed pre-receive equals hooks/collection-pre-receive",
         "RESULT tag push from framework over ssh: accepted; tree shows v1.0.0",
         "RESULT branch push refused; moved tag refused; tag delete refused",
+        "RESULT Vendomat release branch: create and fast-forward accepted; rewind, delete, and main refused",
+        "RESULT other repositories reject refs/heads/release",
         "RESULT unmarked repository not served; push over git:// fails from both VMs",
         "RESULT nix fetch over git:// on framework: lib-a-1.0.1",
         "RESULT nix fetch over git:// on server: lib-a-1.0.1",

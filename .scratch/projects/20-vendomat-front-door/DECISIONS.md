@@ -177,3 +177,9 @@ do not pass a gate. Older rows stay unchanged.
 
 O5, O7, and O9 stay open: Attic stays until the real Harmonia check, no real disk write is
 authorized, and the Basix ISO still needs a proof.
+
+**R5.** Permit only `refs/heads/release` for the `vendomat` collection repository. Accept its first
+creation and fast-forward updates. Reject deletion, rewind, and every other branch. Keep all other
+collection repositories tag only. This resolves the approved workspace URL
+`git://server/vendomat?ref=release`. The owner accepted this ruling on 2026-10-12. `DOOR-076`
+records the requirement and its proof gate.

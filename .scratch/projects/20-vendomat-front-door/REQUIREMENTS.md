@@ -242,7 +242,22 @@ TOML parser" still means the V5 Python reader of the V5 `vendomat.toml` format.
 | ID | Requirement | Proof gate |
 | --- | --- | --- |
 | `DOOR-074` | A workspace MUST hold four files: user-owned `vendomat.yaml`, and template-owned `devenv.yaml`, `devenv.nix`, and `devenv.lock`. `devenv.yaml` MUST name the Vendomat flake input on its `release` branch with a URL that locks a `rev`, MUST set `nixpkgs` to follow the Vendomat `nixpkgs`, and MUST import the catalog module. `devenv.nix` MUST be `{ }`. The catalog module MUST read `config.devenv.root + "/vendomat.yaml"` with `builtins.readFile` and MUST parse the text with the fork primop `vendomatFromYAML`. A missing file MUST mean an empty catalog. No generated file, wrapper, or unsafe Nix setting MAY exist. The pinned fork MUST carry the primop as patch 0009, and the PATH that Testee inherits MUST put the fork first. | Pinned fork: a fresh workspace from `vendomat new` enters the shell; an edit, a create, and a delete of `vendomat.yaml` show in the next shell with no other step; a fresh clone, direnv, and Testee give the same result, with `allow-unsafe-native-code-during-evaluation` false. P2A, P2C, and P2G passed at fixture level. |
-| `DOOR-075` | The catalog MUST be a bounded set of named, typed entries: programs, languages, services, and environment values. The strict YAML subset MUST hold maps, lists, and string scalars only. The primop MUST reject tabs, anchors, aliases, tags, flow style, block scalars, document markers, duplicate keys, unknown escapes, and lists of maps. It MUST report a syntax error as `vendomat.yaml:LINE:COL: reason`. Every scalar MUST stay a string, and the option types MUST give the strings their meaning. The catalog module MUST report every bad field and every unknown program name in one error that names `vendomat.yaml` and the field. Every mapping to a native option MUST read only the parsed values. An unknown key MUST fail. No other validator, schema export, or schema cache MAY exist. Vendomat verbs SHOULD print the error from its last `error:` line. | Pinned fork: an unknown key, a bad used value, a bad unused value, and an unknown program each stop `shell`, `test`, `build`, and `tasks run` before work; one run lists all bad fields. Each rejected construct gives the line and column. `3.10` and `name: no` stay text. P2B and P2G passed at fixture level; the Rust unit tests and a release build are not yet run. |
+| `DOOR-075` | The catalog MUST be a bounded set of named, typed entries: programs, languages, services, and environment values. The strict YAML subset MUST hold maps, lists, and string scalars only. The primop MUST reject tabs, anchors, aliases, tags, flow style, block scalars, document markers, duplicate keys, unknown escapes, and lists of maps. It MUST report a syntax error as `vendomat.yaml:LINE:COL: reason`. Every scalar MUST stay a string, and the option types MUST give the strings their meaning. The catalog module MUST report every bad field and every unknown program name in one error that names `vendomat.yaml` and the field. Every mapping to a native option MUST read only the parsed values. An unknown key MUST fail. No other validator, schema export, or schema cache MAY exist. Vendomat verbs SHOULD print the error from its last `error:` line. | Pinned fork: an unknown key, a bad used value, a bad unused value, and an unknown program each stop `shell`, `test`, `build`, and `tasks run` before work; one run lists all bad fields. Each rejected construct gives the line and column. `3.10` and `name: no` stay text. P2B and P2G passed at fixture level. Slice 1 later passed 27 Rust unit tests and built fork `2.4.0+c66ba87`; see [DOOR-075 evidence](evidence/slice-1/DOOR-075.md). |
+
+## Slice 1 gate results, 2026-10-12
+
+The three slice 1 gates passed on the local `.4` fork build. The host launcher created a workspace.
+The gate served a throwaway Vendomat flake from a loopback Git server with a movable `release`
+branch. It did not use the collection URL because the release branch was not yet published.
+
+| ID | Result | Evidence |
+| --- | --- | --- |
+| `DOOR-071` | Gate passed | [Gate record](evidence/slice-1/DOOR-071.md) |
+| `DOOR-074` | Gate passed on the loopback channel; collection smoke pending | [Gate record](evidence/slice-1/DOOR-074.md) |
+| `DOOR-075` | Gate passed; Testee refuses invalid input before checks | [Gate record](evidence/slice-1/DOOR-075.md) |
+
+The host PATH still resolves stock devenv first. The gate command prefixes the `.4` fork for
+Testee. A host-wide PATH change or a Testee binary setting remains outside this repository.
 
 ## Owner rulings, 2026-10-12
 
@@ -262,3 +277,13 @@ status only. Each claim keeps its proof gate open until a fixture or a release p
 
 `DOOR-041` and `DOOR-055` stay deferred. The V5 and V6 ledgers close as history at cutover (R4).
 Until then, their [disposition map](evidence/REQUIREMENT-DISPOSITION-2026-10-11.md) stays live.
+
+## Vendomat collection release branch, 2026-10-12
+
+The owner accepted R5 in `DECISIONS.md`. `DOOR-076` supersedes the tag-only collection rule in
+`STORE-014` for the `vendomat` repository only. `STORE-014` remains applicable to every other
+collection repository. The historical V5 ledger stays unchanged.
+
+| ID | Requirement | Proof gate | Status |
+| --- | --- | --- | --- |
+| `DOOR-076` | The collection pre-receive hook MUST accept new release tags and MUST refuse tag updates or deletions. For the `vendomat` repository only, it MUST also accept creation and fast-forward updates to `refs/heads/release`. It MUST refuse deletion or rewind of that branch. It MUST refuse every other branch in every repository. The `git://server/vendomat?ref=release` URL MUST resolve to a locked `rev`. | A two-VM NixOS test creates and advances the Vendomat branch, then rejects rewind, deletion, and another branch. It rejects the `release` branch in another collection repository. Installed hooks match the repository hook and the generated `collection-add` hook. A fresh workspace then locks and enters the shell through the published collection URL. | NixOS VM gate passed; published-channel smoke pending. |

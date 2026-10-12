@@ -54,7 +54,7 @@ def test_the_upstream_pin_names_tag_and_commit():
     assert pin["tag"] == "v2.4.0"
     assert pin["commit"] == "b904dcb51fe48c30db250038241507f60752f222"
     assert re.fullmatch(r"[0-9a-f]{40}", pin["commit"])
-    assert pin["fork_tag"] == "v2.4.0-vendomat.3"
+    assert pin["fork_tag"] == "v2.4.0-vendomat.4"
     assert pin["repo"].startswith("https://github.com/cachix/devenv")
 
 
