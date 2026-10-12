@@ -161,3 +161,19 @@ Older rows stay unchanged.
 **Q1 restated.** Confirm YAML through the fork primop (`vendomat.yaml`) in place of TOML. The
 recommendation is yes. Q2 to Q4 do not change. S27 to S35 stand, with `vendomat.yaml` read for
 `vendomat.toml` and the fork primop read for `builtins.fromTOML`.
+
+## Owner rulings, 2026-10-12
+
+The owner accepted all four grouped questions of the
+[second review](evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md). The rulings accept a design. They
+do not pass a gate. Older rows stay unchanged.
+
+| Ruling | Question | Effect |
+| --- | --- | --- |
+| R1. Accept YAML through the fork primop. | Q1 | S37 is the design. Slice 1 may start. Patch 0009 joins the fork series. |
+| R2. The learner installs locally from the Basix ISO. Remote install and deploy stay on native devenv Machines. | Q2, with O2 | S31, S32, and S34 are the design. The first release ships the machine catalog in the Vendomat release. The owner's `server` install uses the native door. |
+| R3. Defer the source collection, mirrors, and keep clones from the first release. | Q3 | Workspaces use native source URLs and `devenv.lock` only. The project 14 collection keeps running until the release removes the old runtime. |
+| R4. Close the V5 and V6 ledgers as history at cutover. | Q4 | Until cutover the disposition map stays live, because V5 code still runs. At cutover the map shrinks to the rows that cite live IDs. |
+
+O5, O7, and O9 stay open: Attic stays until the real Harmonia check, no real disk write is
+authorized, and the Basix ISO still needs a proof.

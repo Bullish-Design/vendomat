@@ -13,7 +13,7 @@ Vendomat becomes the user command. The 2026-10-12 second simplification
 pass proposes one user file (`vendomat.yaml`, read by a catalog module through a fork primop),
 three verbs plus pass-through to the pinned fork, a local Basix install from an
 ISO, and a serving machine that makes its own signing key. Native devenv remains
-the advanced door. The owner has not yet ruled on the four grouped questions.
+the advanced door. The owner accepted the four grouped questions on 2026-10-12.
 A fresh Basix core still must boot without keys.
 
 The current code still uses `vendomat.toml`, `vendomat sync`, and Attic push. Project 14 remains the
@@ -55,6 +55,13 @@ Nix fixture proved direct file reading and file-level type errors. It did not
 prove eager validation or a pinned-devenv workspace. No production code or
 consumer changed. The owner still needs to rule on the user file format (now Q1, YAML) and on closing the V5 and V6 ledgers as history. The next session starts
 with the pinned-fork direct-read fixture, not the strict YAML reader.
+
+**Owner rulings (2026-10-12).** The owner accepted Q1 to Q4: YAML through the fork primop,
+a local Basix install from the ISO, no source collection in the first release, and closing the V5
+and V6 ledgers as history at cutover. The [decision log](projects/20-vendomat-front-door/DECISIONS.md)
+records them as R1 to R4. No gate has passed. The next session starts slice 1 of the
+[plan](projects/20-vendomat-front-door/PLAN.md). The sentences below that say the owner must
+still rule are history.
 
 **Second simplification pass (2026-10-12).** The
 [second review](projects/20-vendomat-front-door/evidence/SIMPLIFY-REVIEW-2026-10-12-PASS2.md)

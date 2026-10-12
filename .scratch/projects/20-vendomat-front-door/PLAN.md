@@ -10,8 +10,7 @@ evidence only.
 
 ## Before slice 1
 
-The owner rules on the review's questions Q1 to Q4 as one group. Slice 1 needs Q1. Slice 2
-needs Q2. The release needs Q3 and Q4.
+The owner accepted Q1 to Q4 on 2026-10-12 (`DECISIONS.md`, R1 to R4). Slice 1 may start.
 
 ## Slices and gates
 

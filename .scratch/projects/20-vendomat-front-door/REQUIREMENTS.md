@@ -243,3 +243,22 @@ TOML parser" still means the V5 Python reader of the V5 `vendomat.toml` format.
 | --- | --- | --- |
 | `DOOR-074` | A workspace MUST hold four files: user-owned `vendomat.yaml`, and template-owned `devenv.yaml`, `devenv.nix`, and `devenv.lock`. `devenv.yaml` MUST name the Vendomat flake input on its `release` branch with a URL that locks a `rev`, MUST set `nixpkgs` to follow the Vendomat `nixpkgs`, and MUST import the catalog module. `devenv.nix` MUST be `{ }`. The catalog module MUST read `config.devenv.root + "/vendomat.yaml"` with `builtins.readFile` and MUST parse the text with the fork primop `vendomatFromYAML`. A missing file MUST mean an empty catalog. No generated file, wrapper, or unsafe Nix setting MAY exist. The pinned fork MUST carry the primop as patch 0009, and the PATH that Testee inherits MUST put the fork first. | Pinned fork: a fresh workspace from `vendomat new` enters the shell; an edit, a create, and a delete of `vendomat.yaml` show in the next shell with no other step; a fresh clone, direnv, and Testee give the same result, with `allow-unsafe-native-code-during-evaluation` false. P2A, P2C, and P2G passed at fixture level. |
 | `DOOR-075` | The catalog MUST be a bounded set of named, typed entries: programs, languages, services, and environment values. The strict YAML subset MUST hold maps, lists, and string scalars only. The primop MUST reject tabs, anchors, aliases, tags, flow style, block scalars, document markers, duplicate keys, unknown escapes, and lists of maps. It MUST report a syntax error as `vendomat.yaml:LINE:COL: reason`. Every scalar MUST stay a string, and the option types MUST give the strings their meaning. The catalog module MUST report every bad field and every unknown program name in one error that names `vendomat.yaml` and the field. Every mapping to a native option MUST read only the parsed values. An unknown key MUST fail. No other validator, schema export, or schema cache MAY exist. Vendomat verbs SHOULD print the error from its last `error:` line. | Pinned fork: an unknown key, a bad used value, a bad unused value, and an unknown program each stop `shell`, `test`, `build`, and `tasks run` before work; one run lists all bad fields. Each rejected construct gives the line and column. `3.10` and `name: no` stay text. P2B and P2G passed at fixture level; the Rust unit tests and a release build are not yet run. |
+
+## Owner rulings, 2026-10-12
+
+The owner accepted the design on 2026-10-12 (`DECISIONS.md`, R1 to R4). These rows change
+status only. Each claim keeps its proof gate open until a fixture or a release passes it.
+
+| ID | New status |
+| --- | --- |
+| `DOOR-036` | Accepted; gate open |
+| `DOOR-038` | Accepted; gate open |
+| `DOOR-063` | Accepted; gate open |
+| `DOOR-071` | Accepted; gate open |
+| `DOOR-072` | Accepted; gate open |
+| `DOOR-073` | Accepted; gate open |
+| `DOOR-074` | Accepted; gate open |
+| `DOOR-075` | Accepted; gate open |
+
+`DOOR-041` and `DOOR-055` stay deferred. The V5 and V6 ledgers close as history at cutover (R4).
+Until then, their [disposition map](evidence/REQUIREMENT-DISPOSITION-2026-10-11.md) stays live.
