@@ -111,3 +111,14 @@ the version.
    fix `ac02b48c`.
 3. The open item above ("no tag exists on `main`") is now met. The harness pin still names the
    revision `ac02b48c015d`. Nobody has moved it to the tag. The owner decides when to move it.
+
+## Addendum, 2026-10-12: Templateer v0.6.0 is tagged on main
+
+1. The tag `v0.6.0` now exists on Templateer `main`. It follows `v0.5.0`. It points at
+   `a6d609d5b662d79a8f2512772e23ec32129c59ec`.
+   Observation: `git ls-remote --tags` on `Bullish-Design/templateer_v2` returns that SHA.
+2. The tag changes the `nix` language only. Floats keep their type. `$output: "out"` renders
+   `.out`. A new `nix_nullable` filter exists. A NaN, an infinity, a subnormal float, or an
+   integer of 2^63 or more fails the render.
+3. This note does not move any pin. The harness pin is not changed here. The owner decides when to
+   move it to a tag.
