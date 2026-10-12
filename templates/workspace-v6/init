@@ -29,5 +29,5 @@ done
 
 mkdir -p "$target"
 "$templateer_cmd" render workspace-registry -p "$templates" --input "$model" --output "$target/vendomat.toml"
-cp "$templates/workspace/devenv.nix" "$target/devenv.nix"
-cp "$templates/workspace/devenv.yaml" "$target/devenv.yaml"
+cp "$templates/workspace-v6/devenv.nix" "$target/devenv.nix"
+cp "$templates/workspace-v6/devenv.yaml" "$target/devenv.yaml"

@@ -128,7 +128,7 @@ def test_template_workspace_selects_authored_modules(tmp_path: Path) -> None:
         model.write_text(json.dumps({"forge_url": forge, "vendomat_tag": "v1"}))
         workspace = tmp_path / "workspace"
         created = run(
-            [str(ROOT / "templates/workspace/init"), str(model), str(workspace)],
+            [str(ROOT / "templates/workspace-v6/init"), str(model), str(workspace)],
             tmp_path,
             env={**os.environ, "VENDOMAT_TEMPLATEER": TEMPLATEER},
         )

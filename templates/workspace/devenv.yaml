@@ -1,2 +1,8 @@
-# Template-owned input wiring. Vendomat writes the imported .vendomat/ fragment.
-imports: [ ./.vendomat ]
+# Template-owned. Change routine values in vendomat.yaml, not here.
+inputs:
+  vendomat:
+    url: git://server/vendomat?ref=release
+  nixpkgs:
+    follows: vendomat/nixpkgs
+imports:
+  - vendomat/devenv

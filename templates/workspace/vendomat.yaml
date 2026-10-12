@@ -1,0 +1,19 @@
+# Your workspace. Edit this file. Vendomat owns the other files.
+# Remove the "# " from a line to use it. Write the text "true" or "false" for a switch.
+#
+# programs:
+#   - ripgrep
+# languages:
+#   python:
+#     version: "3.12"
+#   javascript:
+#     version: "22"
+#   rust:
+#     version: "1.81.0"
+# services:
+#   postgres:
+#     enable: true
+#   redis:
+#     enable: true
+# env:
+#   GREETING: hello
