@@ -8,7 +8,7 @@ declare -A HOSTS=( [rawname-nvme]=box [rawname-sda]=box [missing-byid]=box [adop
 for c in "${!HOSTS[@]}"; do
   h=${HOSTS[$c]}
   $S/scripts/mkws.sh $c > /dev/null
-  cp /home/andrew/Documents/Projects/gitman-workspaces/p20-research/.scratch/projects/20-vendomat-front-door/evidence/fixtures/s4-inventory/devenv.local.nix $S/ws/$c/ 
+  cp "$(dirname "$(readlink -f "$0")")/../probe.local-template.nix" $S/ws/$c/devenv.local.nix 
   # the probe is not needed for a failing case; remove it so the failure is the build.nixos path
   rm -f $S/ws/$c/devenv.local.nix
   (cd $S/ws/$c && timeout 300 $D eval machines.$h.build.nixos > $S/logs/$c.out 2> $S/logs/$c.err; echo $? > $S/logs/$c.rc)

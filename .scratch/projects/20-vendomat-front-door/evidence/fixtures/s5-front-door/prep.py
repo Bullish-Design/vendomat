@@ -4,9 +4,9 @@
 # Exit: 0 ok, 65 lint fault, 66 schema fault, 67 generated files stale (--check writes nothing).
 import hashlib, json, os, sys, time
 t0 = time.perf_counter()
-sys.path.insert(0, "/home/andrew/Documents/Projects/gitman-workspaces/p20-research/src")
+sys.path.insert(0, "/home/andrew/Documents/Projects/vendomat/src")
 import importlib.util
-spec = importlib.util.spec_from_file_location("yamlsubset", "/home/andrew/Documents/Projects/gitman-workspaces/p20-research/src/vendomat/yamlsubset.py")
+spec = importlib.util.spec_from_file_location("yamlsubset", "/home/andrew/Documents/Projects/vendomat/src/vendomat/yamlsubset.py")
 ys = importlib.util.module_from_spec(spec); spec.loader.exec_module(ys)
 t_import = time.perf_counter()
 root = sys.argv[1]; force = "--force-rewrite" in sys.argv; check = "--check" in sys.argv

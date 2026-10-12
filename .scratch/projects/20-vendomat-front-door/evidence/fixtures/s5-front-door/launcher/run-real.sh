@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # S5 fixture, NON-PRODUCTION.
-L=/home/andrew/Documents/Projects/gitman-workspaces/p20-research/launcher/vendomat
+L=/home/andrew/Documents/Projects/vendomat/launcher/vendomat
 cd "$(dirname "$0")"
 export VENDOMAT_HOST_RELEASE=$PWD/host-release VENDOMAT_LAUNCHER_CACHE=$PWD/cache
 mkdir -p cache

@@ -2,7 +2,7 @@
 # S5 fixture, NON-PRODUCTION. Real devenv through the exec wrapper: exit codes and SIGINT on `up`.
 import os, signal, subprocess, sys, time
 S5 = os.path.expanduser("~/.local/state/vendomat/p20/2026-10-11/S5")
-W = "/home/andrew/Documents/Projects/gitman-workspaces/p20-research/.scratch/projects/20-vendomat-front-door/evidence/fixtures/s5-front-door/passthrough-%s.py"
+W = "/home/andrew/Documents/Projects/vendomat/.scratch/projects/20-vendomat-front-door/evidence/fixtures/s5-front-door/passthrough-%s.py"
 env = {k: v for k, v in os.environ.items() if not k.startswith(("DEVENV_", "DIRENV_")) and k not in ("IN_NIX_SHELL", "VIRTUAL_ENV", "NIX_PYTHONPATH", "PYTHONPATH")}
 env["VENDOMAT_DEVENV"] = "/nix/store/mmmrsi96mgab54ccgs6l8cpkvh5lh2xm-devenv-wrapped-2.4.0/bin/devenv"
 def run(kind, args, cwd):

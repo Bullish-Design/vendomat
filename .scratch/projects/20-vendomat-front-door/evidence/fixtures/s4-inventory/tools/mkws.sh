@@ -3,7 +3,7 @@
 # usage: mkws.sh <case> ; builds ws/<case> from the fixture, the repo module copy, and cases/<case>.json
 set -euo pipefail
 case=$1
-R=/home/andrew/Documents/Projects/gitman-workspaces/p20-research
+R=/home/andrew/Documents/Projects/vendomat
 FX=$R/.scratch/projects/20-vendomat-front-door/evidence/fixtures/s4-inventory
 W=$HOME/.local/state/vendomat/p20/2026-10-11/S4/ws/$case
 mkdir -p "$W/.vendomat" "$W/nix" "$W/.machines/box"

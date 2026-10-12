@@ -82,7 +82,7 @@ inside `machines.<n>.nixos`. The V6 module (`nix/devenv-module/default.nix`) add
 | `devenv.nix` | Generic data reader: `config = removeAttrs (fromJSON ./.vendomat/config.json) ["inputs" "imports"]`. A top-level key is an option path. No translation table. |
 | `basix-machines.nix` | Declares `options.basix.machines`. Maps each host to `vendomat.inventory.<h>` (existing guard) and `machines.<h>` (native). Builds the core-role NixOS module from data. |
 | `devenv.yaml` | Fork modules, nixpkgs, disko, nixos-facter-modules at the pins above. |
-| `devenv.local.nix` | Read-only probe: `devenv eval env.S4_PROBE`. |
+| `probe.local-template.nix` | Read-only probe: `devenv eval env.S4_PROBE`. The run script copies it into each case as `devenv.local.nix` (that name is ignored by Git). |
 | `cases/*.json` | 14 simulated `.vendomat/config.json` files. JSON allows no comment, so these carry no header. |
 | `tools/` | The type walker, `jq` filters, and run scripts. |
 
