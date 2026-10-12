@@ -1,4 +1,8 @@
-"""The host launcher syncs each workspace with its pinned Vendomat and runs the host release elsewhere (`DEL-020`)."""
+"""The host launcher syncs each workspace with its pinned Vendomat and runs the host release elsewhere (`DEL-020`).
+
+It also enters the pinned devenv shell, copies the workspace template, and passes every other argument to
+the pinned devenv fork (`DOOR-071`). A fake fork stands in for the real one.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import base64
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import textwrap
@@ -56,10 +61,25 @@ class Env:
             echo "$out"
             """,
         )
+        # The fork prints its argv, one argument per line, and exits with $FAKE_FORK_EXIT (default 0).
+        self.fork = script(
+            tmp / "fork" / "bin" / "devenv",
+            'echo "FORK $#"; for a in "$@"; do echo "[$a]"; done; exit "${FAKE_FORK_EXIT:-0}"\n',
+        )
+        # The workspace template sits beside the host release: ../share/vendomat/templates/workspace.
+        template = tmp / "host" / "share" / "vendomat" / "templates" / "workspace"
+        template.mkdir(parents=True)
+        for name in ("vendomat.yaml", "devenv.yaml", "devenv.nix", ".gitignore"):
+            (template / name).write_text(f"# {name}\n")
+            (template / name).chmod(0o444)  # a store file is read-only
+        (template / "sub").mkdir()
+        (template / "sub" / "file").write_text("x\n")
+        (template / "sub" / "file").chmod(0o444)
         self.env = {
             "PATH": f"{self.bin}:{Path(JQ or '/').parent}:/run/current-system/sw/bin:/usr/bin:/bin",
             "HOME": str(tmp / "home"),
             "VENDOMAT_HOST_RELEASE": str(tmp / "host" / "bin" / "vendomat"),
+            "VENDOMAT_DEVENV_FORK": str(self.fork),
             "VENDOMAT_LAUNCHER_CACHE": str(tmp / "cache"),
         }
 
@@ -206,3 +226,143 @@ def test_use_host_forces_the_host_release(env):
     done = env.run(root, "sync", extra_env={"VENDOMAT_USE_HOST": "1"})
     assert done.stdout.strip() == "HOST sync"
     assert "VENDOMAT_USE_HOST=1" in done.stderr
+
+
+# DOOR-071: the pinned devenv fork.
+
+
+def fork_args(done) -> list[str]:
+    """The arguments that the fake fork received."""
+
+    lines = done.stdout.splitlines()
+    assert lines and lines[0].startswith("FORK "), done.stdout + done.stderr
+    return [line[1:-1] for line in lines[1:]]
+
+
+def test_no_argument_enters_the_shell_of_the_fork_anywhere(env, tmp_path):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    assert fork_args(env.run(elsewhere)) == ["shell"]
+    env.source("aa")
+    root = env.workspace("a", "aa")
+    assert fork_args(env.run(root)) == ["shell"]
+    assert env.builds() == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("test",),
+        ("update",),
+        ("update", "vendomat"),
+        ("shell", "--", "ls", "-l"),
+        ("--verbose", "test"),
+        ("tasks", "run", "x y"),
+    ],
+)
+def test_every_other_argument_goes_to_the_fork_unchanged(env, tmp_path, argv):
+    env.source("aa")
+    root = env.workspace("a", "aa")
+    for cwd in (tmp_path, root):
+        done = env.run(cwd, *argv)
+        assert fork_args(done) == list(argv)
+        assert done.stderr == ""
+    assert env.builds() == []
+
+
+def test_the_exit_status_of_the_fork_passes_through(env, tmp_path):
+    done = env.run(tmp_path, "test", extra_env={"FAKE_FORK_EXIT": "7"})
+    assert done.returncode == 7
+    assert fork_args(done) == ["test"]
+
+
+def test_a_missing_fork_stops_with_one_line(env, tmp_path):
+    done = env.run(tmp_path, "test", extra_env={"VENDOMAT_DEVENV_FORK": str(tmp_path / "none")})
+    assert done.returncode == 2
+    assert done.stderr.strip() == f"vendomat: no devenv fork at {tmp_path / 'none'}"
+
+
+def test_a_signal_reaches_the_fork_and_its_status_comes_back(env, tmp_path):
+    ready = tmp_path / "ready"
+    script(
+        tmp_path / "slow" / "devenv",
+        f"""
+        trap 'echo got-TERM; exit 42' TERM
+        touch {ready}
+        while :; do sleep 0.1; done
+        """,
+    )
+    proc = subprocess.Popen(
+        ["bash", str(LAUNCHER), "test"],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        text=True,
+        env={**env.env, "VENDOMAT_DEVENV_FORK": str(tmp_path / "slow" / "devenv")},
+    )
+    for _ in range(100):
+        if ready.exists():
+            break
+        subprocess.run(["sleep", "0.1"])
+    assert ready.exists()
+    proc.send_signal(signal.SIGTERM)
+    out, _ = proc.communicate(timeout=10)
+    assert proc.returncode == 42
+    assert "got-TERM" in out
+
+
+def test_the_current_commands_keep_their_old_path(env, tmp_path):
+    env.source("aa")
+    root = env.workspace("a", "aa")
+    assert env.run(root, "sync").stdout.strip() == "PINNED-aa000000 sync"
+    assert env.run(root, "--version").stdout.strip() == "PINNED-aa000000 --version"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    assert env.run(elsewhere, "sync").stdout.strip() == "HOST sync"
+    assert env.run(elsewhere, "--help").stdout.strip() == "HOST --help"
+    assert env.run(elsewhere, "machine", "install", "h").stdout.strip() == "HOST machine install h"
+
+
+TEMPLATE_FILES = {"vendomat.yaml", "devenv.yaml", "devenv.nix", ".gitignore", "sub/file"}
+
+
+def files_under(path: Path) -> set[str]:
+    return {str(p.relative_to(path)) for p in path.rglob("*") if p.is_file()}
+
+
+def test_new_copies_the_template_into_the_current_directory(env, tmp_path):
+    target = tmp_path / "ws"
+    target.mkdir()
+    done = env.run(target, "new")
+    assert done.returncode == 0, done.stderr
+    assert files_under(target) == TEMPLATE_FILES
+    assert (target / "devenv.nix").read_text() == "# devenv.nix\n"
+    assert done.stdout.count("\n") == 1 and "vendomat.yaml" in done.stdout
+    assert env.builds() == []
+
+
+def test_new_makes_the_files_writable_and_creates_the_directory(env, tmp_path):
+    done = env.run(tmp_path, "new", "made/here")
+    assert done.returncode == 0, done.stderr
+    target = tmp_path / "made" / "here"
+    assert files_under(target) == TEMPLATE_FILES
+    for name in TEMPLATE_FILES:
+        assert (target / name).stat().st_mode & stat.S_IWUSR
+    (target / "vendomat.yaml").write_text("programs: []\n")
+
+
+def test_new_refuses_when_a_template_file_exists_and_writes_nothing(env, tmp_path):
+    target = tmp_path / "ws"
+    target.mkdir()
+    (target / "devenv.nix").write_text("mine\n")
+    (target / "other").write_text("keep\n")
+    done = env.run(target, "new")
+    assert done.returncode == 1
+    assert done.stdout == ""
+    assert len(done.stderr.strip().splitlines()) == 1 and "devenv.nix" in done.stderr
+    assert (target / "devenv.nix").read_text() == "mine\n"
+    assert files_under(target) == {"devenv.nix", "other"}
+
+
+def test_new_takes_at_most_one_directory(env, tmp_path):
+    done = env.run(tmp_path, "new", "a", "b")
+    assert done.returncode == 3 and "usage: vendomat new [DIR]" in done.stderr

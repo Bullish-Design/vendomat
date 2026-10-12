@@ -10,12 +10,12 @@
     let
       systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
-    in
-    {
-      # The devenv module (DEL-019). A workspace imports `inputs.vendomat.devenvModules.default`.
-      devenvModules.default = import ./nix/devenv-module self;
 
-      packages = forAllSystems (pkgs:
+      # The pinned fork today: `devenv 2.4.0+fb5d382`, tag `v2.4.0-vendomat.3` (devenv-dist/RESULT).
+      # This fixed path holds no store reference.
+      defaultFork = "/nix/store/mmmrsi96mgab54ccgs6l8cpkvh5lh2xm-devenv-wrapped-2.4.0/bin/devenv";
+
+      perSystem = forAllSystems (pkgs:
         let
           # The command line (DEL-006, DEL-007). There is no `default`: `.default` must not name it.
           vendomat = pkgs.python313.pkgs.buildPythonApplication {
@@ -38,21 +38,39 @@
             '';
             meta.mainProgram = "vendomat";
           };
-        in
-        {
-          inherit vendomat;
 
-          # The host launcher (DEL-020). A host installs it as its `vendomat` command, and the
-          # command above as the host release. In a workspace it runs `sync` with the Vendomat that the
-          # lock pins; the shell carries that build for every other command (VMOD-020). Elsewhere it
-          # runs the host release. It holds no Vendomat logic of its own.
-          launcher = pkgs.runCommand "vendomat-launcher-${vendomat.version}"
-            { nativeBuildInputs = [ pkgs.makeWrapper ]; }
-            ''
-              install -Dm755 ${./launcher/vendomat} $out/bin/vendomat
-              substituteInPlace $out/bin/vendomat --replace-fail '@HOST_RELEASE@' '${vendomat}/bin/vendomat'
-              wrapProgram $out/bin/vendomat --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils ]}
-            '';
-        });
+          # The host launcher (DEL-020, DOOR-071). A host installs it as its `vendomat` command, and
+          # the command above as the host release. No argument enters the shell of the pinned devenv
+          # fork, `new` copies the workspace template, and every other argument passes to the fork.
+          # The fork is one value: the path of its bin/devenv.
+          mkLauncher = { devenvFork }:
+            pkgs.runCommand "vendomat-launcher-${vendomat.version}"
+              { nativeBuildInputs = [ pkgs.makeWrapper ]; }
+              ''
+                install -Dm755 ${./launcher/vendomat} $out/bin/vendomat
+                substituteInPlace $out/bin/vendomat \
+                  --replace-fail '@HOST_RELEASE@' '${vendomat}/bin/vendomat' \
+                  --replace-fail '@DEVENV_FORK@' '${devenvFork}'
+                # --suffix: the fork and the host release keep the caller's PATH order.
+                wrapProgram $out/bin/vendomat --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.jq pkgs.coreutils pkgs.findutils ]}
+              '';
+        in
+        { inherit vendomat mkLauncher; });
+    in
+    {
+      # The devenv module (DEL-019). A workspace imports `inputs.vendomat.devenvModules.default`.
+      devenvModules.default = import ./nix/devenv-module self;
+
+      packages = nixpkgs.lib.mapAttrs
+        (_: built: {
+          inherit (built) vendomat;
+          # The host launcher with the fork that this release pins by default.
+          launcher = built.mkLauncher { devenvFork = defaultFork; };
+        })
+        perSystem;
+
+      # `lib.<system>.mkLauncher { devenvFork = "${fork}/bin/devenv"; }` builds the launcher for
+      # another fork. A host that builds the fork passes its own path, so the store keeps the fork alive.
+      lib = nixpkgs.lib.mapAttrs (_: built: { inherit (built) mkLauncher; }) perSystem;
     };
 }

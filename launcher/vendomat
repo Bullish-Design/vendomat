@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
-# The Vendomat host launcher (DEL-020, which supersedes DEL-017).
+# The Vendomat host launcher (DEL-020, which supersedes DEL-017; DOOR-071).
 #
-# It is the `vendomat` command on a host. Inside a workspace it serves only `sync`, the step that
-# must run before the shell exists. It runs the Vendomat build that the workspace's devenv.lock pins,
-# found in the store by the NAR hash of its source. Every other command in a workspace belongs to the
-# workspace shell, which carries the same pinned build (VMOD-020). Outside a workspace, it runs the
-# host's pinned release. It holds no Vendomat logic of its own.
+# It is the `vendomat` command on a host. It dispatches on the first argument:
+#   (none)         enter the pinned devenv shell: `devenv shell`
+#   new [DIR]      copy the workspace template into DIR (default: the current directory)
+#   sync, path, check, push, bump, machine, --version, --help
+#                  the current Vendomat commands, kept until the release (DOOR-063)
+#   anything else  pass to the pinned devenv fork with `exec`, so the exit status, the signals,
+#                  and the terminal reach the caller untouched. `vendomat test` is `devenv test`,
+#                  and `vendomat update` is `devenv update`.
 #
-# The host release (the full command) sits at $VENDOMAT_HOST_RELEASE, baked in at build time.
+# For the current commands, inside a workspace with a vendomat.toml, the launcher serves only `sync`,
+# the step that must run before the shell exists. It runs the Vendomat build that the workspace's
+# devenv.lock pins, found in the store by the NAR hash of its source. Every other current command
+# belongs to the workspace shell, which carries the same pinned build (VMOD-020). Outside a
+# workspace, it runs the host's pinned release. It holds no Vendomat logic of its own beyond `new`.
+#
+# Two paths are baked in at build time:
+#   the devenv fork   $VENDOMAT_DEVENV_FORK    (@DEVENV_FORK@ in flake.nix)
+#   the host release  $VENDOMAT_HOST_RELEASE   (@HOST_RELEASE@ in flake.nix)
+# The workspace template sits beside the host release, in ../share/vendomat/templates/workspace.
 #
 # Environment:
+#   VENDOMAT_DEVENV_FORK    path of the pinned devenv fork's bin/devenv
 #   VENDOMAT_HOST_RELEASE   path of the host release's bin/vendomat
-#   VENDOMAT_USE_HOST=1     force the host release, and say so
+#   VENDOMAT_USE_HOST=1     force the host release for the current commands, and say so
 #   VENDOMAT_LAUNCHER_CACHE directory for the NAR-hash to build map (default ~/.cache/vendomat/launcher)
 #
 # The host release repairs a workspace in two cases, and the launcher says which on stderr:
@@ -21,14 +34,49 @@
 set -euo pipefail
 
 host_release="${VENDOMAT_HOST_RELEASE:-@HOST_RELEASE@}"
+fork="${VENDOMAT_DEVENV_FORK:-@DEVENV_FORK@}"
 say() { printf 'vendomat: %s\n' "$*" >&2; }
+
+# Run the pinned devenv fork. `exec` keeps the exit status, the signals, and the terminal.
+use_fork() {
+  [ -x "$fork" ] || { say "no devenv fork at $fork"; exit 2; }
+  exec "$fork" "$@"
+}
+
+# `new [DIR]`: copy the template files into DIR. Refuse when any of them exists there.
+new_workspace() {
+  [ "$#" -le 1 ] || { say "usage: vendomat new [DIR]"; exit 3; }
+  local dir="${1:-.}" tpl file clash=""
+  local -a files
+  tpl="$(dirname "$host_release")/../share/vendomat/templates/workspace"
+  [ -d "$tpl" ] || { say "no workspace template at $tpl"; exit 2; }
+  mapfile -d '' -t files < <(find "$tpl" -type f -printf '%P\0')
+  for file in "${files[@]}"; do
+    if [ -e "$dir/$file" ] || [ -L "$dir/$file" ]; then clash="$clash $file"; fi
+  done
+  [ -z "$clash" ] || { say "not writing to $dir: already exists:$clash"; exit 1; }
+  for file in "${files[@]}"; do
+    mkdir -p "$dir/$(dirname "$file")"
+    cp --no-preserve=ownership,timestamps "$tpl/$file" "$dir/$file"
+    chmod u+w "$dir/$file" # the store copy is read-only
+  done
+  printf 'vendomat: workspace ready in %s; edit vendomat.yaml, then run `vendomat` to enter the shell\n' "$dir"
+  exit 0
+}
 
 use_host() {
   [ -x "$host_release" ] || { say "no host release at $host_release"; exit 2; }
   exec "$host_release" "$@"
 }
 
-# Start directory: --root DIR when given, else the current directory.
+case "${1:-}" in
+  "") use_fork shell ;;
+  new) shift; new_workspace "$@" ;;
+  sync | path | check | push | bump | machine | --version | --help) ;; # the current commands, below
+  *) use_fork "$@" ;;
+esac
+
+# The current commands. Start directory: --root DIR when given, else the current directory.
 start="$PWD"
 prev=""
 for arg in "$@"; do
