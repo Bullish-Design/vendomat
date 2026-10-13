@@ -51,7 +51,12 @@ W1 and W2 ran on stock devenv 2.4.0 ([W1](evidence/W1-FORK-REVIEW.md),
 | A5 | Backed by W1: the guards cover only remote install. |
 | A6 | Backed: `devenv build outputs.iso` and `outputs.vm` built and booted, with `hardware.facter = null`. |
 | A7 | Backed: the prebuilt ISO installed offline in a 4 GB guest; an in-ISO build needed network and about 8 GB. |
-| A1, A2, A8, A9 | Not yet tested. |
+| A1 | Backed with a change by W3 ([W3](evidence/W3-TOPOLOGY.md)): Basix must be a flake that lists its inputs and commits its `flake.lock`, and the workspace writes `follows` lines for `vendomat`, `nixpkgs`, and any other input it takes from Basix. Naming only `basix` fails: stock devenv ignores an imported input's own `devenv.yaml`. One `devenv update` moved the Basix and Vendomat pair. |
+| A8 | Backed by W4 F6, F11, F12 ([W4](evidence/W4-CATALOG.md)). The line counts "settings" (leaves of the hatch file's attribute tree), not "options". |
+| A9 | Backed by W4 F4, F4b, F4c. devenv's eval cache follows a created or deleted `pyproject.toml`. |
+| A10 | Backed by W4 F9, F10. |
+| A14 | Backed at evaluation level by W4 F14, with a proposed YAML key `virtual`. |
+| A2 | Not yet tested as a command; W2 T3 proved the steps. |
 
 ### New recommendations from W1 and W2
 
@@ -62,6 +67,28 @@ W1 and W2 ran on stock devenv 2.4.0 ([W1](evidence/W1-FORK-REVIEW.md),
 | A12 | Hosts and the ISO install `pkgs.devenv` from Vendomat's pinned nixpkgs; the workspace's `devenv` input is a module-only fork; the template omits `require_version`. | W1 Q3 to Q5. |
 | A13 | Keep a binary with patch 0003 until PR #3244 ships, or accept that a fresh machine cannot enter a workspace while the remote is down. | W1 Q2. |
 | A14 | The ISO and test VMs set `hardware.facter = null`; the install writes the real report. | W2 T2, T3. |
+
+## Owner leanings, 2026-10-13 (provisional)
+
+The owner gave first views on A2 to A14 and asked that none be taken as final. They will be revisited
+with the spike results. These are not rulings.
+
+| # | Leaning | Open point |
+| --- | --- | --- |
+| A1 | Not given. | W3 backs a flake Basix with template `follows` lines. |
+| A2 | Basix owns `install`. | — |
+| A3 | Module-only fork with `deferredModule`, offered upstream. | — |
+| A4 | The two activation commands now; the deployer watchdog later. | — |
+| A5 | Spike option 3 (W5). | Option 3: move the blank-disk guard into the Basix disk layout (a disko pre-create hook) so every install path runs it with no fork; until a fixture proves it, keep 0005 and 0006 in the same binary as 0003. Without a guard, the catalog's `target.host` makes every machine a valid `devenv machines install` target. |
+| A6 | Option 2. | The module-only fork declares public `machines.NAME.build.iso` and `build.vm` options over `_nixosEval`, offered upstream. |
+| A7 | The prebuilt core closure only, to start. | — |
+| A8 | Shell line, `explain`, and `_file`, plus a flag that hides the line. | Proposed: a `vendomat.yaml` key hides only the shell line; `explain` still shows all. |
+| A9 | An explicit YAML key whose default is "auto". | The "auto" default uses the W4 F4b detection. |
+| A10 | The catalog sets `networking.hostName`. | — |
+| A11 | Restore and apply now; a `vendomat rollback` command that does both later. | — |
+| A12 | `pkgs.devenv` from the pinned nixpkgs, module-only fork input, no `require_version`. | With A13, the host binary is `pkgs.devenv` with patch 0003 applied (and 0005, 0006 if A5 needs them), not a separate fork repository. |
+| A13 | Keep a binary with patch 0003 until PR #3244 ships. | See A12. |
+| A14 | Commit a hardware report from a QEMU guest for test VMs. | Two `nixos-facter` runs differed (W2); the fixture must show the report is stable or strip changing fields. |
 
 ## Ideas recorded, not pursued now
 

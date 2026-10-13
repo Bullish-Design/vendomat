@@ -1,6 +1,6 @@
 # Current project
 
-**Updated:** 2026-10-12. This file names the active project. `AGENTS.md` holds durable rules and
+**Updated:** 2026-10-13. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
 ## Active future design draft: project 21 — Vendomat and Basix, separated
@@ -19,13 +19,17 @@ machines use devenv Machines with a local `apply` and a local install from the B
 On 2026-10-13 W1 and W2 ran on stock devenv 2.4.0. W1 found that only fork patch 0003 still needs
 a binary fork; the `deferredModule` change ships in a module-only fork of the `devenv` input. W2
 passed four VM fixtures: the `deferredModule` merge, local apply with a boot-menu rollback, ISO and
-VM builds, and a local install from the ISO. Recommendations A1 to A14 await a ruling.
+VM builds, and a local install from the ISO. Later the same day spikes W3 and W4 ran. W3 proved
+the Basix pin layout with stub repositories, with one change: Basix is a flake, and the template
+writes `follows` lines. W4 built the catalog on stock devenv with the Nix parser; 14 fixtures pass.
+It also drafted a [requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS-DRAFT.md)
+with the prefix `SPLIT-`. The owner gave provisional leanings on A2 to A14; they are recorded in
+the decisions file and are not rulings.
 
 Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
 consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
 design. Project 20 stays the record of slice 1, and project 14 stays the current implementation
-contract. Project 21 has no requirement ledger yet; the project 20 IDs it revises are listed in its
-concept.
+contract. Project 21 has a draft ledger only; no ID in it is ruled.
 
 ## Earlier future design: project 20 — Vendomat as the front door
 

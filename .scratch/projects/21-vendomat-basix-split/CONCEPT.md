@@ -28,10 +28,27 @@ The dependency goes one way: Basix depends on Vendomat. Vendomat has no Basix im
 or test. Two names stay (owner ruling). A Basix lesson can teach the layering itself: a distribution
 is built with a management tool.
 
-**Proposed, not ruled:** a Basix workspace names only the `basix` input. `vendomat` follows
-`basix/vendomat`, and `nixpkgs` follows `basix/nixpkgs`. One update then moves a pair that Basix
-tested, and no compatibility matrix is needed. A fixture must prove that devenv resolves the nested
-input and the import through it.
+**Proposed, not ruled:** a Basix workspace gets `vendomat` and `nixpkgs` through the `basix`
+input. One update then moves a pair that Basix tested, and no compatibility matrix is needed. W3
+([W3-TOPOLOGY](evidence/W3-TOPOLOGY.md)) proved this with stub repositories on stock devenv, with
+one change. Stock devenv ignores the `devenv.yaml` inside an imported input, so naming only `basix`
+fails. Basix is therefore a flake that lists its inputs and commits its `flake.lock`, and the
+template writes one `follows` line per input it takes from Basix:
+
+```yaml
+inputs:
+  basix:
+    url: git+<basix-url>
+  vendomat:
+    follows: basix/vendomat
+  nixpkgs:
+    follows: basix/nixpkgs
+imports:
+  - basix
+```
+
+The `devenv` module input and the language inputs follow the same way. The user does not edit these
+lines.
 
 ## The user file
 
@@ -243,7 +260,8 @@ original text stays unchanged.
 
 ## Open questions
 
-1. The pin topology for Basix workspaces (follows through `basix`).
+1. The pin topology for Basix workspaces: W3 backs a flake Basix with template `follows` lines;
+   the owner has not ruled.
 2. Which product owns `install`.
 3. How a later release adds a template input for a new language to existing workspaces.
 4. Whether Basix locks the escape hatch for learners.
