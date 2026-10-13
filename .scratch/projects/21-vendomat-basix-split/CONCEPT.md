@@ -210,8 +210,12 @@ Vendomat adds the local path.
   Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM. W2
   built and booted both (`outputs.iso` and `outputs.vm`). The module-only fork makes them public
   options, `machines.NAME.build.vm` and `machines.NAME.build.iso`, typed `nullOr package` so a plain
-  `devenv build` does not build images ([W7-BUILD-OPTIONS](evidence/W7-BUILD-OPTIONS.md), design D1).
-  `build.iso` needs an ISO module in the machine and names the machine when it is missing.
+  `devenv build` does not build images ([W7-BUILD-OPTIONS](evidence/W7-BUILD-OPTIONS.md)). Any
+  machine can build an ISO of itself: `build.iso` extends the machine's evaluation with the NixOS ISO
+  module and six required overrides, and applies the modules in `machines.NAME.iso.modules`. A machine
+  that imports its own ISO module keeps its own image. Policy, such as `enableAllHardware` or turning
+  off services in the live session, goes in `iso.modules`
+  ([W8-ISO-POLICY](evidence/W8-ISO-POLICY.md)).
 - **The YAML machine table** maps `host`, `profile`, `capabilities`, `serve`, and `disk` to
   `target.host`, Basix modules, the cache module, and one fixed Basix disk layout.
 - **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
@@ -239,7 +243,7 @@ therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-R
 | 0008 | Copy a lazily mounted locked source into the store | Not reproduced; goes with 0003 |
 | 0009 | `vendomatFromYAML` primop | Drop; the Nix parser replaces it |
 | new | `nixos` as `deferredModule` | Needed. Ships in a module-only fork of the `devenv` input; offer upstream |
-| new | Public `machines.NAME.build.vm` and `build.iso` | Proposed (A6, W7 design D1, +21 lines). Same module-only fork; offer upstream |
+| new | Public `machines.NAME.build.vm` and `build.iso`; `build.iso` for any machine with `iso.modules` | A6 Path D (owner, 2026-10-13). Same module-only fork; offer upstream as two patches (+21, then +46 -4; W7, W8) |
 
 **Proposed shipping.** Hosts and the Basix ISO install `pkgs.devenv` from Vendomat's pinned
 nixpkgs: a release build from the public cache, the same binary everywhere. The workspace's

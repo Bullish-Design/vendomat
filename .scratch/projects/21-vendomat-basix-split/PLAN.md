@@ -13,6 +13,7 @@ under `~/.local/state/vendomat/p21/`. VM disk images, VM state, and VM scratch g
 | W5 | The disk guard as a disko pre-create hook in the Basix layout, in a VM: it refuses a used disk on the local and the remote install path. | A verdict on A5 option 3. | Done 2026-10-13: [W5](evidence/W5-DISK-GUARD.md). Backed with a change: replaces 0006, not 0005. |
 | W6 | `pkgs.devenv` with patches 0003 and 0005 applied through `overrideAttrs`; the offline case of W1 Q2 and the 0005 refusal with it. | The A12 and A13 binary. | Proposed. |
 | W7 | Public `machines.NAME.build.iso` and `build.vm` options in the module-only fork, over `_nixosEval`. | The A6 option 2 interface. | Done 2026-10-13: [W7](evidence/W7-BUILD-OPTIONS.md). D1 recommended; all eight fixtures pass. |
+| W8 | Path D: an ISO of any machine through `extendModules`, with only required overrides, and policy in `iso.modules`. | The A6 interface and two upstream patches. | Done 2026-10-13: [W8](evidence/W8-ISO-POLICY.md). Backed; six overrides required. |
 
 Unproved after W1 to W4: real hardware; the `vendomat apply` command itself; an offline build on
 the ISO; patch 0008's failure; why two `nixos-facter` runs differ; the catalog together with a
