@@ -3,6 +3,26 @@
 **Updated:** 2026-10-13. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
+## Active estate design draft: project 22 — the owner's estate
+
+On 2026-10-13 the owner asked for a canonical way to use the personal tool family and for the best
+structure of nix-meta, aligned with project 21. The [concept](projects/22-owner-estate/CONCEPT.md)
+divides the estate into four layers: machine (nix-systems, devenv Machines), home (nix-meta,
+standalone Home Manager, which carries the personal tools), overlay (`~/.config/devman`), and
+project (tracked facts only). No project repository pins a personal tool. The
+[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R7 and recommendations
+A1 to A11. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
+[ledger](projects/22-owner-estate/REQUIREMENTS-DRAFT.md) uses the prefix `ESTATE-`.
+
+Spike W1 found that devenv 2.4.0's evaluation cache misses a changed per-file symlink to a store
+file, and picks up a changed directory symlink. The concept therefore links the home's devenv
+modules as one directory.
+
+No production code, consumer, or machine changed. Project 22 states where each part of the estate
+lives. Project 21 stays the authority for the Vendomat and Basix products. Where the two meet (the
+pin topology, a standalone home target, host-side modules), project 22 makes proposals that await a
+ruling in project 21.
+
 ## Active future design draft: project 21 — Vendomat and Basix, separated
 
 On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
