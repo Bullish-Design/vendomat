@@ -28,6 +28,9 @@ The ledger is [REQUIREMENTS.md](REQUIREMENTS.md). Its rows for these gaps name w
 
 ## Implementation slices (S1 to S7)
 
+The [implementation guide](IMPLEMENTATION-GUIDE.md) gives the step-by-step work for each slice, the
+facts and spike artifacts it needs, and the open implementation decisions D1 to D8.
+
 No slice has started. Every slice changes code, so it needs its own branch, its own verify, and
 evidence under `evidence/`. No slice plans an upstream pull request (R34). The module-only fork and
 the patched binary are long-lived.

@@ -30,11 +30,13 @@ ruling in project 21.
 **The design is final as of 2026-10-13.** Project 21 is the design authority for Vendomat and Basix.
 Project 14 stays the implementation contract until a release meets the project 21 gates. The next
 work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary overlay). Both are in
-the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them.
+the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them. A new session starts
+from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-GUIDE.md): Phase 0,
+then the open implementation decisions D1 to D8, then the slices. No slice has started.
 
 On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
 its own repository. The [concept](projects/21-vendomat-basix-split/CONCEPT.md) states the result.
-The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R34. Every
+The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R36. Every
 recommendation A1 to A14 has a ruling. The
 [requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS.md) uses the prefixes `VMT-` and
 `BSX-`. Its rows carry their rulings and mark the open gaps.
@@ -48,9 +50,9 @@ host binary are long-lived.
 
 Spikes W1 to W10 ran on 2026-10-13 on stock devenv 2.4.0 and in VMs. They proved the parser, the
 catalog, the Basix pin layout, the machine mechanisms, the disk guard, the host binary, the rollback
-design, and the test-VM hardware report, all at fixture level. The owner ruled R13 to R34 after the
-spikes. Two items stay open: project 22's proposal on a standalone Home Manager target, and its
-proposal on host-side modules. The owner asked for an explanation of each. No ruling exists.
+design, and the test-VM hardware report, all at fixture level. The owner ruled R13 to R36 after the
+spikes. R35 keeps homes outside Vendomat, and R36 says Vendomat ships no host-side module; these
+answer project 22's proposals. No design question stays open.
 
 Open gaps with no ruling are ledger rows: the parser depth limit and line numbers, trace trimming of
 devenv errors, the devenv version warning, whether devenv fetches unused inputs, and two disk guard
