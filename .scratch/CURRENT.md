@@ -40,6 +40,10 @@ from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-
 then the open implementation decisions D1 to D8 (recorded with options and recommendations in
 the decisions file), then the slices. No slice has started.
 
+**Basix now lives in `~/Documents/Projects/basix`** (moved 2026-10-13). Its design, the `BSX-` ledger, and
+its plan are in that repository, under `.scratch/projects/001-initial-concept/`. The project 21 files here keep
+stub rows and pointers.
+
 On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
 its own repository. The [concept](projects/21-vendomat-basix-split/CONCEPT.md) states the result.
 The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R36. Every

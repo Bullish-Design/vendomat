@@ -52,6 +52,9 @@ recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10
 R6 and R12 together: routine use needs only `vendomat.yaml`. Native files remain for settings the
 catalog does not cover.
 
+**2026-10-13:** The Basix design, the 13 `BSX-` ledger rows, and the Basix plan moved to the Basix
+repository (`../basix`, `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`). No ruling changed. Decisions D3 and D5 stay here and are copied there.
+
 ## Recommendations awaiting a ruling
 
 **Status, 2026-10-13:** every recommendation A1 to A14 now has a ruling: R13 to R32 (A1 in R28, A2 in

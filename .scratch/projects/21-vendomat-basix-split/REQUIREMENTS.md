@@ -13,12 +13,12 @@ Basix, three digits each. The W4 draft used one prefix, `SPLIT-`. It was renamed
 and each ID kept its number: `SPLIT-004` became `BSX-004`, `SPLIT-030` became `VMT-030`. A number
 is used under one prefix only. A successor row names the project 20 item it supersedes. Project 20
 `S` numbers are decisions in its `DECISIONS.md`, not ledger IDs; a successor names them the same way.
-When the Basix repository exists, the `BSX-` rows move there.
+The Basix repository exists since 2026-10-13 (`../basix`), and the 13 `BSX-` rows moved there (`.scratch/projects/001-initial-concept/REQUIREMENTS.md` in that repository, with the exact text, status, and evidence). Each moved row stays here as a stub with its ID, so no ID is lost. The Basix repository adds new rows; its next number follows the highest number used under either prefix.
 
 Status words: **Proposed** (no fixture yet), **Fixture pass** (a spike fixture proved it; not an
 implementation gate), **Observed gap** (a fixture shows a shortfall), **Ruled** (an owner ruling in
 `DECISIONS.md` settles the choice; proof may still be open), **Unproved** (no fixture exists),
-**Superseded** (a newer row replaces the claim). No row awaits an owner ruling now. Rows marked
+**Superseded** (a newer row replaces the claim), **Moved** (the row lives in the Basix repository). No row awaits an owner ruling now. Rows marked
 "open, no ruling covers it" need work or a ruling. Numbers continue across prefixes, so the highest
 number is `BSX-100` before the section "Added at the design freeze".
 
@@ -29,7 +29,7 @@ number is `BSX-100` before the section "Added at the design freeze".
 | `VMT-001` | Basix MUST have its own repository and release, and Vendomat MUST NOT import, test, or name Basix. | Decision S34 (machine catalog in the Vendomat release); owner ruling R1 | R1 only | Ruled (R1); implementation unproved |
 | `VMT-002` | A workspace MUST hold `vendomat.yaml`, template-owned `devenv.yaml`, `devenv.lock`, and a `devenv.nix` that the user MAY edit; the catalog module MUST read `vendomat.yaml` with `builtins.readFile` and parse it with a Nix function from the Vendomat source, with no primop and no unsafe Nix setting. | `DOOR-074` (primop; `devenv.nix` must be `{ }`) | F2, F13 (stock devenv 2.4.0, no primop) | Ruled (R2, R7); fixture pass |
 | `VMT-003` | The catalog MUST be a bounded set of named, typed entries; the grammar MUST allow maps, lists of text, lists of maps, nested lists, and tab indentation, and MUST reject `key: - x`; syntax errors MUST read `vendomat.yaml:LINE:COL: reason`. | `DOOR-075` (tabs and lists of maps rejected) | F1, F3, F13; YAML-SPIKE-2 (P1 to P5) | Ruled (R2, R8 to R10); fixture pass for programs, env, languages, machines; `services` is covered by `VMT-090` |
-| `BSX-004` | The Basix ISO MUST install the machine locally with the six steps of the concept; the owner of the command is open. | `DOOR-072` (`vendomat install`) | W2 T3 (VM only); no command exists | Ruled (R13): Basix owns the command, which settles the open clause of the claim (see `BSX-071`); the six steps are unproved |
+| `BSX-004` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | — | Moved |
 | `VMT-005` | Native `devenv.nix` and `devenv.local.nix` MUST stay available as an optional, visible escape hatch; no rule MAY say that Vendomat owns every other file. | Concept line "Vendomat owns every other file" (project 20 `CONCEPT.md`, no ID); the `{ }` clause of `DOOR-074` | F6, F8, F11 | Ruled (R12); fixture pass |
 | `VMT-006` | The verbs `apply` and `install`, and the "pinned devenv fork" wording, MUST follow the rulings on A2 and A12. | `DOOR-071` (verbs and pass-through), in part | none | Ruled (R13, R22); wording unproved |
 
@@ -87,7 +87,7 @@ number is `BSX-100` before the section "Added at the design freeze".
 | `VMT-056` | `devenv.local.nix` MUST count separately and the line MUST say it applies to this checkout only. | F11 | Fixture pass |
 | `VMT-057` | `vendomat explain` MUST print the user's YAML keys, each with its native option, value, and source file, then a section for options set only in Nix; `--json` MUST print the same data. | F12 (prototype prints value and file) | Ruled (R27); format unproved |
 | `VMT-058` | Vendomat MUST check its own lines in `devenv.yaml`. | none | Unproved; no ruling covers it |
-| `BSX-059` | A Basix workspace MUST keep hatch files working and MUST make the shell line and `explain` point to the lesson that introduces Nix (a soft lock). | none | Ruled (R26); unproved |
+| `BSX-059` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 
 ## Machines
 
@@ -98,14 +98,14 @@ number is `BSX-100` before the section "Added at the design freeze".
 | `VMT-062` | A different `networking.hostName` from another file MUST fail with a conflict that names both files, unless it uses `lib.mkForce`. | F10 | Ruled (R21); fixture pass |
 | `VMT-063` | A machine marked `virtual` MUST set `hardware.facter = null`, and a machine without a report MUST NOT evaluate. | F14 (A14) | Fixture pass at evaluation level; key name ruled (R23) |
 | `VMT-064` | `machines.NAME.nixos` from the YAML, from `devenv.nix`, and from an imported file MUST merge, whether each is an attribute set or a function. | F9 on the module-only fork input; W2 T4 | Ruled (R14, R22, R34); fixture pass |
-| `BSX-065` | The YAML machine table MUST map `profile`, `capabilities`, `serve`, and `disk` to Basix modules, the cache module, and one disk layout. | none | Unproved; A1 and A2 are ruled (R28, R13), but no ruling covers the mapping itself |
+| `BSX-065` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 
 ## Items that awaited an owner ruling (all ruled)
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
-| `BSX-070` | Basix MUST be a flake that lists its inputs and commits its `flake.lock`; a Basix workspace MUST name `basix` and get `vendomat`, `nixpkgs`, the `devenv` input, and the language inputs through `follows` lines that the template writes. | [W3](evidence/W3-TOPOLOGY.md) Q1 to Q6 (stub repositories); naming only `basix` fails with `attribute 'vendomat' missing` | Ruled (R28); fixture pass with stubs |
-| `BSX-071` | Basix MUST own `install` and the disk guard; Vendomat MUST own `apply`. | W2 T3 (guard); W5 (hook) | Ruled (R13, R16) |
+| `BSX-070` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
+| `BSX-071` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-072` | A lasting rollback MUST be: restore `vendomat.yaml` and `devenv.lock`, then apply. The boot menu MUST be for recovery only. | W2 T1 (boot-menu rollback does not move the profile) | Ruled (R30); the commit record is unproved |
 | `VMT-073` | Hosts and the ISO MUST install `pkgs.devenv` from Vendomat's pinned nixpkgs; the workspace `devenv` input MUST be a module-only fork; the template MUST omit `require_version`. | F2 to F14 ran on stock 2.4.0 with the module-only input; the line `devenv 2.4.0 is newer than devenv input (2.3.1)` shows each entry until `devenv.warnOnNewVersion = false` | Ruled (R22) |
 | `VMT-074` | Vendomat MUST keep a devenv binary with patch 0003, or accept that a fresh machine cannot enter a workspace while the remote is down. | W1 Q2 | Ruled (R31); W6 |
@@ -129,11 +129,11 @@ number is `BSX-100` before the section "Added at the design freeze".
 | `VMT-093` | A personal setting outside `vendomat.yaml` MUST hide the shell `advanced:` line; `explain` MUST still show every source. | none | Ruled (R19); unproved |
 | `VMT-094` | `vendomat update` MUST add missing template lines to `devenv.yaml`, and an error for a missing line MUST name the exact line. | none; whether devenv fetches unused inputs is unmeasured | Ruled (R25); unproved |
 | `VMT-095` | The module-only `devenv` input MUST give every machine `build.vm` and `build.iso` (typed `nullOr package`), and `build.iso` MUST extend the machine with the ISO module, the six required overrides, and `machines.NAME.iso.modules`. | W7, W8 | Ruled (R17); fixture pass |
-| `BSX-096` | The Basix disk layout MUST run the blank-disk guard as a disko `preCreateHook`, and every guarded disk MUST keep `destroy = false`, checked at build time. | W5 (hook); the build-time check is not built | Ruled (R16); check unproved |
-| `BSX-097` | A Basix ISO MUST turn off the services that would do harm in a live session through a deny list in `iso.modules`. | W8 Q3 (two test services off) | Ruled (R29); fixture pass; a live marker that service modules check may come later |
+| `BSX-096` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
+| `BSX-097` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-098` | `vendomat rollback` MUST restore the configuration files from an earlier commit, MUST end in a new commit, and MUST refuse uncommitted changes; each machine MUST keep a record from system path to workspace commit. | W9 R2, R3 (the record is not built) | Ruled (R30); record unproved |
 | `VMT-099` | The catalog MUST set `machines.NAME.vendomat.mode` to `adopt-existing` for an installed machine, and the host binary MUST refuse `machines install` for it before any contact. | W6 B5 | Ruled (R31); fixture pass |
-| `BSX-100` | A test-VM shape MUST commit a hardware report written through `del(.hardware.cpu[].tlb_size)` and MUST pin `-machine`, the disk bus, the NIC model, and a named `-cpu`; `install` MUST apply the same filter to a real report. | W10 F2 to F5 | Ruled (R32); fixture pass |
+| `BSX-100` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 
 ## Added at the design freeze, 2026-10-13
 
@@ -145,22 +145,22 @@ Rows for ruled behaviour that had no row, and for the open gaps. The numbers con
 | `VMT-101` | Machines MUST be devenv Machines on a pinned devenv version; plain NixOS flakes MUST NOT be the machine path. | W2 (all four fixtures on stock devenv 2.4.0) | Ruled (R4); fixture pass |
 | `VMT-102` | Vendomat MUST NOT offer an `eject` command until a clear need appears; `vendomat explain` is the read-only window into Nix. | none | Ruled (R5) |
 | `VMT-103` | Routine use MUST need no Nix file; the catalog MUST cover routine needs. | F1 to F14 for programs, env, languages, and machines | Ruled (R6); fixture pass for those keys |
-| `BSX-104` | A Basix workspace MUST keep the names `vendomat` and `vendomat.yaml`. | none | Ruled (R3); unproved |
+| `BSX-104` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-105` | The host and ISO binary MUST be `pkgs.devenv` from Vendomat's pinned nixpkgs with patches 0003 and 0005 applied through an overlay, MUST NOT carry patch 0008, and MUST be built and cached in Attic. The overlay MUST drop the `CHANGELOG.md` hunk of 0003, because that hunk needs patch 0001. A nixpkgs bump MUST recheck PR #3244. | [W6](evidence/W6-HOST-BINARY.md) (build 23 to 49 min, one new 218 MiB path, stock closure kept) | Ruled (R16, R22, R31); fixture pass for the build; the Attic cache is unproved |
 | `VMT-106` | Patch 0005 MUST split: the Rust half (`machines.rs`) MUST ship in the host binary, and the module half (`machines.nix`, 39 lines) MUST ship in the module-only fork. | W6 B5 | Ruled (R31); fixture pass |
 | `VMT-107` | A module in `machines.NAME.iso.modules` that changes an option which `build.iso` overrides MUST use `lib.mkForce`, because devenv's six overrides use priority 60 and a plain value loses without a message. | [W8](evidence/W8-ISO-POLICY.md) (`boot.loader.timeout`: plain value ignored, `mkForce` works) | Ruled (R17); fixture pass |
 | `VMT-108` | A machine that imports its own ISO module MUST keep its own image; `build.iso` MUST NOT add the ISO module twice. | [W7](evidence/W7-BUILD-OPTIONS.md) (first try failed to boot), [W8](evidence/W8-ISO-POLICY.md) Q5 | Ruled (R17); fixture pass |
-| `BSX-109` | The Basix ISO MUST carry the prebuilt core toplevel and disk script, and the install MUST need no network and no devenv. | W2 T3 (4 GB guest, no network); an in-ISO build needed network and about 8 GB | Ruled (R18); fixture pass in a VM |
+| `BSX-109` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-110` | `system.configurationRevision` MUST NOT hold the workspace commit; the per-machine record of `VMT-098` is the only link from a system path to a commit. | [W9](evidence/W9-ROLLBACK.md) (each commit gives a new generation) | Ruled (R30); fixture observation |
 | `VMT-111` | One `vendomat update` MUST move the Basix and Vendomat pair together, and it MUST keep the `follows` lines of `BSX-070` current. | [W3](evidence/W3-TOPOLOGY.md) (one `devenv update` moved the pair) | Ruled (R28); fixture pass with stubs |
 | `VMT-112` | A workspace that builds with `vendomat.yaml` MUST pin Vendomat in its own `devenv.lock`; a personal tool MUST NOT enter a workspace lock. | W3; project 22 clone test | Ruled (R33); fixture pass for the first clause |
 | `VMT-113` | Vendomat MUST NOT open an upstream pull request for a devenv patch. The module-only fork and the patched binary are long-lived. Vendomat MAY watch upstream (PR #3244, releases). The owner MAY revisit after months of use. | none | Ruled (R34) |
-| `BSX-114` | The disk guard MUST also cover a disk that a user defines in `devenv.nix` outside the Basix layout. | [W5](evidence/W5-DISK-GUARD.md) | Observed gap; open, no ruling covers it |
-| `BSX-115` | In a multi-disk layout, the guard MUST check each disk, not one guard for all disks. | [W5](evidence/W5-DISK-GUARD.md) | Observed gap; open, no ruling covers it |
+| `BSX-114` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
+| `BSX-115` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-116` | Template inputs that a workspace does not use MUST NOT cost a fetch on shell entry. | none; devenv may fetch unused inputs (R25 asks for a spike) | Unproved |
 | `VMT-117` | The wrapper MUST trim devenv's Nix trace so the `vendomat.yaml:` lines come first. | [W4](evidence/W4-CATALOG.md) (about 300 lines of trace print before the message) | Observed gap; open, no ruling covers it |
 | `VMT-118` | Shell entry MUST print no devenv version warning. | [W1](evidence/W1-FORK-REVIEW.md) Q1 (`devenv 2.4.0 is newer than devenv input (2.3.1)`) | Observed gap; the version file of the module-only fork or `devenv.warnOnNewVersion = false` would silence it; neither is proved through the catalog; open, no ruling covers it |
-| `BSX-119` | The install MUST work on real hardware with a real `nixos-facter` report and a real disk. | none (VM fixtures only) | Unproved; needs a separate owner authorization for any disk write |
+| `BSX-119` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
 | `VMT-120` | Attic MUST stay until a two-machine Harmonia check passes on real machines; a serving machine MUST make its own signing key, and a client MUST substitute from it. | project 20 S6 (two VMs only) | Unproved |
 | `VMT-121` | The catalog together with a flake Basix, and ISO and VM builds through the catalog, MUST work. | none | Unproved |
 | `VMT-122` | The catalog MUST map no home key; homes MUST stay outside Vendomat, and devenv's native `machines.NAME.home-manager` MUST be reachable only through the escape hatch. | none | Ruled (R35) |

@@ -23,12 +23,13 @@ learn what a computer does. Nix is the engine. It stays out of sight until the u
 | --- | --- | --- |
 | What | The tool: a front door to pinned devenv, Nix, and NixOS | A distribution built with Vendomat |
 | User sees | The `vendomat` command and `vendomat.yaml` | The Basix ISO, profiles, capabilities, and lessons |
-| Repository | `vendomat` | `basix` (new) |
+| Repository | `vendomat` | `basix` (`../basix`, since 2026-10-13) |
 | Owns | The YAML reader, the catalog, workspace and machine operations, store sharing | The minimal core, the ISO, the install flow, profiles, capabilities, the curriculum |
 
 The dependency goes one way: Basix depends on Vendomat. Vendomat has no Basix import, condition,
 or test. Two names stay (owner ruling). A Basix lesson can teach the layering itself: a distribution
-is built with a management tool.
+is built with a management tool. The Basix design moved to the Basix repository on 2026-10-13; its
+concept is `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`. This document keeps what Vendomat owns and what Vendomat must honour for Basix.
 
 **Ruled (R28):** a Basix workspace gets `vendomat` and `nixpkgs` through the `basix`
 input. One update then moves a pair that Basix tested, and no compatibility matrix is needed. W3
@@ -165,8 +166,8 @@ options set only in Nix; `--json` prints the same data (R27). The output format 
 No `eject` command exists until a clear need appears (R5). A read-only `explain` is the window into
 Nix.
 
-**Ruled (R26):** Basix uses a soft lock. Hatch files work in a Basix workspace, and the shell line
-and `explain` point to the lesson that introduces Nix.
+**Ruled (R26):** Basix uses a soft lock on the hatch. It is a Basix decision. Vendomat supplies the
+shell line and `explain`, and a hint hook for it (decision D5). See `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
 
 ## Machines
 
@@ -190,13 +191,11 @@ W2 findings that shape the design:
   format is unproved. The boot menu and the profile rollback stay recovery tools.
 - devenv's hardware module needs `.machines/NAME/facter.json`. The ISO and test VMs set
   `hardware.facter = null`; an installed machine uses its real report. The catalog reads an explicit
-  `virtual: "true"` machine key for this (R23). A test VM commits a QEMU hardware report written
-  through `del(.hardware.cpu[].tlb_size)`, and its shape pins `-machine`, the disk bus, the NIC
-  model, and a named `-cpu`. `install` applies the same filter to a real report (R32;
-  [W10-FACTER](evidence/W10-FACTER.md)).
+  `virtual: "true"` machine key for this (R23). The test-VM hardware reports and the `install`
+  filter (R32; [W10-FACTER](evidence/W10-FACTER.md)) belong to Basix: see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
 - The prebuilt install (the ISO carries the toplevel and disk script) worked with no network in a
   4 GB guest and needs no devenv at install time. Building on the ISO needed network,
-  `NIX_REMOTE=daemon`, and about 8 GB of RAM. The prebuilt install is the release path, and the Basix ISO carries the prebuilt core closure (R18).
+  `NIX_REMOTE=daemon`, and about 8 GB of RAM. The prebuilt install is the release path (R18). A distribution ISO carries the prebuilt closure; the Basix ISO is described in the Basix concept.
 
 devenv builds a machine locally with no target: `devenv build machines.NAME.build.nixos`. Every
 activation step (install, deploy, rollback) runs over root SSH, and `localhost` still means SSH.
@@ -208,20 +207,13 @@ Vendomat adds the local path.
   `TOP/bin/switch-to-configuration switch`, as devenv's own deploy worker does (R13, R15). `vendomat apply NAME`
   for another machine passes through to `devenv machines deploy NAME`. Later, running devenv's
   deployer locally can add its watchdog and automatic rollback.
-- **Install from the Basix ISO.** Basix owns `install` and the disk guard (R13). Six local steps, the same ones devenv runs over SSH: run
-  `nixos-facter` and write `.machines/NAME/facter.json`; choose and guard the disk; build the disk
-  script and the toplevel; run the disk script; run
-  `nixos-install --system TOP --no-root-password --no-channel-copy`; copy the machine workspace into
-  the new system. The ISO carries the prebuilt toplevel and disk script, so the install needs no
-  network and no devenv. The disk guard lists blank, non-boot `/dev/disk/by-id/` disks and asks for
-  the full name (carried from project 20). W2's prototype guard refused a partitioned disk, the
-  optical boot medium, the boot medium attached as a disk, and a mounted target.
+- **Install from the Basix ISO.** Basix owns `install` and the disk guard (R13). It runs the six local
+  steps that devenv runs over SSH, from the ISO's prebuilt toplevel and disk script, so the install
+  needs no network and no devenv. The steps, the guard, and the W2 results are in `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
 - **Remote install and deploy** stay native devenv Machines behaviour, the advanced door. The
   Basix disk layout carries the blank-disk guard as a disko `preCreateHook`, with `destroy = false`,
   so the local and the remote install both run it before any write
-  (R16; [W5-DISK-GUARD](evidence/W5-DISK-GUARD.md)). A build-time check keeps `destroy = false` on
-  every guarded disk. Two gaps stay open: no guard covers a disk that a user defines in `devenv.nix`
-  (`BSX-114`), and one guard covers all disks of a multi-disk layout (`BSX-115`). This replaces fork
+  (R16; [W5-DISK-GUARD](evidence/W5-DISK-GUARD.md); layout and gaps in `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`). This replaces fork
   patch 0006. It does not replace
   0005: stock `machines install` kexecs the target before disko, so a mistaken remote install
   stops a running machine, although its disk stays safe.
@@ -232,8 +224,8 @@ Vendomat adds the local path.
   `nix-darwin`) the type `deferredModule`. W2 proved it on stock devenv through a patched `devenv`
   input. It lives in the module-only fork (R14); no upstream pull request is opened (R34).
 - **ISO and VM builds.** `machines.NAME._nixosEval` is a readable internal option with the full
-  NixOS evaluation. A module can expose `system.build.isoImage` and `system.build.vm` from it. The
-  Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM. W2
+  NixOS evaluation. A module can expose `system.build.isoImage` and `system.build.vm` from it. A
+  distribution ISO can then be a machine in the distribution's repository, and every machine gets a test VM. W2
   built and booted both (`outputs.iso` and `outputs.vm`). The module-only fork makes them public
   options, `machines.NAME.build.vm` and `machines.NAME.build.iso`, typed `nullOr package` so a plain
   `devenv build` does not build images ([W7-BUILD-OPTIONS](evidence/W7-BUILD-OPTIONS.md)). Any
@@ -242,10 +234,10 @@ Vendomat adds the local path.
   that imports its own ISO module keeps its own image. Policy, such as `enableAllHardware` or turning
   off services in the live session, goes in `iso.modules`
   ([W8-ISO-POLICY](evidence/W8-ISO-POLICY.md)). A module that changes an option which `build.iso`
-  overrides needs `lib.mkForce`. On a live ISO, Basix turns off harmful services with a deny list,
-  `liveOff [ names ]` (R29). A live marker that service modules check may come later.
-- **The YAML machine table** maps `host`, `profile`, `capabilities`, `serve`, and `disk` to
-  `target.host`, Basix modules, the cache module, and one fixed Basix disk layout.
+  overrides needs `lib.mkForce`. The Basix live-ISO deny list (R29) is in `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
+- **The YAML machine table.** Vendomat maps `host` to `target.host`. The keys `profile`,
+  `capabilities`, `serve`, and `disk` belong to Basix (`BSX-065`). Basix registers them through the
+  extension point of decision D5 (see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`).
 - **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
   Harmonia; clients get the substituter, the key, `fallback = true`, and a short timeout (carried
   from project 20). devenv's `--use-machines-as-builders` gives shared builds over SSH.
@@ -287,8 +279,8 @@ machines. Patch 0008 is not needed.
 
 The bare `vendomat` enters the pinned shell. Other arguments pass through to devenv. `vendomat
 update` is `devenv update` on the `release` branch. Restoring `devenv.lock` restores the earlier
-release. A fresh core boots with no key, secret provider, or cache. Attic stays until a real
-two-machine Harmonia check passes. A real disk write needs the owner's separate authorization.
+release. Attic stays until a real
+two-machine Harmonia check passes. The keyless boot of the Basix core is in the Basix concept. A real disk write needs the owner's separate authorization.
 
 ## Changes to project 20
 
@@ -311,7 +303,7 @@ The rulings answered the questions of the first draft:
 - Which product owns `install`: Basix (R13).
 - How a later release adds a template input for a new language: `vendomat update` adds the missing
   template lines (R25).
-- Whether Basix locks the escape hatch for learners: a soft lock (R26).
+- Whether Basix locks the escape hatch for learners: a soft lock (R26), recorded in the Basix concept.
 - The output format of `vendomat explain`: ruled in content (R27); the exact format is unproved.
 
 - A standalone Home Manager target (project 22): homes stay outside Vendomat (R35). A two-command
@@ -323,6 +315,6 @@ No design question stays open.
 
 Observed gaps that no ruling covers are rows in the [ledger](REQUIREMENTS.md): parser depth limit
 and line numbers (`VMT-013`, `VMT-035`), trace trimming of devenv errors (`VMT-117`), the devenv
-version warning (`VMT-118`), whether devenv fetches unused inputs (`VMT-116`), and the disk guard
-gaps (`BSX-114`, `BSX-115`). Real hardware (`BSX-119`) and the two-machine Harmonia check
-(`VMT-120`) are unproved gates.
+version warning (`VMT-118`), and whether devenv fetches unused inputs (`VMT-116`). The two-machine
+Harmonia check (`VMT-120`) is an unproved gate. The disk guard gaps (`BSX-114`, `BSX-115`) and the
+real-hardware gate (`BSX-119`) are Basix rows, now in the Basix ledger.

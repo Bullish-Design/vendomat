@@ -11,6 +11,8 @@ Do not add project state here. A fact that changes when the active project chang
 Vendomat composes one owner's NixOS machines, development projects, and reusable applications from
 native devenv, NixOS, and Home Manager configuration.
 
+Basix is a separate product in `../basix`, and this repository never names it in code (R1).
+
 It is not a dependency resolver's replacement, a second lock, a daemon, a general runtime, a
 deployment engine, a workspace orchestrator, or a cache protocol. Native declarations and locks
 select dependencies. NixOS and Home Manager own activation. Attic owns cached objects.

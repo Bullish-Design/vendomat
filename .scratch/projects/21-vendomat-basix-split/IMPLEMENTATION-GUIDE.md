@@ -609,79 +609,26 @@ Steps:
 7. Run `testee verify` and `testee verify machines-vm`.
 8. Close the slice.
 
-### S5: the Basix repository
+### S5: the Vendomat side of Basix
 
-**Goal.** A new repository, `basix`, builds the Basix distribution with Vendomat: a flake with its
-inputs and lock, the core machine, the guarded disk layout, the ISO with the prebuilt core, the
-`install` command, and the test-VM shapes.
+**Goal.** Vendomat serves the Basix release channel and exposes the extension point that Basix
+uses. Vendomat never names Basix in code (R1). The Basix repository is `../basix`; its build is the
+Basix plan, `../basix/.scratch/projects/001-initial-concept/PLAN.md`. The Basix design, the `BSX-` ledger, and steps 1 to 15 of the former S5 moved
+there on 2026-10-13.
 
-**Depends on:** S1 to S4, D3, D5. **Ledger:** `BSX-004`, `BSX-059`, `BSX-065`, `BSX-070`, `BSX-071`,
-`BSX-096`, `BSX-097`, `BSX-100`, `BSX-104`, `BSX-109`, `BSX-114`, `BSX-115`, `VMT-121`.
-**Evidence:** in the Basix repository, plus `evidence/S5-BASIX.md` here for the Vendomat side.
+**Depends on:** S1 to S4, D3, D5. **Ledger:** `VMT-121` (with Basix). **Evidence:**
+`evidence/S5-BASIX.md` here; the Basix evidence is in the Basix repository.
 
 Steps:
 
-1. **Create the repository** at `~/Documents/Projects/basix` as a colocated jj repository, with
-   the owner's `AGENTS.md` conventions (Testee, Gitman, logs outside the repository). Move the
-   `BSX-` rows from `REQUIREMENTS.md` into a Basix ledger and mark them moved here; never
-   renumber. GitHub may hold a backup copy only.
-2. **Collection.** Create `~/vendor/basix` with `.git/git-daemon-export-ok` and the Vendomat
-   collection hooks. In the Vendomat repository, extend `hooks/collection-pre-receive` so `basix`
-   may fast-forward `release` (D3), with a test in `tests/test_collection_hook.py`.
-3. **Flake** (R28, `BSX-070`), from the W3 stub with real URLs:
-   - `nixpkgs`: the same rev as Vendomat's flake. Add a check that fails when the two differ.
-   - `vendomat`: `git://server/vendomat?ref=release`, with `inputs.nixpkgs.follows = "nixpkgs"`.
-   - `devenv`: the S1 module tag (or follows `vendomat/devenv`, per D2).
-   - `nixpkgs-python`, `rust-overlay`, `disko`, `nixos-facter-modules`, each following `nixpkgs`
-     where it has that input.
-   - `outputs = { self, ... }: { };` is enough. Commit `flake.lock`.
-4. **Entry module** `devenv.nix`: import Vendomat's catalog through `inputs.vendomat` (as the W3
-   stub does with `inputs.vendomat + "/modules/catalog.nix"`; use the real path), then the Basix
-   modules. Register the Basix keys through the D5 extension point.
-5. **Workspace template**: `vendomat.yaml`, `devenv.nix` (`{ }`), and a `devenv.yaml` that names
-   `basix` and writes `follows` lines for `vendomat`, `nixpkgs`, `devenv`, `nixpkgs-python`, and
-   `rust-overlay`, plus `imports: [basix]` (`logs/min-working-devenv.yaml` in W3). The names
-   `vendomat` and `vendomat.yaml` stay (R3, `BSX-104`).
-6. **Core machine**: the minimal core. It boots with no key, secret provider, or cache (carried from
-   project 20).
-7. **Disk layout** (R16, `BSX-096`): from `basix-disk.nix` and `basix-disk-guard.sh`. Add:
-   - a build-time assertion that every guarded disk keeps `destroy = false`;
-   - one guard call per disk in a multi-disk layout (`BSX-115`);
-   - a build-time warning or assertion for a disko disk outside the Basix layout that has no
-     guard (`BSX-114`); ask the owner which.
-8. **ISO machine** (R17, R18, R29, `BSX-097`, `BSX-109`): an ISO built with `build.iso` that carries
-   the prebuilt core toplevel and disk script in `isoImage.storeContents`. Its `iso.modules`
-   sets `hardware.enableAllHardware` and a `liveOff [ names ]` deny list
-   (`systemd.services.NAME.enable = lib.mkForce false`).
-9. **`basix install`** (R13, `BSX-004`, `BSX-071`), the six local steps on the ISO:
-   1. `nixos-facter`, written through `drop.jq` to `.machines/NAME/facter.json` (R32, `BSX-100`);
-   2. list blank, non-boot `/dev/disk/by-id/` disks and ask for the full name (the `list` mode of
-      the W2 guard);
-   3. use the prebuilt toplevel and disk script;
-   4. run the disk script; the guard hook checks the disk first;
-   5. `nixos-install --system TOP --no-root-password --no-channel-copy`;
-   6. copy the machine workspace into the new system and commit it, so D4 marks the machine
-      installed.
-10. **Hatch soft lock** (R26, `BSX-059`): through the D5 extension point, the shell line and
-    `explain` point to the lesson that introduces Nix.
-11. **Machine table** (`BSX-065`): map `profile`, `capabilities`, `serve`, and `disk` to Basix
-    modules, the cache module, and the disk layout. Propose the key types to the owner first;
-    no ruling covers them yet.
-12. **Test-VM shapes** (R32): commit one filtered report per VM shape. Pin `-machine`, the disk
-    bus, the NIC model, and a named `-cpu` in the QEMU line.
-13. **Fixtures** (VM files under `/mnt/shared/vendomat-p21/s5/`):
-    - a fresh Basix workspace on the published Vendomat and Basix tags: one lock, the pair moves
-      with one `vendomat update` (W3 with real repositories, `VMT-121`);
-    - the ISO builds and boots under OVMF with zero failed units, and the deny-listed services stay
-      inactive;
-    - `basix install` from the ISO with no network in a 4 GB guest: it refuses a partitioned disk,
-      the boot medium (as an optical drive and as a disk), and a mounted target, then installs on
-      a blank image (W2 T3, W5 G2 to G6);
-    - the installed system boots with no keys and zero failed units;
-    - a remote `devenv machines install` of the installed machine is refused by the S2 binary
-      (`VMT-099`).
-14. Release Basix: a tag and a fast-forward of `release` in `~/vendor/basix`.
-15. Close the slice in both repositories.
+1. **Collection hook** (D3). Extend `hooks/collection-pre-receive` so the repository `basix` may
+   fast-forward `refs/heads/release`, with a test in `tests/test_collection_hook.py`. Creating
+   `~/vendor/basix` is an owner gate and a Basix plan step.
+2. **Extension point** (D5). S3 builds the typed catalog extension point and the hatch hint hook.
+   Check here that Basix registers its keys through it, with no Basix name in Vendomat code.
+3. **Fixtures.** The fresh Basix workspace and the pair update (`VMT-121`) run from the Basix
+   repository. Record the Vendomat-side result in `evidence/S5-BASIX.md`.
+4. Close the slice in both repositories (Section 1.6).
 
 ### S6: retire the old binary fork
 
