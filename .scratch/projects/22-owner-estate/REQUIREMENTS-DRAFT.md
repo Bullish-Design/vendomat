@@ -20,8 +20,8 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Awaits o
 | --- | --- | --- | --- |
 | `ESTATE-001` | The estate MUST have four layers: machine, home, overlay, project. Each layer MUST have one source of truth. | R7 | Proposed |
 | `ESTATE-002` | The machine layer MUST come from nix-systems as devenv Machines. | R4; project 21 R4 | Proposed |
-| `ESTATE-003` | The home layer MUST be standalone Home Manager, one `homeConfigurations."<user>@<machine>"` per user and machine. No machine MAY run Home Manager as a NixOS module. | R3 | Awaits owner ruling (A1) |
-| `ESTATE-004` | nix-meta MUST hold the homes; nix-systems MUST hold the machines. | R2, R4 | Awaits owner ruling (A2) |
+| `ESTATE-003` | The home layer MUST be standalone Home Manager, one `homeConfigurations."<user>@<machine>"` per user and machine. No machine MAY run Home Manager as a NixOS module. | R3, R8 | Proposed (ruled; implementation unproved) |
+| `ESTATE-004` | nix-meta MUST hold the homes; nix-systems MUST hold the machines. | R2, R4, R9 | Proposed (ruled; implementation unproved) |
 | `ESTATE-005` | The machine layer MUST NOT install or pin a personal tool. | Concept rule 2 | Proposed |
 
 ## Pins

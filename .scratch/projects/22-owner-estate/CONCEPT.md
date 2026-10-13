@@ -351,7 +351,7 @@ Three project 21 questions get an answer or a proposal from this concept:
 
 nix-systems also needs a ruling. Its `nixos/home.nix` runs Home Manager as a NixOS module on
 purpose, so a system rollback also rolls back home state. This concept reverses that choice
-(recommendation A1). The reason: rule 2 removes the risk that the shared rollback guards against,
+(owner ruling R8). The reason: rule 2 removes the risk that the shared rollback guards against,
 and the owner wants home changes without a system rebuild.
 
 Basix is a learner distribution and is not built. It is outside the owner's personal layer. If
@@ -429,7 +429,7 @@ Changes:
 
 ### nix-systems
 
-- Stop running Home Manager as a NixOS module (`nixos/home.nix`), if A1 is ruled.
+- Stop running Home Manager as a NixOS module (`nixos/home.nix`), per R8.
 - Take over the server's machine content from nix-meta, module by module, each with its VM test.
 - Remove the personal tools from `nixos/server.nix` `environment.systemPackages` (gitman, repoman,
   testee, copyroom) and from `vendomat.toml`. Keep the Dagu `linger` setting.
@@ -535,10 +535,11 @@ before it exists, the phase's own check) is green.
 
 ## Open questions
 
-1. A1: standalone Home Manager, which reverses nix-systems' Home Manager inside NixOS.
-2. A2: nix-meta holds homes and nix-systems holds machines, or one repository holds both.
-3. A4: the name and place of the devlayer directory.
-4. A6: whether the fleet doctor is a devman doctor mode or a separate command.
-5. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
-6. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
-7. Whether devman's `agent` group is removed or ported.
+A1 and A2 are ruled (R8, R9, 2026-10-13). Open:
+
+1. A3: the Testee split and the classification of each tool.
+2. A4: the name and place of the devlayer directory.
+3. A6: whether the fleet doctor is a devman doctor mode or a separate command.
+4. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
+5. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
+6. Whether devman's `agent` group is removed or ported.

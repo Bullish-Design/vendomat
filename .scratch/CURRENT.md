@@ -10,8 +10,8 @@ structure of nix-meta, aligned with project 21. The [concept](projects/22-owner-
 divides the estate into four layers: machine (nix-systems, devenv Machines), home (nix-meta,
 standalone Home Manager, which carries the personal tools), overlay (`~/.config/devman`), and
 project (tracked facts only). No project repository pins a personal tool. The
-[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R7 and recommendations
-A1 to A11. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
+[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R9 (R8 and R9 rule A1
+and A2) and recommendations A1 to A11. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
 [ledger](projects/22-owner-estate/REQUIREMENTS-DRAFT.md) uses the prefix `ESTATE-`.
 
 Spike W1 found that devenv 2.4.0's evaluation cache misses a changed per-file symlink to a store
