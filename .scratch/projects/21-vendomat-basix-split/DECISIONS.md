@@ -39,6 +39,30 @@ catalog does not cover.
 | A8 | Show hatch use on shell entry and in `vendomat explain`; name `vendomat.yaml` in conflict errors through `_file`. | Concept, escape hatch section. |
 | A9 | The catalog enables `uv.sync` only when `pyproject.toml` exists. | devenv warns on every shell entry otherwise (`python/default.nix:253-255`). |
 
+### Fixture status of the recommendations, 2026-10-13
+
+W1 and W2 ran on stock devenv 2.4.0 ([W1](evidence/W1-FORK-REVIEW.md),
+[W2](evidence/W2-MACHINES.md)). A fixture pass backs a recommendation; it does not rule on it.
+
+| # | Status |
+| --- | --- |
+| A3 | Backed: the patched `devenv` input merged an attrset, a function, and a per-machine default; the stock input failed or lost settings. Needs no binary fork. |
+| A4 | Backed: the two commands made generation 2 live with zero failed units; `bootctl set-oneshot` booted generation 1. |
+| A5 | Backed by W1: the guards cover only remote install. |
+| A6 | Backed: `devenv build outputs.iso` and `outputs.vm` built and booted, with `hardware.facter = null`. |
+| A7 | Backed: the prebuilt ISO installed offline in a 4 GB guest; an in-ISO build needed network and about 8 GB. |
+| A1, A2, A8, A9 | Not yet tested. |
+
+### New recommendations from W1 and W2
+
+| # | Recommendation | Basis |
+| --- | --- | --- |
+| A10 | The catalog sets `networking.hostName` to the machine name. | The facts file holds the host name, not the machine name (W2 T4). |
+| A11 | A lasting rollback is "restore `vendomat.yaml` and `devenv.lock`, then apply". The boot menu is for recovery only. | After a boot-menu rollback the profile still points at the newer generation (W2 T1). |
+| A12 | Hosts and the ISO install `pkgs.devenv` from Vendomat's pinned nixpkgs; the workspace's `devenv` input is a module-only fork; the template omits `require_version`. | W1 Q3 to Q5. |
+| A13 | Keep a binary with patch 0003 until PR #3244 ships, or accept that a fresh machine cannot enter a workspace while the remote is down. | W1 Q2. |
+| A14 | The ISO and test VMs set `hardware.facter = null`; the install writes the real report. | W2 T2, T3. |
+
 ## Ideas recorded, not pursued now
 
 Catalog keys as an allow list of native option paths with one generic type converter; a JSON

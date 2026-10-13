@@ -16,7 +16,12 @@ written in Nix (no fork primop); the grammar allows tabs, lists of maps, and nes
 use standard devenv modules with uv for Python; native devenv files stay as a visible escape hatch;
 machines use devenv Machines with a local `apply` and a local install from the Basix ISO.
 
-Fixtures back the parser and the devenv Machines facts at prototype level only. No production code,
+On 2026-10-13 W1 and W2 ran on stock devenv 2.4.0. W1 found that only fork patch 0003 still needs
+a binary fork; the `deferredModule` change ships in a module-only fork of the `devenv` input. W2
+passed four VM fixtures: the `deferredModule` merge, local apply with a boot-menu rollback, ISO and
+VM builds, and a local install from the ISO. Recommendations A1 to A14 await a ruling.
+
+Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
 consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
 design. Project 20 stays the record of slice 1, and project 14 stays the current implementation
 contract. Project 21 has no requirement ledger yet; the project 20 IDs it revises are listed in its

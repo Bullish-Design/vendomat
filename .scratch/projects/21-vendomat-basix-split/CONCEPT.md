@@ -140,7 +140,23 @@ that introduces Nix turns it on.
 ## Machines
 
 Machines use devenv Machines on a pinned devenv (owner ruling). Evidence:
-[MACHINES-RESEARCH](evidence/MACHINES-RESEARCH.md).
+[MACHINES-RESEARCH](evidence/MACHINES-RESEARCH.md) and, for the fixtures below,
+[W2-MACHINES](evidence/W2-MACHINES.md). On 2026-10-13 all four W2 fixtures passed in VMs on stock
+devenv 2.4.0: the `deferredModule` merge, local apply with a boot-menu rollback, ISO and VM builds
+through `_nixosEval`, and the local install from the ISO. No real disk was used.
+
+W2 findings that shape the design:
+
+- The facts file names `networking.hostName`, not the devenv machine name. The catalog sets
+  `networking.hostName` to the machine name, so a bare `vendomat apply` can find itself.
+- A boot-menu rollback boots the earlier generation once. The `system` profile still points at the
+  newer generation, so the next normal boot returns to it. A lasting rollback is: restore
+  `vendomat.yaml` and `devenv.lock` from version control, then `vendomat apply`.
+- devenv's hardware module needs `.machines/NAME/facter.json`. The ISO and test VMs set
+  `hardware.facter = null`; an installed machine uses its real report.
+- The prebuilt install (the ISO carries the toplevel and disk script) worked with no network in a
+  4 GB guest and needs no devenv at install time. Building on the ISO needed network,
+  `NIX_REMOTE=daemon`, and about 8 GB of RAM. The prebuilt install is the release path.
 
 devenv builds a machine locally with no target: `devenv build machines.NAME.build.nixos`. Every
 activation step (install, deploy, rollback) runs over root SSH, and `localhost` still means SSH.
@@ -156,19 +172,22 @@ Vendomat adds the local path.
   `nixos-facter` and write `.machines/NAME/facter.json`; choose and guard the disk; build the disk
   script and the toplevel; run the disk script; run
   `nixos-install --system TOP --no-root-password --no-channel-copy`; copy the machine workspace into
-  the new system. The ISO carries the core closure, so the install needs no network. The disk guard
-  lists blank, non-boot `/dev/disk/by-id/` disks and asks for the full name (carried from project 20).
+  the new system. The ISO carries the prebuilt toplevel and disk script, so the install needs no
+  network and no devenv. The disk guard lists blank, non-boot `/dev/disk/by-id/` disks and asks for
+  the full name (carried from project 20). W2's prototype guard refused a partitioned disk, the
+  optical boot medium, the boot medium attached as a disk, and a mounted target.
 - **Remote install and deploy** stay native devenv Machines behaviour, the advanced door. Fork
   patches 0005 and 0006 guard only that door, so they can go.
 - **One NixOS value, several writers.** `machines.NAME.nixos` has the type `unspecified`. Two
   definitions merge shallowly and lose settings, or fail
   ([NIXOS-MERGE](evidence/NIXOS-MERGE.md)). With the escape hatch, the YAML, Basix, and the user may
   all write it. The fix is a one-line devenv patch that gives `nixos` (and `home-manager` and
-  `nix-darwin`) the type `deferredModule`. Offer it upstream; carry it until a release has it.
+  `nix-darwin`) the type `deferredModule`. W2 proved it on stock devenv through a patched `devenv`
+  input. Offer it upstream; carry it in the module-only fork until a release has it.
 - **ISO and VM builds.** `machines.NAME._nixosEval` is a readable internal option with the full
   NixOS evaluation. A module can expose `system.build.isoImage` and `system.build.vm` from it. The
-  Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM.
-  Unproved.
+  Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM. W2
+  built and booted both (`outputs.iso` and `outputs.vm`).
 - **The YAML machine table** maps `host`, `profile`, `capabilities`, `serve`, and `disk` to
   `target.host`, Basix modules, the cache module, and one fixed Basix disk layout.
 - **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
@@ -179,19 +198,28 @@ Vendomat adds the local path.
 
 ## The fork
 
-The goal is a stock pinned devenv with no fork.
+The goal is a stock pinned devenv with no fork. devenv has two parts that ship separately: the
+binary (Rust, plus the embedded bootstrap Nix files such as `resolve-lock.nix`), and the module
+source under `src/modules`, which comes from the workspace's `devenv` input. A module change
+therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-REVIEW.md).
 
-| Patch | Purpose | Status |
+| Patch | Purpose | Status (W1, 2026-10-13) |
 | --- | --- | --- |
-| 0001 | SSH handshake fix for Machines | Merged upstream (PR #3255); goes at the next devenv release |
-| 0002 | Update the latest devenv version | To review |
-| 0003 | Bootstrap reuses locked inputs in the store | To review |
-| 0004 | Build the CLI as a release | To review |
-| 0005, 0006 | Remote install guards | Can go: remote install becomes the native door |
-| 0007 | Inherit an imported source's inputs | Not needed: the template lists the inputs |
-| 0008 | Copy a lazily mounted locked source into the store | To review |
-| 0009 | `vendomatFromYAML` primop | Not needed: the Nix parser replaces it |
-| new | `nixos` as `deferredModule` | Needed; offer upstream |
+| 0001 | SSH handshake fix for Machines | Merged upstream (PR #3255), not released. Affects only remote `machines install`, the advanced door |
+| 0002 | Update the latest devenv version file | Drop; a version mismatch only warns (`devenv.warnOnNewVersion = false` silences it) |
+| 0003 | Bootstrap reuses locked inputs in the store | **Keep** until PR #3244 merges and ships. Stock fails when the source is in the store, the fetcher cache is empty, and the remote is down |
+| 0004 | Build the CLI as a release | Drop; the nixpkgs devenv 2.4.0 is a release build |
+| 0005, 0006 | Remote install guards | Drop; remote install is the native door |
+| 0007 | Inherit an imported source's inputs | Drop; the template lists the inputs |
+| 0008 | Copy a lazily mounted locked source into the store | Not reproduced; goes with 0003 |
+| 0009 | `vendomatFromYAML` primop | Drop; the Nix parser replaces it |
+| new | `nixos` as `deferredModule` | Needed. Ships in a module-only fork of the `devenv` input; offer upstream |
+
+**Proposed shipping.** Hosts and the Basix ISO install `pkgs.devenv` from Vendomat's pinned
+nixpkgs: a release build from the public cache, the same binary everywhere. The workspace's
+`devenv` input points at a module-only fork (the `deferredModule` change and the version file). The
+template omits `require_version`. Until PR #3244 ships, a binary with patch 0003 remains the one
+binary fork; without it, a fresh machine with the remote down cannot enter a workspace.
 
 ## Carried from project 20
 
