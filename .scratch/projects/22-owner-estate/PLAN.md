@@ -20,6 +20,9 @@ Unproved after W1: the mechanism behind the directory result in W1; real Home Ma
 module; the fleet doctor; a standalone home with the current modules; the order and checks for the
 machine and home pairs.
 
-Evidence records still to write: a nix-meta audit, a survey of the composed flakes, a study of
-nix-systems and vendomat-demo, and the fleet inventory. The surveys ran on 2026-10-13. Their
-evidence records were not written. The raw inventory is under `~/.local/state/vendomat/p22/inventory/`.
+Survey records from 2026-10-13: [NIX-META-AUDIT](evidence/NIX-META-AUDIT.md),
+[SUB-FLAKES](evidence/SUB-FLAKES.md), [NIX-SYSTEMS](evidence/NIX-SYSTEMS.md),
+[FLEET-INVENTORY](evidence/FLEET-INVENTORY.md), [FAMILY-DELIVERY](evidence/FAMILY-DELIVERY.md),
+[HOME-PORT](evidence/HOME-PORT.md), [TOOL-CLASSES](evidence/TOOL-CLASSES.md), and
+[NIX-PATTERNS-RESEARCH](evidence/NIX-PATTERNS-RESEARCH.md). The raw inventory is under
+`~/.local/state/vendomat/p22/inventory/`.

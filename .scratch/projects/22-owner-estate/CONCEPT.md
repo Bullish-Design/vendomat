@@ -23,9 +23,8 @@ The personal tools are environment, like an editor or a shell. Today they are de
 project dependencies. Each repository pins them, copies their configuration, or receives their
 versions from a template. Every tool change therefore becomes work in every repository.
 
-Measured on 2026-10-13 ([FAMILY-DELIVERY](evidence/FAMILY-DELIVERY.md), the raw fleet inventory
-under `~/.local/state/vendomat/p22/inventory/`, and a read-only audit of nix-meta whose record is
-still to write; see [PLAN](PLAN.md)):
+Measured on 2026-10-13 ([FLEET-INVENTORY](evidence/FLEET-INVENTORY.md),
+[FAMILY-DELIVERY](evidence/FAMILY-DELIVERY.md), [NIX-META-AUDIT](evidence/NIX-META-AUDIT.md)):
 
 | Symptom | Count |
 | --- | --- |
@@ -110,8 +109,7 @@ The machine layer holds what needs root or describes hardware:
 about a tool, and a machine rollback never changes a tool.
 
 The machine follows project 21: machines are devenv Machines on a pinned devenv (project 21
-ruling R4). nix-systems already works this way (a read-only study on 2026-10-13; its record is
-still to write). It
+ruling R4). nix-systems already works this way ([NIX-SYSTEMS](evidence/NIX-SYSTEMS.md)). It
 declares hardware facts in an inventory, it has a minimal core that boots with no Vendomat service,
 and its VM tests cover plan, apply, health-check rollback, and a disk harness.
 
@@ -361,10 +359,10 @@ Basix later offers capabilities the owner wants, nix-systems consumes them as ma
 
 ## How the current system changes
 
-[HOME-PORT](evidence/HOME-PORT.md) holds the file and line references for the home port. The
-raw fleet inventory (`repos.tsv`, `overlay.tsv`, `templates.md`) is under
-`~/.local/state/vendomat/p22/inventory/`. The nix-meta audit and the survey of the composed
-flakes ran read-only on 2026-10-13; their records are still to write ([PLAN](PLAN.md)).
+[NIX-META-AUDIT](evidence/NIX-META-AUDIT.md), [SUB-FLAKES](evidence/SUB-FLAKES.md),
+[HOME-PORT](evidence/HOME-PORT.md), and [FLEET-INVENTORY](evidence/FLEET-INVENTORY.md) hold the
+file and line references for each item. The raw inventory is under
+`~/.local/state/vendomat/p22/inventory/`.
 
 ### nix-meta becomes the home repository
 
@@ -497,8 +495,8 @@ For each repository, in one change per repository:
 - Make `base:check` and `base:test` run plain commands.
 - Delete `gitman.toml`, `.repoman/project.toml`, and template answers that record tool tags.
 
-The raw inventory (`summary.txt`) names the repositories for each item. These repositories need
-manual attention: mnemonix (its overlay depends on its own devman import),
+[FLEET-INVENTORY](evidence/FLEET-INVENTORY.md) names the repositories for each item. These
+repositories need manual attention: mnemonix (its overlay depends on its own devman import),
 nix-systems and vendomat-demo (managed by `vendomat sync`), mancore (pins Vendomat with nested
 tool pins), devman (a real `mancore` dependency), pydantree, talkee, and llama-infernal.
 
