@@ -249,8 +249,11 @@ therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-R
 nixpkgs: a release build from the public cache, the same binary everywhere. The workspace's
 `devenv` input points at a module-only fork (the `deferredModule` change, the public `build.vm` and
 `build.iso` options, and the version file). The template omits `require_version`. Until PR #3244
-ships, the host binary is `pkgs.devenv` with patches 0003 and 0005 applied (owner leanings on A5 and
-A13, 2026-10-13); without 0003, a fresh machine with the remote down cannot enter a workspace.
+ships, the host binary is `pkgs.devenv` with patches 0003 and 0005 applied through an overlay (R16,
+R22; [W6-HOST-BINARY](evidence/W6-HOST-BINARY.md)); without 0003, a fresh machine with the remote down
+cannot enter a workspace. Patch 0005 reads `machines.NAME.vendomat.mode`: its Rust half is in the
+binary, its module half in the module-only fork, and the catalog sets `adopt-existing` for installed
+machines. Patch 0008 is not needed.
 
 ## Carried from project 20
 
