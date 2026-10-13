@@ -83,4 +83,4 @@ An ISO or VM build through the catalog; `vendomat apply`; the A1 topology togeth
 
 ## Ledger
 
-The draft is [REQUIREMENTS-DRAFT.md](../REQUIREMENTS-DRAFT.md). It uses the prefix `SPLIT-`.
+The draft became [REQUIREMENTS.md](../REQUIREMENTS.md). The draft used the prefix `SPLIT-`; owner ruling R24 renamed it.

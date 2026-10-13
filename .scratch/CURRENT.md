@@ -25,35 +25,42 @@ lives. Project 21 stays the authority for the Vendomat and Basix products. Where
 pin topology, a standalone home target, host-side modules), project 22 makes proposals that await a
 ruling in project 21.
 
-## Active future design draft: project 21 — Vendomat and Basix, separated
+## Final design: project 21 — Vendomat and Basix, separated
+
+**The design is final as of 2026-10-13.** Project 21 is the design authority for Vendomat and Basix.
+Project 14 stays the implementation contract until a release meets the project 21 gates. The next
+work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary overlay). Both are in
+the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them.
 
 On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
 its own repository. The [concept](projects/21-vendomat-basix-split/CONCEPT.md) states the result.
-The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R12 and
-recommendations A1 to A9 that await a ruling. The [plan](projects/21-vendomat-basix-split/PLAN.md)
-names the next work (W1 to W4).
+The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R34. Every
+recommendation A1 to A14 has a ruling. The
+[requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS.md) uses the prefixes `VMT-` and
+`BSX-`. Its rows carry their rulings and mark the open gaps.
 
 Main changes from project 20: Basix gets its own repository; `vendomat.yaml` is parsed by a parser
 written in Nix (no fork primop); the grammar allows tabs, lists of maps, and nested lists; languages
 use standard devenv modules with uv for Python; native devenv files stay as a visible escape hatch;
-machines use devenv Machines with a local `apply` and a local install from the Basix ISO.
+machines use devenv Machines with a local `apply` and a local install from the Basix ISO. Vendomat
+opens no upstream pull request for its devenv patches (R34), so the module-only fork and the patched
+host binary are long-lived.
 
-On 2026-10-13 W1 and W2 ran on stock devenv 2.4.0. W1 found that only fork patch 0003 still needs
-a binary fork; the `deferredModule` change ships in a module-only fork of the `devenv` input. W2
-passed four VM fixtures: the `deferredModule` merge, local apply with a boot-menu rollback, ISO and
-VM builds, and a local install from the ISO. Later the same day spikes W3 and W4 ran. W3 proved
-the Basix pin layout with stub repositories, with one change: Basix is a flake, and the template
-writes `follows` lines. W4 built the catalog on stock devenv with the Nix parser; 14 fixtures pass.
-It also drafted a [requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS-DRAFT.md)
-with the prefixes `VMT-` and `BSX-` (renamed from `SPLIT-`). Spikes W5, W7, and W8 then proved the
-disk guard as a disko hook and an ISO of any machine with policy in `iso.modules`. The owner ruled
-R13 to R32 on 2026-10-13, after spikes W6, W9, and W10. Every recommendation A1 to A14 now has a
-ruling. The next step turns the ledger draft into the ledger.
+Spikes W1 to W10 ran on 2026-10-13 on stock devenv 2.4.0 and in VMs. They proved the parser, the
+catalog, the Basix pin layout, the machine mechanisms, the disk guard, the host binary, the rollback
+design, and the test-VM hardware report, all at fixture level. The owner ruled R13 to R34 after the
+spikes. Two items stay open: project 22's proposal on a standalone Home Manager target, and its
+proposal on host-side modules. The owner asked for an explanation of each. No ruling exists.
+
+Open gaps with no ruling are ledger rows: the parser depth limit and line numbers, trace trimming of
+devenv errors, the devenv version warning, whether devenv fetches unused inputs, and two disk guard
+gaps. Real hardware and the two-machine Harmonia check are unproved. Two owner gates stand: switching
+the host to the new binary, and any real disk write.
 
 Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
 consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
 design. Project 20 stays the record of slice 1, and project 14 stays the current implementation
-contract. Project 21 has a draft ledger only; no ID in it is ruled.
+contract.
 
 ## Earlier future design: project 20 — Vendomat as the front door
 

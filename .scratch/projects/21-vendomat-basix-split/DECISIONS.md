@@ -52,6 +52,11 @@ catalog does not cover.
 
 ## Recommendations awaiting a ruling
 
+**Status, 2026-10-13:** every recommendation A1 to A14 now has a ruling: R13 to R32 (A1 in R28, A2 in
+R13, A3 in R14, A4 in R15, A5 in R16, A6 in R17, A7 in R18, A8 in R19, A9 in R20, A10 in R21, A11 in
+R30, A12 in R22, A13 in R31, A14 in R32). R33 and R34 came later. The tables below, the fixture
+status table, and the leaning table are kept as history. They show what stood before each ruling.
+
 | # | Recommendation | Basis |
 | --- | --- | --- |
 | A1 | A Basix workspace names only `basix`; `vendomat` and `nixpkgs` follow through it. | Removes the compatibility matrix. Unproved. |
