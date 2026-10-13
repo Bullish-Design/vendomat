@@ -193,8 +193,12 @@ Vendomat adds the local path.
   network and no devenv. The disk guard lists blank, non-boot `/dev/disk/by-id/` disks and asks for
   the full name (carried from project 20). W2's prototype guard refused a partitioned disk, the
   optical boot medium, the boot medium attached as a disk, and a mounted target.
-- **Remote install and deploy** stay native devenv Machines behaviour, the advanced door. Fork
-  patches 0005 and 0006 guard only that door, so they can go.
+- **Remote install and deploy** stay native devenv Machines behaviour, the advanced door. The
+  Basix disk layout carries the blank-disk guard as a disko `preCreateHook`, with `destroy = false`,
+  so the local and the remote install both run it before any write
+  ([W5-DISK-GUARD](evidence/W5-DISK-GUARD.md)). This replaces fork patch 0006. It does not replace
+  0005: stock `machines install` kexecs the target before disko, so a mistaken remote install
+  stops a running machine, although its disk stays safe.
 - **One NixOS value, several writers.** `machines.NAME.nixos` has the type `unspecified`. Two
   definitions merge shallowly and lose settings, or fail
   ([NIXOS-MERGE](evidence/NIXOS-MERGE.md)). With the escape hatch, the YAML, Basix, and the user may
@@ -226,7 +230,8 @@ therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-R
 | 0002 | Update the latest devenv version file | Drop; a version mismatch only warns (`devenv.warnOnNewVersion = false` silences it) |
 | 0003 | Bootstrap reuses locked inputs in the store | **Keep** until PR #3244 merges and ships. Stock fails when the source is in the store, the fetcher cache is empty, and the remote is down |
 | 0004 | Build the CLI as a release | Drop; the nixpkgs devenv 2.4.0 is a release build |
-| 0005, 0006 | Remote install guards | Drop; remote install is the native door |
+| 0005 | Refuse `machines install` of a machine that already runs | No hook can replace it: stock install kexecs the target before disko (W5 G4b). Keep it in the 0003 binary, or accept that a mistaken remote install stops a running machine; its disk stays safe |
+| 0006 | Target preflight before disko | Replaced by a guard in the Basix disk layout's disko `preCreateHook`, with `destroy = false` (W5); runs on the local and the remote path |
 | 0007 | Inherit an imported source's inputs | Drop; the template lists the inputs |
 | 0008 | Copy a lazily mounted locked source into the store | Not reproduced; goes with 0003 |
 | 0009 | `vendomatFromYAML` primop | Drop; the Nix parser replaces it |

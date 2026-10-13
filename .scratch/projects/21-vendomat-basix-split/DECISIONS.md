@@ -48,7 +48,7 @@ W1 and W2 ran on stock devenv 2.4.0 ([W1](evidence/W1-FORK-REVIEW.md),
 | --- | --- |
 | A3 | Backed: the patched `devenv` input merged an attrset, a function, and a per-machine default; the stock input failed or lost settings. Needs no binary fork. |
 | A4 | Backed: the two commands made generation 2 live with zero failed units; `bootctl set-oneshot` booted generation 1. |
-| A5 | Backed by W1: the guards cover only remote install. |
+| A5 | Backed by W1: the guards cover only remote install. W5 ([W5](evidence/W5-DISK-GUARD.md)): a disko `preCreateHook` guard replaces 0006 on the local and the remote path when the disk sets `destroy = false`; it cannot replace 0005, because stock `machines install` kexecs the target before disko runs. |
 | A6 | Backed: `devenv build outputs.iso` and `outputs.vm` built and booted, with `hardware.facter = null`. |
 | A7 | Backed: the prebuilt ISO installed offline in a 4 GB guest; an in-ISO build needed network and about 8 GB. |
 | A1 | Backed with a change by W3 ([W3](evidence/W3-TOPOLOGY.md)): Basix must be a flake that lists its inputs and commits its `flake.lock`, and the workspace writes `follows` lines for `vendomat`, `nixpkgs`, and any other input it takes from Basix. Naming only `basix` fails: stock devenv ignores an imported input's own `devenv.yaml`. One `devenv update` moved the Basix and Vendomat pair. |
@@ -79,7 +79,7 @@ with the spike results. These are not rulings.
 | A2 | Basix owns `install`. | — |
 | A3 | Module-only fork with `deferredModule`, offered upstream. | — |
 | A4 | The two activation commands now; the deployer watchdog later. | — |
-| A5 | Spike option 3 (W5). | Option 3: move the blank-disk guard into the Basix disk layout (a disko pre-create hook) so every install path runs it with no fork; until a fixture proves it, keep 0005 and 0006 in the same binary as 0003. Without a guard, the catalog's `target.host` makes every machine a valid `devenv machines install` target. |
+| A5 | Spike option 3 (W5). | W5 backed it with a change. The hook guards the disk on both paths, with `destroy = false` and a build-time check that every guarded disk keeps it. A mistaken remote install still kexecs a running machine and stops it; disk data stays safe. Open: keep 0005 in the 0003 binary, or accept that stop. Gaps: a custom disk in `devenv.nix` has no guard; multi-disk layouts need one guard over all disks. |
 | A6 | Option 2. | The module-only fork declares public `machines.NAME.build.iso` and `build.vm` options over `_nixosEval`, offered upstream. |
 | A7 | The prebuilt core closure only, to start. | — |
 | A8 | Shell line, `explain`, and `_file`, plus a flag that hides the line. | Proposed: a `vendomat.yaml` key hides only the shell line; `explain` still shows all. |
