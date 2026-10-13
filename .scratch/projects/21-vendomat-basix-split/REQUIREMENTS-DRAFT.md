@@ -99,7 +99,7 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Ruled** 
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
-| `BSX-070` | Basix MUST be a flake that lists its inputs and commits its `flake.lock`; a Basix workspace MUST name `basix` and get `vendomat`, `nixpkgs`, the `devenv` input, and the language inputs through `follows` lines that the template writes. | [W3](evidence/W3-TOPOLOGY.md) Q1 to Q6 (stub repositories); naming only `basix` fails with `attribute 'vendomat' missing` | Fixture pass with stubs; awaits owner ruling (A1) |
+| `BSX-070` | Basix MUST be a flake that lists its inputs and commits its `flake.lock`; a Basix workspace MUST name `basix` and get `vendomat`, `nixpkgs`, the `devenv` input, and the language inputs through `follows` lines that the template writes. | [W3](evidence/W3-TOPOLOGY.md) Q1 to Q6 (stub repositories); naming only `basix` fails with `attribute 'vendomat' missing` | Ruled (R28); fixture pass with stubs |
 | `BSX-071` | Basix MUST own `install` and the disk guard; Vendomat MUST own `apply`. | W2 T3 (guard); W5 (hook) | Ruled (R13, R16) |
 | `VMT-072` | A lasting rollback MUST be: restore `vendomat.yaml` and `devenv.lock`, then apply. The boot menu MUST be for recovery only. | W2 T1 (boot-menu rollback does not move the profile) | Awaits owner ruling (A11) |
 | `VMT-073` | Hosts and the ISO MUST install `pkgs.devenv` from Vendomat's pinned nixpkgs; the workspace `devenv` input MUST be a module-only fork; the template MUST omit `require_version`. | F2 to F14 ran on stock 2.4.0 with the module-only input; the line `devenv 2.4.0 is newer than devenv input (2.3.1)` shows each entry until `devenv.warnOnNewVersion = false` | Ruled (R22) |
@@ -125,3 +125,4 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Ruled** 
 | `VMT-094` | `vendomat update` MUST add missing template lines to `devenv.yaml`, and an error for a missing line MUST name the exact line. | none; whether devenv fetches unused inputs is unmeasured | Ruled (R25); unproved |
 | `VMT-095` | The module-only `devenv` input MUST give every machine `build.vm` and `build.iso` (typed `nullOr package`), and `build.iso` MUST extend the machine with the ISO module, the six required overrides, and `machines.NAME.iso.modules`. | W7, W8 | Ruled (R17); fixture pass |
 | `BSX-096` | The Basix disk layout MUST run the blank-disk guard as a disko `preCreateHook`, and every guarded disk MUST keep `destroy = false`, checked at build time. | W5 (hook); the build-time check is not built | Ruled (R16); check unproved |
+| `BSX-097` | A Basix ISO MUST turn off the services that would do harm in a live session through a deny list in `iso.modules`. | W8 Q3 (two test services off) | Ruled (R29); fixture pass |

@@ -36,9 +36,11 @@ No production code, consumer, or machine changed.
 | R25 | `vendomat update` adds missing template lines to `devenv.yaml`; its error text names the exact missing line. A spike checks whether devenv fetches unused inputs (decision 4). | "Agreed with recommendation" | — |
 | R26 | Basix uses a soft lock: hatch files work, and the shell line and `explain` point to the Nix lesson (decision 5). | as R25 | Basix decision. |
 | R27 | `vendomat explain` prints the user's YAML keys, each with its native option and source, plus a section for options set only in Nix, and `--json` (decision 6). | as R25 | — |
+| R28 | Basix is a flake that lists its inputs and commits its `flake.lock`. A Basix workspace names `basix` and takes `vendomat`, `nixpkgs`, the `devenv` input, and the language inputs through `follows` lines that the template writes and `vendomat update` keeps current. This is devenv's own pattern for every module set except its two built-in inputs; Vendomat gets no built-in input and does not ride inside the `devenv` input (A1). | "A1. go with your recommendation", 2026-10-13 | W3. |
+| R29 | On a live ISO, Basix turns off harmful services with a deny list (`liveOff [ names ]` in `iso.modules`). A live marker that service modules check may come later. | "Live iso - agreed", 2026-10-13 | W8. |
 
-R13 to R27 come from the 2026-10-13 review of A2 to A14 and the follow-up decisions. A1, A11, A13,
-A14, the live-ISO service rule, and the VM image cleanup stay open.
+R13 to R29 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. A11, A13, A14,
+and the VM image cleanup stay open.
 
 R6 and R12 together: routine use needs only `vendomat.yaml`. Native files remain for settings the
 catalog does not cover.
