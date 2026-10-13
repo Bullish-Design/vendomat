@@ -43,8 +43,10 @@ VM builds, and a local install from the ISO. Later the same day spikes W3 and W4
 the Basix pin layout with stub repositories, with one change: Basix is a flake, and the template
 writes `follows` lines. W4 built the catalog on stock devenv with the Nix parser; 14 fixtures pass.
 It also drafted a [requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS-DRAFT.md)
-with the prefix `SPLIT-`. The owner gave provisional leanings on A2 to A14; they are recorded in
-the decisions file and are not rulings.
+with the prefixes `VMT-` and `BSX-` (renamed from `SPLIT-`). Spikes W5, W7, and W8 then proved the
+disk guard as a disko hook and an ISO of any machine with policy in `iso.modules`. The owner ruled
+R13 to R27 on 2026-10-13. A1, A11, A13, A14, the live-ISO service rule, and the VM image cleanup
+stay open.
 
 Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
 consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future

@@ -21,6 +21,24 @@ No production code, consumer, or machine changed.
 | R10 | A compact item may continue with one tab; `key: - x` is rejected. | "Yes, agreed for both." | Parser v3. |
 | R11 | Languages use standard devenv language management. uv is the Python default. | "We should utilize standard devenv language management when possible, with UV the standard/default for Python." | The template lists `nixpkgs-python` and `rust-overlay`; fork patch 0007 is not needed. |
 | R12 | Native devenv files stay as an escape hatch for advanced settings. | Asked how to enable "a devenv.nix or devenv.local.nix escape hatch for any advanced or not-provided configuration". | Refines R6: YAML is primary; Nix files are optional and visible. |
+| R13 | Basix owns `install` and the disk guard; Vendomat owns `apply` (A2). | "B" (confirm the fixture-backed leanings), 2026-10-13 | `DOOR-072` successor moves to Basix. |
+| R14 | The module-only `devenv` fork carries `nixos` as `deferredModule`, offered upstream (A3). | as R13 | — |
+| R15 | Local `apply` runs the two activation commands; the deployer watchdog comes later (A4). | as R13 | — |
+| R16 | The Basix disk layout carries the blank-disk guard as a disko `preCreateHook` with `destroy = false`; patch 0005 stays in the same binary as 0003 (A5). | "Lets go with option 1 for A5", 2026-10-13 | Replaces 0006. |
+| R17 | Path D: any machine builds an ISO of itself; distribution policy goes in `machines.NAME.iso.modules`; upstream in two patches (A6). | "Agreed. Path D it is.", 2026-10-13 | W7, W8. |
+| R18 | The Basix ISO carries the prebuilt core closure (A7). | as R13 | — |
+| R19 | Hatch use shows on shell entry and in `explain`; errors name `vendomat.yaml`; a personal setting (not a `vendomat.yaml` key) hides the shell line (A8, decision 3c). | as R13; "Agreed with all recommendations" | — |
+| R20 | Python keys mirror native names: `uv` and `uv.sync` with `auto`, `true`, or `false`; `auto` turns sync on when `pyproject.toml` exists (A9, decision 3a). | as R19 | — |
+| R21 | The catalog sets `networking.hostName` to the machine name (A10). | as R13 | — |
+| R22 | Hosts and the ISO install `pkgs.devenv` from Vendomat's pinned nixpkgs, with the patches that R16 and A13 keep; the workspace `devenv` input is the module-only fork; the template omits `require_version` (A12). | as R13 | — |
+| R23 | Catalog: an explicit `virtual: "true"` machine key; postgres and redis return as typed keys; catalog defaults use `mkDefault` (decisions 3b, 3d, 3e). | "Agreed with all recommendations" | — |
+| R24 | Requirement IDs use one prefix per product: `VMT-` for Vendomat, `BSX-` for Basix (decision 3f). | as R23 | The `SPLIT-` draft is renamed before any ruling. |
+| R25 | `vendomat update` adds missing template lines to `devenv.yaml`; its error text names the exact missing line. A spike checks whether devenv fetches unused inputs (decision 4). | "Agreed with recommendation" | — |
+| R26 | Basix uses a soft lock: hatch files work, and the shell line and `explain` point to the Nix lesson (decision 5). | as R25 | Basix decision. |
+| R27 | `vendomat explain` prints the user's YAML keys, each with its native option and source, plus a section for options set only in Nix, and `--json` (decision 6). | as R25 | — |
+
+R13 to R27 come from the 2026-10-13 review of A2 to A14 and the follow-up decisions. A1, A11, A13,
+A14, the live-ISO service rule, and the VM image cleanup stay open.
 
 R6 and R12 together: routine use needs only `vendomat.yaml`. Native files remain for settings the
 catalog does not cover.
@@ -70,7 +88,8 @@ W1 and W2 ran on stock devenv 2.4.0 ([W1](evidence/W1-FORK-REVIEW.md),
 
 ## Owner leanings, 2026-10-13 (provisional)
 
-The owner gave first views on A2 to A14 and asked that none be taken as final. They will be revisited
+The owner gave first views on A2 to A14 and asked that none be taken as final. Later the same day
+the owner confirmed the fixture-backed ones as R13 to R22; A11, A13, and A14 stay provisional. They will be revisited
 with the spike results. These are not rulings.
 
 | # | Leaning | Open point |

@@ -17,4 +17,4 @@ under `~/.local/state/vendomat/p21/`. VM disk images, VM state, and VM scratch g
 
 Unproved after W1 to W4: real hardware; the `vendomat apply` command itself; an offline build on
 the ISO; patch 0008's failure; why two `nixos-facter` runs differ; the catalog together with a
-flake Basix; ISO and VM builds through the catalog; line numbers for schema faults (`SPLIT-035`).
+flake Basix; ISO and VM builds through the catalog; line numbers for schema faults (`VMT-035`).
