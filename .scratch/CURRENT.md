@@ -10,15 +10,19 @@ structure of nix-meta, aligned with project 21. The [concept](projects/22-owner-
 divides the estate into four layers: machine (nix-systems, devenv Machines), home (nix-meta,
 standalone Home Manager, which carries the personal tools), overlay (`~/.config/devman`), and
 project (tracked facts only). No project repository pins a personal tool. The
-[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R13 (R8 to R12 rule A1
-to A4) and recommendations A1 to A11. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
+[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R14 (R8 to R12 rule A1
+to A4) and recommendations A1 to A11. The [open items](projects/22-owner-estate/OPEN-ITEMS.md)
+list every question that still needs a ruling. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
 [ledger](projects/22-owner-estate/REQUIREMENTS-DRAFT.md) uses the prefix `ESTATE-`.
 
 Spikes W1 and W9 found that devenv 2.4.0's evaluation cache does not track an import whose final
 path component is a symlink into the store. Today's system-path import of devman's link module is
 such an import, so it can stay stale. A changed directory symlink is caught only by accident. Owner
 ruling R12 therefore imports the home's devenv modules through one real pointer file that Home
-Manager activation rewrites.
+Manager activation rewrites. W10 proved the pointer on devenv 2.4.0, and owner ruling R14 makes its
+path an option, reached through one shared overlay file. W5 built a read-only fleet doctor prototype
+and a baseline: Testee is the remaining repository pin (22 repositories), and every repository
+still imports devman's link module in the form devenv cannot track.
 
 No production code, consumer, or machine changed. Project 22 states where each part of the estate
 lives. Project 21 stays the authority for the Vendomat and Basix products. Project 21 answered

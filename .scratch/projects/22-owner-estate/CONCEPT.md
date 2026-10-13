@@ -340,8 +340,18 @@ import /nix/store/<hash>-devlayer
 - The layer's own files are immutable store paths. A new layer has a new path, which changes the
   pointer.
 
-**Proposed:** W10 must prove the pointer on the pinned devenv, with a pin fixture that fails if devenv
-changes how it tracks imports.
+W10 ([W10](evidence/W10-POINTER.md)) proved the pointer on devenv 2.4.0. A rewrite is caught with
+no flag, by the time check alone, and still caught when the time is forced back. A rewrite with the
+same content does not force a new evaluation. Its pin fixture (`pin-fixture.sh`) fails when the
+pointer case breaks and warns when the directory case breaks.
+
+**The configurable path (owner ruling R14).** The pointer path is a Home Manager option. One shared
+regular file in the overlay (for example `~/.config/devman/common/devlayer.nix`) names the pointer
+and guards the import with `builtins.pathExists`. Each project's overlay `devenv.local.nix` imports
+the shared file by relative path. A relative import resolves against the overlay file, the target
+of the project's symlink. A change of the option is then one edit in the home and one in the shared
+file, and the fleet doctor fails when the two disagree. The pointer and the shared file are regular
+files, never symlinks (W10, `ESTATE-038`).
 
 The pointer must not be under `~/.local/share/devman/`, because `devman doctor --prune` manages that
 root. The name `devlayer` stays proposed.
@@ -368,6 +378,9 @@ It fails on:
 
 It warns on an overlay directory with no repository (13 today) and on a repository with no overlay
 directory.
+
+W5 ([W5](evidence/W5-FLEET-DOCTOR.md)) built a prototype of these checks and took a baseline. The
+doctor writes nothing in a repository: it reads a copy of each evaluation cache (`ESTATE-044`).
 
 ## Relation to project 21
 
@@ -588,12 +601,6 @@ before it exists, the phase's own check) is green.
 
 ## Open questions
 
-A1 to A4 are ruled (R8 to R12, 2026-10-13). Open:
-
-1. The name and place of the layer and the pointer file; the result of W10.
-2. A6: whether the fleet doctor is a devman doctor mode or a separate command.
-3. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
-4. Whether devman's `agent` group is removed or ported (A10).
-5. A5, A8, and A11: recommendations ready for a ruling.
-
-Project 21 answered A7 with R33, R35, and R36.
+A1 to A4 are ruled (R8 to R12), project 21 answered A7 (R33, R35, R36), and R13 and R14 settle the
+platform's layer and the pointer path. Every remaining question is in
+[OPEN-ITEMS.md](OPEN-ITEMS.md), with its options and a recommendation.

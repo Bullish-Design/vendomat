@@ -57,17 +57,20 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Awaits o
 | `ESTATE-031` | The home MUST link that directory as one directory symlink, never file by file. Superseded by `ESTATE-035` (R12; W9 found the directory behaviour incidental). | [W1](evidence/W1-DEVLAYER-PATH.md) F4 (directory link picked up); F3 and F5 (file links stale) | Fixture pass (simulated tree); W2 for real Home Manager |
 | `ESTATE-032` | A per-file symlink to a store file MUST be treated as stale after a switch. | [W1](evidence/W1-DEVLAYER-PATH.md) F3, F5 | Observed gap (devenv 2.4.0 evaluation cache) |
 | `ESTATE-034` | No repository MAY import from the devlayer directory before a record explains, from devenv's source, why a directory-symlink change invalidates the evaluation cache and a file-symlink change does not. | R11; [W9](evidence/W9-EVAL-CACHE.md) | Met by W9 (record exists) |
-| `ESTATE-035` | Home Manager activation MUST write one real file outside the store (the pointer) that names the layer's store path, and MUST rewrite it only when that path changes. Overlay `devenv.local.nix` files MUST import the pointer, never a store path or a symlink. | R12; [W9](evidence/W9-EVAL-CACHE.md) | Proposed; W10 |
-| `ESTATE-036` | A fixture MUST fail when the pinned devenv stops catching a changed pointer file, or a changed directory symlink. | W9 | Proposed; W10 |
+| `ESTATE-035` | Home Manager activation MUST write one real file outside the store (the pointer) that names the layer's store path, and MUST rewrite it only when that path changes. Overlay `devenv.local.nix` files MUST import the pointer, never a store path or a symlink. | R12; [W9](evidence/W9-EVAL-CACHE.md); [W10](evidence/W10-POINTER.md) F1, F2, F3 | Fixture pass (scratch); real Home Manager unproved (W2) |
+| `ESTATE-037` | The pointer path MUST be a Home Manager option with the default `~/.local/state/devlayer/current.nix`. A change of the option MUST reach every overlay import through one edit, and the fleet doctor MUST fail when the overlay and the option disagree. | R14; [W10](evidence/W10-POINTER.md) F4a | Fixture pass for the shared-file mechanism; the doctor comparison unproved |
+| `ESTATE-036` | A fixture MUST fail when the pinned devenv stops catching a changed pointer file, or a changed directory symlink. | W9; [W10](evidence/W10-POINTER.md) F6 (`pin-fixture.sh`) | Fixture pass; not yet in CI |
+| `ESTATE-038` | The pointer and the shared file that names it MUST be regular files, never symlinks. The shared file MUST guard the import with `builtins.pathExists`. | [W10](evidence/W10-POINTER.md) F4a, F5 | Fixture pass (scratch) |
 | `ESTATE-033` | A module in the directory MUST name its commands by store path, not by a system profile path. | [HOME-PORT](evidence/HOME-PORT.md) (`modules/link.nix:71`) | Proposed |
 
 ## Fleet doctor
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
-| `ESTATE-040` | One command MUST check every registered repository against `ESTATE-011`, `ESTATE-020`, and `ESTATE-024`, and exit 1 on a finding. | Concept | Awaits owner ruling (A6); W5 |
+| `ESTATE-040` | One command MUST check every registered repository against `ESTATE-011`, `ESTATE-020`, and `ESTATE-024`, and exit 1 on a finding. | Concept | Prototype pass ([W5](evidence/W5-FLEET-DOCTOR.md)); home awaits OI-03 |
 | `ESTATE-041` | The command MUST fail when a repository's evaluation cache holds a devenv module store path that differs from the live one. | `ESTATE-032` | Superseded by `ESTATE-043` (W9: an untracked import leaves no row) |
-| `ESTATE-043` | The command MUST fail on an overlay import whose final path component is a symlink, and on an import with no row in the repository's evaluation cache. | [W9](evidence/W9-EVAL-CACHE.md); prototype `doctor_check.py` | Proposed; W5 |
+| `ESTATE-043` | The command MUST fail on an overlay import whose final path component is a symlink, and on an import with no row in the repository's evaluation cache. | [W9](evidence/W9-EVAL-CACHE.md); [W5](evidence/W5-FLEET-DOCTOR.md) D05 | Prototype pass for the symlink branch; the "no row" branch proved on fixtures only |
+| `ESTATE-044` | The fleet doctor MUST write nothing in a repository. It MUST read a live evaluation cache from a copy of the database and its `-wal` file, never open the live database in place. | [W5](evidence/W5-FLEET-DOCTOR.md): opening with `mode=ro` created `-wal` and `-shm` files in 9 repositories | Prototype pass |
 | `ESTATE-042` | The command MUST fail when a personal tool resolves on `PATH` from a second source. | [FAMILY-DELIVERY](evidence/FAMILY-DELIVERY.md) | Proposed |
 
 ## Machine and home pairs
