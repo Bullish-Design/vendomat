@@ -33,7 +33,8 @@ Project 14 stays the implementation contract until a release meets the project 2
 work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary overlay). Both are in
 the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them. A new session starts
 from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-GUIDE.md): Phase 0,
-then the open implementation decisions D1 to D8, then the slices. No slice has started.
+then the open implementation decisions D1 to D8 (recorded with options and recommendations in
+the decisions file), then the slices. No slice has started.
 
 On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
 its own repository. The [concept](projects/21-vendomat-basix-split/CONCEPT.md) states the result.

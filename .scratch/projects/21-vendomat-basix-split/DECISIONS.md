@@ -123,6 +123,147 @@ with the spike results. These are not rulings.
 | A13 | Keep a binary with patch 0003 until PR #3244 ships. | W6 ([W6](evidence/W6-HOST-BINARY.md)) backs it: stock fails offline with an empty fetcher cache and the patched binary enters; warming the cache works only if the machine was online once, so it does not cover a fresh machine or ISO; PR #3244 is open and unreviewed, and v2.4.0 is the latest release. Recheck at each nixpkgs bump. |
 | A14 | Commit a hardware report from a QEMU guest for test VMs. | W10 ([W10](evidence/W10-FACTER.md)) backs it. The only run-to-run change is `.hardware.cpu[].tlb_size`, an uninitialised value from a hwinfo bug; `del(.hardware.cpu[].tlb_size)` makes repeated reports byte identical. RAM size, CPU count, MAC, and disk count change the report but not the toplevel. The CPU model (`vmx`) and the QEMU machine type change the toplevel, so a test-VM shape pins `-machine`, the disk bus, the NIC model, and a named `-cpu`. `install` should apply the same drop filter to real reports. |
 
+## Implementation decisions awaiting a ruling (D1 to D8)
+
+**Recorded 2026-10-13, after the design freeze.** The design rulings R1 to R36 leave these
+implementation choices open. Two read-only inventories of the repository and the host found them
+while the [implementation guide](IMPLEMENTATION-GUIDE.md) was written. Each entry gives the
+question, the facts, the options, and a recommendation. None is a ruling. Ask the owner before the
+slice that needs each one, and record the answer as a ruling (R37 onward). The guide's Section 4
+repeats the short form.
+
+### D1: the project 14 verbs and the `vendomat.toml` flow
+
+**Needed by:** S3 (launcher dispatch), S8. **Ledger:** none yet.
+
+Facts: the repository still ships the project 14 and V6 verbs `sync`, `path`, `check`, `push`,
+`bump`, and `machine install`, and the code behind them (`registry.py`, `generate.py`,
+`devenvgen.py`, `store.py`, `locate.py`, `lockpath.py`, `bump.py`, `machine.py`, the V6 module
+under `nix/devenv-module/`, `preflight/`, `direnv/vendomat.sh`, two templates, and their tests).
+The live consumers nix-systems and vendomat-demo use `vendomat.toml` and `.vendomat/`; none uses
+`vendomat.yaml`. Project 22's concept moves them "when project 21's catalog ships". Project 21
+rules on none of these verbs. R13 moves `install` to Basix. `VMT-120` keeps Attic until a
+two-machine Harmonia check passes.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. Keep the old verbs working until the two consumers move; then remove them in a new slice S8. `machine install` moves to Basix; `push` stays until `VMT-120` passes. | No consumer breaks. The removal is one clean change after the migration. | The repository holds two flows for a while; S3 must not break the old one. |
+| b. Remove the old flow in S3. | The repository becomes project 21 only, at once. | nix-systems and vendomat-demo stop working until they move; their move then blocks S3. |
+| c. Freeze the old flow in a separate legacy package. | Consumers keep a pinned tool. | A second package to build and pin; more surface, not less. |
+
+**Recommendation:** a.
+
+### D2: how a plain Vendomat workspace pins the module-only `devenv` input
+
+**Needed by:** S1 (step 9), S3 (template). **Ledger:** `VMT-073`, `VMT-111`.
+
+Facts: Basix workspaces take `devenv` through `basix/devenv` (R28; W3 Q5 proved a `devenv`
+follow). A workspace without Basix has no such path today. Vendomat's flake has one input,
+`nixpkgs`, and `tests/test_repo_shape.py` plus `AGENTS.md` forbid a second one; that rule was a
+guard against V4 code coming back.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. Add the module fork tag as Vendomat's second flake input `devenv`; the template writes `devenv: follows: vendomat/devenv`. | One `vendomat update` moves Vendomat and its tested modules together, as R28 does for Basix. No version pair to keep in step by hand. | Changes a durable shape rule (`test_repo_shape.py`, `AGENTS.md`). Needs a check that a `dir=src/modules` input works as a flake input of Vendomat. |
+| b. The template pins the tag directly; `vendomat update` rewrites the tag to the one the Vendomat release names. | The flake shape rule stays. | Two places hold the version; `update` must edit `devenv.yaml` beyond adding missing lines. |
+| c. The template pins the tag directly; the user moves it by hand. | Simplest code. | Vendomat and its modules can drift apart; contradicts the "tested pair" reason of R28. |
+
+**Recommendation:** a.
+
+### D3: how Basix publishes releases
+
+**Needed by:** S5. **Ledger:** `BSX-070`.
+
+Facts: the collection's `hooks/collection-pre-receive` accepts only new tags, and a fast-forward
+of `refs/heads/release` only for the repository named `vendomat`. Vendomat workspaces read
+`git://server/vendomat?ref=release`.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. Same as Vendomat: immutable tags plus a fast-forward `release` branch; extend the hook to allow `release` for `basix`. | One update model for both products; `vendomat update` moves both along `release`. | A small hook change and test in the Vendomat repository. |
+| b. Tags only; workspaces pin a tag. | No hook change. | An update must rewrite the tag in every workspace. |
+
+**Recommendation:** a.
+
+### D4: how the catalog knows a machine is installed
+
+**Needed by:** S3. **Ledger:** `VMT-099`.
+
+Facts: patch 0005 refuses `devenv machines install` for a machine whose
+`machines.NAME.vendomat.mode` is `adopt-existing` (W6 B5). A module without the option fails open;
+the catalog must set it. The Basix install writes `.machines/NAME/facter.json` and copies the
+workspace into the new system (R13, R32).
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. A committed `.machines/NAME/facter.json` means installed (`adopt-existing`); a YAML key `mode: fresh-install` overrides it for a deliberate reinstall. | Automatic; the install already writes the file. Safe by default after an install. | The devenv remote `facter` phase also writes the file before an install; a committed file from that phase would block the install until the user sets the override. |
+| b. An explicit YAML key `installed: "true"` on every installed machine. | Plain and visible. | A user who forgets the key leaves a running machine unguarded. |
+| c. Both: the file sets the default, the key overrides it either way. | Safe default and full control. | One more rule to explain. |
+
+**Recommendation:** a (it is c with one override direction); S3 records the facter-phase case in a
+fixture.
+
+### D5: how Basix adds its keys to Vendomat's catalog
+
+**Needed by:** S3 (the extension point), S5. **Ledger:** `BSX-059`, `BSX-065`.
+
+Facts: Basix needs YAML keys `profile`, `capabilities`, `serve`, and `disk` in the machine table,
+and a lesson hint in the shell line and `explain` (R26). The catalog rejects unknown keys and lists
+the known ones (`VMT-032`). Vendomat must not import, test, or name Basix (R1).
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. A typed extension point in the catalog, for example `vendomat.catalog.extraMachineKeys.<name> = { type; apply; }` and `vendomat.hatch.hint`; the unknown-key check consults it. | Basix registers keys without Vendomat naming Basix; errors stay in one list. | A public interface to keep stable. |
+| b. Basix reads its own section of `vendomat.yaml` with its own copy of the parser. | No Vendomat interface. | Two parsers and two error lists; the catalog still rejects the Basix keys unless it skips them. |
+| c. Basix keys live in a second file, for example `basix.yaml`. | Clean separation. | Breaks "one file" for the user (R6). |
+
+**Recommendation:** a.
+
+### D6: where each machine keeps the rollback record
+
+**Needed by:** S4. **Ledger:** `VMT-098`, `VMT-110`.
+
+Facts: R30 asks for a per-machine record from system path to workspace commit and rules out
+`system.configurationRevision`. W9 found that a dirty work tree reads as `<HEAD>-dirty`, and that
+two different dirty edits share that string.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. An append-only JSON Lines file `/var/lib/vendomat/generations.jsonl`, one line per apply (generation, toplevel, commit, dirty flag, time); `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and hatch files unless `--dirty`; `rollback` uses clean entries only. | Simple to read and append; survives reboots; history is never rewritten. | A new file to back up with the machine; root writes it. |
+| b. A file inside each generation's directory. | Tied to the generation it describes. | Generation directories are store links; writing beside them is fragile. |
+| c. The record lives in the workspace repository (a commit per apply). | Version control holds the history. | The record then depends on the workspace being present and pushed; links to the recorded idea "a commit per apply" but adds noise. |
+
+**Recommendation:** a.
+
+### D7: the module fork's tag name
+
+**Needed by:** S1. **Ledger:** `VMT-082`.
+
+Facts: the collection already holds `v2.4.0-vendomat.2`, `.3`, and `.4` for the old binary fork.
+Tags never move or disappear.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. `v2.4.0-vendomat-modules.N` | Names the upstream base and the kind of fork; cannot collide with the old tags. | Long. |
+| b. `v2.4.0-vendomat.5` onward | Continues the old line. | Mixes a module-only tag with full binary forks under one name. |
+
+**Recommendation:** a.
+
+### D8: the personal setting that hides the `advanced:` line
+
+**Needed by:** S3. **Ledger:** `VMT-093`.
+
+Facts: R19 asks for a personal setting outside `vendomat.yaml`. The shell line counts settings in
+`devenv.nix` and `devenv.local.nix`.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| a. An environment variable, `VENDOMAT_HIDE_ADVANCED=1`, in the user's shell profile. | Personal, needs no file in the workspace, applies to every workspace. | Invisible in the workspace itself. |
+| b. An option in `devenv.local.nix`. | Lives with the checkout. | The setting would itself count as hatch use and appear in the line it hides. |
+| c. A user config file, for example `~/.config/vendomat/config`. | Discoverable; room for later settings. | A new file format to define and prove. |
+
+**Recommendation:** a.
+
 ## Ideas recorded, not pursued now
 
 Catalog keys as an allow list of native option paths with one generic type converter; a JSON

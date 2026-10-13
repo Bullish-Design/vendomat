@@ -260,8 +260,10 @@ images from the scripts.
 
 ## 4. Decisions to settle
 
-The rulings settle the design. These implementation choices have no ruling yet. Ask the owner
-before the slice that needs each one. Record each answer as a ruling (R37 onward).
+The rulings settle the design. These implementation choices have no ruling yet. Their full record
+(facts, options with pros and cons, recommendation) is in
+[DECISIONS.md, D1 to D8](DECISIONS.md#implementation-decisions-awaiting-a-ruling-d1-to-d8). Ask the
+owner before the slice that needs each one. Record each answer as a ruling (R37 onward).
 
 | # | Question | Needed by | Recommendation |
 | --- | --- | --- | --- |
