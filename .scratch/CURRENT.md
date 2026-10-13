@@ -3,7 +3,26 @@
 **Updated:** 2026-10-12. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
-## Active future design: project 20 — Vendomat as the front door
+## Active future design draft: project 21 — Vendomat and Basix, separated
+
+On 2026-10-12 the owner opened a clean-slate review of the project 20 design and asked for Basix in
+its own repository. The [concept](projects/21-vendomat-basix-split/CONCEPT.md) states the result.
+The [decisions](projects/21-vendomat-basix-split/DECISIONS.md) hold owner rulings R1 to R12 and
+recommendations A1 to A9 that await a ruling. The [plan](projects/21-vendomat-basix-split/PLAN.md)
+names the next work (W1 to W4).
+
+Main changes from project 20: Basix gets its own repository; `vendomat.yaml` is parsed by a parser
+written in Nix (no fork primop); the grammar allows tabs, lists of maps, and nested lists; languages
+use standard devenv modules with uv for Python; native devenv files stay as a visible escape hatch;
+machines use devenv Machines with a local `apply` and a local install from the Basix ISO.
+
+Fixtures back the parser and the devenv Machines facts at prototype level only. No production code,
+consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
+design. Project 20 stays the record of slice 1, and project 14 stays the current implementation
+contract. Project 21 has no requirement ledger yet; the project 20 IDs it revises are listed in its
+concept.
+
+## Earlier future design: project 20 — Vendomat as the front door
 
 The owner chose [project 20](projects/20-vendomat-front-door/CONCEPT.md) on 2026-10-11 as the
 future design. The [decision log](projects/20-vendomat-front-door/DECISIONS.md) records the switch.
@@ -24,7 +43,8 @@ A fresh workspace locked the branch to Vendomat `d3c279e0` and entered the catal
 PATH still puts stock devenv first, so the smoke used the `.4` fork explicitly. No host profile
 switch or Basix machine gate has run. The owner has not authorized real disk writes.
 
-**Authority split.** The project 20 documents are the future design authority. Project 14 stays the
+**Authority split.** The project 20 documents are the future design authority, except where project
+21 revises them. Project 14 stays the
 current implementation contract until a release supports the project 20 gates.
 
 **State on 2026-10-11 (research session).** Spikes ran on the pinned tools (fork devenv
