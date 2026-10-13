@@ -314,14 +314,12 @@ The rulings answered the questions of the first draft:
 - Whether Basix locks the escape hatch for learners: a soft lock (R26).
 - The output format of `vendomat explain`: ruled in content (R27); the exact format is unproved.
 
-Two items stay open. Project 22 makes both proposals, and the owner asked for an explanation of
-each. No ruling exists.
+- A standalone Home Manager target (project 22): homes stay outside Vendomat (R35). A two-command
+  alias may later make a home switch look native.
+- Host-side modules (project 22): Vendomat ships none; a workspace gets everything through its own
+  lock (R36).
 
-1. A standalone Home Manager target. Project 21 models Home Manager only inside a machine. Project 22
-   proposes to treat a standalone home as a native target next to a machine, or to state that homes
-   are outside Vendomat.
-2. Host-side modules. Project 22 proposes that a host-side Vendomat module uses the devlayer directory
-   and the pointer file of project 22 (R12 there). Nothing reads the old host-side files today.
+No design question stays open.
 
 Observed gaps that no ruling covers are rows in the [ledger](REQUIREMENTS.md): parser depth limit
 and line numbers (`VMT-013`, `VMT-035`), trace trimming of devenv errors (`VMT-117`), the devenv

@@ -163,3 +163,5 @@ Rows for ruled behaviour that had no row, and for the open gaps. The numbers con
 | `BSX-119` | The install MUST work on real hardware with a real `nixos-facter` report and a real disk. | none (VM fixtures only) | Unproved; needs a separate owner authorization for any disk write |
 | `VMT-120` | Attic MUST stay until a two-machine Harmonia check passes on real machines; a serving machine MUST make its own signing key, and a client MUST substitute from it. | project 20 S6 (two VMs only) | Unproved |
 | `VMT-121` | The catalog together with a flake Basix, and ISO and VM builds through the catalog, MUST work. | none | Unproved |
+| `VMT-122` | The catalog MUST map no home key; homes MUST stay outside Vendomat, and devenv's native `machines.NAME.home-manager` MUST be reachable only through the escape hatch. | none | Ruled (R35) |
+| `VMT-123` | Vendomat MUST ship no host-side module; a workspace MUST get Vendomat only through its own lock, and the project 14 `share/vendomat/consumer-module.nix` and `machine.json` MUST be removed with the project 14 code. | Project 22 [HOME-PORT](../22-owner-estate/evidence/HOME-PORT.md) (0 readers) | Ruled (R36) |
