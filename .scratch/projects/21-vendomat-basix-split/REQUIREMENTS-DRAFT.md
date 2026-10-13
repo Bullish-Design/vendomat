@@ -112,7 +112,7 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Ruled** 
 | --- | --- | --- | --- |
 | `VMT-080` | Patch 0009 (`vendomatFromYAML`) MUST be dropped. | `VMT-002`, `VMT-003` (F1 to F13) | Fixture pass |
 | `VMT-081` | Patch 0007 (inherit an imported source's inputs) MUST be dropped. | `VMT-043` | Fixture pass |
-| `VMT-082` | The `nixos = deferredModule` change MUST ship in a module-only `devenv` input and be offered upstream. | `VMT-064` | Fixture pass; shipping awaits A12 |
+| `VMT-082` | The `nixos = deferredModule` change MUST ship in a module-only `devenv` input; Vendomat MUST NOT open an upstream pull request for it (R34). | `VMT-064` | Fixture pass; shipping awaits A12 |
 
 ## Added by the owner rulings of 2026-10-13
 

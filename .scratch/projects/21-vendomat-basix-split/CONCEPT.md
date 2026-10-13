@@ -204,7 +204,7 @@ Vendomat adds the local path.
   ([NIXOS-MERGE](evidence/NIXOS-MERGE.md)). With the escape hatch, the YAML, Basix, and the user may
   all write it. The fix is a one-line devenv patch that gives `nixos` (and `home-manager` and
   `nix-darwin`) the type `deferredModule`. W2 proved it on stock devenv through a patched `devenv`
-  input. Offer it upstream; carry it in the module-only fork until a release has it.
+  input. It lives in the module-only fork; no upstream pull request is opened (R34).
 - **ISO and VM builds.** `machines.NAME._nixosEval` is a readable internal option with the full
   NixOS evaluation. A module can expose `system.build.isoImage` and `system.build.vm` from it. The
   Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM. W2
@@ -242,8 +242,8 @@ therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-R
 | 0007 | Inherit an imported source's inputs | Drop; the template lists the inputs |
 | 0008 | Copy a lazily mounted locked source into the store | Not reproduced; goes with 0003 |
 | 0009 | `vendomatFromYAML` primop | Drop; the Nix parser replaces it |
-| new | `nixos` as `deferredModule` | Needed. Ships in a module-only fork of the `devenv` input; offer upstream |
-| new | Public `machines.NAME.build.vm` and `build.iso`; `build.iso` for any machine with `iso.modules` | A6 Path D (owner, 2026-10-13). Same module-only fork; offer upstream as two patches (+21, then +46 -4; W7, W8) |
+| new | `nixos` as `deferredModule` | Needed. Ships in a module-only fork of the `devenv` input; no upstream PR (R34) |
+| new | Public `machines.NAME.build.vm` and `build.iso`; `build.iso` for any machine with `iso.modules` | A6 Path D (owner, 2026-10-13). Same module-only fork; kept as two patches, no upstream PR (R34) (+21, then +46 -4; W7, W8) |
 
 **Proposed shipping.** Hosts and the Basix ISO install `pkgs.devenv` from Vendomat's pinned
 nixpkgs: a release build from the public cache, the same binary everywhere. The workspace's
