@@ -106,10 +106,10 @@ with the spike results. These are not rulings.
 | A8 | Shell line, `explain`, and `_file`, plus a flag that hides the line. | Proposed: a `vendomat.yaml` key hides only the shell line; `explain` still shows all. |
 | A9 | An explicit YAML key whose default is "auto". | The "auto" default uses the W4 F4b detection. |
 | A10 | The catalog sets `networking.hostName`. | — |
-| A11 | Restore and apply now; a `vendomat rollback` command that does both later. | — |
+| A11 | Restore and apply now; a `vendomat rollback` command that does both later. | W9 ([W9](evidence/W9-ROLLBACK.md)) confirms it with changes: the restore must end in a commit (a bare working-copy restore is lost and the next apply silently rolls forward); rebuilding from restored files gives the identical earlier store path and copies nothing. Open choice: record each generation's commit in `system.configurationRevision` (provenance, but every commit gives a new generation; set it through a `VENDOMAT_REV` variable, because the eval cache ignores git HEAD) or in a sidecar record on the target (stable paths, untested). |
 | A12 | `pkgs.devenv` from the pinned nixpkgs, module-only fork input, no `require_version`. | With A13, the host binary is `pkgs.devenv` with patch 0003 applied (and 0005, 0006 if A5 needs them), not a separate fork repository. |
 | A13 | Keep a binary with patch 0003 until PR #3244 ships. | See A12. |
-| A14 | Commit a hardware report from a QEMU guest for test VMs. | Two `nixos-facter` runs differed (W2); the fixture must show the report is stable or strip changing fields. |
+| A14 | Commit a hardware report from a QEMU guest for test VMs. | W10 ([W10](evidence/W10-FACTER.md)) backs it. The only run-to-run change is `.hardware.cpu[].tlb_size`, an uninitialised value from a hwinfo bug; `del(.hardware.cpu[].tlb_size)` makes repeated reports byte identical. RAM size, CPU count, MAC, and disk count change the report but not the toplevel. The CPU model (`vmx`) and the QEMU machine type change the toplevel, so a test-VM shape pins `-machine`, the disk bus, the NIC model, and a named `-cpu`. `install` should apply the same drop filter to real reports. |
 
 ## Ideas recorded, not pursued now
 
