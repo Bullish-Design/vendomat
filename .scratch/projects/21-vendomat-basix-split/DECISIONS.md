@@ -38,9 +38,12 @@ No production code, consumer, or machine changed.
 | R27 | `vendomat explain` prints the user's YAML keys, each with its native option and source, plus a section for options set only in Nix, and `--json` (decision 6). | as R25 | — |
 | R28 | Basix is a flake that lists its inputs and commits its `flake.lock`. A Basix workspace names `basix` and takes `vendomat`, `nixpkgs`, the `devenv` input, and the language inputs through `follows` lines that the template writes and `vendomat update` keeps current. This is devenv's own pattern for every module set except its two built-in inputs; Vendomat gets no built-in input and does not ride inside the `devenv` input (A1). | "A1. go with your recommendation", 2026-10-13 | W3. |
 | R29 | On a live ISO, Basix turns off harmful services with a deny list (`liveOff [ names ]` in `iso.modules`). A live marker that service modules check may come later. | "Live iso - agreed", 2026-10-13 | W8. |
+| R30 | A lasting rollback restores `vendomat.yaml`, `devenv.lock`, and the hatch files from an earlier commit and ends in a new commit, then applies. Each machine keeps a small record that maps each system path to the workspace commit it came from; `system.configurationRevision` is not used. `vendomat rollback` reads that record. The boot menu and the profile rollback stay recovery tools (A11). | "Agreed with your recommendation for A11", 2026-10-13 | W9. The record format is unproved. |
+| R31 | The host and ISO binary keeps patch 0003 until PR #3244 ships in a release; recheck at each nixpkgs bump. Patch 0005 splits into a binary half and a module half, and the catalog sets `machines.NAME.vendomat.mode`. Patch 0008 is dropped (A13). | "Agreed on A13", 2026-10-13 | W6. |
+| R32 | Test VMs use a committed QEMU hardware report per VM shape, written through the filter `del(.hardware.cpu[].tlb_size)`. A VM shape pins `-machine`, the disk bus, the NIC model, and a named `-cpu`. `install` applies the same filter to real reports (A14). | "Agreed on ... A14", 2026-10-13 | W10. |
 
-R13 to R29 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. A11, A13, A14,
-and the VM image cleanup stay open.
+R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
+recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
 
 R6 and R12 together: routine use needs only `vendomat.yaml`. Native files remain for settings the
 catalog does not cover.

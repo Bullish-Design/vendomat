@@ -45,7 +45,8 @@ writes `follows` lines. W4 built the catalog on stock devenv with the Nix parser
 It also drafted a [requirement ledger](projects/21-vendomat-basix-split/REQUIREMENTS-DRAFT.md)
 with the prefixes `VMT-` and `BSX-` (renamed from `SPLIT-`). Spikes W5, W7, and W8 then proved the
 disk guard as a disko hook and an ISO of any machine with policy in `iso.modules`. The owner ruled
-R13 to R29 on 2026-10-13. A11, A13, A14, and the VM image cleanup stay open.
+R13 to R32 on 2026-10-13, after spikes W6, W9, and W10. Every recommendation A1 to A14 now has a
+ruling. The next step turns the ledger draft into the ledger.
 
 Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
 consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
