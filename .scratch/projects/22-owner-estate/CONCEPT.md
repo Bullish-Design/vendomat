@@ -289,35 +289,59 @@ project facts, and a cloner runs them with no personal tool:
 ## The devenv import path
 
 devenv evaluates each project shell. The personal layer's devenv modules (devman's link module
-today) must be visible to that evaluation at a fixed path. Today 62 overlay files import
+today) must reach that evaluation. Today 62 overlay files import
 `/run/current-system/sw/share/devman/link-module.nix`, a system path.
 
-The home installs these modules under one user directory. **Proposed path:**
-`~/.local/share/devlayer/modules/`.
+### What devenv tracks
 
-W1 measured devenv 2.4.0's evaluation cache on this shape ([W1](evidence/W1-DEVLAYER-PATH.md)):
+W1 ([W1](evidence/W1-DEVLAYER-PATH.md)) measured devenv 2.4.0's evaluation cache, and W9
+([W9](evidence/W9-EVAL-CACHE.md)) explained it from devenv's source:
 
-| Layout | After the target changes |
-| --- | --- |
-| An absolute import of a file outside the repository | Evaluates |
-| The imported file is a symlink into `/nix/store` | Evaluates |
-| **The file symlink moves to a new store file** | **Stale.** devenv keeps the old module until `--refresh-eval-cache` |
-| A directory symlink on the path moves to a new store tree | Picked up on the next shell entry |
+- Nix reports an evaluated file by its path as written, unless the final path component is a
+  symlink. Then it reports the symlink's target.
+- devenv drops every reported path in `/nix/store`. An import whose final component links into the
+  store therefore gets no cache row and is never checked again.
+- devenv re-hashes the tracked paths on a cache hit, so a change behind a directory symlink is
+  caught. Nothing promises this. Open issue cachix/devenv#3154 asks for a time shortcut that would
+  end it, because every store file has modification time 1.
 
-A per-file Home Manager link would therefore leave every repository on the old module after a
-switch, with no error. This is the silent failure the design exists to prevent. The rule:
+**Rule:** devenv re-checks an import only when the final component of its path is not a symlink.
 
-- The home links the **directory** `~/.local/share/devlayer` as one symlink to a store tree. It
-  never links the module files one by one.
-- The fleet doctor compares the module store path that each repository's evaluation cache recorded
-  with the live one, and fails on a difference.
+Consequences:
 
-The mechanism behind the directory result is not known (W1, inference only). Owner ruling R11
-makes the explanation a gate: W9 reads devenv's evaluation-cache source and explains both
-results, and W2 repeats the measurement with a real Home Manager generation.
+- **Today's import is stale-prone.** `/run/current-system/sw/share/devman/link-module.nix` is a file
+  symlink into the devman-link package. The real cache has no row for it. After a devman-link
+  upgrade, a repository keeps the old module until `--refresh-eval-cache` runs or another tracked
+  input changes.
+- The layout first planned under R11 (a Home Manager directory over a `linkFarm` of file links) is
+  stale for the same reason.
+- A layout of real files behind a directory symlink works today, but only through the re-hash that
+  issue #3154 may remove.
 
-The new path must not be under `~/.local/share/devman/`. `devman doctor --prune` manages that
-root.
+### The pointer file (owner ruling R12)
+
+The home builds the layer as one store directory. Home Manager activation then writes one **real
+file outside the store**, the pointer, that names the layer's store path:
+
+```nix
+# ~/.local/state/devlayer/current.nix (proposed path), written by activation, never a symlink
+import /nix/store/<hash>-devlayer
+```
+
+- Each overlay `devenv.local.nix` imports the pointer, never a store path or a symlink.
+- Activation rewrites the pointer only when the layer's store path changes. Its content and its
+  modification time then change, so both of devenv's checks catch the change, with or without the
+  time shortcut of issue #3154. The pointer does not depend on how Nix reports directory symlinks.
+- The pointer is not a Home Manager-managed file: such files are symlinks into the store and would
+  go untracked.
+- The layer's own files are immutable store paths. A new layer has a new path, which changes the
+  pointer.
+
+**Proposed:** W10 must prove the pointer on the pinned devenv, with a pin fixture that fails if devenv
+changes how it tracks imports.
+
+The pointer must not be under `~/.local/share/devman/`, because `devman doctor --prune` manages that
+root. The name `devlayer` stays proposed.
 
 ## The fleet doctor
 
@@ -333,7 +357,8 @@ It fails on:
   `.envrc`)
 - a file that belongs to a retired concept (`gitman.toml`, `.repoman/project.toml`, a template
   answer that records a tool tag)
-- a stale devenv module in a repository's evaluation cache
+- an import in an overlay `devenv.local.nix` whose final path component is a symlink, or that has
+  no row in the repository's evaluation cache (W9)
 - a second family-tool node in the home lock
 - a personal tool on `PATH` from a second source (system profile, `~/.nix-profile`, a repository
   virtual environment)
@@ -360,7 +385,7 @@ Three project 21 questions get an answer or a proposal from this concept:
 3. **Eval-time modules.** The old Vendomat NixOS module installs
    `/run/current-system/sw/share/vendomat/{consumer-module.nix,machine.json}`. Nothing reads them
    today ([HOME-PORT](evidence/HOME-PORT.md)). If Vendomat later needs a host-side module, it uses
-   the home directory of this concept, with the directory-symlink rule.
+   the layer and the pointer file of this concept.
 
 nix-systems also needs a ruling. Its `nixos/home.nix` runs Home Manager as a NixOS module on
 purpose, so a system rollback also rolls back home state. This concept reverses that choice
@@ -453,8 +478,9 @@ Changes:
 - Export a `homeManagerModules.default`. Split `nix/nixos-module.nix` into shared options, a
   neutral service description, and two translators (NixOS and Home Manager). The Home Manager
   translator writes `systemd.user.*` in Home Manager form, `home.packages`, an explicit service
-  `PATH`, and the devlayer directory. `linger` stays on the machine.
-- Write the link module into the devlayer directory. Put the store path of `devman-link`, not
+  `PATH`, the layer directory, and the activation step that writes the pointer file. `linger` stays
+  on the machine.
+- Put the link module into the layer directory. Put the store path of `devman-link`, not
   `/run/current-system/sw/bin/devman-link`, into the module.
 - Remove the `agent` group, or port it to agentman's current interface.
 - Finish the linkman switch-over: devman calls the linkman command, and the old `devman_link`
@@ -478,8 +504,8 @@ Changes:
 
 ### The central overlay
 
-- Rewrite the 62 imports of `/run/current-system/sw/share/devman/link-module.nix` to the devlayer
-  path. All 62 files live in one repository, so this is one commit.
+- Rewrite the 62 imports of `/run/current-system/sw/share/devman/link-module.nix` to the pointer
+  file. All 62 files live in one repository, so this is one commit.
 - Keep only personal Testee setup (hooks that need sibling checkouts), if any.
 - Keep one canonical copy of each skill.
 - Remove or archive the 13 overlay directories with no repository.
@@ -526,12 +552,13 @@ before it exists, the phase's own check) is green.
    its 1 Gitman workspace for work that `main` lacks.
 3. **Make modules portable.** Add `lib/inventory.nix`. Remove hardcoded user facts from mnemonix,
    nix-paseo, and nixos-core. Replace the reads across the halves with constants.
-4. **Stand up the home.** Add devman's Home Manager module and the devlayer directory. Add
+4. **Stand up the home.** Add devman's Home Manager module, the layer directory, and the pointer
+   file. Add
    `homeConfigurations."andrew@server"`, and remove the Home Manager NixOS module in the same
    change. Keep `/run/current-system/sw/share/devman/link-module.nix` until phase 5 ends.
-5. **Move the import path.** This phase starts only after W9 explains the evaluation-cache
-   behaviour (owner ruling R11). Rewrite the 62 overlay imports. Check that every repository's shell
-   loads the module from the devlayer path.
+5. **Move the import path.** This phase starts only after W10 proves the pointer file (owner
+   rulings R11 and R12). Rewrite the 62 overlay imports. Check that every repository's shell
+   loads the module through the pointer, and that the fleet doctor passes.
 6. **Remove the fleet pins.** Release Testee's task mode, convert each repository's `testee.*`
    block into standard tasks, then remove the repository pins, one repository per change. The fleet doctor gates each change.
 7. **Move the machine.** As nix-systems matures, move each machine module out of nix-meta, with its
@@ -545,14 +572,14 @@ before it exists, the phase's own check) is green.
   repository at a time, and some repositories never show it. The fleet doctor and the home rollback
   make the new behaviour safer, but only if the owner runs the doctor.
 - **Testee gives one verdict per base task,** not one per tool.
-- **The `--refresh-eval-cache` hazard** stays real for any per-file link. The directory rule and the
-  doctor check must hold.
+- **devenv's evaluation cache stays a hazard.** Any import that ends in a symlink goes untracked.
+  The pointer file, the doctor check, and the pin fixture must hold together.
 
 ## Open questions
 
-A1 to A4 are ruled (R8 to R11, 2026-10-13). Open:
+A1 to A4 are ruled (R8 to R12, 2026-10-13). Open:
 
-1. The name of the devlayer directory, and the result of W9.
+1. The name and place of the layer and the pointer file; the result of W10.
 2. A6: whether the fleet doctor is a devman doctor mode or a separate command.
 3. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
 4. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
