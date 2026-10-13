@@ -79,8 +79,8 @@ with the spike results. These are not rulings.
 | A2 | Basix owns `install`. | — |
 | A3 | Module-only fork with `deferredModule`, offered upstream. | — |
 | A4 | The two activation commands now; the deployer watchdog later. | — |
-| A5 | Spike option 3 (W5). | W5 backed it with a change. The hook guards the disk on both paths, with `destroy = false` and a build-time check that every guarded disk keeps it. A mistaken remote install still kexecs a running machine and stops it; disk data stays safe. Open: keep 0005 in the 0003 binary, or accept that stop. Gaps: a custom disk in `devenv.nix` has no guard; multi-disk layouts need one guard over all disks. |
-| A6 | Option 2. | The module-only fork declares public `machines.NAME.build.iso` and `build.vm` options over `_nixosEval`, offered upstream. |
+| A5 | Option 3 with option 1 for 0005 (owner, 2026-10-13): the Basix disk layout carries the guard as a disko `preCreateHook` with `destroy = false` (replaces 0006); patch 0005 stays in the same binary as 0003. | Open gaps from W5: a build-time check that guarded disks keep `destroy = false`; no guard on a custom disk in `devenv.nix`; one guard over all disks in a multi-disk layout. |
+| A6 | Option 2. | W7 backs it ([W7](evidence/W7-BUILD-OPTIONS.md)) with design D1 (+21 lines): `build.vm` and `build.iso` typed `nullOr package`, so `devenv build` and `devenv build machines.NAME` do not build images; `build.iso` throws a named error when the machine has no ISO module. D2 (an ISO of any machine through `extendModules`, +42 lines) can follow as a second patch. |
 | A7 | The prebuilt core closure only, to start. | — |
 | A8 | Shell line, `explain`, and `_file`, plus a flag that hides the line. | Proposed: a `vendomat.yaml` key hides only the shell line; `explain` still shows all. |
 | A9 | An explicit YAML key whose default is "auto". | The "auto" default uses the W4 F4b detection. |

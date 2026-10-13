@@ -208,7 +208,10 @@ Vendomat adds the local path.
 - **ISO and VM builds.** `machines.NAME._nixosEval` is a readable internal option with the full
   NixOS evaluation. A module can expose `system.build.isoImage` and `system.build.vm` from it. The
   Basix ISO can then be a machine in the Basix repository, and every machine gets a test VM. W2
-  built and booted both (`outputs.iso` and `outputs.vm`).
+  built and booted both (`outputs.iso` and `outputs.vm`). The module-only fork makes them public
+  options, `machines.NAME.build.vm` and `machines.NAME.build.iso`, typed `nullOr package` so a plain
+  `devenv build` does not build images ([W7-BUILD-OPTIONS](evidence/W7-BUILD-OPTIONS.md), design D1).
+  `build.iso` needs an ISO module in the machine and names the machine when it is missing.
 - **The YAML machine table** maps `host`, `profile`, `capabilities`, `serve`, and `disk` to
   `target.host`, Basix modules, the cache module, and one fixed Basix disk layout.
 - **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
@@ -230,18 +233,20 @@ therefore needs no binary rebuild. Evidence: [W1-FORK-REVIEW](evidence/W1-FORK-R
 | 0002 | Update the latest devenv version file | Drop; a version mismatch only warns (`devenv.warnOnNewVersion = false` silences it) |
 | 0003 | Bootstrap reuses locked inputs in the store | **Keep** until PR #3244 merges and ships. Stock fails when the source is in the store, the fetcher cache is empty, and the remote is down |
 | 0004 | Build the CLI as a release | Drop; the nixpkgs devenv 2.4.0 is a release build |
-| 0005 | Refuse `machines install` of a machine that already runs | No hook can replace it: stock install kexecs the target before disko (W5 G4b). Keep it in the 0003 binary, or accept that a mistaken remote install stops a running machine; its disk stays safe |
+| 0005 | Refuse `machines install` of a machine that already runs | Keep, in the same binary as 0003 (owner, 2026-10-13). No hook can replace it: stock install kexecs the target before disko (W5 G4b) |
 | 0006 | Target preflight before disko | Replaced by a guard in the Basix disk layout's disko `preCreateHook`, with `destroy = false` (W5); runs on the local and the remote path |
 | 0007 | Inherit an imported source's inputs | Drop; the template lists the inputs |
 | 0008 | Copy a lazily mounted locked source into the store | Not reproduced; goes with 0003 |
 | 0009 | `vendomatFromYAML` primop | Drop; the Nix parser replaces it |
 | new | `nixos` as `deferredModule` | Needed. Ships in a module-only fork of the `devenv` input; offer upstream |
+| new | Public `machines.NAME.build.vm` and `build.iso` | Proposed (A6, W7 design D1, +21 lines). Same module-only fork; offer upstream |
 
 **Proposed shipping.** Hosts and the Basix ISO install `pkgs.devenv` from Vendomat's pinned
 nixpkgs: a release build from the public cache, the same binary everywhere. The workspace's
-`devenv` input points at a module-only fork (the `deferredModule` change and the version file). The
-template omits `require_version`. Until PR #3244 ships, a binary with patch 0003 remains the one
-binary fork; without it, a fresh machine with the remote down cannot enter a workspace.
+`devenv` input points at a module-only fork (the `deferredModule` change, the public `build.vm` and
+`build.iso` options, and the version file). The template omits `require_version`. Until PR #3244
+ships, the host binary is `pkgs.devenv` with patches 0003 and 0005 applied (owner leanings on A5 and
+A13, 2026-10-13); without 0003, a fresh machine with the remote down cannot enter a workspace.
 
 ## Carried from project 20
 
