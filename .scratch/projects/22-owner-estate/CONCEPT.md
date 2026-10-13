@@ -71,7 +71,7 @@ tool.
 | Tool | Class | Consequence |
 | --- | --- | --- |
 | devman, linkman, gitman, repoman, copyroom | Personal | No repository pins them. They come from the home. |
-| testee | Split | The check commands are project facts, in the repository's `base:*` tasks. The runner and its manifest are personal. |
+| testee | Personal | It runs the repository's standard tasks. The tasks and their commands are project facts (R10). |
 | agentman | Personal service | Its daemon is a home service. Its database is machine infrastructure. |
 | mancore | Project dependency | linkman and loci-core import it. They pin it in `pyproject.toml`, correctly. |
 | Vendomat | Project dependency, where used | A workspace that builds with `vendomat.yaml` needs Vendomat. It pins Vendomat in its own lock. |
@@ -142,7 +142,8 @@ The overlay already works. This concept adds three things to it:
 
 1. Each overlay `devenv.local.nix` imports the personal layer's devenv modules from the home path
    (see [The devenv import path](#the-devenv-import-path)).
-2. The owner's Testee manifest for a project moves here, from the repository.
+2. Personal setup for a project that only the owner needs, such as a Testee hook that needs sibling
+   checkouts.
 3. One canonical copy of each skill. The generated `repoman/SKILL.md` has 9 distinct contents
    across 22 project directories today.
 
@@ -259,20 +260,31 @@ repository defines what they do. A cloner runs the same tasks with no personal t
 per-project scripts (for example a Testee `prepare` hook that needs sibling checkouts) live in the
 project's overlay `devenv.local.nix`.
 
-**Testee.** The check commands move into `base:check` and `base:test` as plain commands. The
-owner's Testee manifest moves to the overlay, and its checks call the base tasks:
+**Testee** (owner ruling R10). Each repository defines a small fixed set of devenv tasks. They are
+project facts, and a cloner runs them with no personal tool:
 
-```nix
-# ~/.config/devman/projects/<name>/devenv.local.nix (proposed shape)
-testee.checks.check = [ "devenv" "tasks" "run" "base:check" ];
-testee.checks.test  = [ "devenv" "tasks" "run" "base:test" ];
-```
+| Task | Meaning | Called by |
+| --- | --- | --- |
+| `check:lint` | Lint | `base:check`; both Testee profiles |
+| `check:format` | Format check; never rewrites a file | `base:check`; both Testee profiles |
+| `check:types` | Type check | `base:check`; `testee verify` |
+| `test:quick` | Fast subset for the edit loop | `testee verify --profile quick` |
+| `test:full` | Full suite | `base:test`; `testee verify` |
 
-One definition of each command then exists. A repository cannot keep `testee.checks` in its own
-`devenv.nix` without the Testee input, because a cloner's evaluation fails on the undefined option
-([TOOL-CLASSES](evidence/TOOL-CLASSES.md)). **Proposed:** W4 must prove that Testee reads a
-manifest that only the overlay declares. The cost: Testee gives one verdict per base task, not one
-per tool.
+- Testee runs these task names against a clean checkout of the commit and keeps one verdict per
+  task. It needs no devenv module, no input, and no per-repository configuration.
+- The templates write each task as a placeholder. A placeholder prints how to configure it and
+  exits 78 (`EX_CONFIG`). Testee reports exit 78 as **not set up**, apart from green and red. A
+  placeholder never exits 0: a check that passes while it checks nothing is the failure this design
+  prevents.
+- A repository that has no use for a task replaces it with an explicit `exit 0` and a one-line
+  reason. Each task is therefore in one visible state: not set up, wired, or not applicable.
+- `base:check` and `base:test` chain to the standard tasks with `after`. Extra steps (`uv sync`, a
+  documentation build) hook into a standard task with `after`. No separate prepare step exists.
+- Personal setup that only the owner needs (for example a hook that needs sibling checkouts) lives
+  in the project's overlay `devenv.local.nix`.
+
+**Proposed:** W4 must prove the Testee change (task mode and the exit 78 state).
 
 ## The devenv import path
 
@@ -300,8 +312,9 @@ switch, with no error. This is the silent failure the design exists to prevent. 
 - The fleet doctor compares the module store path that each repository's evaluation cache recorded
   with the live one, and fails on a difference.
 
-The mechanism behind the directory result is not known (W1, inference only). W2 must repeat the
-measurement with a real Home Manager generation.
+The mechanism behind the directory result is not known (W1, inference only). Owner ruling R11
+makes the explanation a gate: W9 reads devenv's evaluation-cache source and explains both
+results, and W2 repeats the measurement with a real Home Manager generation.
 
 The new path must not be under `~/.local/share/devman/`. `devman doctor --prune` manages that
 root.
@@ -455,7 +468,7 @@ Changes:
 | Tool | Change |
 | --- | --- |
 | repoman | Its module moves to the home layer, imported once by the overlay. Its generated skill becomes one central copy. 18 repositories lose the input, the import, `repoman.enable`, and `.repoman/project.toml`. Its future as a separate tool is open (A9). |
-| testee | Installed by the home, not by an imperative `nix profile`. 22 repositories lose the input and the import. The 23 `testee.*` blocks move to the overlay as calls to `base:*`. |
+| testee | Installed by the home, not by an imperative `nix profile`. Gains task mode: it runs the standard tasks and reports exit 78 as "not set up". 22 repositories lose the input and the import. The 23 `testee.*` blocks become wired standard tasks. The devenv module retires. |
 | gitman | Installed by the home. The 62 `gitman.toml` files and the `.gitman/` leftovers go. `docs/USING_GITMAN.md` stops offering a per-repository pin. |
 | linkman | Installed by the home. Its broken lock is fixed: a new mancore tag, or mancore's current `main`. |
 | mancore | Cut a release; tag v0.1.0 is 18 commits behind `main`. Becomes the written command contract (rule 6). |
@@ -467,7 +480,7 @@ Changes:
 
 - Rewrite the 62 imports of `/run/current-system/sw/share/devman/link-module.nix` to the devlayer
   path. All 62 files live in one repository, so this is one commit.
-- Add the Testee manifests, as calls to the base tasks.
+- Keep only personal Testee setup (hooks that need sibling checkouts), if any.
 - Keep one canonical copy of each skill.
 - Remove or archive the 13 overlay directories with no repository.
 - Remove the `repoman` input from `~/.config/devman/devenv.yaml`.
@@ -479,7 +492,7 @@ starts stale.
 
 - **template-py:** remove the `repoman` and `testee` inputs and imports from the `devenv.yaml`
   template; remove `repoman.enable` and the `testee.*` block from the `devenv.nix` template; write
-  `base:check` and `base:test` as plain commands; remove the `.repoman/project.toml` template;
+  the five standard tasks as placeholders and chain `base:check` and `base:test` to them; remove the `.repoman/project.toml` template;
   remove `managers`, `repoman_ref`, and `testee_ref` from the nine `schema.py` files; cut the
   personal tool workflow from the static `AGENTS.md`; regenerate the goldens.
 - **template-nix:** remove the absolute-path `repoman` input (`repoman_dev_root`), the `devman`
@@ -491,8 +504,9 @@ starts stale.
 For each repository, in one change per repository:
 
 - Remove the personal-tool inputs and imports from `devenv.yaml`, and update `devenv.lock`.
-- Remove `repoman.enable` and the `testee.*` block from `devenv.nix`.
-- Make `base:check` and `base:test` run plain commands.
+- Remove `repoman.enable` from `devenv.nix`.
+- Convert the `testee.*` block into wired standard tasks; chain `base:check` and `base:test` to
+  them.
 - Delete `gitman.toml`, `.repoman/project.toml`, and template answers that record tool tags.
 
 [FLEET-INVENTORY](evidence/FLEET-INVENTORY.md) names the repositories for each item. These
@@ -515,10 +529,11 @@ before it exists, the phase's own check) is green.
 4. **Stand up the home.** Add devman's Home Manager module and the devlayer directory. Add
    `homeConfigurations."andrew@server"`, and remove the Home Manager NixOS module in the same
    change. Keep `/run/current-system/sw/share/devman/link-module.nix` until phase 5 ends.
-5. **Move the import path.** Rewrite the 62 overlay imports. Check that every repository's shell
+5. **Move the import path.** This phase starts only after W9 explains the evaluation-cache
+   behaviour (owner ruling R11). Rewrite the 62 overlay imports. Check that every repository's shell
    loads the module from the devlayer path.
-6. **Remove the fleet pins.** Add the overlay Testee manifests, then remove the repository pins,
-   one repository per change. The fleet doctor gates each change.
+6. **Remove the fleet pins.** Release Testee's task mode, convert each repository's `testee.*`
+   block into standard tasks, then remove the repository pins, one repository per change. The fleet doctor gates each change.
 7. **Move the machine.** As nix-systems matures, move each machine module out of nix-meta, with its
    VM test. nix-meta's `nixosConfigurations` then ends.
 
@@ -535,11 +550,10 @@ before it exists, the phase's own check) is green.
 
 ## Open questions
 
-A1 and A2 are ruled (R8, R9, 2026-10-13). Open:
+A1 to A4 are ruled (R8 to R11, 2026-10-13). Open:
 
-1. A3: the Testee split and the classification of each tool.
-2. A4: the name and place of the devlayer directory.
-3. A6: whether the fleet doctor is a devman doctor mode or a separate command.
-4. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
-5. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
-6. Whether devman's `agent` group is removed or ported.
+1. The name of the devlayer directory, and the result of W9.
+2. A6: whether the fleet doctor is a devman doctor mode or a separate command.
+3. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
+4. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
+5. Whether devman's `agent` group is removed or ported.

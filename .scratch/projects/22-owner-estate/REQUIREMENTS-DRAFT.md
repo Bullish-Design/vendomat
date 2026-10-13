@@ -41,16 +41,21 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Awaits o
 | `ESTATE-020` | Each repository manifest that a personal tool reads MUST carry a schema number. A tool MUST refuse an unknown schema with an error that names the file. | Concept rule 5 | Proposed |
 | `ESTATE-021` | A tool that reads configuration MUST resolve keys in this order: flag, repository manifest, project overlay, owner default, built-in default. The repository layer MUST accept a closed key set. | Concept; agentman's current behaviour | Proposed |
 | `ESTATE-022` | Tools MUST call fixed task names (`base:check`, `base:test`). The repository MUST own the task bodies, and they MUST run without a personal tool. | devman `groups/base/README.md` | Proposed |
-| `ESTATE-023` | The owner's Testee manifest MUST live in the project overlay, and its checks MUST call the base tasks. | [TOOL-CLASSES](evidence/TOOL-CLASSES.md) | Proposed; W4 |
+| `ESTATE-023` | The owner's Testee manifest MUST live in the project overlay, and its checks MUST call the base tasks. | [TOOL-CLASSES](evidence/TOOL-CLASSES.md) | Superseded by `ESTATE-025` to `ESTATE-028` (R10) |
 | `ESTATE-024` | A repository MUST NOT hold a copy of personal content (skills, tool configuration, generated skills). | Concept rule 7 | Proposed |
+| `ESTATE-025` | Each repository MUST define the tasks `check:lint`, `check:format`, `check:types`, `test:quick`, and `test:full`; `base:check` MUST chain to the `check:*` tasks and `base:test` to `test:full`. | R10 | Proposed |
+| `ESTATE-026` | A template MUST write each standard task as a placeholder that prints how to configure it and exits 78. A placeholder MUST NOT exit 0. | R10 | Proposed |
+| `ESTATE-027` | A repository MAY replace a standard task with an explicit exit 0 and a one-line reason ("not applicable"). | R10 | Proposed |
+| `ESTATE-028` | Testee MUST run the standard tasks by name, with no devenv module and no per-repository configuration, and MUST report exit 78 as "not set up", apart from pass and fail. | R10 | Proposed; W4 |
 
 ## Eval-time modules
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
-| `ESTATE-030` | The home MUST install the eval-time devenv modules under one user directory, outside `~/.local/share/devman/`. | Concept | Awaits owner ruling (A4) |
+| `ESTATE-030` | The home MUST install the eval-time devenv modules under one user directory, outside `~/.local/share/devman/`. | R11 | Proposed (ruled; name open) |
 | `ESTATE-031` | The home MUST link that directory as one directory symlink, never file by file. | [W1](evidence/W1-DEVLAYER-PATH.md) F4 (directory link picked up); F3 and F5 (file links stale) | Fixture pass (simulated tree); W2 for real Home Manager |
 | `ESTATE-032` | A per-file symlink to a store file MUST be treated as stale after a switch. | [W1](evidence/W1-DEVLAYER-PATH.md) F3, F5 | Observed gap (devenv 2.4.0 evaluation cache) |
+| `ESTATE-034` | No repository MAY import from the devlayer directory before a record explains, from devenv's source, why a directory-symlink change invalidates the evaluation cache and a file-symlink change does not. | R11 | Proposed; W9 |
 | `ESTATE-033` | A module in the directory MUST name its commands by store path, not by a system profile path. | [HOME-PORT](evidence/HOME-PORT.md) (`modules/link.nix:71`) | Proposed |
 
 ## Fleet doctor
