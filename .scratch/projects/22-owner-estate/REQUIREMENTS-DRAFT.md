@@ -23,13 +23,14 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Awaits o
 | `ESTATE-003` | The home layer MUST be standalone Home Manager, one `homeConfigurations."<user>@<machine>"` per user and machine. No machine MAY run Home Manager as a NixOS module. | R3, R8 | Proposed (ruled; implementation unproved) |
 | `ESTATE-004` | nix-meta MUST hold the homes; nix-systems MUST hold the machines. | R2, R4, R9 | Proposed (ruled; implementation unproved) |
 | `ESTATE-005` | The machine layer MUST NOT install or pin a personal tool. | Concept rule 2 | Proposed |
+| `ESTATE-006` | The machine layer MUST hold the platform: the patched devenv binary and the `vendomat` launcher. The home MUST NOT install either. | R13; project 21 R22, R31 | Proposed (ruled) |
 
 ## Pins
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
 | `ESTATE-010` | A personal tool MUST appear in exactly one lock: the home lock. A flake check MUST fail on a second node for a family tool. | Concept rule 1; nix-meta lock holds 3 devman, 2 gitman, 2 repoman nodes today | Proposed |
-| `ESTATE-011` | A project repository MUST NOT declare a personal-tool input, import, or option. | R1; [TOOL-CLASSES](evidence/TOOL-CLASSES.md) | Awaits owner ruling (A3) |
+| `ESTATE-011` | A project repository MUST NOT declare a personal-tool input, import, or option. | R1; [TOOL-CLASSES](evidence/TOOL-CLASSES.md); project 21 `VMT-112` (R33) | Awaits owner ruling (A3) |
 | `ESTATE-012` | A personal input MUST come from the collection at a release tag. No input MAY use `git+file://`, `path:`, or a branch ref. | Project 21 collection rule | Awaits owner ruling (A5) |
 | `ESTATE-013` | A tool under development MUST reach the repositories through `--override-input` on the home switch, never through a repository file. | Concept | Proposed; W2 |
 | `ESTATE-014` | A project dependency (for example mancore in linkman) MAY be pinned in the repository. | Clone test | Proposed |

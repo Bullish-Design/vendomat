@@ -21,6 +21,7 @@ changed.
 | R10 | The clone test classifies every tool. Testee becomes fully personal: it runs a fixed set of standard devenv tasks that each repository defines. Templates write the tasks as placeholders. A placeholder prints how to configure it and exits 78; Testee reports that as "not set up". A repository may mark a task "not applicable" with an explicit exit 0 and a reason. `base:check` and `base:test` chain to the standard tasks. | "A3: Agreed, lets move to this approach." "How about testee just pre-populates with a few different test and check tasks (test:full, test:quick, check:lint, check:format, etc) that are template generated as placeholders that just print an instructional "how to configure this" message, and its up to the user to wire them up how they want? No programmatic requirements, just make it clear to the user if its set up or not. Simple and flexible is the goal." "Agreed on the A3 refinements." | Rules A3, refined. Supersedes the overlay Testee manifest (`ESTATE-023`). Concept section "Per-project configuration". |
 | R11 | The home links the devenv modules as one directory (option 3 of four). Amended by R12. The reason it works must be found and recorded before the design relies on it. | "A4: Agreed on option 3, though we should investigate how/why it actually works rather than just assume we'll be good to continue using it." | Rules A4. W9 is a gate on migration phase 5. The directory name `devlayer` stays proposed. |
 | R12 | Amends R11. The home builds the layer as one store directory, and Home Manager activation writes one real pointer file outside the store that names the layer's store path. Overlay `devenv.local.nix` files import the pointer. | "Yes, agreed on the R11 change." (after W9 found the directory link incidental and the planned `linkFarm` layout stale) | Supersedes the directory-link form of R11. W10 proves it before phase 5. [W9](evidence/W9-EVAL-CACHE.md). |
+| R13 | The patched devenv binary and the `vendomat` launcher belong to the machine layer. They are the platform, not personal tools. | "Yes, please make those updates" (after the summary of project 21's final rulings, 2026-10-13) | Follows project 21 R22 and R31. Corrects the concept, which listed devenv under the home. |
 
 ## Recommendations awaiting a ruling
 
@@ -32,11 +33,11 @@ changed.
 | A4 | **Ruled (R11, amended by R12).** The home installs the eval-time devenv modules under one directory, `~/.local/share/devlayer/`, linked as one directory symlink. The fleet doctor checks for a stale module in each evaluation cache. | [W1](evidence/W1-DEVLAYER-PATH.md): a per-file link stays stale; a directory link is picked up. Path name proposed. |
 | A5 | Personal inputs come from the collection by tag. No `git+file://`, `path:`, or branch ref. Development uses `--override-input`. | Project 21 collection rule. Today nix-meta has 7 `git+file://` inputs, 1 `path:` input, and 7 floating refs. |
 | A6 | The fleet doctor is a devman doctor mode, `devman doctor --fleet`. | devman doctor is already the one check of the whole plane. |
-| A7 | Offer three proposals to project 21: the clone test answers its A1; a standalone home is a native target or outside Vendomat; host-side modules use the devlayer directory. | Concept section "Relation to project 21". |
-| A8 | nix-meta is a plain flake, or a light flake-parts flake. Not the dendritic pattern, not snowfall-lib. | [NIX-PATTERNS-RESEARCH](evidence/NIX-PATTERNS-RESEARCH.md). |
+| A7 | **Answered by project 21 R33, R35, and R36 (2026-10-13).** Offer three proposals to project 21: the clone test answers its A1; a standalone home is a native target or outside Vendomat; host-side modules use the devlayer directory. | Concept section "Relation to project 21". |
+| A8 | Project 21 R35 rules out a Vendomat workspace for homes. nix-meta is a plain flake, or a light flake-parts flake. Not the dendritic pattern, not snowfall-lib. | [NIX-PATTERNS-RESEARCH](evidence/NIX-PATTERNS-RESEARCH.md). |
 | A9 | repoman's remaining work (roster wiring and one generated skill) becomes part of the overlay and devman. repoman stops being a separate tool. | Its module adds two variables, one script, two packages, and one task; nothing in any project's build or test depends on it ([TOOL-CLASSES](evidence/TOOL-CLASSES.md)). |
 | A10 | Remove devman's `agent` group, or port it to agentman's current commands. It targets `agentman run --request` and the `agentman.devman/v1` contract, which agentman deleted on 2026-09-18. | Commit `072aed0` in agentman. |
-| A11 | Remove the old Vendomat NixOS module and its `share/vendomat` files from nix-meta. | No file reads them ([HOME-PORT](evidence/HOME-PORT.md)). |
+| A11 | Confirmed in direction by project 21 R36 (`VMT-123`). Remove the old Vendomat NixOS module and its `share/vendomat` files from nix-meta. | No file reads them ([HOME-PORT](evidence/HOME-PORT.md)). |
 
 ## Ideas recorded, not pursued now
 
@@ -45,5 +46,10 @@ changed.
   ([NIX-PATTERNS-RESEARCH](evidence/NIX-PATTERNS-RESEARCH.md)).
 - `nix profile` for the personal tools. It conflicts with Home Manager on the same user. Testee is
   installed this way today; the home replaces it.
+- A curated `release` branch per personal tool, fast-forward only, as Vendomat uses for itself
+  (project 21, carried from project 20). `nix flake update` would then take each tool's newest
+  release. Recorded as the alternative to A5's tags; tags name the version, so A5 keeps them.
+- A third devenv binary patch that tracks a symlinked import by its path as written (W9). The
+  pointer file makes it unnecessary; it needs a project 21 ruling (`VMT-105`).
 - One monorepo for all personal tools. Each tool keeps its own repository and release; the home
   lock is the one place that selects versions.

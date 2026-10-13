@@ -10,7 +10,7 @@ structure of nix-meta, aligned with project 21. The [concept](projects/22-owner-
 divides the estate into four layers: machine (nix-systems, devenv Machines), home (nix-meta,
 standalone Home Manager, which carries the personal tools), overlay (`~/.config/devman`), and
 project (tracked facts only). No project repository pins a personal tool. The
-[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R12 (R8 to R12 rule A1
+[decisions](projects/22-owner-estate/DECISIONS.md) hold owner rulings R1 to R13 (R8 to R12 rule A1
 to A4) and recommendations A1 to A11. The [plan](projects/22-owner-estate/PLAN.md) names the next work (W2 to W8). A draft
 [ledger](projects/22-owner-estate/REQUIREMENTS-DRAFT.md) uses the prefix `ESTATE-`.
 
@@ -21,9 +21,10 @@ ruling R12 therefore imports the home's devenv modules through one real pointer 
 Manager activation rewrites.
 
 No production code, consumer, or machine changed. Project 22 states where each part of the estate
-lives. Project 21 stays the authority for the Vendomat and Basix products. Where the two meet (the
-pin topology, a standalone home target, host-side modules), project 22 makes proposals that await a
-ruling in project 21.
+lives. Project 21 stays the authority for the Vendomat and Basix products. Project 21 answered
+project 22's three proposals with R33 (pin layout), R35 (homes outside Vendomat), and R36 (no
+host-side module). Project 22 ruling R13 puts the patched devenv binary and the `vendomat` launcher
+in the machine layer.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 

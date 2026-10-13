@@ -104,8 +104,11 @@ The machine layer holds what needs root or describes hardware:
 - root services: Postgres and its roles, atticd, the git daemon that serves the collection, the
   atuin server, the Hindsight service, Paseo, SilverBullet, the inferference router
 - Nix daemon settings, such as substituters and trusted users
+- the platform: the patched devenv binary (project 21 R22, R31) and the `vendomat` launcher
+  (owner ruling R13). Every workspace needs them, including a workspace that someone else clones,
+  and `vendomat apply` needs root.
 
-**The machine holds no version of a personal tool.** The home and the machine then cannot disagree
+**The machine holds no version of a personal tool.** The platform is not a personal tool. The home and the machine then cannot disagree
 about a tool, and a machine rollback never changes a tool.
 
 The machine follows project 21: machines are devenv Machines on a pinned devenv (project 21
@@ -370,27 +373,34 @@ directory.
 
 Project 22 adopts project 21's machine path, its tag-pinned collection, and its rules "native
 first", "one value, one place", and "Vendomat packages no one else's tools". Project 21 states the
-Vendomat and Basix products. Project 22 states where each part of the owner's estate lives.
+Vendomat and Basix products, and its design is final (2026-10-13). Project 22 states where each part
+of the owner's estate lives.
 
-Three project 21 questions get an answer or a proposal from this concept:
+Project 21 answered the three proposals of this concept:
 
-1. **Pin topology (project 21 A1, open).** The clone test answers it. A workspace that builds with
-   `vendomat.yaml` needs Vendomat, so Vendomat pins correctly in that workspace's `devenv.lock`.
-   The personal tools never enter a workspace lock. The two models coexist.
-2. **The home target.** Project 21 models Home Manager only inside a machine
-   (`machines.NAME.home-manager`, carried from project 19, "Home Manager inside the NixOS role").
-   Project 22 needs a standalone home. Proposal for project 21: treat a standalone home as a native
-   target next to a machine, or state that homes are outside Vendomat. The "native first" rule
-   favours standalone Home Manager as it is.
-3. **Eval-time modules.** The old Vendomat NixOS module installs
-   `/run/current-system/sw/share/vendomat/{consumer-module.nix,machine.json}`. Nothing reads them
-   today ([HOME-PORT](evidence/HOME-PORT.md)). If Vendomat later needs a host-side module, it uses
-   the layer and the pointer file of this concept.
+| Proposal | Project 21 answer |
+| --- | --- |
+| The clone test settles the pin topology | **R33** (`VMT-112`): a workspace that builds with `vendomat.yaml` pins Vendomat in its own `devenv.lock`; a personal tool never enters a workspace lock. |
+| A standalone home is a native target, or outside Vendomat | **R35** (`VMT-122`): homes stay outside Vendomat. The catalog maps no home key; devenv's native `machines.NAME.home-manager` is reachable only through the escape hatch. A two-command alias may later make a home switch look native. |
+| Host-side modules use the layer and the pointer file | **R36** (`VMT-123`): Vendomat ships no host-side module. A workspace gets Vendomat only through its own lock. The project 14 `consumer-module.nix` and `machine.json` go with the project 14 code. The pointer file stays a project 22 idea, for the personal layer only. |
 
-nix-systems also needs a ruling. Its `nixos/home.nix` runs Home Manager as a NixOS module on
-purpose, so a system rollback also rolls back home state. This concept reverses that choice
-(owner ruling R8). The reason: rule 2 removes the risk that the shared rollback guards against,
-and the owner wants home changes without a system rebuild.
+Other project 21 rulings that shape this concept:
+
+- **R22, R31, slice S2:** hosts and the Basix ISO install `pkgs.devenv` from Vendomat's pinned
+  nixpkgs with patches 0003 and 0005. Switching the host to that binary is an owner gate. Owner
+  ruling R13 of this project therefore puts the devenv binary and the `vendomat` launcher in the
+  machine layer.
+- **R34:** Vendomat opens no upstream pull request, so the patched devenv binary is long-lived.
+  A binary patch that tracks a symlinked import by its path as written would fix W9's finding at
+  the source. Project 22 does not depend on it: the pointer file works on stock devenv. Such a patch
+  needs a project 21 ruling, because `VMT-105` fixes the patch set.
+- **R19 (`VMT-093`):** in a Vendomat workspace, the overlay `devenv.local.nix` is a hatch file, and
+  shell entry prints an `advanced:` line for it. A personal setting hides that line.
+
+nix-systems runs Home Manager as a NixOS module on purpose, so a system rollback also rolls back
+home state. Owner ruling R8 reverses that choice, and project 21 R35 agrees: homes stay outside
+Vendomat. The reason: rule 2 removes the risk that the shared rollback guards against, and the
+owner wants home changes without a system rebuild.
 
 Basix is a learner distribution and is not built. It is outside the owner's personal layer. If
 Basix later offers capabilities the owner wants, nix-systems consumes them as machine inputs.
@@ -414,8 +424,9 @@ modules/home/         terminal, atuin, agent, devlayer, mnemonix: one concern ea
 checks/               evaluate each home; one node per family tool in flake.lock; module tests
 ```
 
-Outputs: `homeConfigurations."andrew@<machine>"`, `homeModules.*`, and `checks`. Use a plain
-flake, or flake-parts to remove per-system boilerplate. The dendritic pattern gains most when one
+Outputs: `homeConfigurations."andrew@<machine>"`, `homeModules.*`, and `checks`. nix-meta stays a
+flake: project 21 R35 keeps homes outside Vendomat, so a Vendomat workspace is not an option for it.
+Use a plain flake, or flake-parts to remove per-system boilerplate. The dendritic pattern gains most when one
 file spans NixOS and Home Manager, and this split removes that need. snowfall-lib's own README
 says it is effectively unmaintained ([NIX-PATTERNS-RESEARCH](evidence/NIX-PATTERNS-RESEARCH.md)).
 
@@ -425,7 +436,7 @@ Changes:
   `machines/server.nix:30`) with one standalone `homeConfigurations."andrew@server"`. Do it in one
   change. Never run both.
 - Move the user-level content of `terminal.nix`, `developer.nix`, `agent.nix`, and `mnemonix.nix`
-  into `modules/home/`. Move `claude-code`, `codex`, and `zellij` from `environment.systemPackages`
+  into `modules/home/`. The devenv binary is the exception: it moves to the machine (R13). Move `claude-code`, `codex`, and `zellij` from `environment.systemPackages`
   to `home.packages`.
 - Replace the reads across the halves with constants or shared packages:
   - `terminal.nix:22` reads `config.users.users.<user>.uid`; use a constant UID, set on the machine
@@ -582,5 +593,7 @@ A1 to A4 are ruled (R8 to R12, 2026-10-13). Open:
 1. The name and place of the layer and the pointer file; the result of W10.
 2. A6: whether the fleet doctor is a devman doctor mode or a separate command.
 3. A9: whether repoman stays a separate tool or becomes part of devman's overlay.
-4. Whether project 21 accepts the three proposals in [Relation to project 21](#relation-to-project-21).
-5. Whether devman's `agent` group is removed or ported.
+4. Whether devman's `agent` group is removed or ported (A10).
+5. A5, A8, and A11: recommendations ready for a ruling.
+
+Project 21 answered A7 with R33, R35, and R36.
