@@ -66,7 +66,7 @@ the decisions file), then the slices. S3 is done except its release step (see pr
 
 S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is published at `git://server/devenv?ref=refs/tags/v2.4.0-vendomat-modules.1&dir=src/modules`, and Vendomat's flake has it as input `devenv` ([evidence](projects/21-vendomat-basix-split/evidence/S1-MODULE-FORK.md)).
 
-S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The host switch is prepared, not applied ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
+S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The owner approved the host switch (R48). nix-meta `main` `cf8ef3cc` installs the binary; the owner still runs `nixos-rebuild switch` ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
 
 **Basix now lives in `~/Documents/Projects/basix`** (moved 2026-10-13). Its design, the `BSX-` ledger, and
 its plan are in that repository, under `.scratch/projects/001-initial-concept/`. The project 21 files here keep

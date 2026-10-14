@@ -186,7 +186,22 @@ Adding these run IDs to this file changed the tree again. A last `verify --profi
 
 ## Host switch (owner gate)
 
-Prepared, not applied. See below.
+The owner approved the switch on 2026-10-14 (R48). Not applied yet: the switch needs the owner's
+password.
+
+- Change: nix-meta `main` `cf8ef3cc` (pushed). New input `vendomat-host`
+  (`git+file:///home/andrew/Documents/Projects/vendomat?rev=465ce48f…`). `profiles/developer.nix`
+  takes `pinnedDevenv` from `inputs.vendomat-host.packages.<system>.devenv`.
+- Evaluation: the home package list of `server` holds
+  `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0`, the S2 path under the GC root.
+- Build: `nix build .#nixosConfigurations.server.config.system.build.toplevel` gave
+  `/nix/store/mqsc6x484fbvj2dmk6nmhsspnpvnrjwa-nixos-system-server-26.11.20260705.d407951`, out link
+  `~/.local/state/vendomat/roots/server-host-devenv-switch`. It built 30 small derivations and no devenv.
+- `nix store diff-closures /run/current-system` to that path: `devenv-wrapped: 2.4.0 → ∅`,
+  `devenv: ∅ → 2.4.0`, and the libraries of the patched build (Nix 2.35 libraries, `curl`, `xz`,
+  `libgit2` and others). No service or unit changed.
+- Switch: `sudo nixos-rebuild switch --flake ~/Documents/Projects/nix-meta#server`.
+- Rollback: `sudo nixos-rebuild switch --rollback` (the previous NixOS generation).
 
 ## Raw logs
 

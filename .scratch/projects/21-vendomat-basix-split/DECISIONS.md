@@ -54,6 +54,9 @@ No production code, consumer, or machine changed.
 | R43 | D6, option a: each machine keeps an append-only `/var/lib/vendomat/generations.jsonl`, one line per apply (generation, toplevel, commit, dirty flag, time). `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses clean entries only. | as R40 | `VMT-098`, `VMT-110`. |
 | R44 | D7, option a: the module fork's tags are `v2.4.0-vendomat-modules.N`. | as R40 | `VMT-082`. |
 | R45 | D8, option a: the environment variable `VENDOMAT_HIDE_ADVANCED=1` hides the shell `advanced:` line. | as R40 | `VMT-093`. |
+| R46 | An exit status 4 of `switch-to-configuration` is a warning. `apply` and `rollback` write the record line and print the warning. | "1. confirmed" (2026-10-14, answer to the project 24 report) | `VMT-162` is ruled. |
+| R47 | The owner commits each machine's public cache key as `.machines/NAME/cache-key.pub`. A bare `apply` writes the file and asks for a commit. | "2. Confirmed" (2026-10-14) | `VMT-157` and `VMT-161` are ruled. |
+| R48 | Switch the host to the S2 binary. | "4. Confirmed, let me know if theres something I need to do" (2026-10-14) | nix-meta `main` `cf8ef3cc` installs it. The owner runs the switch (it needs a password). |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
 recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
