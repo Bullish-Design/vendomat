@@ -30,6 +30,20 @@ project 22's three proposals with R33 (pin layout), R35 (homes outside Vendomat)
 host-side module). Project 22 ruling R13 puts the patched devenv binary and the `vendomat` launcher
 in the machine layer.
 
+## Implementation: projects 23 and 24 (run in parallel)
+
+Two sessions implement the project 21 design. Each starts from its kickoff file. Project 21 stays
+the design authority and holds the slice evidence.
+
+- [Project 23](projects/23-vendomat-fork-and-binary/KICKOFF.md): S1, the module-only devenv fork
+  (tag `v2.4.0-vendomat-modules.1`, R44), and S2, the host devenv binary (no Attic, R39). The host
+  switch waits for the owner.
+- [Project 24](projects/24-vendomat-catalog-and-machines/KICKOFF.md): S3, the catalog, template,
+  commands, and Harmonia sharing module, and S4, `vendomat apply` and `vendomat rollback`, proved
+  in VMs. A Vendomat release waits for the owner.
+
+Neither has started. Each kickoff lists the files its session owns.
+
 ## Final design: project 21 — Vendomat and Basix, separated
 
 **The design is final as of 2026-10-13.** R39 (2026-10-13): the new system configures no Attic;
