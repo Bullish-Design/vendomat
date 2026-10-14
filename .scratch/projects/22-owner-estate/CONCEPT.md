@@ -277,17 +277,21 @@ project facts, and a cloner runs them with no personal tool:
 - Testee runs these task names against a clean checkout of the commit and keeps one verdict per
   task. It needs no devenv module, no input, and no per-repository configuration.
 - The templates write each task as a placeholder. A placeholder prints how to configure it and
-  exits 78 (`EX_CONFIG`). Testee reports exit 78 as **not set up**, apart from green and red. A
-  placeholder never exits 0: a check that passes while it checks nothing is the failure this design
+  exits 78 (`EX_CONFIG`). Its body holds the line `TESTEE_NOT_SET_UP <task>`. Testee reads the
+  evaluated task body and reports the placeholder as **not set up**, apart from green and red (R16:
+  devenv returns 1 for every failing task, so exit 78 never reaches Testee). A placeholder never exits 0: a check that passes while it checks nothing is the failure this design
   prevents.
 - A repository that has no use for a task replaces it with an explicit `exit 0` and a one-line
   reason. Each task is therefore in one visible state: not set up, wired, or not applicable.
 - `base:check` and `base:test` chain to the standard tasks with `after`. Extra steps (`uv sync`, a
   documentation build) hook into a standard task with `after`. No separate prepare step exists.
-- Personal setup that only the owner needs (for example a hook that needs sibling checkouts) lives
-  in the project's overlay `devenv.local.nix`.
+- A verdict covers the tree only (R16). The overlay and sibling checkouts do not reach Testee's
+  workspace. A test that needs them changes: a sibling becomes an input or a fixture, or the test
+  skips with a reason. Personal setup for interactive work still lives in the overlay.
+- `testee verify <task>` runs any other defined task by name, for opt-in checks. Only the four
+  required tasks decide green (R16).
 
-**Proposed:** W4 must prove the Testee change (task mode and the exit 78 state).
+**Reviewed:** the W4 review and its experiments are in Testee `.scratch/projects/10-task-mode/` (`REVIEW.md`, `DECISIONS-NEEDED.md`). R16 rules its first four decisions.
 
 ## The devenv import path
 

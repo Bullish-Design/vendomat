@@ -17,7 +17,7 @@ and the item here gets the ruling number. Do not renumber an item.
 | OI-06 | devman's `agent` group (A10) | Phase 2 | Recommendation ready |
 | OI-07 | The order of removing the old Vendomat module (A11) | Phase 2 | Recommendation ready |
 | OI-08 | Today's stale import of devman's link module | Nothing; a live defect | Done and verified after the switch |
-| OI-09 | Testee task-mode details | W4, phase 6 | Recommendation ready |
+| OI-09 | Testee task-mode details | W4, phase 6 | Partly ruled (R16); D5 to D9 open in the Testee review |
 | OI-10 | When the devenv binary moves to the machine (R13) | Phase 4, phase 7 | Recommendation ready |
 | OI-11 | mancore's future | linkman, the doctor contract | Recommendation ready |
 | OI-12 | Where shared values of machine and home pairs live | W8, phase 3 | Recommendation ready |
@@ -271,6 +271,11 @@ details of the change stay open.
   (a); move a setting to the overlay only when a repository needs it.
 - **Profiles.** `testee verify` runs `check:*` and `test:full`; `--profile quick` runs
   `check:lint`, `check:format`, and `test:quick`. No other profile until a need appears.
+
+**Update 2026-10-13.** The W4 review (Testee `.scratch/projects/10-task-mode/` (`REVIEW.md`, `DECISIONS-NEEDED.md`)) measured devenv 2.4.0. Running a task
+by `devenv tasks run` per task stays (option a). R16 rules the placeholder detection, opt-in tasks,
+tree-only verdicts, and structured files. The per-check settings point stays open as D5 there: a
+built-in time limit per task, plus an optional `input.testee.timeout_s` in the task.
 
 ---
 

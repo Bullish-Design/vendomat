@@ -45,9 +45,9 @@ implementation gate), **Observed gap** (a fixture shows a shortfall), **Awaits o
 | `ESTATE-023` | The owner's Testee manifest MUST live in the project overlay, and its checks MUST call the base tasks. | [TOOL-CLASSES](evidence/TOOL-CLASSES.md) | Superseded by `ESTATE-025` to `ESTATE-028` (R10) |
 | `ESTATE-024` | A repository MUST NOT hold a copy of personal content (skills, tool configuration, generated skills). | Concept rule 7 | Proposed |
 | `ESTATE-025` | Each repository MUST define the tasks `check:lint`, `check:format`, `check:types`, `test:quick`, and `test:full`; `base:check` MUST chain to the `check:*` tasks and `base:test` to `test:full`. | R10 | Proposed |
-| `ESTATE-026` | A template MUST write each standard task as a placeholder that prints how to configure it and exits 78. A placeholder MUST NOT exit 0. | R10 | Proposed |
+| `ESTATE-026` | A template MUST write each standard task as a placeholder that prints the line `TESTEE_NOT_SET_UP <task>`, prints how to configure it, and exits 78. A placeholder MUST NOT exit 0. | R10, R16 | Proposed |
 | `ESTATE-027` | A repository MAY replace a standard task with an explicit exit 0 and a one-line reason ("not applicable"). | R10 | Proposed |
-| `ESTATE-028` | Testee MUST run the standard tasks by name, with no devenv module and no per-repository configuration, and MUST report exit 78 as "not set up", apart from pass and fail. | R10 | Proposed; W4 |
+| `ESTATE-028` | Testee MUST run the standard tasks by name, with no devenv module and no per-repository configuration, and MUST report a placeholder as "not set up", apart from pass and fail. Testee MUST find the placeholder from the evaluated task body, because devenv returns 1 for every failing task. Only `check:lint`, `check:format`, `check:types`, and `test:full` decide green; any other task MAY be verified by name. | R10, R16 | Proposed; W4 reviewed |
 
 ## Eval-time modules
 
