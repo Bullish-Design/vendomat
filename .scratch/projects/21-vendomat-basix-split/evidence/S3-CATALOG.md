@@ -4,8 +4,7 @@
 
 Slice S3 of the [implementation guide](../IMPLEMENTATION-GUIDE.md), run as project 24
 (`.scratch/projects/24-vendomat-catalog-and-machines/KICKOFF.md`). Raw logs are under
-`~/.local/state/vendomat/p21/2026-10-14/` (`LOGS` below). Nothing in this file is a release. See
-"Release state".
+`~/.local/state/vendomat/p21/2026-10-14/` (`LOGS` below). The release is in the "Release" section.
 
 ## Result
 
@@ -36,7 +35,7 @@ PASS (run `20261014T175348Z-cf8cc4dcb781`). Its `test:full` junit file reads 572
 Later commit: `79e46310ef30` wires the sharing module into the catalog (section "Catalog wiring of
 sharing"): GREEN 4/4, tree `54b47faf7b`.
 
-Step of the guide not done in S3: step 14 (release, an owner gate).
+Step 14 (release) is done. See "Release".
 
 ## Inputs and tree
 
@@ -402,9 +401,28 @@ the claim, but no fixture boots a VM built through the catalog (see `VMT-121`).
 11. **`opt:workspace-e2e`.** Fails on the missing `templateer` binary (environment gap).
 12. **Cleanup.** `/mnt/shared/vendomat-p21/s3` still exists when this record was written. The main agent decides when to delete it.
 
-## Release state
+## Release
 
-**Not released. Step 14 (the release) is an owner gate.** Nobody tagged Vendomat or moved `release`
-in the collection. Before the ask: rerun the fixtures on the published S1 tag and run `opt:front-door-e2e`,
-then show the owner the version, the diff since the last release, and the results. The row
-`VMT-020` ("pin through a published lock") stays open until then.
+The owner approved the release in session on 2026-10-14. The main agent pushed tag `v0.8.0` and
+`release` (fast-forward from `d3c279e0`) to the collection at
+`e5923a8f5c0f0f81f3c0926dc2cf32887f6f6ba3`.
+
+- `nix flake prefetch --json 'git://server/vendomat?ref=release'` and
+  `nix flake prefetch --json 'git://server/vendomat?ref=refs/tags/v0.8.0'` both give rev `e5923a8f`.
+  Store path: `/nix/store/sgy0hysb0x2d8x69219pivkrn8j3si53-source`. narHash:
+  `sha256-uMjKMWlHTnNFaW9oQBlyTsOU9+RqmLf4R8EWsCz7UtA=`.
+- Pre-release proof on a local channel: `~/.local/state/vendomat/p21/2026-10-14/s3/release/`
+  (`RELEASE-PROPOSAL.md`, `proof/`). A throwaway `git daemon` served the tree. A shell entered with
+  stock devenv 2.4.0+b904dcb, and the lock pinned `devenv` to the S1 tag rev `061c2184`.
+- Real-channel smoke, PASS on every step:
+  `~/.local/state/vendomat/p21/2026-10-14/s3/release-smoke/RESULT.md`.
+  1. Disk check: 28.87 GiB unallocated, metadata 79.5 %.
+  2. `nix build 'git://server/vendomat?ref=refs/tags/v0.8.0#launcher'`: two small derivations, 3 s.
+     The launcher's built-in devenv is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0`.
+     This is the S2 patched binary.
+  3. `vendomat new smoke-ws`, then `vendomat shell`: rc 0, `devenv 2.4.0`. The stock PATH devenv
+     2.4.0+b904dcb also entered the shell, and `devenv.lock` stayed unchanged. The lock records
+     `vendomat` at ref `release`, rev `e5923a8f`, and `devenv` at the S1 tag rev `061c2184`.
+  4. `programs: - ripgrep` gave `rg` 15.2.0 in the shell. `vendomat explain` and
+     `vendomat update --check` both returned rc 0.
+- `VMT-020` ("pin through a published lock") now has this smoke as proof.

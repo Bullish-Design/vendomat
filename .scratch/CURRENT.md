@@ -40,17 +40,17 @@ the design authority and holds the slice evidence.
   switch waits for the owner.
 - [Project 24](projects/24-vendomat-catalog-and-machines/KICKOFF.md): S3, the catalog, template,
   commands, and Harmonia sharing module, and S4, `vendomat apply` and `vendomat rollback`, proved
-  in VMs. A Vendomat release waits for the owner.
+  in VMs. Done; v0.8.0 is published. See [REPORT](projects/24-vendomat-catalog-and-machines/REPORT.md).
 
 Each kickoff lists the files its session owns.
 
-**Project 24 state, 2026-10-14.** S3 is on `main` (commits `ccd419ddee93`, `b43d23e6b9cb`,
-`b575e4f424b0`, `845172f0768f`, `79e46310ef30`; the repository runs Testee 0.8 tasks since `bd7baeb06b1a`). It is done
-except step 14, the release, which is an owner gate: nobody tagged Vendomat or moved `release`. The
-catalog wiring of the sharing module landed in `79e46310ef30` (proved at evaluation level). The fixtures ran on a scratch S1
-tree, not on a published tag. Evidence:
-[S3-CATALOG](projects/21-vendomat-basix-split/evidence/S3-CATALOG.md). S4 (`vendomat apply` and `vendomat rollback`) is done and proved in a VM
-([S4-APPLY-ROLLBACK](projects/21-vendomat-basix-split/evidence/S4-APPLY-ROLLBACK.md)). Next: the release gate. The opt-in checks are `opt:NAME` tasks in `nix/tasks.nix`.
+**Project 24 state, 2026-10-14.** S3 and S4 are done and on `main`. Vendomat v0.8.0 is published on
+`release` at `e5923a8f` (tag `v0.8.0`; owner approval in session). The repository runs Testee 0.8 tasks
+since `bd7baeb06b1a`. The fixtures ran on the published S1 tag. Report:
+[REPORT](projects/24-vendomat-catalog-and-machines/REPORT.md). Evidence:
+[S3-CATALOG](projects/21-vendomat-basix-split/evidence/S3-CATALOG.md) and
+[S4-APPLY-ROLLBACK](projects/21-vendomat-basix-split/evidence/S4-APPLY-ROLLBACK.md). The opt-in
+checks are `opt:NAME` tasks in `nix/tasks.nix`.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
