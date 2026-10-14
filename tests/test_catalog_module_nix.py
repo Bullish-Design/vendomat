@@ -379,6 +379,31 @@ def test_serve_sets_no_other_option(tmp_path: Path):
     assert out == {"hostName": "a", "host": None, "facter": ".machines/a/facter.json", "mode": None}
 
 
+def test_a_machine_with_no_value_takes_every_default(tmp_path: Path):
+    # R51, VMT-170: every machine key has a default, so `NAME:` alone declares a machine.
+    out = summary(tmp_path, "machines:\n  laptop:\n  server: # all defaults\n")
+    for name in ("laptop", "server"):
+        assert out["machines"][name] == {
+            "hostName": name,
+            "host": None,
+            "facter": f".machines/{name}/facter.json",
+            "mode": None,
+        }
+        assert out["sharing"][name]["serve"] is True
+    assert out["serve"] == {"laptop": True, "server": True}
+
+
+@pytest.mark.parametrize(
+    ("text", "where"),
+    [("machines:\n", "1:10"), ("env:\n  A:\n", "2:5"), ("languages:\n  python:\n", "2:10")],
+    ids=["machines", "env", "language"],
+)
+def test_no_value_outside_a_machine_entry_still_fails(tmp_path: Path, text: str, where: str):
+    result = evaluate(tmp_path, text)
+    assert result.returncode != 0
+    assert f'vendomat.yaml:{where}: no value; write "" for an empty text' in result.stderr
+
+
 ALPHA_KEY = "alpha:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 GAMMA_KEY = "gamma:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
 

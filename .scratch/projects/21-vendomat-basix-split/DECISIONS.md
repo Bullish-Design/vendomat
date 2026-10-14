@@ -56,6 +56,7 @@ No production code, consumer, or machine changed.
 | R45 | D8, option a: the environment variable `VENDOMAT_HIDE_ADVANCED=1` hides the shell `advanced:` line. | as R40 | `VMT-093`. |
 | R46 | An exit status 4 of `switch-to-configuration` is a warning. `apply` and `rollback` write the record line and print the warning. | "1. confirmed" (2026-10-14, answer to the project 24 report) | `VMT-162` is ruled. |
 | R47 | The owner commits each machine's public cache key as `.machines/NAME/cache-key.pub`. A bare `apply` writes the file and asks for a commit. | "2. Confirmed" (2026-10-14) | `VMT-157` and `VMT-161` are ruled. |
+| R51 | A machine entry with no value (`machines:` then `laptop:`) is an empty map, so the machine takes every default. Every other key with no value still fails with `no value`. The parser stays strict by default; the catalog names the one path (`machines.NAME`) where no value is an empty map. A list item never takes the exception. | "Great, lets go for option 2" (2026-10-14, after the options for `VMT-160`) | `VMT-170` supersedes `VMT-012` in part and closes the gap `VMT-160`. Basix imports the same parser (R38) and names its own paths. R49 and R50 are left to the `p21-contracts` session. |
 | R48 | Switch the host to the S2 binary. | "4. Confirmed, let me know if theres something I need to do" (2026-10-14) | nix-meta `main` `cf8ef3cc` installs it. The owner runs the switch (it needs a password). |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every

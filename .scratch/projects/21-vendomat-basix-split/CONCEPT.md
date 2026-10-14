@@ -88,7 +88,7 @@ These YAML features are not allowed:
 | Flow style | `[a, b]`, `{a: 1}` | block lists and maps |
 | Block scalars and multi-line plain text | `\|`, `>` | one quoted line with `\n` |
 | Document markers, several documents | `---`, `...` | one document per file |
-| Empty values | `key:` | `key: ""` |
+| Empty values (except a machine entry, R51) | `key:` | `key: ""` |
 | Duplicate keys | `a:` twice in one map | one key |
 | A colon-space in plain text | `note: a: b` | `note: "a: b"` |
 | A list on the key's line | `programs: - ripgrep` | start the list on the next line |
@@ -96,6 +96,9 @@ These YAML features are not allowed:
 | Escapes other than `\"` `\\` `\n` `\t` | `"A"` | the character itself |
 | Plain keys that start with a digit or hold a space | `3d: x` | quote the key |
 | A byte order mark | | UTF-8 without a BOM |
+
+One empty value is allowed: a machine entry with no value (`laptop:`) is an empty map, so the machine
+takes every default (R51, `VMT-170`). Every other key with no value fails.
 
 Errors read `vendomat.yaml:LINE:COL: reason`. Two gaps remain: a file nested about 800 levels deep
 fails with a Nix error that does not name the file (`VMT-013`), and a fault of a schema-checked

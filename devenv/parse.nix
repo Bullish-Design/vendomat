@@ -13,7 +13,9 @@
 # A plain map value must not start with `- ` or be `-`: a list starts on the next line.
 #
 # Use: `(import ./parse.nix) "vendomat.yaml" text`. The first argument is the file name for the error
-# lines. The call returns an attribute set:
+# lines. It can also be a set `{ file; emptyMapAt; }`. `emptyMapAt PATH` returns true for the key paths
+# where a key with no value is an empty map (R51, VMT-170). Everywhere else a key with no value fails with
+# `no value`. A list item with no value always fails. The call returns an attribute set:
 #   value      The parsed tree: maps, lists, and text.
 #   positions  The side table of positions (see below). Nothing forces it until a caller reads it.
 #   at         `at PATH` returns { key; value; } for a key path, or null. PATH is a list of text: the map
@@ -26,8 +28,11 @@
 # Nesting limit: a file may nest maps and lists up to 64 levels. The top map is level 1. A deeper
 # file fails with `FILE:LINE:COL: nesting deeper than 64 levels` at its first row of level 65. Nix would
 # overflow its stack at about 800 levels, with an error that names no file (VMT-013).
-file: text:
+spec: text:
 let
+  file = if builtins.isAttrs spec then spec.file else spec;
+  emptyMapAt = if builtins.isAttrs spec then spec.emptyMapAt or (_: false) else (_: false);
+
   inherit (builtins) elem elemAt length match stringLength substring split filter isString isList head tail
     genList foldl' seq fromJSON toJSON tryEval concatLists;
 
@@ -204,20 +209,22 @@ let
       else if isPre x ind then null
       else bad "inconsistent tabs and spaces";
 
-  # `d` is the level of the block. The top map is level 1.
-  block = i: ind: d:
+  # `d` is the level of the block. The top map is level 1. `p` is the key path of the block.
+  block = i: ind: d: p:
     if d > maxDepth then fail (at i).line ((at i).off + 1) "nesting deeper than ${toString maxDepth} levels"
-    else if isItem (at i).text then list i ind d
-    else mapping i ind d;
+    else if isItem (at i).text then list i ind d p
+    else mapping i ind d p;
 
   # The block under a key or an item at level `d`. Result: { value; next; pos } like a block.
-  child = i: ind: n: c: d:
-    if i < m && isPre ind (at i).ind then block i (at i).ind (d + 1)
+  # `p` is the key path of the key or the item. With no block, `empty` decides: an empty map, or a fault.
+  child = i: ind: n: c: d: p: empty:
+    if i < m && isPre ind (at i).ind then block i (at i).ind (d + 1) p
     else if i < m && (at i).ind != ind && !(isPre (at i).ind ind) then fail (at i).line ((at i).off + 1) "inconsistent tabs and spaces"
+    else if empty then { value = { }; next = i; pos = { }; }
     else fail n c ''no value; write "" for an empty text'';
 
   # A loop over the rows of a list. `acc` holds the items, `pos` the entries of the side table.
-  list = i: ind: d:
+  list = i: ind: d: p:
     let
       more = st: st.key < m && (at st.key).ind == ind;
       step = st:
@@ -236,13 +243,13 @@ let
         in
         if !isItem s then fail n (c + 1) "expected a list item"
         else if rest == "" || substring 0 1 rest == "#" then
-          let v = child (i' + 1) ind n (c + 1) d; in push v.value v.next here v.pos
+          let v = child (i' + 1) ind n (c + 1) d (p ++ [ name ]) false; in push v.value v.next here v.pos
         else push (scalar n (c + 2 + skip) rest) (i' + 1) (loc n (c + 2 + skip)) { };
       done = loop more step { key = i; acc = [ ]; pos = { }; };
     in
     seq (stop done.key ind) { value = done.acc; next = done.key; pos = done.pos; };
 
-  mapping = i: ind: d:
+  mapping = i: ind: d: p:
     let
       more = st: st.key < m && (at st.key).ind == ind;
       step = st:
@@ -274,7 +281,11 @@ let
         else if after != "" && substring 0 1 after != " " then fail n (c + 1) "expected a space after ':'"
         else if st.seen ? ${key} then fail n (c + 1) "duplicate key '${key}'; first on line ${toString st.seen.${key}}"
         else if body == "" || substring 0 1 body == "#" then
-          let v = child (i' + 1) ind n (c + 1 + clen (substring 0 (keyEnd + 1) s)) d; in put v.value v.next here v.pos
+          let
+            p' = p ++ [ key ];
+            v = child (i' + 1) ind n (c + 1 + clen (substring 0 (keyEnd + 1) s)) d p' (emptyMapAt p');
+          in
+          put v.value v.next here v.pos
         else if dashValue body then fail n bodyCol "a list must start on the next line"
         else put (scalar n bodyCol body) (i' + 1) (loc n bodyCol) { };
       done = loop more step { key = i; acc = { }; seen = { }; pos = { }; };
@@ -288,7 +299,7 @@ let
       let r = at 0; in
       if r.ind != "" then fail r.line (r.off + 1) "unexpected indentation"
       else if isItem r.text then fail r.line 1 "the file must be a map"
-      else mapping 0 "" 1;
+      else mapping 0 "" 1 [ ];
 
   # The entry of the side table for a key path, or null.
   entryAt = path:

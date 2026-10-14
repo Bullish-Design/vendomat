@@ -27,9 +27,11 @@ let
 
   # --- Parse once ----------------------------------------------------------------------------
   # `parsed.value` is the tree. `parsed.at PATH` gives the position of a key path.
+  # A machine entry with no value (`laptop:`) is an empty map: every machine key has a default (R51).
+  emptyMapAt = p: builtins.length p == 2 && builtins.head p == "machines";
   parsed =
     if builtins.pathExists path
-    then (import ./parse.nix) file (builtins.readFile path)
+    then (import ./parse.nix) { inherit file emptyMapAt; } (builtins.readFile path)
     else { value = { }; at = _: null; };
   raw = parsed.value;
 

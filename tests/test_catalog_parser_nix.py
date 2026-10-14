@@ -36,6 +36,11 @@ NAME = "vendomat.yaml"
 LIMIT = 64
 
 EVAL = "{ parser, name, f }: (import parser name (builtins.readFile f))"  # the caller appends a selection
+# The catalog's call (R51): a key with no value under `machines` is an empty map.
+MACHINES = 'p: builtins.length p == 2 && builtins.head p == "machines"'
+EVAL_EMPTY_MACHINES = (
+    "{ parser, name, f }: (import parser { file = name; emptyMapAt = " + MACHINES + "; } (builtins.readFile f))"
+)
 
 
 def expected(group: str) -> dict[str, dict]:
@@ -48,9 +53,9 @@ def error_text(stderr: str) -> str:
     return next((line.strip() for line in tail.splitlines() if line.strip()), "NO-ERROR-TEXT: " + stderr[-300:])
 
 
-def parse_file(path: Path, *, name: str = NAME, select: str = ".value") -> dict:
+def parse_file(path: Path, *, name: str = NAME, select: str = ".value", expr: str = EVAL) -> dict:
     """Parse a file with the parser. Result: {"ok": JSON} or {"err": FIRST_ERROR_LINE}."""
-    argv = ["nix-instantiate", "--eval", "--strict", "--json", "--expr", f"{EVAL}{select}"]
+    argv = ["nix-instantiate", "--eval", "--strict", "--json", "--expr", f"{expr}{select}"]
     argv += ["--arg", "parser", str(PARSER), "--argstr", "name", name, "--argstr", "f", str(path)]
     result = run(argv, path.parent)
     if result.returncode == 0:
@@ -249,6 +254,41 @@ def test_positions_leave_the_value_unchanged(tmp_path: Path):
     assert parse_text(tmp_path, "") == {"ok": {}}
     assert parse_text(tmp_path, "", select=".positions") == {"ok": {}}
     assert parse_text(tmp_path, "a: 1\n", select=".positions.a.key") == {"ok": "1:1"}
+
+
+NO_VALUE = 'no value; write "" for an empty text'
+
+
+@needs_nix_fixture
+def test_a_key_with_no_value_fails_by_default(tmp_path: Path):
+    # VMT-012: the plain call keeps the strict grammar, also for a machine entry.
+    assert parse_text(tmp_path, "machines:\n  laptop:\n") == {"err": f"vendomat.yaml:2:10: {NO_VALUE}"}
+
+
+@needs_nix_fixture
+def test_the_caller_names_the_paths_where_no_value_is_an_empty_map(tmp_path: Path):
+    # R51, VMT-170. `emptyMapAt` makes `machines.NAME` with no value an empty map.
+    text = "machines:\n  laptop:\n  box: # all defaults\n  server:\n    serve: false\nenv:\n  A: b\n"
+    got = parse_text(tmp_path, text, expr=EVAL_EMPTY_MACHINES)
+    assert got == {"ok": {"machines": {"laptop": {}, "box": {}, "server": {"serve": "false"}}, "env": {"A": "b"}}}
+    # An empty map has its value position at its key, like any map.
+    pos = parse_text(tmp_path, text, expr=EVAL_EMPTY_MACHINES, select='.at [ "machines" "laptop" ]')
+    assert pos == {"ok": {"key": "2:3", "value": "2:3", "sub": {}}}
+
+
+@pytest.mark.parametrize(
+    ("text", "where"),
+    [
+        ("machines:\n", "1:10"),  # the `machines` key itself
+        ("env:\n  A:\n", "2:5"),  # a key outside `machines`
+        ("machines:\n  laptop:\n    serve:\n", "3:11"),  # a key inside a machine entry
+        ("machines:\n  -\n", "2:3"),  # a list item never takes the exception
+    ],
+    ids=["machines", "env", "machine-key", "list-item"],
+)
+@needs_nix_fixture
+def test_no_value_still_fails_outside_a_machine_entry(tmp_path: Path, text: str, where: str):
+    assert parse_text(tmp_path, text, expr=EVAL_EMPTY_MACHINES) == {"err": f"vendomat.yaml:{where}: {NO_VALUE}"}
 
 
 def test_error_text_helper_reads_the_line_after_the_last_error():
