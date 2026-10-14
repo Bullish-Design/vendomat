@@ -15,6 +15,17 @@ from vendomat.cli import app
 from vendomat.record import RecordError, read_entries
 
 
+def no_committer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make Git unable to name a committer: no identity in the environment, and no guess from the host."""
+    for name in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "user.useConfigOnly")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "true")
+
+
 def lines(machine: Machine) -> list[dict]:
     return [json.loads(line) for line in machine.record.read_text().splitlines()]
 
@@ -77,23 +88,177 @@ def test_apply_makes_a_new_generation_for_a_new_system_and_none_for_the_same_one
 
 
 @pytest.mark.parametrize("name", ["vendomat.yaml", "devenv.lock", "devenv.nix"])
-def test_apply_refuses_an_uncommitted_change_and_runs_nothing(tmp_path: Path, name: str):
+def test_apply_commits_a_changed_watched_file_after_build(tmp_path: Path, name: str):
     root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
     (root / name).write_text("changed\n")
     machine = Machine(tmp_path / "m")
-    with pytest.raises(RecordError, match=f"modified: {name}") as info:
-        apply(root, emit=lambda _: None, **machine.kwargs())
-    assert info.value.code == 1
-    assert machine.calls == [] and not machine.record.exists()
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert machine.calls[0][1:] == ["build", "machines.box.build.nixos"]
+    assert git(root, "rev-parse", "HEAD") != before
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == [name]
+    assert git(root, "status", "--porcelain") == ""
+    assert result.commit == git(root, "rev-parse", "HEAD")
 
 
-def test_apply_refuses_an_untracked_and_an_ignored_hatch_file(tmp_path: Path):
+def test_apply_builds_then_commits_configuration_then_activates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ changed = true; }\n")
+    machine = Machine(tmp_path / "m")
+    order: list[str] = []
+    build = apply_module.build_toplevel
+    commit = apply_module.workspace.commit_watched
+    activate = apply_module.activate
+
+    def ordered_build(*args, **kwargs):
+        order.append("build")
+        return build(*args, **kwargs)
+
+    def ordered_commit(*args, **kwargs):
+        order.append("commit")
+        return commit(*args, **kwargs)
+
+    def ordered_activate(*args, **kwargs):
+        order.append("activate")
+        return activate(*args, **kwargs)
+
+    monkeypatch.setattr(apply_module, "build_toplevel", ordered_build)
+    monkeypatch.setattr(apply_module.workspace, "commit_watched", ordered_commit)
+    monkeypatch.setattr(apply_module, "activate", ordered_activate)
+    apply(root, emit=lambda _: None, **machine.kwargs())
+    assert order == ["build", "commit", "activate"]
+
+
+def test_apply_refuses_an_ignored_hatch_file_even_with_dirty(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     (root / "devenv.local.nix").write_text("{ }\n")  # ignored by the workspace .gitignore
     machine = Machine(tmp_path / "m")
-    with pytest.raises(RecordError, match="ignored: devenv.local.nix"):
-        apply(root, emit=lambda _: None, **machine.kwargs())
+    with pytest.raises(RecordError, match="Force-add them with `git add -f`"):
+        apply(root, dirty_ok=True, emit=lambda _: None, **machine.kwargs())
     assert machine.calls == []
+
+
+def test_apply_commits_a_force_added_ignored_hatch_file(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.local.nix").write_text("{ local = true; }\n")
+    git(root, "add", "-f", "devenv.local.nix")
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.local.nix"]
+    assert result.commit == git(root, "rev-parse", "HEAD")
+
+
+def test_apply_commits_an_untracked_watched_file(tmp_path: Path):
+    # R49: a new hatch file that Git does not ignore is part of the configuration.
+    root = make_workspace(tmp_path / "ws", {".gitignore": ".devenv*\n"})
+    (root / "devenv.local.nix").write_text("{ local = true; }\n")
+    assert git(root, "status", "--porcelain") == "?? devenv.local.nix"
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "show", "--format=", "--name-status", "HEAD").splitlines() == ["A\tdevenv.local.nix"]
+    assert git(root, "status", "--porcelain") == "" and result.commit == git(root, "rev-parse", "HEAD")
+
+
+def test_apply_commits_a_deleted_watched_file(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.lock").unlink()
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "show", "--format=", "--name-status", "HEAD").splitlines() == ["D\tdevenv.lock"]
+    assert git(root, "status", "--porcelain") == "" and result.commit == git(root, "rev-parse", "HEAD")
+    assert lines(machine)[0]["toplevel"] == machine.build_path(root)  # built without the file
+
+
+def test_apply_from_a_subdirectory_workspace_commits_the_change(tmp_path: Path):
+    # `git status` names paths from the repository top. Without the prefix strip, apply saw no change and
+    # recorded the old commit for a state that it had built from the edited files (R43).
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    sub.mkdir()
+    for name in ("vendomat.yaml", "devenv.lock", "devenv.nix"):
+        (sub / name).write_text((top / name).read_text())
+    git(top, "add", "-A")
+    git(top, "commit", "--quiet", "-m", "workspace in a subdirectory")
+    (sub / "devenv.nix").write_text("{ x = 5; }\n")
+    machine = Machine(tmp_path / "m")
+    result = apply(sub, emit=lambda _: None, **machine.kwargs())
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix"]
+    assert result.commit == git(top, "rev-parse", "HEAD") == lines(machine)[0]["commit"]
+
+
+def test_apply_makes_no_commit_when_the_staged_change_was_reverted(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    git(root, "add", "devenv.nix")
+    (root / "devenv.nix").write_text("{ }\n")  # the status reads `MM`; the content equals HEAD
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") == before == result.commit
+    assert lines(machine)[0]["commit"] == before
+
+
+def test_apply_refuses_before_the_build_without_a_committer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    no_committer(monkeypatch)
+    machine = Machine(tmp_path / "m")
+    with pytest.raises(RecordError, match="git cannot name a committer.*Nothing was built"):
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert machine.calls == [] and not machine.record.exists()
+
+
+def test_apply_does_not_need_a_committer_when_it_commits_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = make_workspace(tmp_path / "ws")
+    no_committer(monkeypatch)
+    machine = Machine(tmp_path / "m")
+    assert apply(root, emit=lambda _: None, **machine.kwargs()).generation == 1
+
+
+def test_apply_works_on_a_detached_head(tmp_path: Path):
+    # A jj-colocated checkout is always detached. Apply must not refuse it.
+    root = make_workspace(tmp_path / "ws")
+    git(root, "checkout", "--quiet", "--detach")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert result.commit == git(root, "rev-parse", "HEAD")
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
+
+
+@pytest.mark.parametrize("dirty", [False, True])
+def test_a_watched_file_edited_during_the_build_is_not_committed_or_activated(tmp_path: Path, dirty: bool):
+    root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    machine = Machine(tmp_path / "m")
+    original = machine.run
+
+    def run(argv, **kw):
+        result = original(argv, **kw)
+        if argv[0].endswith("devenv") and argv[1] == "build":
+            (root / "devenv.nix").write_text("{ x = 2; }\n")  # the owner saves again while the build runs
+        return result
+
+    machine.run = run  # ty: ignore[invalid-assignment]
+    with pytest.raises(RecordError, match="devenv.nix changed during the build.*Nothing was committed or activated"):
+        apply(root, dirty_ok=dirty, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") == before
+    assert [call[1] for call in machine.calls] == ["build"]
+    assert not machine.record.exists() and not machine.profile.exists()
+
+
+def test_a_config_commit_stays_when_activation_fails_later(tmp_path: Path):
+    # D9: the commit records the configuration that the owner asked for. A failed switch does not undo it.
+    root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "devenv.nix").write_text("{ x = 7; }\n")
+    machine = Machine(tmp_path / "m", fail={"switch-to-configuration"})
+    with pytest.raises(RecordError, match="The configuration commit stays; apply again to retry"):
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") != before
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
+    assert git(root, "status", "--porcelain") == "" and not machine.record.exists()
 
 
 def test_apply_ignores_a_change_to_a_file_that_is_not_watched(tmp_path: Path):
@@ -115,15 +280,32 @@ def test_apply_with_dirty_goes_on_and_marks_the_line(tmp_path: Path):
     assert any(line.startswith("warning: applying uncommitted changes") for line in said)
     # The system is built from the edited file, not from the commit.
     assert entry["toplevel"] == machine.build_path(root)
+    assert git(root, "status", "--porcelain") == "M devenv.nix"
 
 
 def test_a_failed_build_changes_nothing(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "devenv.nix").write_text("{ x = 9; }\n")
     machine = Machine(tmp_path / "m", fail={"build"})
     with pytest.raises(RecordError, match="devenv build machines.box.build.nixos failed") as info:
         apply(root, emit=lambda _: None, **machine.kwargs())
     assert info.value.code == 2
+    assert git(root, "rev-parse", "HEAD") == before
+    assert git(root, "status", "--porcelain") == "M devenv.nix"
     assert not machine.record.exists() and not machine.profile.exists()
+
+
+def test_apply_commits_only_watched_paths_and_preserves_other_staged_files(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ x = 4; }\n")
+    (root / "notes.txt").write_text("later\n")
+    git(root, "add", "notes.txt")
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
+    assert git(root, "status", "--porcelain") == "M  notes.txt"
+    assert result.commit == git(root, "rev-parse", "HEAD")
 
 
 def test_a_failed_switch_writes_no_record_and_says_how_to_go_back(tmp_path: Path):
@@ -189,15 +371,21 @@ def test_apply_with_the_name_of_another_machine_runs_the_devenv_deploy(tmp_path:
     assert machine.calls == []
 
 
-def test_the_cli_maps_a_refusal_to_exit_status_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_the_cli_refuses_an_ignored_watched_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = make_workspace(tmp_path / "ws")
-    (root / "devenv.nix").write_text("changed\n")
+    (root / "devenv.local.nix").write_text("{ }\n")
     machine = Machine(tmp_path / "m")
     monkeypatch.setattr("vendomat.cli.machine_name", lambda: "box")
     monkeypatch.setattr(apply_module, "FACTS_PATH", machine.facts)
     result = CliRunner().invoke(app, ["apply", "--root", str(root)])
     assert result.exit_code == 1
-    assert "vendomat apply: uncommitted changes to watched files" in result.output
+    assert "vendomat apply: ignored configuration file(s) are present" in result.output
+
+
+def test_apply_help_describes_configuration_commits_and_dirty_mode():
+    result = CliRunner().invoke(app, ["apply", "--help"])
+    assert result.exit_code == 0
+    assert "committing them" in result.output and "must still be force-added" in result.output
 
 
 def test_the_cli_maps_a_missing_workspace_to_exit_status_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

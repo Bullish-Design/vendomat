@@ -177,7 +177,7 @@ def rollback(
     try:
         if fast:
             assert chosen is not None
-            commit = workspace.commit_restore(root, f"rollback to {target_short}")
+            commit = workspace.commit_restore(root, f"rollback to {target_short}", exact=exact)
             applied = activate(
                 run,
                 chosen.entry.toplevel,
@@ -191,7 +191,7 @@ def rollback(
         else:
             top = build_toplevel(root, name, run)
             emit(f"built {top}")
-            commit = workspace.commit_restore(root, f"rollback to {target_short}")
+            commit = workspace.commit_restore(root, f"rollback to {target_short}", exact=exact)
             applied = activate(run, top, commit, False, emit, profile=profile, record=record)
     except RecordError:
         # A restore that is neither committed nor applied must not stay in the tree.

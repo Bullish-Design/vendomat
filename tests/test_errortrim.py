@@ -57,6 +57,17 @@ def test_a_fault_line_that_sits_in_the_trace_still_comes_first():
     ]
 
 
+def test_a_basix_yaml_fault_line_is_kept_first():
+    raw = sample("basix-yaml-faults.txt")
+    expected = [
+        "basix.yaml:3:14: flow style is not accepted",
+        "malformed Basix machine catalog",
+        "at /ws/devenv.nix:4:7",
+    ]
+    assert errortrim.trim(raw).splitlines() == expected
+    assert bash_trim(FIXTURES / "basix-yaml-faults.txt").splitlines() == expected
+
+
 def test_a_failure_without_yaml_lines_shows_the_message_and_its_place():
     assert errortrim.trim(sample("nix-syntax.txt")).splitlines() == [
         "syntax error, unexpected ';'",
@@ -87,7 +98,7 @@ def test_a_log_directory_that_cannot_be_written_gives_none(tmp_path: Path, monke
     assert errortrim.save_log("explain", "x") is None
 
 
-@pytest.mark.parametrize("name", ["yaml-faults.txt", "nix-syntax.txt"])
+@pytest.mark.parametrize("name", ["yaml-faults.txt", "basix-yaml-faults.txt", "nix-syntax.txt"])
 def test_the_launcher_and_the_python_command_trim_the_same_way(name: str):
     assert bash_trim(FIXTURES / name) == errortrim.trim(sample(name))
 

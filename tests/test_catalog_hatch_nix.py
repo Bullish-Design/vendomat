@@ -142,6 +142,24 @@ machines:
     assert report["nix"] == []
 
 
+def test_explain_maps_machine_programs_to_the_machine_system_packages(tmp_path: Path):
+    # The key `machines.NAME.programs` sets `machines.NAME.nixos.environment.systemPackages`, which devenv merges.
+    yaml = "machines:\n  box:\n    programs:\n      - ripgrep\n      - hello\n"
+    report = read(tmp_path, "explain", yaml=yaml, nix="{ }\n", local="{ }\n")
+    entry = {e["key"]: e for e in report["yaml"]}["machines.box.programs"]
+    assert entry["option"] == "machines.box.nixos.environment.systemPackages"
+    assert entry["value"] == ["ripgrep", "hello"]
+    assert entry["files"] == ["vendomat.yaml"]
+    assert (entry["line"], entry["column"]) == (3, 5)
+    assert report["nix"] == []
+    # A hatch file that adds packages to the same machine joins the list of files.
+    nix = "{ pkgs, ... }: { machines.box.nixos.environment.systemPackages = [ pkgs.jq ]; }\n"
+    report = read(tmp_path, "explain", yaml=yaml, nix=nix, local="{ }\n", load=True)
+    entry = {e["key"]: e for e in report["yaml"]}["machines.box.programs"]
+    assert entry["files"] == ["vendomat.yaml", "devenv.nix"]
+    assert entry["value"] == ["ripgrep", "hello"]
+
+
 def test_explain_names_the_file_that_wins_and_lists_the_options_only_nix_sets(tmp_path: Path):
     # R27: a `mkForce` in devenv.nix replaces vendomat.yaml as the source; a merged option lists both files.
     (tmp_path / "extra.nix").write_text('{ env.EXTRA = "e"; }\n')

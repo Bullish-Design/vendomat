@@ -109,6 +109,45 @@ env:
     assert bare == {"channel": "nixpkgs", "enable": True, "version": "latest"}
 
 
+def test_machine_programs_map_to_nixos_packages_separately_from_top_level_programs(tmp_path: Path):
+    out = summary(
+        tmp_path,
+        "programs:\n  - jq\nmachines:\n  learner:\n    programs:\n      - ripgrep\n      - hello\n",
+    )
+    assert out["packages"] == ["jq"]
+    assert out["machines"]["learner"]["programs"] == ["ripgrep", "hello"]
+
+
+def test_machine_programs_resolve_with_the_package_set_of_the_machine(tmp_path: Path):
+    # The stub gives a machine a `pkgs` where `jq` is `hello`. The workspace `pkgs` has the real `jq`.
+    out = summary(tmp_path, "programs:\n  - jq\nmachines:\n  learner:\n    programs:\n      - jq\n")
+    assert out["packages"] == ["jq"]
+    assert out["machines"]["learner"]["programs"] == ["hello"]
+
+
+def test_a_machine_program_is_still_checked_against_the_workspace_packages(tmp_path: Path):
+    # The check reads the workspace `pkgs`, so a name that only the machine's set has is still a fault.
+    result = evaluate(tmp_path, "machines:\n  learner:\n    programs:\n      - not-a-package-7319\n")
+    assert result.returncode != 0 and "unknown program" in result.stderr
+
+
+def test_machines_that_is_not_a_map_names_the_file_and_position(tmp_path: Path):
+    # A raw Nix type error (`attrNames` on a string) once hid this message.
+    result = evaluate(tmp_path, "machines: foo\n")
+    assert result.returncode != 0
+    assert fault_lines(result.stderr) == ['vendomat.yaml:1:11: machines must be a map, found "foo"']
+    assert "expected a set" not in result.stderr
+
+
+def test_an_unknown_machine_program_names_its_yaml_file_and_position(tmp_path: Path):
+    result = evaluate(tmp_path, "machines:\n  learner:\n    programs:\n      - vendomat-no-such-package-7319\n")
+    assert result.returncode != 0
+    lines = fault_lines(result.stderr)
+    assert len(lines) == 1
+    assert lines[0].startswith("vendomat.yaml:4:")
+    assert 'machines.learner.programs[0]: unknown program "vendomat-no-such-package-7319"' in lines[0]
+
+
 @pytest.mark.parametrize("text", [None, ""], ids=["no-file", "empty-file"])
 def test_a_missing_or_empty_file_is_an_empty_catalog(tmp_path: Path, text: str | None):
     out = summary(tmp_path, text)
@@ -211,7 +250,10 @@ def test_no_home_key_exists(tmp_path: Path):
     top = evaluate(tmp_path, "home:\n  user: andrew\n")
     assert "vendomat.yaml:1:1: home: unknown key" in top.stderr
     inner = evaluate(tmp_path, "machines:\n  box:\n    home: andrew\n")
-    assert "vendomat.yaml:3:5: machines.box.home: unknown key (known: host, mode, serve, virtual)" in inner.stderr
+    assert (
+        "vendomat.yaml:3:5: machines.box.home: unknown key (known: host, mode, programs, serve, virtual)"
+        in inner.stderr
+    )
 
 
 # --- Python -------------------------------------------------------------------------------------
@@ -376,7 +418,15 @@ def test_a_bad_serve_value_fails_with_its_position(tmp_path: Path):
 def test_serve_sets_no_other_option(tmp_path: Path):
     # `serve` feeds the sharing module only. The other machine options keep their values.
     out = summary(tmp_path, 'machines:\n  a:\n    serve: "false"\n')["machines"]["a"]
-    assert out == {"hostName": "a", "host": None, "facter": ".machines/a/facter.json", "mode": None}
+    assert out == {
+        "hostName": "a",
+        "host": None,
+        "facter": ".machines/a/facter.json",
+        "mode": None,
+        "programs": [],
+        "globalPorts": [],
+        "trustedPorts": [],
+    }
 
 
 def test_a_machine_with_no_value_takes_every_default(tmp_path: Path):
@@ -388,6 +438,9 @@ def test_a_machine_with_no_value_takes_every_default(tmp_path: Path):
             "host": None,
             "facter": f".machines/{name}/facter.json",
             "mode": None,
+            "programs": [],
+            "globalPorts": [],
+            "trustedPorts": [],
         }
         assert out["sharing"][name]["serve"] is True
     assert out["serve"] == {"laptop": True, "server": True}
@@ -486,6 +539,49 @@ def test_the_nix_files_can_override_the_sharing_values(tmp_path: Path):
     )
     assert clash.returncode != 0
     assert "vendomat.sharing.serve" in clash.stderr
+
+
+def test_sharing_defaults_closed_and_opens_only_a_marked_interface(tmp_path: Path):
+    default = summary(tmp_path, 'machines:\n  alpha:\n    virtual: "false"\n')
+    default_facts = default["sharing"]["alpha"]
+    assert default_facts["globalPorts"] == []
+    assert default_facts["trustedPorts"] == []
+
+    marked = summary(
+        tmp_path,
+        'machines:\n  alpha:\n    virtual: "false"\n',
+        extra='{ machines.alpha.nixos.vendomat.sharing.trustedInterfaces = [ "eth1" ]; }',
+    )["sharing"]["alpha"]
+    assert marked["globalPorts"] == []
+    assert marked["trustedPorts"] == [5000]
+
+
+def test_serve_false_keeps_port_closed_even_with_a_trust_marker(tmp_path: Path):
+    facts = summary(
+        tmp_path,
+        'machines:\n  alpha:\n    serve: "false"\n',
+        extra='{ machines.alpha.nixos.vendomat.sharing.trustedInterfaces = [ "eth1" ]; }',
+    )["sharing"]["alpha"]
+    assert facts["serve"] is False
+    assert facts["harmonia"] is False
+    assert facts["globalPorts"] == []
+    assert facts["trustedPorts"] == []
+
+
+def test_a_serving_machine_with_the_firewall_off_gets_a_warning(tmp_path: Path):
+    # With `networking.firewall.enable = false`, port 5000 is open on every interface and the marker means nothing.
+    text = 'machines:\n  alpha:\n    virtual: "false"\n  beta:\n    serve: "false"\n'
+    off = (
+        "{ machines.alpha.nixos.networking.firewall.enable = false;"
+        " machines.beta.nixos.networking.firewall.enable = false; }"
+    )
+    facts = summary(tmp_path, text, extra=off)["sharing"]
+    [warning] = facts["alpha"]["warnings"]
+    assert "networking.firewall.enable is false" in warning and "TCP port 5000 on every interface" in warning
+    assert "trustedInterfaces" in warning
+    assert facts["beta"]["warnings"] == []  # serve = false: no Harmonia, nothing to warn about
+    on = summary(tmp_path, text)["sharing"]
+    assert on["alpha"]["warnings"] == [] and on["beta"]["warnings"] == []
 
 
 def test_error_lines_come_first_and_match_one_pattern(tmp_path: Path):

@@ -55,7 +55,7 @@ new_workspace() {
   [ "$#" -le 1 ] || { say "usage: vendomat new [DIR]"; exit 3; }
   local dir="${1:-.}" tpl file clash=""
   local -a files
-  tpl="$(dirname "$host_release")/../share/vendomat/templates/workspace"
+  tpl="${VENDOMAT_TEMPLATE:-$(dirname "$host_release")/../share/vendomat/templates/workspace}"
   [ -d "$tpl" ] || { say "no workspace template at $tpl"; exit 2; }
   mapfile -d '' -t files < <(find "$tpl" -type f -printf '%P\0')
   for file in "${files[@]}"; do
@@ -76,7 +76,7 @@ use_host() {
   exec "$host_release" "$@"
 }
 
-# Print the failure text of a devenv evaluation (VMT-117): the lines `vendomat.yaml:LINE:COL: ...` first,
+# Print the failure text of a devenv evaluation (VMT-117): positioned workspace YAML lines first,
 # then the text after the last `error:` line. src/vendomat/errortrim.py follows the same rules.
 trim_error() {
   local ansi=$'\e\\[[0-9;?]*[A-Za-z]' line f i n=0 last=0 dup first=-1 stop=-1
@@ -89,7 +89,7 @@ trim_error() {
     n=$((n + 1))
   done < "$1"
   for ((i = 0; i < n; i++)); do
-    if [[ "${lines[i]}" =~ ^vendomat\.yaml:[0-9]+:[0-9]+: ]]; then
+    if [[ "${lines[i]}" =~ ^[^/[:space:]:]+\.yaml:[0-9]+:[0-9]+: ]]; then
       dup=0
       for f in ${faults[@]+"${faults[@]}"}; do [ "$f" = "${lines[i]}" ] && dup=1; done
       [ "$dup" = 1 ] || faults+=("${lines[i]}")
@@ -128,7 +128,7 @@ trim_error() {
   fi
 }
 
-# Before the shell: evaluate the workspace once. A fault of vendomat.yaml then shows at once, with the
+# Before the shell: evaluate the workspace once. A fault in any workspace YAML file then shows at once, with the
 # lines of the file first (VMT-117). The eval cache makes the shell's own evaluation fast afterwards.
 # `devenv.root` feeds from no catalog value, and any read of the final config runs the catalog checks.
 check_workspace() {

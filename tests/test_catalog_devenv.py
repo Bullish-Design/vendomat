@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+import stat
 import subprocess
 import textwrap
 from pathlib import Path
@@ -75,6 +77,7 @@ def make_baseline(base: Path, extra_inputs: str = "") -> Path:
         Path(log_dir).mkdir(parents=True, exist_ok=True)
         (Path(log_dir) / "trees.txt").write_text(f"devenv input: {DEVENV_LABEL}\n")
     shutil.copytree(ROOT / "devenv", base / "modsrc" / "devenv")
+    shutil.copytree(ROOT / "templates" / "workspace", base / "modsrc" / "templates" / "workspace")
     ws = base / "ws"
     ws.mkdir()
     (ws / "devenv.yaml").write_text(
@@ -169,6 +172,8 @@ def test_explain_reads_the_real_option_tree_and_names_the_files(ws: Path, monkey
               box:
                 host: 192.0.2.7
                 mode: adopt-existing
+                programs:
+                  - ripgrep
             """
         )
     )
@@ -187,6 +192,9 @@ def test_explain_reads_the_real_option_tree_and_names_the_files(ws: Path, monkey
     assert entries["machines.box.host"]["option"] == "machines.box.target.host"
     assert entries["machines.box.host"]["value"] == "192.0.2.7"
     assert entries["machines.box.mode"]["value"] == "adopt-existing"
+    assert entries["machines.box.programs"]["option"] == "machines.box.nixos.environment.systemPackages"
+    assert entries["machines.box.programs"]["value"] == ["ripgrep"]
+    assert entries["machines.box.programs"]["files"] == ["vendomat.yaml"]
     assert entries["machines.box"]["files"] == ["vendomat.yaml", "devenv.nix"]
     assert sorted(e["option"] for e in report["nix"]) == ["env.LOCAL_ONLY", "env.ONLY_NIX"]
     assert [e["line"] for e in report["yaml"]] == sorted(e["line"] for e in report["yaml"])
@@ -234,6 +242,38 @@ def test_a_bad_file_stops_the_launcher_with_the_yaml_lines_first(ws: Path, tmp_p
     assert len(log.read_text().splitlines()) > 100  # the whole trace stays in the log
 
 
+def test_a_basix_yaml_fault_is_trimmed_after_a_real_devenv_evaluation(ws: Path, tmp_path: Path):
+    (ws / "basix.yaml").write_text("machines:\n  learner:\n    profile: [\n")
+    (ws / "devenv.nix").write_text(
+        """\
+{ inputs, ... }:
+let
+  parse = import "${inputs.vendomat}/devenv/parse.nix";
+  parsed = parse "basix.yaml" (builtins.readFile ./basix.yaml);
+in {
+  _module.check = builtins.deepSeq parsed true;
+}
+"""
+    )
+    state = tmp_path / "state"
+    done = run(
+        ["bash", str(LAUNCHER)],
+        ws,
+        VENDOMAT_DEVENV_FORK=shutil.which("devenv") or "devenv",
+        VENDOMAT_HOST_RELEASE="/nonexistent",
+        XDG_STATE_HOME=str(state),
+    )
+    assert done.returncode == 2
+    assert done.stdout == ""
+    lines = done.stderr.splitlines()
+    assert lines[0].startswith("vendomat: the workspace does not evaluate")
+    assert lines[1].startswith("basix.yaml:3:") and "flow style is not accepted" in lines[1], lines
+    assert lines[-1].startswith("vendomat: the full trace is in ")
+    log = Path(lines[-1].removeprefix("vendomat: the full trace is in "))
+    assert log.parent == state / "vendomat" / "logs"
+    assert "basix.yaml" in log.read_text()
+
+
 def test_update_writes_the_lines_and_devenv_locks_them(ws: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # R25, VMT-094: the added lines are valid devenv.yaml, and `devenv update` accepts them. The template here
     # adds a path input, so no network is needed.
@@ -253,6 +293,59 @@ def test_update_writes_the_lines_and_devenv_locks_them(ws: Path, tmp_path: Path,
     assert "  inputs.extra.url: path:" in result.stdout
     assert "extra" in json.loads((ws / "devenv.lock").read_text())["nodes"]
     assert CliRunner().invoke(app, ["update", "--check", "--root", str(ws)]).exit_code == 0
+
+
+def test_basix_consumer_uses_the_imported_template_for_new_and_update(
+    ws: Path,
+    baseline: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # The shell derives this path from the tracked `vendomat` input, as a Basix workspace does.
+    found = run(["devenv", "shell", "--", "bash", "-c", 'printf "%s\\n" "$VENDOMAT_TEMPLATE"'], ws)
+    assert found.returncode == 0, found.stderr[-3000:]
+    template = Path(found.stdout.strip())
+    assert template == baseline.parent / "modsrc" / "templates" / "workspace"
+    assert (template / "devenv.yaml").is_file()
+
+    # `new` uses that imported source rather than a bundled copy.
+    target = tmp_path / "new-basix-workspace"
+    target.mkdir()
+    created = run(["devenv", "shell", "--", "bash", str(LAUNCHER), "new", str(target)], ws)
+    assert created.returncode == 0, created.stderr
+    assert (target / "devenv.yaml").read_text() == (template / "devenv.yaml").read_text()
+
+    # An older Basix-style workspace has authored lines but lacks later follows inputs.
+    old = """\
+# Basix-authored line: keep me
+inputs:
+  vendomat:
+    url: path:OLD
+  nixpkgs:
+    follows: vendomat/nixpkgs
+  # learner-owned input
+  mytool:
+    url: github:learner/tool
+imports:
+  - vendomat/devenv
+  - ./local.nix
+"""
+    (ws / "devenv.yaml").write_text(old)
+    fake = tmp_path / "devenv"
+    fake.write_text('#!/usr/bin/env bash\nprintf \'devenv %s\\n\' "$*" >> "$CALL_LOG"\n')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("VENDOMAT_TEMPLATE", str(template))
+    monkeypatch.setenv("VENDOMAT_DEVENV", str(fake))
+    monkeypatch.setenv("CALL_LOG", str(tmp_path / "devenv-calls"))
+    result = CliRunner().invoke(app, ["update", "--root", str(ws)])
+    assert result.exit_code == 0, result.output
+    updated = (ws / "devenv.yaml").read_text()
+    assert "  inputs.devenv.follows: vendomat/devenv" in result.stdout
+    assert "# Basix-authored line: keep me" in updated
+    assert "  # learner-owned input\n  mytool:\n    url: github:learner/tool" in updated
+    assert "  devenv:\n    follows: vendomat/devenv" in updated
+    assert "nixpkgs-python:" in updated and "rust-overlay:" in updated
+    assert (tmp_path / "devenv-calls").read_text().strip() == "devenv update"
 
 
 # --- The sharing wiring (R39, VMT-127, VMT-128) -------------------------------------------------
@@ -321,3 +414,45 @@ def test_a_beta_that_does_not_serve_gives_no_peer_entry(mws: Path):
     done = run(["devenv", "eval", attribute], mws)
     assert done.returncode == 0, done.stderr[-3000:]
     assert json.loads(done.stdout)[attribute] == []
+
+
+def test_machine_programs_are_installed_as_nixos_packages(mws: Path):
+    (mws / "vendomat.yaml").write_text(
+        'programs:\n  - jq\nmachines:\n  learner:\n    virtual: "true"\n    programs:\n      - ripgrep\n'
+    )
+    attrs = ["packages", nixos("learner", "environment.systemPackages")]
+    done = run(["devenv", "eval", *attrs], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    values = json.loads(done.stdout)
+    assert any("jq" in path for path in values["packages"]), values
+    machine_packages = values[nixos("learner", "environment.systemPackages")]
+    assert any("ripgrep" in path for path in machine_packages), machine_packages
+
+
+def test_machine_programs_resolve_with_the_package_set_of_the_machine(mws: Path):
+    # The machine's own NixOS evaluation resolves the names. Here its overlay makes `jq` the `hello` package.
+    (mws / "vendomat.yaml").write_text('machines:\n  learner:\n    virtual: "true"\n    programs:\n      - jq\n')
+    (mws / "devenv.nix").write_text(
+        "{ ... }: { machines.learner.nixos = { nixpkgs.overlays = [ (final: prev: { jq = prev.hello; }) ]; }; }\n"
+    )
+    attr = nixos("learner", "environment.systemPackages")
+    done = run(["devenv", "eval", attr], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    paths = json.loads(done.stdout)[attr]
+    assert any(re.search(r"-hello-[0-9]", path) for path in paths), paths
+    assert not any(re.search(r"-jq-[0-9]", path) for path in paths), paths
+
+
+def test_a_machines_key_that_is_not_a_map_fails_real_devenv_evaluation_with_the_yaml_position(ws: Path):
+    (ws / "vendomat.yaml").write_text("machines: foo\n")
+    done = run(["devenv", "eval", "devenv.root"], ws)
+    assert done.returncode != 0
+    assert 'vendomat.yaml:1:11: machines must be a map, found "foo"' in done.stderr
+
+
+def test_an_unknown_machine_program_fails_real_devenv_evaluation(mws: Path):
+    (mws / "vendomat.yaml").write_text("machines:\n  learner:\n    programs:\n      - vendomat-no-such-package-7319\n")
+    done = run(["devenv", "eval", nixos("learner", "environment.systemPackages")], mws)
+    assert done.returncode != 0
+    assert "vendomat.yaml:4:" in done.stderr
+    assert 'machines.learner.programs[0]: unknown program "vendomat-no-such-package-7319"' in done.stderr

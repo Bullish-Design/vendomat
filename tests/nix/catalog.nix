@@ -55,6 +55,7 @@ let
   # The NixOS options that the machine module sets: the host name, and what the sharing module
   # (devenv/sharing.nix) sets. The stub reads the sharing facts back. A separate check (sharing-vm)
   # builds the real machines.
+  machinePkgs = pkgs.extend (_: prev: { jq = prev.hello; });
   sharingFacts = nixos:
     let
       evaluated = lib.evalModules {
@@ -62,8 +63,14 @@ let
           {
             options = {
               networking.hostName = opt t.str "unset";
+              networking.firewall.enable = opt t.bool true;
               networking.firewall.allowedTCPPorts = opt (t.listOf t.int) [ ];
+              networking.firewall.interfaces = opt (t.attrsOf (t.submodule ({ ... }: {
+                options.allowedTCPPorts = opt (t.listOf t.int) [ ];
+              }))) { };
+              environment.systemPackages = opt (t.listOf t.package) [ ];
               assertions = opt (t.listOf t.raw) [ ];
+              warnings = opt (t.listOf t.str) [ ];
               nix.package = opt t.raw null;
               nix.settings = opt (t.attrsOf t.raw) { };
               systemd.tmpfiles.rules = opt (t.listOf t.str) [ ];
@@ -72,7 +79,9 @@ let
               services.harmonia.cache.enable = opt t.bool false;
               services.harmonia.cache.signKeyPaths = opt (t.listOf t.str) [ ];
             };
-            config._module.args = { inherit pkgs; };
+            # The machine's own package set. It differs from the workspace `pkgs` in one name, so that a test
+            # shows which set resolves `machines.NAME.programs`: `jq` is `hello` here.
+            config._module.args.pkgs = machinePkgs;
           }
           nixos
         ];
@@ -87,23 +96,24 @@ let
       keys = c.nix.settings.extra-trusted-public-keys or [ ];
       harmonia = c.services.harmonia.cache.enable;
       keyUnit = c.systemd.services ? vendomat-cache-key;
+      packages = map (p: p.pname) c.environment.systemPackages;
+      globalPorts = c.networking.firewall.allowedTCPPorts;
+      trustedPorts = c.networking.firewall.interfaces.eth1.allowedTCPPorts or [ ];
+      warnings = c.warnings;
     };
 
-  inputs =
-    if pythons == "" then { }
-    else {
-      nixpkgs-python.packages.x86_64-linux = lib.genAttrs (lib.splitString "," pythons) (v: v);
-    };
+  inputs = if pythons == "" then { }
+  else {
+    nixpkgs-python.packages.x86_64-linux = lib.genAttrs (lib.splitString "," pythons) (v: v);
+  };
 
   evaluated = lib.evalModules {
+    specialArgs = { inherit pkgs inputs; };
     modules = [
       stub
       (import (repo + "/devenv/devenv.nix"))
       {
-        config = {
-          devenv.root = root;
-          _module.args = { inherit pkgs inputs; };
-        };
+        config.devenv.root = root;
       }
     ] ++ lib.filter (m: m != "") (lib.splitString "," extra);
   };
@@ -121,10 +131,13 @@ let
     services = config.services;
     machines = lib.mapAttrs
       (_: m: {
-        hostName = if m.nixos == null then null else (sharingFacts m.nixos).hostName;
-        host = m.target.host;
-        facter = m.hardware.facter;
-        mode = m.vendomat.mode;
+      hostName = if m.nixos == null then null else (sharingFacts m.nixos).hostName;
+      host = m.target.host;
+      facter = m.hardware.facter;
+      mode = m.vendomat.mode;
+      programs = if m.nixos == null then [ ] else (sharingFacts m.nixos).packages;
+      globalPorts = if m.nixos == null then [ ] else (sharingFacts m.nixos).globalPorts;
+      trustedPorts = if m.nixos == null then [ ] else (sharingFacts m.nixos).trustedPorts;
       })
       config.machines;
     serve = config.vendomat.serve;

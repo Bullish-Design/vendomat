@@ -277,7 +277,7 @@ in
     '';
   };
 
-  # Opt-in two-VM proof of the sharing module (project 24, S3 step 11b; R39, VMT-127, VMT-128). It builds two
+  # Opt-in three-VM proof of the sharing module (project 24, S3 step 11b; R39, VMT-127, VMT-128). It builds three
   # NixOS machines from the pinned nixpkgs, boots them from image files under
   # /mnt/shared/vendomat-p21/s3/sharing, and deletes them at the end. It needs /dev/kvm and a systemd user
   # manager. Raw logs go under ~/.local/state/vendomat/p21/. Run `testee verify opt:sharing-vm`.

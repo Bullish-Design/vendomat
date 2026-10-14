@@ -102,7 +102,7 @@ The exit status is 1. The error line holds the plain file name `basix.yaml`, the
 
 Result: the import works with a plain file name, and the error text carries `basix.yaml:LINE:COL:`.
 The formal contract (call form, result set, error form) belongs to the `p21-contracts` work
-(`VMT-164`). That work is not on `main` yet. This record is an observation, not the contract.
+(`VMT-164`). That work is now on `main`. This record is an observation, not the contract.
 
 ## Step 3: the fixtures
 

@@ -112,6 +112,7 @@ class Vm:
         self.process: subprocess.Popen[bytes] | None = None
         self.unit = ""
         self.sysenv: dict[str, str] = {}
+        self.extra_qemu = ""
 
     def start(self) -> None:
         tmp = self.work / f"tmp-{self.name}"
@@ -122,6 +123,11 @@ class Vm:
         with image.open("wb") as handle:
             handle.truncate(DISK_BYTES)
         subprocess.run([str(self.mkfs), "-q", "-F", "-L", "nixos", str(image)], check=True, capture_output=True)
+        qemu_opts = (
+            f"-netdev dgram,id=lan,local.type=inet,local.host=127.0.0.1,local.port={self.udp_local},"
+            f"remote.type=inet,remote.host=127.0.0.1,remote.port={self.udp_remote} "
+            f"-device virtio-net-pci,netdev=lan,mac={self.mac} {self.extra_qemu}"
+        ).strip()
         env = {
             "PATH": os.environ.get("PATH", ""),
             "HOME": os.environ.get("HOME", ""),
@@ -129,11 +135,7 @@ class Vm:
             "USE_TMPDIR": "1",
             "NIX_DISK_IMAGE": str(image),
             "QEMU_NET_OPTS": f"hostfwd=tcp:127.0.0.1:{self.ssh_port}-:22",
-            "QEMU_OPTS": (
-                f"-netdev dgram,id=lan,local.type=inet,local.host=127.0.0.1,local.port={self.udp_local},"
-                f"remote.type=inet,remote.host=127.0.0.1,remote.port={self.udp_remote} "
-                f"-device virtio-net-pci,netdev=lan,mac={self.mac}"
-            ),
+            "QEMU_OPTS": qemu_opts,
         }
         # QEMU 11 makes an io_uring ring at start, and it stops when the kernel refuses the ring.
         # The kernel counts the ring against the memory-lock limit of the whole user (8 MiB on

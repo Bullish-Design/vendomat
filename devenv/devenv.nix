@@ -24,6 +24,12 @@ let
   file = "vendomat.yaml";
   root = toString config.devenv.root;
   path = root + "/${file}";
+  vendomatSource = inputs.vendomat or null;
+  vendomatTemplate =
+    if vendomatSource != null
+      && builtins.pathExists "${toString vendomatSource}/templates/workspace/devenv.yaml"
+    then "${toString vendomatSource}/templates/workspace"
+    else null;
 
   # --- Parse once ----------------------------------------------------------------------------
   # `parsed.value` is the tree. `parsed.at PATH` gives the position of a key path.
@@ -75,6 +81,7 @@ let
         virtual = bool;
         mode = oneOf [ "fresh-install" "adopt-existing" ];
         serve = bool;
+        programs = list "a nixpkgs package attribute name" (s: s != "");
       });
   };
 
@@ -124,15 +131,26 @@ let
   get = p: lib.attrByPath p null raw;
   shapeOk = p: s: get p != null && check p s (get p) == [ ];
 
-  asPackage = n: lib.attrByPath (lib.splitString "." n) null pkgs;
+  # A name resolves against a package set. The workspace validates names with its own `pkgs`. A machine
+  # resolves them with the `pkgs` of its own NixOS evaluation (see `machine`).
+  asPackageIn = set: n: lib.attrByPath (lib.splitString "." n) null set;
+  asPackage = asPackageIn pkgs;
   isProgram = n: let r = builtins.tryEval (lib.isDerivation (asPackage n)); in r.success && r.value;
   programs = if get [ "programs" ] == null then [ ] else get [ "programs" ];
+  checkPrograms = path: names: lib.concatLists (lib.imap0
+    (i: n: lib.optional (!isProgram n)
+      (fault (path ++ [ "[${toString i}]" ]) "value"
+        "${show path}[${toString i}]: unknown program \"${n}\" (nixpkgs has no package with this name)"))
+    names);
   programFaults = lib.optionals (shapeOk [ "programs" ] schema.fields.programs)
-    (lib.concatLists (lib.imap0
-      (i: n: lib.optional (!isProgram n)
-        (fault [ "programs" "[${toString i}]" ] "value"
-          "programs[${toString i}]: unknown program \"${n}\" (nixpkgs has no package with this name)"))
-      programs));
+    (checkPrograms [ "programs" ] programs);
+  # `machines` may have the wrong shape (`machines: foo`). `check` reports that. Walk it only when it is a map.
+  machineProgramFaults = lib.optionals (builtins.isAttrs (raw.machines or { })) (lib.concatLists
+    (lib.mapAttrsToList
+      (name: _: let path = [ "machines" name "programs" ]; in
+        lib.optionals (shapeOk path schema.fields.machines.child.fields.programs)
+          (checkPrograms path (get path)))
+      (raw.machines or { })));
 
   jsPath = [ "languages" "javascript" "version" ];
   jsVersion = get jsPath;
@@ -147,7 +165,7 @@ let
   pyFaults = lib.optionals (shapeOk pyPath version && pyPackages != { } && !(pyPackages ? ${pyVersion}))
     [ (fault pyPath "value" "${show pyPath}: nixpkgs-python has no Python ${pyVersion}") ];
 
-  faultList = check [ ] schema raw ++ programFaults ++ jsFaults ++ pyFaults;
+  faultList = check [ ] schema raw ++ programFaults ++ machineProgramFaults ++ jsFaults ++ pyFaults;
   faults = map (f: f.text) (lib.sort (a: b: a.pos < b.pos) faultList);
   guard = v: if faults != [ ] then throw ("\n" + lib.concatStringsSep "\n" faults) else v;
 
@@ -187,9 +205,12 @@ let
   machine = name: m:
     {
       # The facts file holds networking.hostName, so the machine name must equal it (R21).
-      nixos = {
+      # The module is a function so that `machines.NAME.programs` resolves with the `pkgs` of the machine's
+      # own NixOS evaluation, not with the workspace `pkgs`. The workspace `pkgs` only validates the names.
+      nixos = { pkgs, ... }: {
         imports = [ ./sharing.nix ];
         networking.hostName = name;
+        environment.systemPackages = guard (map (asPackageIn pkgs) (m.programs or [ ]));
         # A present `serve` key is a YAML value. Without it, the catalog default applies (R23).
         vendomat.sharing.serve = if m ? serve then serves m else lib.mkDefault true;
         vendomat.sharing.peers = lib.mkDefault (peersOf name);
@@ -262,5 +283,11 @@ in
     # shell reads the variable, so the evaluation does not depend on it. `vendomat explain` still shows every source.
     enterShell = lib.mkAfter (lib.optionalString (hatch.line != "")
       "[ \"\${VENDOMAT_HIDE_ADVANCED:-}\" = 1 ] || echo ${lib.escapeShellArg hatch.line}");
+  } // lib.optionalAttrs (vendomatTemplate != null) {
+    # Commands inside the consumer's pinned shell use the tracked template from that same Vendomat
+    # input. The launcher honors this path inside the shell. The host launcher's own `update` path
+    # still exports the bundled template; the tests prove `new` and `update` only inside the pinned
+    # shell. The bundled template is the fallback when no imported source is present.
+    env.VENDOMAT_TEMPLATE = lib.mkDefault vendomatTemplate;
   };
 }

@@ -1,9 +1,13 @@
 # Project 21: plan
 
-**Final, 2026-10-13.** The design is final. The plan has two phases: the spike phase (W1 to W10, done) and
-the implementation slices (S1 to S7; S3 is done except its release step, see below). Each spike ends in an evidence record under `evidence/`. Raw logs go
-under `~/.local/state/vendomat/p21/`. VM disk images, VM state, and VM scratch go under
-`/mnt/shared/vendomat-p21/`. No spike changed production code or a real machine.
+**Status, 2026-10-14.** The design is final. W1 to W10 are historical spikes; implementation
+slices S1 to S4 are complete on `main`, and Vendomat v0.8.0 is published. S2's host switch is also
+complete under R48. S6 retired the old binary fork. The `p21-contracts` work is on `main`. It
+records the VR1 to VR4, VR6, and VR7 contract work (VR5 is not done: Basix keeps its own hint); see
+[its evidence](evidence/VR-CONTRACT-RESOLUTIONS-2026-10-14.md). Project 14 stays the implementation
+contract until a release meets the project 21 gates. S5 steps 1 and 2 are done; S5 step 3 and S7 remain. Each spike has an evidence record under `evidence/`; raw logs go under
+`~/.local/state/vendomat/p21/`. VM disk images, VM state, and VM scratch go under
+`/mnt/shared/vendomat-p21/`. Disposable spike results do not prove real hardware or physical-disk writes.
 
 ## Spike phase (W1 to W10, done)
 
@@ -32,12 +36,12 @@ The [implementation guide](IMPLEMENTATION-GUIDE.md) gives the step-by-step work 
 facts and spike artifacts it needs, and the open implementation decisions D1 to D8.
 
 S1 is done, as of 2026-10-14: [S1-MODULE-FORK](evidence/S1-MODULE-FORK.md).
-S2 is done except the host switch (an owner gate), as of 2026-10-14: [S2-HOST-BINARY](evidence/S2-HOST-BINARY.md).
+S2 and the host switch are done under R48, as of 2026-10-14: [S2-HOST-BINARY](evidence/S2-HOST-BINARY.md).
 S3 is done, as of 2026-10-14. Vendomat v0.8.0 is published on `release` (`e5923a8f`):
 [S3-CATALOG](evidence/S3-CATALOG.md). The catalog wiring of the sharing module landed in `79e46310ef30`.
-Project 23 keeps the state of S1 and S2. S4 is done ([S4-APPLY-ROLLBACK](evidence/S4-APPLY-ROLLBACK.md)). Every slice changes code, so it needs its own branch, its own verify, and
-evidence under `evidence/`. No slice plans an upstream pull request (R34). The module-only fork and
-the patched binary are long-lived.
+S4 is done ([S4-APPLY-ROLLBACK](evidence/S4-APPLY-ROLLBACK.md)). Every new implementation slice
+needs its own branch, its own verify, and evidence under `evidence/`. No slice plans an upstream pull
+request (R34). The module-only fork and patched binary are long-lived.
 
 | # | Work | Depends on | Ledger rows |
 | --- | --- | --- | --- |
@@ -51,17 +55,19 @@ the patched binary are long-lived.
 
 ### Owner gates
 
-The owner must authorize each of these. No slice does them alone.
+The S2 host-switch gate was completed by the owner under R48 on 2026-10-14.
 
-- Switching the host to the new binary of S2.
-- Any real disk write, including the S7 install on real hardware.
+Any real disk write, including the S7 install on real hardware, still needs explicit owner approval.
 
-### Open gaps with no ruling
+### Remaining slices and gates
 
-Work or a ruling must settle these before S3 and S5 close: parser depth limit and line numbers
-(`VMT-013`, `VMT-035`), trace trimming (`VMT-117`), the version warning (`VMT-118`), whether devenv
-fetches unused inputs (`VMT-116`), and the disk guard gaps (`BSX-114`, `BSX-115`; Basix rows, now in the Basix ledger).
+S5 steps 1 and 2 (the Vendomat side) are done. Step 3, the Basix fixtures, runs from the Basix
+repository and needs a real Basix consumer. Basix
+B2/B3 evidence is recorded in its own repository; it remains spike evidence until B5 integrates the
+corrected disk guard and the product acceptance gate passes. S7's real-machine and two-machine
+Harmonia checks remain outside this contract spike. Any physical-disk write requires owner approval.
 
-S3 settled four of them on 2026-10-14 (see [S3-CATALOG](evidence/S3-CATALOG.md)): `VMT-013` (limit 64),
-`VMT-035` (positions), `VMT-116` (unused inputs cost no fetch), and `VMT-117` (trim). `VMT-118` stays with S1.
-S3 adds `VMT-160` (a machine with no key), which no ruling covers.
+The fresh-clone shell run also observed the `VMT-118` version-mismatch warning absent; its ledger
+row records the run and the limit that this is not an explicit e2e assertion. Other current open
+requirements remain identified by their IDs in the ledgers. The old list of pre-S3 gaps is
+historical and is not an active blocker list.

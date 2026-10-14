@@ -407,16 +407,16 @@ def apply_command(
     name: str | None = typer.Argument(None, help="A machine name. Leave it out to apply this machine."),
     root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
     dirty: bool = typer.Option(
-        False, "--dirty", help="Apply even when vendomat.yaml, devenv.lock, or a hatch file has uncommitted changes."
+        False,
+        "--dirty",
+        help="Apply watched config changes without committing them; ignored config files must still be force-added.",
     ),
 ) -> None:
-    """Activate this machine from the workspace. No SSH.
+    """Build this machine, commit watched config, then activate it. No SSH.
 
-    Build `machines.NAME.build.nixos`, move the system profile, run `switch-to-configuration switch`,
-    and add one line to /var/lib/vendomat/generations.jsonl. The machine name comes from
-    /etc/devenv/machine-facts.json. A name that is another machine runs `devenv machines deploy NAME`.
-    The command refuses uncommitted changes to vendomat.yaml, devenv.lock, devenv.nix, and
-    devenv.local.nix unless you give --dirty. A dirty generation is never a rollback target.
+    After a successful build, apply commits only vendomat.yaml, devenv.lock, devenv.nix, and
+    devenv.local.nix before activation. --dirty skips that config commit and records the generation
+    as dirty, so rollback skips it. An ignored watched file must be force-added or removed first.
     """
 
     try:

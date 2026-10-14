@@ -2,8 +2,8 @@
 # Create one repository in the Vendomat source collection on this host, or refresh its hooks.
 # Usage: collection-add <repo>
 #        collection-add --hooks <repo>     rewrite the hooks of an existing collection repository
-# Repositories take only new release tags, over SSH. Vendomat also takes fast-forward updates to
-# its `release` branch. git-daemon serves every repository read only.
+# Repositories take new release tags and fast-forward updates to their `release` branch (R37),
+# over SSH. git-daemon serves every repository read only.
 # After a tag push, the working tree shows the newest release (STORE-023 in the vendomat repository).
 set -eu
 mode=create
@@ -82,4 +82,4 @@ fi
 git init -q "$dir"
 install_hooks
 touch "$dir/.git/git-daemon-export-ok"
-echo "collection-add: created $dir (release tags; Vendomat release branch; served read only)"
+echo "collection-add: created $dir (release tags; release branch; served read only)"

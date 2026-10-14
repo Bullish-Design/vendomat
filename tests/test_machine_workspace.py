@@ -15,6 +15,18 @@ def statuses(root: Path) -> dict[str, str]:
     return {change.path: change.status.strip() for change in workspace.watched_changes(root)}
 
 
+def make_subdirectory_workspace(tmp_path: Path) -> tuple[Path, Path]:
+    """A repository whose workspace is its subdirectory `proj`. The top holds a `devenv.nix` of its own."""
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    sub.mkdir()
+    for name, text in {"vendomat.yaml": "machines:\n  box: {}\n", "devenv.lock": "{}\n", "devenv.nix": "{ }\n"}.items():
+        (sub / name).write_text(text)
+    git(top, "add", "-A")
+    git(top, "commit", "--quiet", "-m", "workspace in a subdirectory")
+    return top, sub
+
+
 def test_a_clean_workspace_has_no_changes(tmp_path: Path):
     assert workspace.watched_changes(make_workspace(tmp_path / "ws")) == []
 
@@ -121,7 +133,7 @@ def test_exact_restores_every_tracked_file_and_removes_added_ones(tmp_path: Path
     workspace.restore(root, first, exact=True)
     assert (root / "notes.txt").read_text() == "one\n"
     assert not (root / "extra.txt").exists()
-    workspace.commit_restore(root, "rollback to x")
+    workspace.commit_restore(root, "rollback to x", exact=True)
     assert git(root, "diff", first, "HEAD") == ""
 
 
@@ -131,6 +143,18 @@ def test_a_restore_that_changes_nothing_still_makes_a_commit(tmp_path: Path):
     workspace.restore(root, before, exact=False)
     after = workspace.commit_restore(root, "rollback to x")
     assert after != before and git(root, "rev-list", "--count", "HEAD") == "2"
+
+
+def test_a_watched_restore_does_not_commit_an_unrelated_staged_file(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    first = workspace.head(root)
+    commit_file(root, "devenv.nix", "{ x = 2; }\n", "second")
+    (root / "notes.txt").write_text("staged elsewhere\n")
+    git(root, "add", "notes.txt")
+    workspace.restore(root, first, exact=False)
+    workspace.commit_restore(root, "rollback to first")
+    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
+    assert git(root, "status", "--porcelain") == "M  notes.txt"
 
 
 def test_undo_restore_returns_to_head(tmp_path: Path):
@@ -151,3 +175,88 @@ def test_the_diff_shows_the_change_and_stays_off_the_other_files(tmp_path: Path)
     text = workspace.diff_text(root, first, exact=False)
     assert "devenv.nix" in text and "x = 2" in text and "notes.txt" not in text
     assert "notes.txt" in workspace.diff_text(root, first, exact=True)
+
+
+def test_a_workspace_in_a_subdirectory_sees_its_own_changes_and_not_those_of_the_top(tmp_path: Path):
+    # `git status` names paths from the repository top. R43 needs the change of the workspace itself.
+    top, sub = make_subdirectory_workspace(tmp_path)
+    (sub / "devenv.nix").write_text("{ x = 1; }\n")
+    assert statuses(sub) == {"devenv.nix": "M"}
+    git(top, "checkout", "--", "proj/devenv.nix")
+    (top / "devenv.nix").write_text("{ top = 1; }\n")  # a watched name outside the workspace
+    assert statuses(sub) == {}
+
+
+def test_a_subdirectory_workspace_commits_only_its_own_watched_files(tmp_path: Path):
+    top, sub = make_subdirectory_workspace(tmp_path)
+    (sub / "devenv.nix").write_text("{ x = 1; }\n")
+    (top / "devenv.nix").write_text("{ top = 1; }\n")
+    git(top, "add", "devenv.nix")
+    commit = workspace.commit_watched(sub)
+    assert commit == git(top, "rev-parse", "HEAD")
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix"]
+    assert git(top, "status", "--porcelain") == "M  devenv.nix"
+
+
+def test_a_staged_rename_between_watched_files_reports_both_names(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    git(root, "mv", "devenv.nix", "devenv.local.nix")
+    assert git(root, "status", "--porcelain").startswith("R ")  # the case under test
+    changes = workspace.watched_changes(root)
+    found = {(change.path, change.status.strip()) for change in changes}
+    assert found == {("devenv.local.nix", "R"), ("devenv.nix", "R")}
+    commit = workspace.commit_watched(root)
+    assert commit == git(root, "rev-parse", "HEAD")
+    assert git(root, "status", "--porcelain") == ""
+
+
+def test_a_subdirectory_rename_reports_both_names_without_the_prefix(tmp_path: Path):
+    top, sub = make_subdirectory_workspace(tmp_path)
+    git(top, "mv", "proj/devenv.nix", "proj/devenv.local.nix")
+    assert {change.path for change in workspace.watched_changes(sub)} == {"devenv.nix", "devenv.local.nix"}
+    commit = workspace.commit_watched(sub)
+    assert commit == git(top, "rev-parse", "HEAD")
+    shown = git(top, "show", "--format=", "--name-status", "HEAD")
+    assert shown.startswith("R100\tproj/devenv.nix\tproj/devenv.local.nix")
+    assert git(top, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("case", ["staged-then-reverted", "added-then-deleted"])
+def test_a_watched_path_that_equals_head_makes_no_commit(tmp_path: Path, case: str):
+    # `git commit --only` exits 1 when nothing differs from HEAD. The build has run by then.
+    root = make_workspace(tmp_path / "ws")
+    before = workspace.head(root)
+    if case == "staged-then-reverted":
+        (root / "devenv.nix").write_text("{ x = 1; }\n")
+        git(root, "add", "devenv.nix")
+        (root / "devenv.nix").write_text("{ }\n")
+        assert git(root, "status", "--porcelain") == "MM devenv.nix"
+    else:
+        (root / "devenv.local.nix").write_text("{ }\n")
+        git(root, "add", "-f", "devenv.local.nix")
+        (root / "devenv.local.nix").unlink()
+        assert git(root, "status", "--porcelain") == "AD devenv.local.nix"
+    assert workspace.watched_changes(root)  # the status lists the path
+    assert workspace.commit_watched(root) == before
+    assert workspace.head(root) == before
+
+
+def test_the_fingerprint_changes_with_a_watched_file_and_with_head(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    first = workspace.fingerprint(root)
+    (root / "notes.txt").write_text("not watched\n")
+    assert workspace.fingerprint(root) == first
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    assert workspace.fingerprint(root) != first
+    (root / "devenv.nix").write_text("{ }\n")
+    assert workspace.fingerprint(root) == first
+    commit_file(root, "notes.txt", "two\n", "second")
+    assert workspace.fingerprint(root)[0] != first[0]
+
+
+def test_exact_lists_only_the_tracked_changes_of_the_workspace_directory(tmp_path: Path):
+    top, sub = make_subdirectory_workspace(tmp_path)
+    (top / "notes.txt").write_text("changed outside\n")
+    assert workspace.tree_changes(sub) == []
+    (sub / "devenv.nix").write_text("{ x = 1; }\n")
+    assert workspace.tree_changes(sub) == [" M proj/devenv.nix"]

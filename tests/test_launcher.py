@@ -353,6 +353,20 @@ def test_new_copies_the_template_into_the_current_directory(env, tmp_path):
     assert env.builds() == []
 
 
+def test_new_uses_the_imported_template_source(env, tmp_path):
+    template = tmp_path / "imported-template"
+    template.mkdir()
+    (template / "devenv.yaml").write_text("# tracked imported template\n")
+    (template / "vendomat.yaml").write_text("# tracked catalog template\n")
+    target = tmp_path / "basix-workspace"
+    target.mkdir()
+    done = env.run(target, "new", extra_env={"VENDOMAT_TEMPLATE": str(template)})
+    assert done.returncode == 0, done.stderr
+    assert (target / "devenv.yaml").read_text() == "# tracked imported template\n"
+    assert (target / "vendomat.yaml").read_text() == "# tracked catalog template\n"
+    assert files_under(target) == {"devenv.yaml", "vendomat.yaml"}
+
+
 def test_new_makes_the_files_writable_and_creates_the_directory(env, tmp_path):
     done = env.run(tmp_path, "new", "made/here")
     assert done.returncode == 0, done.stderr
@@ -384,6 +398,7 @@ def test_new_takes_at_most_one_directory(env, tmp_path):
 # --- update, explain, and the check before the shell (S3 part 2) -----------------------------------
 
 TRACE = Path(__file__).parent / "fixtures" / "trim" / "yaml-faults.txt"
+TRACE_BASIX = Path(__file__).parent / "fixtures" / "trim" / "basix-yaml-faults.txt"
 
 
 @pytest.mark.parametrize("argv", [("update",), ("update", "vendomat"), ("update", "--check"), ("explain", "--json")])
@@ -413,7 +428,7 @@ def test_a_set_devenv_command_wins_over_the_fork_for_update(env, tmp_path):
     assert done.stdout.strip() == "DEVENV=/chosen/devenv"
 
 
-def precheck_workspace(env, tmp_path, *, evaluates: bool) -> tuple[Path, Path]:
+def precheck_workspace(env, tmp_path, *, evaluates: bool, trace: Path = TRACE) -> tuple[Path, Path]:
     """A workspace with a vendomat.yaml and a fork whose `eval` passes or prints the real trace of a bad file."""
     work = tmp_path / "yamlws"
     work.mkdir()
@@ -424,7 +439,7 @@ def precheck_workspace(env, tmp_path, *, evaluates: bool) -> tuple[Path, Path]:
         f"""
         echo "$*" >> {calls}
         if [ "$1" = eval ]; then
-          {"exit 0" if evaluates else f"cat {TRACE} >&2; exit 1"}
+          {"exit 0" if evaluates else f"cat {trace} >&2; exit 1"}
         fi
         echo "SHELL $*"
         """,
@@ -463,6 +478,21 @@ def test_a_workspace_that_fails_prints_the_yaml_lines_first_and_keeps_the_trace(
     log = Path(lines[5].removeprefix("vendomat: the full trace is in "))
     assert log.parent == tmp_path / "state" / "vendomat" / "logs"
     assert log.read_text() == TRACE.read_text()
+
+
+def test_a_workspace_fault_in_basix_yaml_is_trimmed_and_keeps_the_trace(env, tmp_path):
+    work, calls = precheck_workspace(env, tmp_path, evaluates=False, trace=TRACE_BASIX)
+    (work / "basix.yaml").write_text("machines:\n  learner:\n    profile: [\n")
+    done = env.run(work)
+    assert done.returncode == 2
+    assert calls.read_text().splitlines() == ["eval devenv.root"]
+    lines = done.stderr.splitlines()
+    assert lines[1:4] == [
+        "basix.yaml:3:14: flow style is not accepted",
+        "malformed Basix machine catalog",
+        "at /ws/devenv.nix:4:7",
+    ]
+    assert lines[-1].startswith("vendomat: the full trace is in ")
 
 
 def test_a_directory_without_vendomat_yaml_runs_no_check(env, tmp_path):

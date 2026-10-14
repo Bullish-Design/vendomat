@@ -125,11 +125,16 @@ def test_rollback_refuses_an_uncommitted_change(world: World, name: str):
     assert len(world.machine.calls) == calls and (world.root / name).read_text() == "edit\n"
 
 
-def test_a_working_copy_restore_is_refused_by_both_commands(world: World):
-    # A restore that stays in the working copy leaves the tree dirty. Neither command goes on.
+def test_apply_commits_a_watched_restore_and_rollback_refuses_new_edits(world: World):
+    # Apply builds and commits the watched restore; rollback still refuses a later uncommitted edit.
+    before = workspace.head(world.root)
     git(world.root, "restore", f"--source={world.first}", "--", "devenv.nix")
-    with pytest.raises(RecordError, match="uncommitted changes"):
-        world.apply()
+    world.apply()
+    assert workspace.head(world.root) != before
+    assert world.lines()[-1]["commit"] == workspace.head(world.root)
+    assert world.lines()[-1]["dirty"] is False
+    assert git(world.root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
+    (world.root / "devenv.nix").write_text("{ uncommitted = true; }\n")
     with pytest.raises(RecordError, match="uncommitted changes"):
         world.rollback()
 

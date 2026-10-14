@@ -207,6 +207,24 @@ def test_the_caller_names_the_file_in_every_error(tmp_path: Path):
     assert parse_text(tmp_path, nested_maps(LIMIT + 1), name="basix.yaml")["err"].startswith("basix.yaml:65:129: ")
 
 
+@needs_nix_fixture
+def test_a_plain_string_name_parses_and_every_fault_of_the_corpus_starts_with_it(tmp_path: Path):
+    # VMT-164, R38: `(import ./devenv/parse.nix) "basix.yaml" text` takes a plain string, not a set.
+    ok = parse_text(tmp_path, "name: learner\nitems:\n  - a\n  - b\n", name="basix.yaml")
+    assert ok == {"ok": {"name": "learner", "items": ["a", "b"]}}
+    table = {name: case["err"] for name, case in expected("p4").items() if "err" in case}
+    assert len(table) > 20  # the group holds many faults
+    names = sorted(table)
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(lambda n: parse_file(CORPUS / "p4" / f"{n}.yaml", name="basix.yaml"), names))
+    wrong = []
+    for name, got in zip(names, results, strict=True):
+        text = got.get("err", "")
+        if not re.match(r"^basix\.yaml:\d+:\d+: \S", text) or text != table[name].replace(NAME, "basix.yaml", 1):
+            wrong.append(f"{name}: want {table[name]!r} with the name basix.yaml, got {text!r}")
+    assert not wrong, "\n".join(wrong)
+
+
 # --- Positions (VMT-035) ------------------------------------------------------------------------
 
 SAMPLE = """\

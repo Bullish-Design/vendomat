@@ -6,12 +6,13 @@ machine and every clone shares (R30).
 
 The watched files are the files that decide what a machine runs: ``vendomat.yaml``, ``devenv.lock``,
 and the hatch files ``devenv.nix`` and ``devenv.local.nix``. A watched file that differs from the
-commit counts as uncommitted. That covers an edit, a staged edit, a deleted file, an untracked
-file, and an ignored file that exists, because none of them reaches another clone.
+commit counts as a change. Apply commits those paths after a successful build; an ignored file must
+be force-added first. ``--dirty`` skips that commit and marks the generation dirty.
 """
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -97,22 +98,124 @@ def short(root: Path, commit: str) -> str:
     return git(root, "rev-parse", "--short=12", commit).stdout.strip()
 
 
-def watched_changes(root: Path) -> list[Change]:
-    """Watched files that differ from HEAD. An ignored file that exists counts."""
+def _prefix(root: Path) -> str:
+    """The path of ``root`` below the repository top, with a trailing slash. Empty at the top."""
 
-    proc = git(root, "status", "--porcelain", "--ignored=matching", "--untracked-files=all", "--", *WATCHED)
+    return git(root, "rev-parse", "--show-prefix").stdout.strip()
+
+
+def watched_changes(root: Path) -> list[Change]:
+    """Watched files that differ from HEAD. An ignored file that exists counts.
+
+    ``git status`` names paths from the repository top, not from ``root``. A workspace may sit in a
+    subdirectory, so the function strips the prefix of ``root``. A rename between watched files gives
+    one change for each name.
+    """
+
+    proc = git(root, "status", "--porcelain", "-z", "--ignored=matching", "--untracked-files=all", "--", *WATCHED)
+    prefix = _prefix(root)
+    entries = proc.stdout.split("\0")
     changes: list[Change] = []
-    for line in proc.stdout.splitlines():
-        status, path = line[:2], line[3:].strip().strip('"')
-        if path in WATCHED:
-            changes.append(Change(path, status))
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if len(entry) < 4:
+            continue
+        status = entry[:2]
+        names = [entry[3:]]
+        if "R" in status or "C" in status:  # a rename or copy carries the old name next
+            names.append(entries[index] if index < len(entries) else "")
+            index += 1
+        for name in names:
+            if name.startswith(prefix) and name[len(prefix) :] in WATCHED:
+                changes.append(Change(name[len(prefix) :], status))
     return changes
+
+
+def fingerprint(root: Path) -> tuple[str, dict[str, str | None]]:
+    """The commit at HEAD and the content hash of each watched file (``None`` for a missing file)."""
+
+    hashes: dict[str, str | None] = {}
+    for name in WATCHED:
+        file = root / name
+        hashes[name] = hashlib.sha256(file.read_bytes()).hexdigest() if file.is_file() else None
+    return head(root), hashes
+
+
+def require_commit_identity(root: Path) -> None:
+    """Refuse when Git cannot name a committer, so that apply fails before the build and not after it.
+
+    A detached HEAD is not a fault: a jj-colocated checkout is always detached. Git hooks stay on.
+    """
+
+    proc = git(root, "var", "GIT_COMMITTER_IDENT", check=False)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout).strip()
+        raise WorkspaceError(
+            "git cannot name a committer, so apply cannot commit the configuration. "
+            "Run `git config user.name NAME` and `git config user.email ADDRESS`, then apply again. "
+            f"Nothing was built. Git said: {detail}"
+        )
+
+
+def refuse_ignored_watched(root: Path) -> None:
+    """Ignored watched files must be explicitly force-added before they can be applied."""
+
+    ignored = [change.path for change in watched_changes(root) if change.status == "!!"]
+    if ignored:
+        names = ", ".join(ignored)
+        raise WorkspaceError(
+            f"ignored configuration file(s) are present: {names}. Force-add them with `git add -f`, "
+            "or remove them before applying."
+        )
+
+
+def _tracked(root: Path, path: str) -> bool:
+    return git(root, "ls-files", "--error-unmatch", "--", path, check=False).returncode == 0
+
+
+def _commit_paths(root: Path, changes: list[Change]) -> tuple[str, ...]:
+    """Return changed watched paths, or one tracked path for an empty rollback commit."""
+
+    paths = tuple(dict.fromkeys(change.path for change in changes))
+    if paths:
+        return paths
+    for path in WATCHED:
+        if _tracked(root, path):
+            return (path,)
+    raise WorkspaceError("the workspace has no tracked configuration path to commit")
+
+
+def commit_watched(root: Path, message: str = "vendomat apply configuration") -> str:
+    """Commit the current allowlisted workspace configuration without committing other staged files."""
+
+    refuse_ignored_watched(root)
+    changes = watched_changes(root)
+    if not changes:
+        return head(root)
+    paths = _commit_paths(root, changes)
+    # `git add` stops on a pathspec that matches nothing. The old name of a staged rename is such a path:
+    # it is gone from the tree and the index, and the rename already staged its deletion.
+    present = [path for path in paths if (root / path).exists() or _tracked(root, path)]
+    if present:
+        git(root, "add", "-A", "--", *present)
+    # A staged change that the tree reverted (`MM`), or an added then deleted file (`AD`), leaves the
+    # paths equal to HEAD. `git commit --only` would exit 1 then, so make no commit.
+    differs = git(root, "diff", "--cached", "--quiet", "HEAD", "--", *paths, check=False)
+    if differs.returncode == 0:
+        return head(root)
+    if differs.returncode != 1:
+        raise WorkspaceError(f"git diff --cached failed: {(differs.stderr or differs.stdout).strip()}", 2)
+    git(root, "commit", "--quiet", "--only", "-m", message, "--", *paths)
+    return head(root)
 
 
 def tree_changes(root: Path) -> list[str]:
     """Tracked files that differ from HEAD, as ``git status`` lines. Untracked files do not count."""
 
-    return git(root, "status", "--porcelain", "--untracked-files=no").stdout.splitlines()
+    # `-- .` limits the list to the workspace directory, the same scope as the `--exact` restore.
+    return git(root, "status", "--porcelain", "--untracked-files=no", "--", ".").stdout.splitlines()
 
 
 def diff_text(root: Path, rev: str, *, exact: bool) -> str:
@@ -132,7 +235,7 @@ def restore(root: Path, rev: str, *, exact: bool) -> None:
         return
     for path in WATCHED:
         in_rev = git(root, "cat-file", "-e", f"{rev}:{path}", check=False).returncode == 0
-        tracked = git(root, "ls-files", "--error-unmatch", "--", path, check=False).returncode == 0
+        tracked = _tracked(root, path)
         if in_rev:
             git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", path)
         elif tracked:
@@ -151,8 +254,12 @@ def undo_restore(root: Path, *, exact: bool) -> None:
             git(root, "restore", "--source=HEAD", "--staged", "--worktree", "--", path)
 
 
-def commit_restore(root: Path, message: str) -> str:
-    """Commit the staged restore, even when it changes nothing, and return the new commit id."""
+def commit_restore(root: Path, message: str, *, exact: bool = False) -> str:
+    """Commit a restore, keeping unrelated staged files out of a watched-file rollback."""
 
-    git(root, "commit", "-q", "--allow-empty", "-m", message)
+    if exact:
+        git(root, "commit", "-q", "--allow-empty", "-m", message)
+    else:
+        paths = _commit_paths(root, watched_changes(root))
+        git(root, "commit", "-q", "--allow-empty", "--only", "-m", message, "--", *paths)
     return head(root)

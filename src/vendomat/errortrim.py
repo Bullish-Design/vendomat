@@ -13,8 +13,8 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-#: A fault line of the catalog or the parser: ``vendomat.yaml:LINE:COL: reason``.
-FAULT = re.compile(r"^vendomat\.yaml:\d+:\d+:")
+#: A fault line from any workspace YAML file: ``FILE.yaml:LINE:COL: reason``.
+FAULT = re.compile(r"^[^/\s:]+\.yaml:\d+:\d+:")
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _ERROR = re.compile(r"^\s*error:(.*)$")
 _AT = re.compile(r"^at (\S+:\d+:\d+):?$")
@@ -27,7 +27,7 @@ def plain(text: str) -> str:
 
 
 def trim(text: str) -> str:
-    """Return the fault lines of ``vendomat.yaml``, then the text after the last ``error:``.
+    """Return positioned workspace YAML faults, then the text after the last ``error:``.
 
     A message of one line, such as a syntax error, gets the last ``at FILE:LINE:COL`` place that came before it.
     When the text has no ``error:`` line and no fault line, the whole text comes back, so a failure of

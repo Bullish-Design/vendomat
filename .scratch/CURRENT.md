@@ -36,8 +36,8 @@ Two sessions implement the project 21 design. Each starts from its kickoff file.
 the design authority and holds the slice evidence.
 
 - [Project 23](projects/23-vendomat-fork-and-binary/KICKOFF.md): S1, the module-only devenv fork
-  (tag `v2.4.0-vendomat-modules.1`, R44), and S2, the host devenv binary (no Attic, R39). The host
-  switch waits for the owner.
+  (tag `v2.4.0-vendomat-modules.1`, R44), and S2, the host devenv binary (no Attic, R39). Both are
+  complete; the owner switched the host on 2026-10-14 (R48).
 - [Project 24](projects/24-vendomat-catalog-and-machines/KICKOFF.md): S3, the catalog, template,
   commands, and Harmonia sharing module, and S4, `vendomat apply` and `vendomat rollback`, proved
   in VMs. Done; v0.8.0 is published. See [REPORT](projects/24-vendomat-catalog-and-machines/REPORT.md).
@@ -54,21 +54,21 @@ checks are `opt:NAME` tasks in `nix/tasks.nix`.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
-**The design is final as of 2026-10-13.** R39 (2026-10-13): the new system configures no Attic;
+**Current status, 2026-10-14.** R39 (2026-10-13): the new system configures no Attic;
 every installed machine runs Harmonia from first boot. R40 to R45 settle the implementation
 decisions D1, D2, D4, D6, D7, and D8. Project 21 is the design authority for Vendomat and Basix.
-Project 14 stays the implementation contract until a release meets the project 21 gates. The next
-work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary overlay). Both are in
-the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them. A new session starts
-from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-GUIDE.md): Phase 0,
-then the open implementation decisions D1 to D8 (recorded with options and recommendations in
-the decisions file), then the slices. S3 is done except its release step (see project 24 above).
+S1 to S4 are complete on Vendomat `main`; v0.8.0 is published on `release` at `e5923a8f`, and the
+S2 host switch is complete under R48. S6 retired the old binary fork. Do not restart those slices.
+Project 14 stays the implementation contract until a release meets the project 21 gates.
+The `p21-contracts` work is on `main`. It resolves the Basix requests VR1 to VR4, VR6, and VR7 and
+adds rulings R49 to R51. VR5 is not done: Basix keeps its own hint. No release carries this work yet.
+Its evidence is [VR contract resolutions](projects/21-vendomat-basix-split/evidence/VR-CONTRACT-RESOLUTIONS-2026-10-14.md).
 
 S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is published at `git://server/devenv?ref=refs/tags/v2.4.0-vendomat-modules.1&dir=src/modules`, and Vendomat's flake has it as input `devenv` ([evidence](projects/21-vendomat-basix-split/evidence/S1-MODULE-FORK.md)).
 
 S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The host runs it since 2026-10-14 (R48): nix-meta `main` `cf8ef3cc` installs it, and the owner switched `server` ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
 
-S5, the Vendomat side, is done in part (2026-10-14): the collection hook accepts the `release` branch in every repository (R37, `VMT-171`), and `devenv/parse.nix` imports with a plain file name (R38). The live hooks under `~/vendor/` are not updated, and `~/vendor/basix` does not exist (owner gate). The Basix fixtures run in the Basix repository ([evidence](projects/21-vendomat-basix-split/evidence/S5-BASIX.md)).
+S5, the Vendomat side: steps 1 and 2 are done (2026-10-14). The collection hook accepts the `release` branch in every repository (R37, `VMT-171`), and `devenv/parse.nix` imports with a plain file name (R38, `VMT-164`). Step 3, the Basix fixtures, runs from the Basix repository. The live hooks under `~/vendor/` are not updated, and `~/vendor/basix` does not exist (owner gate). The evidence is [S5-BASIX](projects/21-vendomat-basix-split/evidence/S5-BASIX.md).
 
 S6 is done (2026-10-14): the `v2.4.0-vendomat.4` binary fork series, its fixtures, and patches 0001, 0002, 0004, and 0006 to 0009 are gone from `devenv-dist/`; the S1 module series and the S2 binary patches stay ([evidence](projects/21-vendomat-basix-split/evidence/S6-FORK-RETIRED.md)).
 
@@ -90,21 +90,17 @@ machines use devenv Machines with a local `apply` and a local install from the B
 opens no upstream pull request for its devenv patches (R34), so the module-only fork and the patched
 host binary are long-lived.
 
-Spikes W1 to W10 ran on 2026-10-13 on stock devenv 2.4.0 and in VMs. They proved the parser, the
-catalog, the Basix pin layout, the machine mechanisms, the disk guard, the host binary, the rollback
-design, and the test-VM hardware report, all at fixture level. The owner ruled R13 to R36 after the
-spikes. R35 keeps homes outside Vendomat, and R36 says Vendomat ships no host-side module; these
-answer project 22's proposals. No design question stays open.
+The Basix B2 and B3 console-install and disk-guard spike evidence is committed on a Basix feature
+branch. Those disposable VM results are not B5 product integration or S7 hardware proof. The next
+product work is S5/B5 integration; S7 and any physical-disk write still require the applicable
+owner approval. W1 to W10 are historical design spikes, not the current implementation status. S3
+resolved the catalog issues recorded in its evidence, and S4 implemented apply and rollback. Current
+contract spikes and their limits are recorded separately; fixtures and disposable VMs do not
+establish a real-machine or physical-disk proof. Remaining ledger gaps are listed by ID in the ledger.
 
-Open gaps with no ruling are ledger rows: the parser depth limit and line numbers, trace trimming of
-devenv errors, the devenv version warning, whether devenv fetches unused inputs, and two disk guard
-gaps. Real hardware and the two-machine Harmonia check are unproved. Two owner gates stand: switching
-the host to the new binary, and any real disk write.
-
-Fixtures back the parser and the machine mechanisms at fixture level only. No production code,
-consumer, or machine changed. Where project 21 and project 20 disagree, project 21 states the future
-design. Project 20 stays the record of slice 1, and project 14 stays the current implementation
-contract.
+Where project 21 and project 20 disagree, project 21 states the future design. Project 20 stays the
+record of slice 1. One owner gate stands: any real disk write. The host switch is done (R48). Real
+hardware and the two-machine Harmonia check are unproved (S7).
 
 ## Earlier future design: project 20 — Vendomat as the front door
 

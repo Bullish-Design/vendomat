@@ -8,8 +8,9 @@ EFI disk image, and runs the real commands inside it, as an unprivileged user wi
 2. W9 R1 to R6: the default rollback gives the identical path of A, copies nothing, adds a generation
    that is the default boot entry, and boots clean; a working-copy-only restore is refused; a rollback
    works after the path left the store (the cache supplies it); `--fast`; `--boot-only`.
-3. R43: apply writes one record line; apply refuses uncommitted changes unless `--dirty`; rollback
-   skips dirty entries.
+3. R43 and VR3: apply commits allowlisted configuration after build and before activation, leaves
+   unrelated staged files alone, refuses ignored configuration, and `--dirty` skips the commit;
+   rollback skips dirty entries.
 
 The machine has no network. A local binary cache serves the system paths over HTTP (the harness counts
 the downloads), and the workspace pins its inputs by store path. See tests/fixtures/machines/. The
@@ -105,7 +106,8 @@ class World:
         return rc, out
 
     def git(self, args: str) -> str:
-        return self.machine.ok("tester", f"cd ws && git {args}").strip()
+        # Preserve leading columns from porcelain status; they distinguish staged from unstaged.
+        return self.machine.ok("tester", f"cd ws && git {args}").rstrip()
 
     def write_hatch(self, system: str) -> None:
         self.machine.ok("tester", "cd ws && cat > devenv.nix", stdin=hatch(system))
@@ -339,19 +341,22 @@ def test_the_machine_runs_system_a_before_any_command(world: World) -> None:
     world.log.result(f"baseline: {state}")
 
 
-def test_apply_refuses_uncommitted_changes_and_changes_nothing(world: World) -> None:
+def test_apply_build_failure_and_ignored_config_do_not_change_the_machine(world: World) -> None:
     before = world.state()
     world.write_hatch("A-prime")
+    world.machine.ok("tester", "cd ws && printf '{ invalid = ' > devenv.nix")
     rc, out = world.vendomat("apply")
-    assert rc == 1 and "uncommitted changes to watched files (modified: devenv.nix)" in out, out
+    assert rc != 0 and "build machines.box.build.nixos failed" in out, out
+    assert world.git("status --porcelain") == " M devenv.nix"
+    assert world.state() == before and world.record() == []
     world.git("checkout -- devenv.nix")
     # A hatch file that is ignored by Git still counts: no other clone has it.
     world.machine.ok("tester", "cd ws && echo '{ }' > devenv.local.nix")
     rc, out = world.vendomat("apply")
-    assert rc == 1 and "ignored: devenv.local.nix" in out, out
+    assert rc == 1 and "Force-add them with `git add -f`" in out, out
     world.machine.ok("tester", "cd ws && rm devenv.local.nix")
     assert world.state() == before and world.record() == []
-    world.log.result("apply refused a modified devenv.nix and an ignored devenv.local.nix; nothing changed")
+    world.log.result("build failure left config uncommitted and machine unchanged; apply refused ignored config")
 
 
 def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world: World) -> None:
@@ -371,16 +376,23 @@ def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world
     assert line["generation"] == 1 and line["toplevel"] == world.tops["A"]
     assert line["commit"] == world.commits["A"] and line["dirty"] is False
     assert "failed units: none" in out and "generation 1 is active" in out
+    world.machine.ok("tester", "cd ws && rm -rf .machines")
     world.log.result(f"apply A: record {line}")
 
 
 def test_apply_a_prime_builds_in_the_machine_and_boots_clean(world: World) -> None:
     world.write_hatch("A-prime")
-    world.machine.ok("tester", "cd ws && echo two > notes.txt")  # a tracked file that is not watched
-    world.commits["A-prime"] = world.commit("system A prime")
+    world.machine.ok("tester", "cd ws && echo two > notes.txt && git add notes.txt")  # staged addition, not watched
     began = world.downloads()
     rc, out = world.vendomat("apply")
     assert rc == 0, out
+    world.commits["A-prime"] = world.git("rev-parse HEAD")
+    assert world.git("log -1 --format=%s") == "vendomat apply configuration"
+    assert world.git("show --format= --name-only HEAD") == "devenv.nix"
+    assert world.git("status --porcelain") == "A  notes.txt\n?? .machines/", (
+        "apply preserves unrelated staged work and leaves its trust key outside the config commit"
+    )
+    world.machine.ok("tester", "cd ws && rm -rf .machines")
     assert world.downloads() > began, "A-prime needs paths from the cache (hello)"
     state = world.state()
     # The machine builds the same system path as the host, although the workspace path differs.
@@ -401,16 +413,17 @@ def test_apply_a_prime_builds_in_the_machine_and_boots_clean(world: World) -> No
 # W9 R2 and R3: the lasting rollback ----------------------------------------------------------------
 
 
-def test_a_working_copy_restore_is_refused_by_apply_and_rollback(world: World) -> None:
+def test_ignored_configuration_is_refused_by_apply_and_rollback(world: World) -> None:
     before = world.state()
-    world.git(f"checkout {world.commits['A']} -- devenv.nix")
-    for command in ("apply", "rollback"):
-        rc, out = world.vendomat(command)
-        assert rc == 1 and "uncommitted changes to watched files" in out, out
+    world.machine.ok("tester", "cd ws && echo '{ }' > devenv.local.nix")
+    rc, out = world.vendomat("apply")
+    assert rc == 1 and "Force-add them with `git add -f`" in out, out
+    rc, out = world.vendomat("rollback")
+    assert rc == 1 and "uncommitted changes to watched files" in out, out
     assert world.state() == before and len(world.record()) == 2
-    world.git("checkout HEAD -- devenv.nix")
-    assert world.git("status --porcelain") == ""
-    world.log.result("a restore that stays in the working copy: apply and rollback both refuse")
+    world.machine.ok("tester", "cd ws && rm devenv.local.nix")
+    assert world.git("status --porcelain") == "A  notes.txt", "the unrelated staged addition stays staged"
+    world.log.result("apply and rollback refused a present ignored config file without changing the machine")
 
 
 def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world: World) -> None:
@@ -425,10 +438,11 @@ def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world:
     assert state["gens"].split() == ["1", "2", "3"] and state["pointer"] == "system-3-link"
     assert default_generation(state) == 3 and state["marker"] == "A" and state["hello"] == "no"
     assert state["failed"].strip("[] ") == ""
-    # The restore is a commit. Another clone sees it, and no working-copy state remains.
+    # The restore is a commit. Another clone sees it, while unrelated staged work stays staged.
     short = world.commits["A"][:12]
     assert world.git("log -1 --format=%s") == f"rollback to {short}"
-    assert world.git("status --porcelain") == ""
+    assert world.git("show --format= --name-only HEAD") == "devenv.nix"
+    assert world.git("status --porcelain") == "A  notes.txt"
     assert world.git(f"diff {world.commits['A']} HEAD -- vendomat.yaml devenv.lock devenv.nix") == ""
     assert world.machine.ok("tester", "cd ws && cat notes.txt").strip() == "two", "an unwatched file stays"
     world.commits["R1"] = world.git("rev-parse HEAD")
@@ -436,6 +450,9 @@ def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world:
     assert line["generation"] == 3 and line["toplevel"] == world.tops["A"]
     assert line["commit"] == world.commits["R1"] and line["dirty"] is False
     world.log.result(f"rollback: {world.timings['vendomat rollback']:.1f} s, 0 downloads, record {line}")
+    world.git("reset -- notes.txt")
+    world.machine.ok("tester", "cd ws && rm notes.txt")
+    assert world.git("status --porcelain") == ""
     world.machine.reboot()
     state = world.state()
     assert state["booted"] == world.tops["A"] and state["marker"] == "A" and state["hello"] == "no"
@@ -449,8 +466,6 @@ def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world:
 
 def test_dirty_apply_is_recorded_and_rollback_skips_it(world: World) -> None:
     world.write_hatch("D")
-    rc, out = world.vendomat("apply")
-    assert rc == 1 and "--dirty" in out
     rc, out = world.vendomat("apply --dirty")
     assert rc == 0 and "warning: applying uncommitted changes" in out, out
     line = world.record()[-1]

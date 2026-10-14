@@ -4,11 +4,12 @@ The command runs on the machine. It does the steps that devenv's deploy worker d
 
 1. read the machine name from ``/etc/devenv/machine-facts.json`` (the catalog sets
    ``networking.hostName`` to the machine name, R21);
-2. refuse uncommitted changes to the watched files, unless ``--dirty`` (R43);
+2. refuse ignored watched files unless they are explicitly force-added;
 3. ``devenv build machines.NAME.build.nixos``;
-4. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
-5. ``sudo TOP/bin/switch-to-configuration switch``;
-6. append one line to the generation record (see ``record.py``), as root.
+4. commit the allowlisted watched files, unless ``--dirty``;
+5. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
+6. ``sudo TOP/bin/switch-to-configuration switch``;
+7. append one line to the generation record (see ``record.py``), as root.
 
 A name that is not this machine passes through to ``devenv machines deploy NAME``. The workspace
 commit is never written into the system (``VMT-110``).
@@ -112,20 +113,36 @@ def deploy_argv(name: str) -> list[str]:
     return [devenv_binary(), "machines", "deploy", name]
 
 
-def refuse_uncommitted(root: Path, *, allow: bool, emit: Emit) -> bool:
-    """Return whether the watched files are dirty. Refuse unless ``allow`` is set."""
+def dirty_apply(root: Path, *, allow: bool, emit: Emit) -> bool:
+    """Return whether this apply skips its config commit; ignored files always need explicit force-add."""
 
     changes = workspace.watched_changes(root)
-    if not changes:
+    workspace.refuse_ignored_watched(root)
+    changes = [change for change in changes if change.status != "!!"]
+    if not changes or not allow:
         return False
     listing = "; ".join(change.text() for change in changes)
-    if not allow:
-        raise RecordError(
-            f"uncommitted changes to watched files ({listing}). Commit them, or run with --dirty to apply "
-            "them anyway. A dirty apply cannot be a rollback target."
-        )
     emit(f"warning: applying uncommitted changes ({listing}); the record marks this generation dirty")
     return True
+
+
+def refuse_changed_during_build(root: Path, before: tuple[str, dict[str, str | None]]) -> None:
+    """Refuse when a watched file or HEAD changed during the build.
+
+    The system was built from the earlier content. A commit now would record files that nobody built.
+    """
+
+    after = workspace.fingerprint(root)
+    if after == before:
+        return
+    names = [name for name in workspace.WATCHED if after[1][name] != before[1][name]]
+    if after[0] != before[0]:
+        names.append("HEAD")
+    raise RecordError(
+        f"{', '.join(names)} changed during the build, so the built system does not match the files. "
+        "Nothing was committed or activated, and no record line was written. Apply again.",
+        1,
+    )
 
 
 def build_toplevel(root: Path, name: str, run: Runner) -> str:
@@ -211,7 +228,7 @@ def switch(
         raise RecordError(
             f"switch-to-configuration failed (exit {activated.returncode}). The profile already points at the new "
             "generation. Run `vendomat rollback --fast` to return, or fix the fault and run apply again. "
-            "No record line was written.",
+            "The configuration commit stays; apply again to retry. No record line was written.",
             2,
         )
     return activated.returncode
@@ -300,11 +317,19 @@ def apply(
     """Activate this machine's configuration from the workspace at ``root``."""
 
     name = machine_name(facts)
-    dirty = refuse_uncommitted(root, allow=dirty_ok, emit=emit)
+    dirty = dirty_apply(root, allow=dirty_ok, emit=emit)
+    # Precondition: the workspace has a commit. A dirty apply records this commit.
     commit = workspace.head(root)
+    if not dirty and workspace.watched_changes(root):
+        # Apply commits after the build. Find out now that the commit can be made (no build is wasted).
+        workspace.require_commit_identity(root)
+    before = workspace.fingerprint(root)
     emit(f"machine {name}: building machines.{name}.build.nixos")
     top = build_toplevel(root, name, run)
     emit(f"built {top}")
+    refuse_changed_during_build(root, before)
+    if not dirty:
+        commit = workspace.commit_watched(root)
     applied = activate(run, top, commit, dirty, emit, profile=profile, record=record)
     publish_cache_key(root, name, emit, cache_key)
     return applied

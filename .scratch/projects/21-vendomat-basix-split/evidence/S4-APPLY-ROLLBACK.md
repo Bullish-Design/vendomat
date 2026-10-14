@@ -31,10 +31,10 @@ R15 (local apply), R21 (host name is the machine name), R30 (lasting rollback), 
    plain Git repository. The rule "no raw git" applies to the Vendomat repository, not to the user's workspace.
 2. **Watched files:** `vendomat.yaml`, `devenv.lock`, `devenv.nix`, `devenv.local.nix` (`VMT-163`). A file
    counts as uncommitted when it is modified, staged, deleted, untracked, or ignored but present. The template
-   ignores `devenv.local.nix`, so a present copy always blocks `apply` unless `--dirty`: no other clone has it.
+   ignores `devenv.local.nix`, so a present copy always blocks `apply` unless `--dirty`: no other clone has it. (R49 changes this for apply: see `VMT-166`. A modified or untracked watched file is now committed after the build. An ignored file still blocks, also with `--dirty`.)
    A file that a hatch file imports is not watched. That is a gap.
 3. **apply:** read the machine name from `/etc/devenv/machine-facts.json`; refuse uncommitted changes unless
-   `--dirty`; `devenv build machines.NAME.build.nixos`; `sudo nix-env --profile ... --set TOP`;
+   `--dirty` (R49 changes this: apply now commits the watched files after the build, see `VMT-166`); `devenv build machines.NAME.build.nixos`; `sudo nix-env --profile ... --set TOP`;
    `sudo TOP/bin/switch-to-configuration switch`; append one record line as root; report the generation and
    `systemctl --failed`. Another machine's name runs `devenv machines deploy NAME`.
 4. **rollback:** pick the newest earlier clean entry with a system path that differs from the running one
@@ -93,7 +93,7 @@ steps; the times below are from the earlier run.
 | apply A' | the machine builds the host's A' path; generation 2 is the default entry; `hello` runs; zero failed units; reboot clean | passed, 13.2 s |
 | working-copy restore | apply and rollback both refuse | passed |
 | rollback (W9 R2, R3) | identical A path, no download, generation 3 is the default entry, commit `rollback to`, reboot clean | passed, 12.8 s |
-| dirty apply (R43) | apply refuses; `--dirty` records `dirty: true`; rollback skips and names it | passed |
+| dirty apply (R43) | apply refuses; `--dirty` records `dirty: true`; rollback skips and names it | passed (the refusal part is history: R49 replaced it, `VMT-166`) |
 | `--fast` (W9 R6) | no build, no new generation, default entry generation 6, commit made | passed, 3.0 s (a default rollback took 18.8 s in that run) |
 | `--boot-only` | one boot of generation 7, then the default again; no file, no commit | passed |
 | path left the store (W9 R5) | generations 2, 4, 5, 7 deleted, machine GC, `hello` gone; rollback fetches from the cache | passed, 20.9 s, 11 downloads |

@@ -8,6 +8,10 @@
 #   3. runs Harmonia with that key, on port 5000.
 # The secret key never enters the Nix store. It lives under `/var/lib/vendomat/cache-key/`.
 #
+# The firewall decides who reaches port 5000. The module opens it on the interfaces in
+# `trustedInterfaces` only (the default is none). With `networking.firewall.enable = false`, the port is
+# open on every interface and `trustedInterfaces` means nothing. The module warns in that case.
+#
 # A machine with peers (`vendomat.sharing.peers`) substitutes from them. It keeps cache.nixos.org.
 # It sets `fallback = true` and a short connect timeout, so a peer that is off never blocks a build.
 #
@@ -54,6 +58,17 @@ in
         at first boot. Set to false to run no Harmonia and make no key.
       '';
     };
+    trustedInterfaces = lib.mkOption {
+      type = t.listOf t.str;
+      default = [ ];
+      example = [ "eth1" ];
+      description = ''
+        Network interfaces on which this machine may serve its Harmonia cache. TCP 5000 stays
+        closed on unmarked interfaces; the empty list is the default. `serve = false` disables
+        the service even when an interface is listed. With `networking.firewall.enable = false`
+        the list has no effect: the port is open on every interface, and the module warns.
+      '';
+    };
     peers = lib.mkOption {
       type = t.either (t.listOf peerType) (t.attrsOf peerType);
       default = [ ];
@@ -79,7 +94,7 @@ in
       };
     })
 
-    # Server side: the key unit, then Harmonia.
+    # Server side: the key unit, Harmonia, and an interface-specific firewall opening.
     (lib.mkIf cfg.serve {
       systemd.tmpfiles.rules = [
         "d ${stateDir} 0755 root root -"
@@ -131,7 +146,19 @@ in
         after = [ keyUnit ];
       };
 
-      networking.firewall.allowedTCPPorts = [ port ];
+    })
+
+    # Harmonia listens on every interface. Only the firewall limits it.
+    (lib.mkIf (cfg.serve && !config.networking.firewall.enable) {
+      warnings = [
+        "vendomat.sharing: networking.firewall.enable is false, so Harmonia answers on TCP port ${toString port} on every interface and `trustedInterfaces` has no effect. Enable the firewall, or set vendomat.sharing.serve = false."
+      ];
+    })
+
+    (lib.mkIf (cfg.serve && cfg.trustedInterfaces != [ ]) {
+      networking.firewall.interfaces = lib.genAttrs cfg.trustedInterfaces (_: {
+        allowedTCPPorts = [ port ];
+      });
     })
   ];
 }

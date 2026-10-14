@@ -1,0 +1,5 @@
+… while evaluating the workspace
+  basix.yaml:3:14: flow style is not accepted
+  ... while calling the parser
+error: malformed Basix machine catalog
+at /ws/devenv.nix:4:7

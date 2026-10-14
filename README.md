@@ -23,11 +23,20 @@ vendomat update         # add the lines a newer template needs, then run devenv 
 
 - One error lists every bad field. Each line starts with `vendomat.yaml:LINE:COL:` and the key path.
   The launcher prints those lines first and keeps the full trace under `~/.local/state/vendomat/logs/`.
+  The launcher lifts a fault line from any YAML file of the workspace in the same way: it starts with
+  `FILE.yaml:LINE:COL:`.
+- `machines.NAME.programs` lists nixpkgs package names for that machine only. The machine's own NixOS
+  evaluation resolves them into `environment.systemPackages`. Top-level `programs` stays the shell's list.
+- Inside the pinned shell, `VENDOMAT_TEMPLATE` names the template of the imported Vendomat source.
+  `vendomat new` and `vendomat update` use it there. Outside the shell, the bundled template applies.
 - The template supplies `devenv.yaml`. The user MAY edit `devenv.nix` and `devenv.local.nix`. Shell
   entry prints one `advanced:` line when either file sets a value. `VENDOMAT_HIDE_ADVANCED=1` hides it.
 - The module `devenv/sharing.nix` runs Harmonia on a machine, with a signing key that the machine makes at
   first boot. Other machines of the workspace substitute from it. `serve: false` turns it off. The
-  new system configures no Attic.
+  new system configures no Attic. The module opens TCP port 5000 only on the interfaces in the NixOS
+  option `vendomat.sharing.trustedInterfaces` (default: none). The catalog has no YAML key for it
+  (open gap `VMT-172`): a hatch file sets `machines.NAME.nixos.vendomat.sharing.trustedInterfaces`.
+  With `networking.firewall.enable = false` the port is open on every interface, and the module warns.
 
 ## The older flow
 
@@ -44,7 +53,7 @@ with `forge_url`, `vendomat_tag`, and optional `devenv_tag`.
 
 Run `testee verify` from the repository root. Testee runs the devenv tasks of `nix/tasks.nix` on the
 commit in its own workspace. Run the opt-in tasks after a change to the area they cover:
-`testee verify opt:catalog-e2e`, `opt:parser-fuzz`, `opt:front-door-e2e`, `opt:sharing-vm` (two VMs),
+`testee verify opt:catalog-e2e`, `opt:parser-fuzz`, `opt:front-door-e2e`, `opt:sharing-vm` (three VMs),
 or `opt:e2e`.
 
 Read `.scratch/CURRENT.md` for the current authority and open gates. The evidence for the catalog

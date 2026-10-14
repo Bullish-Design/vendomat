@@ -274,7 +274,7 @@ The owner ruled D1 to D8 on 2026-10-13. The full records are in
 | D3 | R37 | S5 | Basix publishes like Vendomat: immutable tags plus a fast-forward `release` branch. The collection hook allows `release` for any repository. |
 | D4 | R42 | S3 | A committed `.machines/NAME/facter.json` marks a machine installed (`adopt-existing`). `mode: fresh-install` overrides it. |
 | D5 | R38 | S5 | Basix keeps its keys in `basix.yaml`. Vendomat builds no extension point for keys. |
-| D6 | R43 | S4 | `/var/lib/vendomat/generations.jsonl`, one line per apply. `apply` refuses uncommitted changes unless `--dirty`; `rollback` uses clean entries only. |
+| D6 | R43 | S4 | `/var/lib/vendomat/generations.jsonl`, one line per apply. `apply` refuses uncommitted changes unless `--dirty`; `rollback` uses clean entries only. R49 supersedes the apply refusal in part: apply now commits watched changes after the build (`VMT-166`). |
 | D7 | R44 | S1 | `v2.4.0-vendomat-modules.N`. |
 | D8 | R45 | S3 | `VENDOMAT_HIDE_ADVANCED=1` hides the `advanced:` line. |
 
@@ -580,7 +580,7 @@ Steps:
       machine name). `vendomat apply NAME` with another machine's name passes through to
       `devenv machines deploy NAME`.
    2. Refuse uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless
-      `--dirty` (D6).
+      `--dirty` (D6). R49 changes this step: apply builds first, then commits the watched files (`VMT-166`).
    3. `devenv build machines.NAME.build.nixos`.
    4. `/run/wrappers/bin/sudo nix-env --profile /nix/var/nix/profiles/system --set TOP`.
    5. `/run/wrappers/bin/sudo TOP/bin/switch-to-configuration switch`.

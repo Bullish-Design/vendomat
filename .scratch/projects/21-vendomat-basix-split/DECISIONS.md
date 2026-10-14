@@ -51,13 +51,15 @@ No production code, consumer, or machine changed.
 | R40 | D1, option a: the project 14 and V6 verbs and the `vendomat.toml` flow keep working until nix-systems and vendomat-demo move to `vendomat.yaml`; S8 then removes them all, `push` included. `machine install` moves to Basix (R13). S3 must not break the old flow. | "Agreed with all recommendations", 2026-10-13 | R39 removes the old reason to keep `push` (Attic); it goes in S8 with the rest. |
 | R41 | D2, option a: the module fork tag is Vendomat's second flake input, `devenv` (`dir=src/modules`). The template writes `devenv: follows: vendomat/devenv`. | as R40 | Changes the "one flake input" shape rule: `tests/test_repo_shape.py` and `AGENTS.md` change in S1 step 9. `VMT-073`, `VMT-111`. |
 | R42 | D4, option a: a committed `.machines/NAME/facter.json` marks a machine installed, and the catalog sets `vendomat.mode = "adopt-existing"`. The YAML key `mode: fresh-install` overrides it for a deliberate reinstall. | as R40 | S3 records the remote `facter` phase case (the file exists before a remote install) in a fixture. `VMT-099`. |
-| R43 | D6, option a: each machine keeps an append-only `/var/lib/vendomat/generations.jsonl`, one line per apply (generation, toplevel, commit, dirty flag, time). `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses clean entries only. | as R40 | `VMT-098`, `VMT-110`. |
+| R43 | D6, option a: each machine keeps an append-only `/var/lib/vendomat/generations.jsonl`, one line per apply (generation, toplevel, commit, dirty flag, time). `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses clean entries only. | as R40 | `VMT-098`, `VMT-110`. Superseded in part by R49 / `VMT-166` (apply only): apply now commits watched changes after the build instead of refusing them; the record and the clean-rollback rule stay. |
 | R44 | D7, option a: the module fork's tags are `v2.4.0-vendomat-modules.N`. | as R40 | `VMT-082`. |
 | R45 | D8, option a: the environment variable `VENDOMAT_HIDE_ADVANCED=1` hides the shell `advanced:` line. | as R40 | `VMT-093`. |
 | R46 | An exit status 4 of `switch-to-configuration` is a warning. `apply` and `rollback` write the record line and print the warning. | "1. confirmed" (2026-10-14, answer to the project 24 report) | `VMT-162` is ruled. |
 | R47 | The owner commits each machine's public cache key as `.machines/NAME/cache-key.pub`. A bare `apply` writes the file and asks for a commit. | "2. Confirmed" (2026-10-14) | `VMT-157` and `VMT-161` are ruled. |
-| R51 | A machine entry with no value (`machines:` then `laptop:`) is an empty map, so the machine takes every default. Every other key with no value still fails with `no value`. The parser stays strict by default; the catalog names the one path (`machines.NAME`) where no value is an empty map. A list item never takes the exception. | "Great, lets go for option 2" (2026-10-14, after the options for `VMT-160`) | `VMT-170` supersedes `VMT-012` in part and closes the gap `VMT-160`. Basix imports the same parser (R38) and names its own paths. R49 and R50 are left to the `p21-contracts` session. |
 | R48 | Switch the host to the S2 binary. | "4. Confirmed, let me know if theres something I need to do" (2026-10-14) | nix-meta `main` `cf8ef3cc` installs it. The owner runs the switch (it needs a password). |
+| R49 | A successful `vendomat apply` builds first, commits only the allowlisted watched workspace configuration, then activates and records it. A present ignored watched file must be force-added or removed. `--dirty` skips the config commit and records the current HEAD as dirty. A failed build makes no config commit, activation, or record. | Option selected, 2026-10-14: “Use proposed policy (Recommended).” (an option label; the owner did not see the details in the effect column) | Supersedes R43 in part, for apply only (apply commits watched changes after the build); the record and clean-rollback rules of R43 remain. `VMT-166`. The details below are implementer choices that the owner was not asked about: an ignored watched file blocks even with `--dirty`; the config commit stays if activation fails; the path-scoped rollback commit and the meaning of `--exact`. |
+| R50 | The sharing module exposes `trustedInterfaces` (default empty), opens TCP 5000 only on those interfaces while `serve = true`, and leaves unmarked interfaces closed. `serve = false` disables the service and all openings. | Option selected, 2026-10-14: “Explicit trusted interfaces; unmarked closed (Recommended).” (an option label; the owner did not see the details in the effect column) | `VMT-169`; the passing VR7 scratch fixture remains proposal evidence only. The details below are implementer choices that the owner was not asked about: the module opens no global port 5000; `serve = false` disables the key unit. The catalog has no YAML key for `trustedInterfaces`; no ruling covers it (`VMT-172`). |
+| R51 | A machine entry with no value (`machines:` then `laptop:`) is an empty map, so the machine takes every default. Every other key with no value still fails with `no value`. The parser stays strict by default; the catalog names the one path (`machines.NAME`) where no value is an empty map. A list item never takes the exception. | "Great, lets go for option 2" (2026-10-14, after the options for `VMT-160`) | `VMT-170` supersedes `VMT-012` in part and closes the gap `VMT-160`. Basix imports the same parser (R38) and names its own paths. R49 and R50 are left to the `p21-contracts` session. |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
 recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
@@ -298,6 +300,45 @@ Facts: R19 asks for a personal setting outside `vendomat.yaml`. The shell line c
 | c. A user config file, for example `~/.config/vendomat/config`. | Discoverable; room for later settings. | A new file format to define and prove. |
 
 **Recommendation:** a.
+
+### D9: configuration commits during apply
+
+**Ruled (R49), 2026-10-14: option selected, "the proposed policy".** The owner chose the option label. The details below went beyond the question. They are implementer choices: an ignored file blocks even with `--dirty`; the config commit stays if activation fails; a watched-file rollback commits only its restored paths; `rollback --exact` keeps whole-tree meaning. R49 supersedes R43 in part, for apply only.
+
+**Ledger:** `VMT-166`.
+
+After `devenv build machines.NAME.build.nixos` succeeds, `vendomat apply` commits the current
+contents of the four watched paths (`vendomat.yaml`, `devenv.lock`, `devenv.nix`, and
+`devenv.local.nix`) before activation. The path-scoped commit leaves unrelated staged work in the
+index. A present ignored watched file blocks apply until it is force-added or removed, including
+with `--dirty`. `--dirty` skips the config commit and records the existing HEAD with `dirty: true`.
+A build failure leaves the config uncommitted and does not activate or append a record line. A
+successful config commit remains if activation later fails, so a retry builds the same committed
+configuration. A watched-file rollback commits only its restored watched paths and preserves other
+staged work; `rollback --exact` retains its whole-tree semantics.
+
+### D10: the sharing module's network boundary
+
+**Ruled (R50), 2026-10-14: option selected, "explicit trusted interfaces; unmarked closed".** The owner chose the option label. That the module opens no global port and that `serve = false` disables the key unit are implementer choices that the question did not state.
+
+**Ledger:** `VMT-169`, gap `VMT-172`.
+
+The NixOS module option is `vendomat.sharing.trustedInterfaces`, a list of interface names whose
+incoming TCP 5000 traffic may reach Harmonia. It defaults to `[]`. The module opens no global
+TCP 5000 port. `serve = false` disables the key unit, Harmonia, and the interface openings even if
+the list is nonempty. The tests prove these parts:
+
+- `opt:sharing-vm` (production module, three VMs): loopback and the trusted `eth1` answer on port
+  5000; the untrusted `eth2` of `alpha` does not; `gamma` (serving, no trusted interface) does not
+  answer on `eth1`; `beta` (`serve = false`) has no Harmonia unit, no key unit, and no listener.
+- `test_serve_false_keeps_port_closed_even_with_a_trust_marker` (evaluation level only): with
+  `serve = false` and a nonempty list, the module opens no port and enables no Harmonia. No VM boots
+  that case.
+- `test_a_serving_machine_with_the_firewall_off_gets_a_warning` (evaluation level): with
+  `networking.firewall.enable = false`, port 5000 is open on every interface and the list has no
+  effect, so the module warns.
+
+The catalog has no YAML key for `trustedInterfaces` (gap `VMT-172`, no ruling).
 
 ## Ideas recorded, not pursued now
 
