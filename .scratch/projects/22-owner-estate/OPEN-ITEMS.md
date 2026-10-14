@@ -194,6 +194,11 @@ toolchain closure (`profiles/developer.nix:184-211`), so the order matters.
 
 **Recommendation:** (b).
 
+**Found 2026-10-13:** mancore's overlay imports
+`/run/current-system/sw/share/vendomat/consumer-module.nix`, and mancore's `devenv.nix` sets
+`vendor.toolchain.enable = false`, an option from that module. So the module has one reader, and the
+removal order of (b) needs one more step: drop that import and setting from mancore first.
+
 ---
 
 ## OI-08: today's stale import of devman's link module
@@ -440,9 +445,15 @@ devenv module.
 These need no option analysis; each has one obvious fix.
 
 - **mancore's overlay has no `devman.link` block.** Its shell prints a devman-link error
-  ("attribute 'devman' missing") and still enters. Fix: add the block in the overlay.
+  ("attribute 'devman' missing") and still enters. **Done:** devman-link reads the file's top-level
+  `devman.link` attribute, so the overlay now declares `devman.link = { };` (mancore keeps no
+  central links). The shell enters with no error; overlay `main` is `eb4850f8`; `devman doctor`
+  exits 0.
 - **An undescribed overlay change, `9f3038b6` (2026-10-11),** adds devenv-py overlay content that
-  `9df52a8b` probably supersedes. Fix: compare, then abandon it.
+  `9df52a8b` probably supersedes. **Done:** ten of its eleven files equal `main`; the eleventh
+  differs only in the import line that `main` changed on purpose. Abandoned.
 - **forgelab's overlay file** (archived set) lost its RepoMan import line with the other 18. Keep the
   removal: the line named a path that the next switch removes.
-- **W9's `doctor_check.py`** opens live caches in place (W5). Fix it before `ESTATE-043` reuses it.
+- **W9's `doctor_check.py`** opens live caches in place (W5). **Done:** it now copies the database
+  and its `-wal` file to a temporary directory and reads the copy. A test run on linkman left every
+  cache file unchanged.
