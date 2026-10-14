@@ -205,6 +205,21 @@ in
     '';
   };
 
+  # Opt-in two-VM proof of the sharing module (project 24, S3 step 11b; R39, VMT-127, VMT-128). It builds two
+  # NixOS machines from the pinned nixpkgs, boots them from image files under
+  # /mnt/shared/vendomat-p21/s3/sharing, and deletes them at the end. It needs /dev/kvm and a systemd user
+  # manager. Raw logs go under ~/.local/state/vendomat/p21/. Run `testee verify opt:sharing-vm`.
+  tasks."opt:sharing-vm" = optIn {
+    timeout_s = 3600;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_SHARING_VM=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_SHARING_VM_LOGS="$HOME/.local/state/vendomat/p21/$(date -u +%F)/s3/sharing/run-$(date -u +%H%M%SZ)"
+      ${venvBin}/python -m pytest -q -s tests/test_sharing_vm.py --junitxml="$out/sharing-vm.junit.xml"
+    '';
+  };
+
   # Opt-in live cache tasks (CACHE-012). They push to the host Attic with the push credential,
   # ask for every path with the pull credential, and copy cold into an empty store. They write
   # real objects to the live cache. Run `testee verify opt:live-cache` (a 1 MiB unique object) or

@@ -63,7 +63,8 @@ def test_the_template_ignores_the_devenv_state():
 
 def test_the_module_directory_declares_no_input():
     # It existed for fork patch 0007, which is gone. The template lists the inputs instead.
-    assert sorted(p.name for p in MODULE.iterdir()) == ["devenv.nix", "explain.nix", "hatch.nix", "parse.nix"]
+    names = sorted(p.name for p in MODULE.iterdir())
+    assert names == ["devenv.nix", "explain.nix", "hatch.nix", "parse.nix", "sharing.nix"]
 
 
 def test_the_module_reads_the_file_with_the_nix_parser_and_no_unsafe_setting():
