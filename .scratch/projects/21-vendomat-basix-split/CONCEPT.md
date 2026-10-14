@@ -236,8 +236,9 @@ Vendomat adds the local path.
   off services in the live session, goes in `iso.modules`
   ([W8-ISO-POLICY](evidence/W8-ISO-POLICY.md)). A module that changes an option which `build.iso`
   overrides needs `lib.mkForce`. The Basix live-ISO deny list (R29) is in `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
-- **The YAML machine table.** Vendomat maps `host` to `target.host`. The keys `profile`,
-  `capabilities`, `serve`, and `disk` belong to Basix. Basix keeps them in a second file,
+- **The YAML machine table.** Vendomat maps `host` to `target.host`, and `serve` to its sharing module
+  (see Sharing below; R39 makes `serve` a Vendomat key, `VMT-128`). The keys `profile`,
+  `capabilities`, and `disk` belong to Basix. Basix keeps them in a second file,
   `basix.yaml` (R38; `BSX-124` replaces `BSX-065`), and reads it with this parser (see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`).
 - **Sharing** is Vendomat's NixOS module per machine (R39). Every installed machine runs Harmonia
   from first boot and makes its own signing key then; the machine key `serve: false` turns it off.

@@ -1,7 +1,7 @@
 # Project 21: plan
 
 **Final, 2026-10-13.** The design is final. The plan has two phases: the spike phase (W1 to W10, done) and
-the implementation slices (S1 to S7, not started). Each spike ends in an evidence record under `evidence/`. Raw logs go
+the implementation slices (S1 to S7; S3 is done except its release step, see below). Each spike ends in an evidence record under `evidence/`. Raw logs go
 under `~/.local/state/vendomat/p21/`. VM disk images, VM state, and VM scratch go under
 `/mnt/shared/vendomat-p21/`. No spike changed production code or a real machine.
 
@@ -31,7 +31,9 @@ The ledger is [REQUIREMENTS.md](REQUIREMENTS.md). Its rows for these gaps name w
 The [implementation guide](IMPLEMENTATION-GUIDE.md) gives the step-by-step work for each slice, the
 facts and spike artifacts it needs, and the open implementation decisions D1 to D8.
 
-No slice has started. Every slice changes code, so it needs its own branch, its own verify, and
+S3 is done except step 14 (release, an owner gate), as of 2026-10-14:
+[S3-CATALOG](evidence/S3-CATALOG.md). The catalog wiring of the sharing module landed in `79e46310ef30`.
+Project 23 keeps the state of S1 and S2. Project 24 continues with S4. Every slice changes code, so it needs its own branch, its own verify, and
 evidence under `evidence/`. No slice plans an upstream pull request (R34). The module-only fork and
 the patched binary are long-lived.
 
@@ -39,7 +41,7 @@ the patched binary are long-lived.
 | --- | --- | --- | --- |
 | S1 | The module-only `devenv` fork: `nixos` as `deferredModule`; `build.vm` and `build.iso` with `iso.modules`; the module half of patch 0005; the version file. | none | `VMT-064`, `VMT-082`, `VMT-095`, `VMT-106`, `VMT-107`, `VMT-108`, `VMT-118` |
 | S2 | The host binary overlay: `pkgs.devenv` with patches 0003 and 0005, built and kept under a GC root (R39: no Attic). | none | `VMT-074`, `VMT-099`, `VMT-126` |
-| S3 | The catalog rewrite in the repository: the Nix parser, the ruled keys, the hatch line, `explain`, error trimming, template `follows` lines, and `vendomat update`; and the Harmonia sharing module with its two-VM proof (R39). | S1 | `VMT-002`, `VMT-003`, `VMT-057`, `VMT-090` to `VMT-094`, `VMT-111`, `VMT-116`, `VMT-117` |
+| S3 (done except step 14, release; [evidence](evidence/S3-CATALOG.md)) | The catalog rewrite in the repository: the Nix parser, the ruled keys, the hatch line, `explain`, error trimming, template `follows` lines, and `vendomat update`; and the Harmonia sharing module with its two-VM proof (R39). | S1 | `VMT-002`, `VMT-003`, `VMT-057`, `VMT-090` to `VMT-094`, `VMT-111`, `VMT-116`, `VMT-117` |
 | S4 | `vendomat apply` and `vendomat rollback` with the per-machine record. | S3 | `VMT-072`, `VMT-075`, `VMT-098`, `VMT-110` |
 | S5 | The Vendomat side of Basix: the collection hook change so any repository may fast-forward `release` (R37), and a parser that Basix imports for `basix.yaml` (R38). The Basix build is in `../basix/.scratch/projects/001-initial-concept/PLAN.md`. | S1 to S4 | `VMT-121` (with Basix); the `BSX-` rows are in the Basix ledger |
 | S6 | Retire the `v2.4.0-vendomat.4` fork and its other patches (0001, 0002, 0004, 0006 to 0009; see the fork table in the concept). | S1 and S2 | `VMT-080`, `VMT-081` |
@@ -57,3 +59,7 @@ The owner must authorize each of these. No slice does them alone.
 Work or a ruling must settle these before S3 and S5 close: parser depth limit and line numbers
 (`VMT-013`, `VMT-035`), trace trimming (`VMT-117`), the version warning (`VMT-118`), whether devenv
 fetches unused inputs (`VMT-116`), and the disk guard gaps (`BSX-114`, `BSX-115`; Basix rows, now in the Basix ledger).
+
+S3 settled four of them on 2026-10-14 (see [S3-CATALOG](evidence/S3-CATALOG.md)): `VMT-013` (limit 64),
+`VMT-035` (positions), `VMT-116` (unused inputs cost no fetch), and `VMT-117` (trim). `VMT-118` stays with S1.
+S3 adds `VMT-160` (a machine with no key), which no ruling covers.

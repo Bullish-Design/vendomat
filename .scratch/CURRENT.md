@@ -1,6 +1,6 @@
 # Current project
 
-**Updated:** 2026-10-13. This file names the active project. `AGENTS.md` holds durable rules and
+**Updated:** 2026-10-14. This file names the active project. `AGENTS.md` holds durable rules and
 points here. When the active project changes, change this file and not `AGENTS.md`.
 
 ## Active estate design draft: project 22 — the owner's estate
@@ -42,7 +42,15 @@ the design authority and holds the slice evidence.
   commands, and Harmonia sharing module, and S4, `vendomat apply` and `vendomat rollback`, proved
   in VMs. A Vendomat release waits for the owner.
 
-Neither has started. Each kickoff lists the files its session owns.
+Each kickoff lists the files its session owns.
+
+**Project 24 state, 2026-10-14.** S3 is on `main` (commits `ccd419ddee93`, `b43d23e6b9cb`,
+`b575e4f424b0`, `845172f0768f`, `79e46310ef30`; the repository runs Testee 0.8 tasks since `bd7baeb06b1a`). It is done
+except step 14, the release, which is an owner gate: nobody tagged Vendomat or moved `release`. The
+catalog wiring of the sharing module landed in `79e46310ef30` (proved at evaluation level). The fixtures ran on a scratch S1
+tree, not on a published tag. Evidence:
+[S3-CATALOG](projects/21-vendomat-basix-split/evidence/S3-CATALOG.md). Next: S4 (`vendomat apply` and
+`vendomat rollback`), then the release gate. The opt-in checks are `opt:NAME` tasks in `nix/tasks.nix`.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
@@ -54,7 +62,7 @@ work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary o
 the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them. A new session starts
 from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-GUIDE.md): Phase 0,
 then the open implementation decisions D1 to D8 (recorded with options and recommendations in
-the decisions file), then the slices. No slice has started.
+the decisions file), then the slices. S3 is done except its release step (see project 24 above).
 
 **Basix now lives in `~/Documents/Projects/basix`** (moved 2026-10-13). Its design, the `BSX-` ledger, and
 its plan are in that repository, under `.scratch/projects/001-initial-concept/`. The project 21 files here keep
