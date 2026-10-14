@@ -1,0 +1,971 @@
+{
+ "blank_spaces": {
+  "ok": {
+   "a": "1"
+  },
+  "source": "primop"
+ },
+ "bom_comment_then_key": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "bom_ok": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "bom_only": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "comment_after_item": {
+  "ok": {
+   "l": [
+    "a",
+    "b",
+    "q"
+   ]
+  },
+  "source": "primop"
+ },
+ "comment_between_items": {
+  "ok": {
+   "l": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  "source": "primop"
+ },
+ "comment_between_items_deeper": {
+  "ok": {
+   "l": [
+    "a",
+    "b"
+   ]
+  },
+  "source": "primop"
+ },
+ "comment_less_indented": {
+  "ok": {
+   "a": {
+    "b": "1",
+    "d": "2"
+   }
+  },
+  "source": "primop"
+ },
+ "cr_double": {
+  "ok": {
+   "a": "1",
+   "b": "2"
+  },
+  "source": "primop"
+ },
+ "cr_inside": {
+  "ok": {
+   "a": "x\ry",
+   "b": "2"
+  },
+  "source": "primop"
+ },
+ "crlf_all": {
+  "ok": {
+   "a": "1",
+   "b": {
+    "c": "x",
+    "d": "q"
+   },
+   "l": [
+    "one",
+    "two"
+   ]
+  },
+  "source": "primop"
+ },
+ "crlf_bad": {
+  "err": "vendomat.yaml:2:4: aliases (*) are not accepted",
+  "source": "primop"
+ },
+ "crlf_comment": {
+  "ok": {
+   "a": "1",
+   "b": "2"
+  },
+  "source": "primop"
+ },
+ "deep_10": {
+  "ok": {
+   "k0": {
+    "k1": {
+     "k2": {
+      "k3": {
+       "k4": {
+        "k5": {
+         "k6": {
+          "k7": {
+           "k8": {
+            "k9": {
+             "leaf": "x"
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "source": "primop"
+ },
+ "deep_100": {
+  "err": "vendomat.yaml:65:129: nesting deeper than 64 levels",
+  "note": "VMT-013: the depth limit; the primop has none",
+  "source": "primop"
+ },
+ "deep_50": {
+  "ok": {
+   "k0": {
+    "k1": {
+     "k2": {
+      "k3": {
+       "k4": {
+        "k5": {
+         "k6": {
+          "k7": {
+           "k8": {
+            "k9": {
+             "k10": {
+              "k11": {
+               "k12": {
+                "k13": {
+                 "k14": {
+                  "k15": {
+                   "k16": {
+                    "k17": {
+                     "k18": {
+                      "k19": {
+                       "k20": {
+                        "k21": {
+                         "k22": {
+                          "k23": {
+                           "k24": {
+                            "k25": {
+                             "k26": {
+                              "k27": {
+                               "k28": {
+                                "k29": {
+                                 "k30": {
+                                  "k31": {
+                                   "k32": {
+                                    "k33": {
+                                     "k34": {
+                                      "k35": {
+                                       "k36": {
+                                        "k37": {
+                                         "k38": {
+                                          "k39": {
+                                           "k40": {
+                                            "k41": {
+                                             "k42": {
+                                              "k43": {
+                                               "k44": {
+                                                "k45": {
+                                                 "k46": {
+                                                  "k47": {
+                                                   "k48": {
+                                                    "k49": {
+                                                     "leaf": "x"
+                                                    }
+                                                   }
+                                                  }
+                                                 }
+                                                }
+                                               }
+                                              }
+                                             }
+                                            }
+                                           }
+                                          }
+                                         }
+                                        }
+                                       }
+                                      }
+                                     }
+                                    }
+                                   }
+                                  }
+                                 }
+                                }
+                               }
+                              }
+                             }
+                            }
+                           }
+                          }
+                         }
+                        }
+                       }
+                      }
+                     }
+                    }
+                   }
+                  }
+                 }
+                }
+               }
+              }
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "source": "primop"
+ },
+ "doc_after_error": {
+  "err": "vendomat.yaml:2:1: document markers are not accepted; one document per file",
+  "source": "primop"
+ },
+ "doc_comment": {
+  "err": "vendomat.yaml:1:1: list item where a key was expected",
+  "source": "primop"
+ },
+ "doc_end": {
+  "err": "vendomat.yaml:2:1: document markers are not accepted; one document per file",
+  "source": "primop"
+ },
+ "doc_indented": {
+  "err": "vendomat.yaml:2:3: list item where a key was expected",
+  "source": "primop"
+ },
+ "doc_start": {
+  "err": "vendomat.yaml:1:1: document markers are not accepted; one document per file",
+  "source": "primop"
+ },
+ "doc_start_nospace": {
+  "err": "vendomat.yaml:1:1: list item where a key was expected",
+  "source": "primop"
+ },
+ "doc_start_space": {
+  "err": "vendomat.yaml:1:1: document markers are not accepted; one document per file",
+  "source": "primop"
+ },
+ "doc_start_text": {
+  "err": "vendomat.yaml:1:1: list item where a key was expected",
+  "source": "primop"
+ },
+ "dq_backslash_end": {
+  "ok": {
+   "a": "x\\"
+  },
+  "source": "primop"
+ },
+ "dq_empty": {
+  "ok": {
+   "a": "",
+   "b": ""
+  },
+  "source": "primop"
+ },
+ "dq_escape_all": {
+  "ok": {
+   "a": "q\" b\\ n\n t\t"
+  },
+  "source": "primop"
+ },
+ "dq_escape_end_quote": {
+  "err": "vendomat.yaml:1:4: the quoted string does not end on this line",
+  "source": "primop"
+ },
+ "dq_escape_eol": {
+  "err": "vendomat.yaml:1:6: escape \\ is not accepted",
+  "source": "primop"
+ },
+ "dq_escape_q": {
+  "err": "vendomat.yaml:1:6: escape \\q is not accepted",
+  "source": "primop"
+ },
+ "dq_escape_u": {
+  "err": "vendomat.yaml:1:5: escape \\u is not accepted",
+  "source": "primop"
+ },
+ "dq_key_bad_escape": {
+  "err": "vendomat.yaml:1:3: escape \\q is not accepted",
+  "source": "primop"
+ },
+ "dq_key_escape": {
+  "ok": {
+   "a\nb": "1"
+  },
+  "source": "primop"
+ },
+ "dq_key_tail": {
+  "err": "vendomat.yaml:1:4: expected ':' after the key",
+  "source": "primop"
+ },
+ "dq_key_unterminated": {
+  "err": "vendomat.yaml:1:1: the quoted string does not end on this line",
+  "source": "primop"
+ },
+ "dq_unterminated": {
+  "err": "vendomat.yaml:1:4: the quoted string does not end on this line",
+  "source": "primop"
+ },
+ "dup_across_levels_ok": {
+  "ok": {
+   "a": {
+    "a": "1"
+   },
+   "b": {
+    "a": "2"
+   }
+  },
+  "source": "primop"
+ },
+ "dup_before_bad_value": {
+  "err": "vendomat.yaml:2:1: duplicate key 'a'; first on line 1",
+  "source": "primop"
+ },
+ "dup_first_line_after_comments": {
+  "err": "vendomat.yaml:5:1: duplicate key 'a'; first on line 3",
+  "source": "primop"
+ },
+ "dup_nested": {
+  "err": "vendomat.yaml:3:3: duplicate key 'b'; first on line 2",
+  "source": "primop"
+ },
+ "empty_comment_child": {
+  "ok": {
+   "a": {
+    "b": "1"
+   }
+  },
+  "source": "primop"
+ },
+ "empty_comment_nochild": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_file": {
+  "ok": {},
+  "source": "primop"
+ },
+ "empty_last": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_nested_last": {
+  "err": "vendomat.yaml:2:5: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_then_dedent": {
+  "err": "vendomat.yaml:2:5: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_then_dedent_ok": {
+  "ok": {
+   "a": {
+    "b": "1"
+   },
+   "c": "2"
+  },
+  "source": "primop"
+ },
+ "empty_trailing_spaces": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_trailing_spaces_child": {
+  "ok": {
+   "a": {
+    "b": "1"
+   }
+  },
+  "source": "primop"
+ },
+ "empty_trailing_spaces_eof": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "empty_with_comment_between": {
+  "ok": {
+   "a": {
+    "b": "1"
+   }
+  },
+  "source": "primop"
+ },
+ "hash_after_quote_text": {
+  "err": "vendomat.yaml:1:7: text after the closing quote",
+  "source": "primop"
+ },
+ "hash_after_quote_text2": {
+  "err": "vendomat.yaml:1:7: text after the closing quote",
+  "source": "primop"
+ },
+ "hash_in_list": {
+  "ok": {
+   "l": [
+    "x#y",
+    "#",
+    "#"
+   ]
+  },
+  "source": "primop"
+ },
+ "hash_plain_nospace": {
+  "ok": {
+   "a": "x#y"
+  },
+  "source": "primop"
+ },
+ "hash_plain_space": {
+  "ok": {
+   "a": "x",
+   "b": "x",
+   "c": "x"
+  },
+  "source": "primop"
+ },
+ "hash_quoted": {
+  "ok": {
+   "a": "x # y",
+   "b": "x # y",
+   "c": "x",
+   "d": "x"
+  },
+  "source": "primop"
+ },
+ "hash_start_value": {
+  "ok": {
+   "a": {
+    "b": "1"
+   }
+  },
+  "source": "primop"
+ },
+ "indent_deeper_after_scalar": {
+  "err": "vendomat.yaml:2:3: unexpected indentation",
+  "source": "primop"
+ },
+ "indent_deeper_after_scalar_list": {
+  "err": "vendomat.yaml:3:7: unexpected indentation",
+  "source": "primop"
+ },
+ "indent_first_line": {
+  "err": "vendomat.yaml:1:3: unexpected indentation",
+  "source": "primop"
+ },
+ "indent_mixed": {
+  "ok": {
+   "a": {
+    "b": "1",
+    "c": {
+     "d": "2"
+    },
+    "e": "3"
+   },
+   "f": "4"
+  },
+  "source": "primop"
+ },
+ "indent_odd": {
+  "ok": {
+   "a": {
+    "b": "1",
+    "c": "2"
+   }
+  },
+  "source": "primop"
+ },
+ "indent_one_then_dedent_partial": {
+  "err": "vendomat.yaml:3:3: unexpected indentation",
+  "source": "primop"
+ },
+ "indent_two_child_levels": {
+  "ok": {
+   "a": {
+    "b": {
+     "c": "1"
+    },
+    "d": "2"
+   }
+  },
+  "source": "primop"
+ },
+ "key_colon_hash": {
+  "err": "vendomat.yaml:1:1: expected a space after ':'",
+  "source": "primop"
+ },
+ "key_colon_nospace": {
+  "err": "vendomat.yaml:1:1: expected a space after ':'",
+  "source": "primop"
+ },
+ "key_dash_first": {
+  "err": "vendomat.yaml:1:1: list item where a key was expected",
+  "source": "primop"
+ },
+ "key_digit_first": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "key_dot_first": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "key_dots_dashes": {
+  "ok": {
+   "_g": "4",
+   "a.b": "1",
+   "c-d": "2",
+   "e_f": "3",
+   "h.i-j_k9": "5"
+  },
+  "source": "primop"
+ },
+ "key_empty_quoted": {
+  "ok": {
+   "": "x"
+  },
+  "source": "primop"
+ },
+ "key_empty_single": {
+  "ok": {
+   "": "x"
+  },
+  "source": "primop"
+ },
+ "key_proto": {
+  "ok": {
+   "__proto__": "1",
+   "constructor": "2"
+  },
+  "source": "primop"
+ },
+ "key_quoted_dup": {
+  "err": "vendomat.yaml:2:1: duplicate key 'a'; first on line 1",
+  "source": "primop"
+ },
+ "key_quoted_space": {
+  "ok": {
+   "a b": "1",
+   "c d": "2"
+  },
+  "source": "primop"
+ },
+ "key_quoted_space_before_colon": {
+  "err": "vendomat.yaml:1:4: expected ':' after the key",
+  "source": "primop"
+ },
+ "key_space": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "key_space_colon": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "key_then_list_same_indent": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "list_dash_nospace": {
+  "err": "vendomat.yaml:2:3: list item where a key was expected",
+  "source": "primop"
+ },
+ "list_item_child_map": {
+  "ok": {
+   "a": [
+    {
+     "j": "w",
+     "k": "v"
+    }
+   ]
+  },
+  "source": "primop"
+ },
+ "list_item_comment": {
+  "err": "vendomat.yaml:3:5: expected 'key: value'",
+  "source": "primop"
+ },
+ "list_item_dash_only_eof": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "list_item_dash_spaces": {
+  "err": "vendomat.yaml:4:5: expected 'key: value'",
+  "source": "primop"
+ },
+ "list_item_deeper": {
+  "err": "vendomat.yaml:3:5: unexpected indentation",
+  "source": "primop"
+ },
+ "list_item_empty": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "primop"
+ },
+ "list_item_inline_map": {
+  "note": "R8: a compact list item may hold a map",
+  "ok": {
+   "a": [
+    {
+     "k": "v"
+    }
+   ]
+  },
+  "source": "primop"
+ },
+ "list_item_inline_map_quoted": {
+  "note": "R8: a compact list item may hold a map",
+  "ok": {
+   "a": [
+    {
+     "k": "v"
+    }
+   ]
+  },
+  "source": "primop"
+ },
+ "list_mixed_indent": {
+  "err": "vendomat.yaml:3:4: unexpected indentation",
+  "source": "primop"
+ },
+ "list_nested_dash": {
+  "ok": {
+   "a": [
+    [
+     "x"
+    ]
+   ]
+  },
+  "source": "primop"
+ },
+ "list_then_key_same_indent": {
+  "err": "vendomat.yaml:3:3: expected a list item",
+  "source": "primop"
+ },
+ "list_top": {
+  "err": "vendomat.yaml:1:1: the file must be a map",
+  "source": "primop"
+ },
+ "list_top_then_key": {
+  "err": "vendomat.yaml:1:1: the file must be a map",
+  "source": "primop"
+ },
+ "lone_cr_file": {
+  "err": "vendomat.yaml:1:7: a colon inside a plain value; quote the text",
+  "source": "primop"
+ },
+ "no_trailing_nl": {
+  "ok": {
+   "a": "1",
+   "b": "2"
+  },
+  "source": "primop"
+ },
+ "no_trailing_nl_bad": {
+  "err": "vendomat.yaml:2:4: flow style is not accepted",
+  "source": "primop"
+ },
+ "no_trailing_nl_list": {
+  "ok": {
+   "l": [
+    "a",
+    "b"
+   ]
+  },
+  "source": "primop"
+ },
+ "nonascii_col_after_quote": {
+  "err": "vendomat.yaml:1:7: text after the closing quote",
+  "source": "primop"
+ },
+ "nonascii_col_colon": {
+  "err": "vendomat.yaml:1:8: a colon inside a plain value; quote the text",
+  "source": "primop"
+ },
+ "nonascii_col_escape": {
+  "err": "vendomat.yaml:1:7: escape \\q is not accepted",
+  "source": "primop"
+ },
+ "nonascii_col_nested": {
+  "err": "vendomat.yaml:2:3: expected 'key: value'",
+  "source": "primop"
+ },
+ "nonascii_col_tab": {
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "ok": {
+   "a": "café\t x"
+  },
+  "source": "primop"
+ },
+ "nonascii_dup": {
+  "err": "vendomat.yaml:2:1: duplicate key 'a'; first on line 1",
+  "source": "primop"
+ },
+ "nonascii_escape_char": {
+  "err": "vendomat.yaml:1:5: escape \\é is not accepted",
+  "source": "primop"
+ },
+ "nonascii_key": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "nonascii_quoted": {
+  "ok": {
+   "a": "café",
+   "b": "naïve"
+  },
+  "source": "primop"
+ },
+ "nonascii_quoted_key": {
+  "ok": {
+   "café": "1",
+   "日": "2"
+  },
+  "source": "primop"
+ },
+ "nonascii_value": {
+  "ok": {
+   "name": "café — 日本語 😀"
+  },
+  "source": "primop"
+ },
+ "only_comments": {
+  "ok": {},
+  "source": "primop"
+ },
+ "only_nl": {
+  "ok": {},
+  "source": "primop"
+ },
+ "plain_colon_comment": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_colon_end": {
+  "err": "vendomat.yaml:1:5: a colon inside a plain value; quote the text",
+  "source": "primop"
+ },
+ "plain_colon_inside": {
+  "err": "vendomat.yaml:1:5: a colon inside a plain value; quote the text",
+  "source": "primop"
+ },
+ "plain_colon_nospace": {
+  "ok": {
+   "a": "x:y"
+  },
+  "source": "primop"
+ },
+ "plain_colon_url": {
+  "ok": {
+   "a": "http://x/y:z"
+  },
+  "source": "primop"
+ },
+ "plain_cr_trailing_dbl": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_dash_start": {
+  "err": "vendomat.yaml:1:4: a list must start on the next line",
+  "note": "R10: a plain value that starts with a dash fails",
+  "source": "primop"
+ },
+ "plain_em_space_trailing": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_nbsp_after_quote": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_nbsp_leading_comment": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_nbsp_trailing": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "plain_quote_mid": {
+  "ok": {
+   "a": "it's \"fine\""
+  },
+  "source": "primop"
+ },
+ "plain_trailing_spaces": {
+  "ok": {
+   "a": "x",
+   "b": "y"
+  },
+  "source": "primop"
+ },
+ "plain_vt_ff": {
+  "ok": {
+   "a": "x"
+  },
+  "source": "primop"
+ },
+ "sq_bs": {
+  "ok": {
+   "a": "x\\"
+  },
+  "source": "primop"
+ },
+ "sq_dq_inside": {
+  "ok": {
+   "a": "say \"hi\"",
+   "b": "it's"
+  },
+  "source": "primop"
+ },
+ "sq_escape": {
+  "ok": {
+   "a": "it's",
+   "b": "'",
+   "c": "\\n"
+  },
+  "source": "primop"
+ },
+ "sq_unterminated": {
+  "err": "vendomat.yaml:1:4: the quoted string does not end on this line",
+  "source": "primop"
+ },
+ "start_amp_key": {
+  "err": "vendomat.yaml:1:1: anchors (&) are not accepted",
+  "source": "primop"
+ },
+ "start_at": {
+  "err": "vendomat.yaml:1:4: '@' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_backtick": {
+  "err": "vendomat.yaml:1:4: '`' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_bang_key": {
+  "err": "vendomat.yaml:1:1: tags (!) are not accepted",
+  "source": "primop"
+ },
+ "start_comma": {
+  "err": "vendomat.yaml:1:4: ',' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_gt": {
+  "err": "vendomat.yaml:1:4: block scalars are not accepted; use one quoted line",
+  "source": "primop"
+ },
+ "start_lbrace_key": {
+  "err": "vendomat.yaml:1:1: flow style is not accepted",
+  "source": "primop"
+ },
+ "start_lbracket_key": {
+  "err": "vendomat.yaml:1:1: flow style is not accepted",
+  "source": "primop"
+ },
+ "start_percent": {
+  "err": "vendomat.yaml:1:4: '%' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_pipe": {
+  "err": "vendomat.yaml:1:4: block scalars are not accepted; use one quoted line",
+  "source": "primop"
+ },
+ "start_pipe_key": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "start_plain_text_key": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "start_question": {
+  "err": "vendomat.yaml:1:4: '?' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_question_key": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "primop"
+ },
+ "start_rbrace": {
+  "err": "vendomat.yaml:1:4: '}' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_rbracket": {
+  "err": "vendomat.yaml:1:4: ']' cannot start a value; quote the text",
+  "source": "primop"
+ },
+ "start_star_key": {
+  "err": "vendomat.yaml:1:1: aliases (*) are not accepted",
+  "source": "primop"
+ },
+ "tab_after_error": {
+  "err": "vendomat.yaml:1:4: aliases (*) are not accepted",
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "source": "primop"
+ },
+ "tab_blank": {
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "ok": {
+   "a": "1",
+   "b": "2"
+  },
+  "source": "primop"
+ },
+ "tab_end": {
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "ok": {
+   "a": "1"
+  },
+  "source": "primop"
+ },
+ "tab_in_comment": {
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "ok": {
+   "a": "1"
+  },
+  "source": "primop"
+ },
+ "tab_in_quoted": {
+  "note": "R9: tabs are allowed; the primop rejected them",
+  "ok": {
+   "a": "x\ty"
+  },
+  "source": "primop"
+ },
+ "value_numbers": {
+  "ok": {
+   "a": "0x1F",
+   "b": "1e3",
+   "c": ".5",
+   "d": "-1",
+   "e": "+1",
+   "f": "null",
+   "g": "~",
+   "h": "true"
+  },
+  "source": "primop"
+ }
+}

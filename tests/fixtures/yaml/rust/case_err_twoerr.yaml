@@ -1,0 +1,8 @@
+programs:
+  - jq
+services:
+  postgres:
+    enable: maybe
+languages:
+  python:
+    enable: no

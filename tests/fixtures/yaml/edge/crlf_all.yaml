@@ -1,0 +1,7 @@
+a: 1
+b:
+  c: x
+  d: "q"
+l:
+  - one
+  - two

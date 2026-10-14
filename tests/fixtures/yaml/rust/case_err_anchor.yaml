@@ -1,0 +1,4 @@
+programs:
+  - jq
+env: &e
+  GREETING: hello

@@ -1,8 +1,23 @@
 # Template-owned. Change routine values in vendomat.yaml, not here.
+# `vendomat update` adds the lines that a newer template needs.
 inputs:
   vendomat:
     url: git://server/vendomat?ref=release
   nixpkgs:
     follows: vendomat/nixpkgs
+  devenv:
+    follows: vendomat/devenv
+  # Python versions (`languages.python.version`).
+  nixpkgs-python:
+    url: github:cachix/nixpkgs-python
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  # Rust versions (`languages.rust.version`).
+  rust-overlay:
+    url: github:oxalica/rust-overlay
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
 imports:
   - vendomat/devenv

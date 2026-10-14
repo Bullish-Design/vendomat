@@ -32,7 +32,7 @@ revision). The end-to-end task stays opt-in because it builds a real consumer sh
 Testee 0.8 runs devenv tasks. The project defines them in `nix/tasks.nix`. The required tasks are
 `check:lint`, `check:format`, `check:types`, and `test:full`. `test:quick` is "n/a" (no quick
 subset). During an edit, run `testee verify --profile quick` for `check:lint` and `check:format`
-only. The opt-in tasks (`opt:e2e`, `opt:workspace-e2e`, `opt:front-door-e2e`, `opt:live-cache`, `opt:live-cache-load`)
+only. The opt-in tasks (`opt:e2e`, `opt:workspace-e2e`, `opt:front-door-e2e`, `opt:catalog-eval`, `opt:live-cache`, `opt:live-cache-load`)
 never count for green. Each carries its own time limit in `input.testee.timeout_s`.
 
 The `testee` command is the host program (see the nix profile). It checks the commit in its own

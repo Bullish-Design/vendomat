@@ -1,0 +1,46 @@
+{
+ "chain_100": {
+  "err": "vendomat.yaml:33:131: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_100": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_1000": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_1500": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_300": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_3000": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_500": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_800": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_850": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_900": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ },
+ "dash_950": {
+  "err": "vendomat.yaml:2:129: nesting deeper than 64 levels",
+  "source": "golden"
+ }
+}

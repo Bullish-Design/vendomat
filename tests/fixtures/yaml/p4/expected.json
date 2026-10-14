@@ -1,0 +1,772 @@
+{
+ "after_quote": {
+  "err": "vendomat.yaml:1:7: text after the closing quote",
+  "source": "hand"
+ },
+ "alias": {
+  "err": "vendomat.yaml:1:4: aliases (*) are not accepted",
+  "source": "hand"
+ },
+ "anchor": {
+  "err": "vendomat.yaml:1:4: anchors (&) are not accepted",
+  "source": "hand"
+ },
+ "bad_key_digit": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "hand"
+ },
+ "bad_key_space": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "hand"
+ },
+ "block_fold": {
+  "err": "vendomat.yaml:1:4: block scalars are not accepted; use one quoted line",
+  "source": "hand"
+ },
+ "block_lit": {
+  "err": "vendomat.yaml:1:4: block scalars are not accepted; use one quoted line",
+  "source": "hand"
+ },
+ "bom": {
+  "err": "vendomat.yaml:1:1: expected 'key: value'",
+  "source": "hand"
+ },
+ "c_after_quote_key": {
+  "err": "vendomat.yaml:2:8: text after the closing quote",
+  "source": "hand"
+ },
+ "c_alias": {
+  "err": "vendomat.yaml:2:5: aliases (*) are not accepted",
+  "source": "hand"
+ },
+ "c_anchor_item": {
+  "err": "vendomat.yaml:2:5: anchors (&) are not accepted",
+  "source": "hand"
+ },
+ "c_anchor_key": {
+  "err": "vendomat.yaml:2:5: anchors (&) are not accepted",
+  "source": "hand"
+ },
+ "c_anchor_val": {
+  "err": "vendomat.yaml:2:8: anchors (&) are not accepted",
+  "source": "hand"
+ },
+ "c_bad_key_digit": {
+  "err": "vendomat.yaml:2:7: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "c_bad_key_space": {
+  "err": "vendomat.yaml:2:8: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "c_block": {
+  "err": "vendomat.yaml:2:5: block scalars are not accepted; use one quoted line",
+  "source": "hand"
+ },
+ "c_block_val": {
+  "err": "vendomat.yaml:2:8: block scalars are not accepted; use one quoted line",
+  "source": "hand"
+ },
+ "c_bom_in_item": {
+  "err": "vendomat.yaml:2:7: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "c_colon_no_space_scalar": {
+  "ok": {
+   "l": [
+    "a:b"
+   ]
+  },
+  "source": "hand"
+ },
+ "c_colon_val": {
+  "err": "vendomat.yaml:2:9: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "c_doc_marker": {
+  "err": "vendomat.yaml:3:1: document markers are not accepted; one document per file",
+  "source": "hand"
+ },
+ "c_dup": {
+  "err": "vendomat.yaml:3:5: duplicate key 'a'; first on line 2",
+  "source": "hand"
+ },
+ "c_dup_ok_across_items": {
+  "ok": {
+   "l": [
+    {
+     "a": "1"
+    },
+    {
+     "a": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "c_empty_item_comment": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_empty_item_eof": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_empty_val_dedent": {
+  "err": "vendomat.yaml:2:7: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_empty_val_eof": {
+  "err": "vendomat.yaml:2:7: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_esc": {
+  "err": "vendomat.yaml:2:9: escape \\q is not accepted",
+  "source": "hand"
+ },
+ "c_flow_item": {
+  "err": "vendomat.yaml:2:5: flow style is not accepted",
+  "source": "hand"
+ },
+ "c_flow_map_item": {
+  "err": "vendomat.yaml:2:5: flow style is not accepted",
+  "source": "hand"
+ },
+ "c_flow_val": {
+  "err": "vendomat.yaml:2:8: flow style is not accepted",
+  "source": "hand"
+ },
+ "c_item_after_map_cont": {
+  "err": "vendomat.yaml:3:5: list item where a key was expected",
+  "source": "hand"
+ },
+ "c_item_key_eof_dedent": {
+  "ok": {
+   "l": [
+    {
+     "a": "1"
+    }
+   ],
+   "m": "2"
+  },
+  "source": "hand"
+ },
+ "c_key_like_scalar_dash": {
+  "ok": {
+   "l": [
+    "a-b",
+    "-x"
+   ]
+  },
+  "source": "hand"
+ },
+ "c_map_after_item": {
+  "err": "vendomat.yaml:3:3: expected a list item",
+  "source": "hand"
+ },
+ "c_nested_empty": {
+  "err": "vendomat.yaml:2:5: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_nested_empty_comment": {
+  "err": "vendomat.yaml:2:5: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "c_nospace_quoted": {
+  "err": "vendomat.yaml:2:5: expected a space after ':'",
+  "source": "hand"
+ },
+ "c_tag": {
+  "err": "vendomat.yaml:2:5: tags (!) are not accepted",
+  "source": "hand"
+ },
+ "c_top_compact": {
+  "err": "vendomat.yaml:1:1: the file must be a map",
+  "source": "hand"
+ },
+ "c_top_list_nested": {
+  "err": "vendomat.yaml:1:1: the file must be a map",
+  "source": "hand"
+ },
+ "c_unterminated_key": {
+  "err": "vendomat.yaml:2:5: the quoted string does not end on this line",
+  "source": "hand"
+ },
+ "c_unterminated_val": {
+  "err": "vendomat.yaml:2:8: the quoted string does not end on this line",
+  "source": "hand"
+ },
+ "child_not_extend": {
+  "err": "vendomat.yaml:3:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "child_not_extend2": {
+  "err": "vendomat.yaml:3:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "colon_end": {
+  "err": "vendomat.yaml:1:5: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "colon_space": {
+  "err": "vendomat.yaml:1:5: a colon inside a plain value; quote the text",
+  "source": "hand"
+ },
+ "dedent_nonlevel": {
+  "err": "vendomat.yaml:3:3: unexpected indentation",
+  "source": "hand"
+ },
+ "dedent_nonlevel_tab": {
+  "err": "vendomat.yaml:4:2: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "deeper_after_scalar": {
+  "err": "vendomat.yaml:2:3: unexpected indentation",
+  "source": "hand"
+ },
+ "doc_end": {
+  "err": "vendomat.yaml:2:1: document markers are not accepted; one document per file",
+  "source": "hand"
+ },
+ "doc_start": {
+  "err": "vendomat.yaml:1:1: document markers are not accepted; one document per file",
+  "source": "hand"
+ },
+ "dup_key": {
+  "err": "vendomat.yaml:3:1: duplicate key 'a'; first on line 1",
+  "source": "hand"
+ },
+ "dup_key_quoted": {
+  "err": "vendomat.yaml:2:1: duplicate key 'a'; first on line 1",
+  "source": "hand"
+ },
+ "dv_alone": {
+  "err": "vendomat.yaml:1:4: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_comment": {
+  "err": "vendomat.yaml:1:4: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_dash_word_ok": {
+  "ok": {
+   "p": "-x",
+   "q": "-1",
+   "r": "a - b",
+   "s": "--"
+  },
+  "source": "hand"
+ },
+ "dv_in_item": {
+  "err": "vendomat.yaml:2:8: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_item_scalar_nested": {
+  "ok": {
+   "l": [
+    [
+     "x"
+    ],
+    "- y",
+    "-z"
+   ]
+  },
+  "source": "hand"
+ },
+ "dv_nested_map": {
+  "err": "vendomat.yaml:2:6: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_plain": {
+  "err": "vendomat.yaml:1:4: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_quoted_key": {
+  "err": "vendomat.yaml:1:6: a list must start on the next line",
+  "source": "hand"
+ },
+ "dv_quoted_ok": {
+  "ok": {
+   "p": "- x",
+   "q": "-",
+   "r": "-"
+  },
+  "source": "hand"
+ },
+ "dv_trailing_tab": {
+  "err": "vendomat.yaml:1:4: a list must start on the next line",
+  "source": "hand"
+ },
+ "empty_item": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "empty_item_then_sibling": {
+  "err": "vendomat.yaml:2:3: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "empty_value": {
+  "err": "vendomat.yaml:1:3: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "empty_value_dedent": {
+  "err": "vendomat.yaml:2:5: no value; write \"\" for an empty text",
+  "source": "hand"
+ },
+ "esc_trailing": {
+  "err": "vendomat.yaml:1:6: escape \\ is not accepted",
+  "source": "hand"
+ },
+ "esc_unknown": {
+  "err": "vendomat.yaml:1:6: escape \\q is not accepted",
+  "source": "hand"
+ },
+ "file_list": {
+  "err": "vendomat.yaml:1:1: the file must be a map",
+  "source": "hand"
+ },
+ "first_indented": {
+  "err": "vendomat.yaml:1:3: unexpected indentation",
+  "source": "hand"
+ },
+ "flow_map": {
+  "err": "vendomat.yaml:1:4: flow style is not accepted",
+  "source": "hand"
+ },
+ "flow_seq": {
+  "err": "vendomat.yaml:1:4: flow style is not accepted",
+  "source": "hand"
+ },
+ "item_cont_one_off": {
+  "err": "vendomat.yaml:3:4: unexpected indentation",
+  "source": "hand"
+ },
+ "item_cont_too_deep": {
+  "err": "vendomat.yaml:3:7: unexpected indentation",
+  "source": "hand"
+ },
+ "item_cont_too_shallow": {
+  "err": "vendomat.yaml:3:4: unexpected indentation",
+  "source": "hand"
+ },
+ "item_in_map": {
+  "err": "vendomat.yaml:2:1: list item where a key was expected",
+  "source": "hand"
+ },
+ "key_in_list": {
+  "err": "vendomat.yaml:3:3: expected a list item",
+  "source": "hand"
+ },
+ "no_space_colon": {
+  "err": "vendomat.yaml:1:1: expected a space after ':'",
+  "source": "hand"
+ },
+ "ok_col_multibyte": {
+  "err": "vendomat.yaml:2:11: escape \\q is not accepted",
+  "source": "hand"
+ },
+ "ok_comment_between": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    },
+    "c"
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_cont_wide": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_crlf_compact": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_deep_dash": {
+  "ok": {
+   "l": [
+    [
+     [
+      "x",
+      "y"
+     ],
+     "z"
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_item_key_child_list": {
+  "ok": {
+   "l": [
+    {
+     "a": [
+      "x",
+      "y"
+     ],
+     "b": "1"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_map_in_nested": {
+  "ok": {
+   "l": [
+    [
+     {
+      "a": "1",
+      "b": "2"
+     },
+     {
+      "c": "3"
+     }
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_nested_bare": {
+  "ok": {
+   "l": [
+    [
+     "a",
+     "b"
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_quoted_key_item": {
+  "ok": {
+   "l": [
+    {
+     "a b": "1",
+     "c": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_tab_blank": {
+  "ok": {
+   "a": "1",
+   "b": "2"
+  },
+  "source": "hand"
+ },
+ "ok_tab_comment_line": {
+  "ok": {
+   "a": {
+    "b": "1"
+   }
+  },
+  "source": "hand"
+ },
+ "ok_tab_in_value": {
+  "ok": {
+   "a": "x\ty",
+   "b": "p\tq",
+   "c": "r"
+  },
+  "source": "hand"
+ },
+ "ok_tab_item_deeper": {
+  "ok": {
+   "l": [
+    {
+     "a": {
+      "b": "1"
+     }
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_tab_list": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    },
+    "c"
+   ]
+  },
+  "source": "hand"
+ },
+ "ok_tab_mixed": {
+  "ok": {
+   "a": {
+    "b": {
+     "c": "x"
+    },
+    "d": "y"
+   }
+  },
+  "source": "hand"
+ },
+ "ok_tab_nested": {
+  "ok": {
+   "a": {
+    "b": {
+     "c": "x"
+    },
+    "d": "y"
+   }
+  },
+  "source": "hand"
+ },
+ "sib_space_vs_tab": {
+  "err": "vendomat.yaml:3:2: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "sib_tab_vs_space": {
+  "err": "vendomat.yaml:3:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "space_item_cont_tab": {
+  "err": "vendomat.yaml:3:2: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "start_at": {
+  "err": "vendomat.yaml:1:4: '@' cannot start a value; quote the text",
+  "source": "hand"
+ },
+ "start_bt": {
+  "err": "vendomat.yaml:1:4: '`' cannot start a value; quote the text",
+  "source": "hand"
+ },
+ "start_comma": {
+  "err": "vendomat.yaml:1:4: ',' cannot start a value; quote the text",
+  "source": "hand"
+ },
+ "start_percent": {
+  "err": "vendomat.yaml:1:4: '%' cannot start a value; quote the text",
+  "source": "hand"
+ },
+ "start_q": {
+  "err": "vendomat.yaml:1:4: '?' cannot start a value; quote the text",
+  "source": "hand"
+ },
+ "tab_after_colon": {
+  "err": "vendomat.yaml:1:1: expected a space after ':'",
+  "source": "hand"
+ },
+ "tab_deeper_scalar": {
+  "err": "vendomat.yaml:2:2: unexpected indentation",
+  "source": "hand"
+ },
+ "tab_first_row": {
+  "err": "vendomat.yaml:1:2: unexpected indentation",
+  "source": "hand"
+ },
+ "tab_item_cont_short": {
+  "err": "vendomat.yaml:3:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tab_item_cont_tab": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tab_sib_deeper": {
+  "err": "vendomat.yaml:3:3: unexpected indentation",
+  "source": "hand"
+ },
+ "tag": {
+  "err": "vendomat.yaml:1:4: tags (!) are not accepted",
+  "source": "hand"
+ },
+ "tf_basic": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    },
+    {
+     "c": "3"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_child_first": {
+  "ok": {
+   "l": [
+    {
+     "a": {
+      "x": "1"
+     },
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_child_first_bad": {
+  "err": "vendomat.yaml:4:4: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_child_space_then_tab": {
+  "err": "vendomat.yaml:4:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_comment_between": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_deeper_than_form": {
+  "err": "vendomat.yaml:3:4: unexpected indentation",
+  "source": "hand"
+ },
+ "tf_list_cont": {
+  "ok": {
+   "l": [
+    [
+     "a",
+     "b"
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_list_cont_mix": {
+  "err": "vendomat.yaml:4:4: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_mix_space_then_tab": {
+  "err": "vendomat.yaml:4:3: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_mix_tab_then_space": {
+  "err": "vendomat.yaml:4:4: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_nested_mix": {
+  "err": "vendomat.yaml:4:4: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "tf_nested_space_outer_tab_inner": {
+  "ok": {
+   "l": [
+    [
+     {
+      "x": "1",
+      "y": "2"
+     }
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_nested_tab": {
+  "ok": {
+   "l": [
+    [
+     {
+      "x": "1",
+      "y": "2"
+     },
+     "z"
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_nested_tab_outer_space_inner": {
+  "ok": {
+   "l": [
+    [
+     {
+      "x": "1",
+      "y": "2"
+     }
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_nested_third": {
+  "ok": {
+   "l": [
+    [
+     [
+      {
+       "x": "1",
+       "y": "2"
+      }
+     ]
+    ]
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_only_item": {
+  "ok": {
+   "l": [
+    {
+     "a": "1"
+    },
+    {
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_space_item": {
+  "ok": {
+   "l": [
+    {
+     "a": "1",
+     "b": "2"
+    }
+   ]
+  },
+  "source": "hand"
+ },
+ "tf_space_item_tab_form_bad": {
+  "err": "vendomat.yaml:4:5: inconsistent tabs and spaces",
+  "source": "hand"
+ },
+ "unterminated": {
+  "err": "vendomat.yaml:1:4: the quoted string does not end on this line",
+  "source": "hand"
+ },
+ "unterminated_sq": {
+  "err": "vendomat.yaml:1:4: the quoted string does not end on this line",
+  "source": "hand"
+ }
+}

@@ -123,6 +123,19 @@ in
     '';
   };
 
+  # Opt-in Nix evaluation of the catalog and the parser (project 24, S3). It runs the parser corpus
+  # and the catalog module on stub devenv options. It needs `nix-instantiate` and the pinned
+  # nixpkgs (the fetcher cache is enough once it holds the revision). Run `testee verify opt:catalog-eval`.
+  tasks."opt:catalog-eval" = optIn {
+    timeout_s = 1800;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      ${venvBin}/python -m pytest -q tests/test_catalog_parser_nix.py tests/test_catalog_module_nix.py --junitxml="$out/catalog-eval.junit.xml"
+    '';
+  };
+
   # Project 20 slice 1. This task builds a workspace from the host launcher and exercises the
   # catalog against the patched fork. Run it with the fork first on Testee's inherited PATH:
   # `PATH=/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin:$PATH testee verify opt:front-door-e2e`.
