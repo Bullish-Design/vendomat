@@ -239,9 +239,11 @@ Vendomat adds the local path.
 - **The YAML machine table.** Vendomat maps `host` to `target.host`. The keys `profile`,
   `capabilities`, `serve`, and `disk` belong to Basix. Basix keeps them in a second file,
   `basix.yaml` (R38; `BSX-124` replaces `BSX-065`), and reads it with this parser (see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`).
-- **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
-  Harmonia; clients get the substituter, the key, `fallback = true`, and a short timeout (carried
-  from project 20). devenv's `--use-machines-as-builders` gives shared builds over SSH.
+- **Sharing** is Vendomat's NixOS module per machine (R39). Every installed machine runs Harmonia
+  from first boot and makes its own signing key then; the machine key `serve: false` turns it off.
+  Clients get the substituter, the key, `fallback = true`, and a short timeout (carried from
+  project 20). The new system configures no Attic. devenv's `--use-machines-as-builders` gives
+  shared builds over SSH.
 
 **Ruled (R13):** Basix owns `install` and the disk guard, and Vendomat owns `apply`.
 
@@ -280,8 +282,8 @@ machines. Patch 0008 is not needed.
 
 The bare `vendomat` enters the pinned shell. Other arguments pass through to devenv. `vendomat
 update` is `devenv update` on the `release` branch. Restoring `devenv.lock` restores the earlier
-release. Attic stays until a real
-two-machine Harmonia check passes. The keyless boot of the Basix core is in the Basix concept. A real disk write needs the owner's separate authorization.
+release. The new system configures no Attic (R39); a real two-machine Harmonia check stays a gate
+(S7). The keyless boot of the Basix core is in the Basix concept. A real disk write needs the owner's separate authorization.
 
 ## Changes to project 20
 

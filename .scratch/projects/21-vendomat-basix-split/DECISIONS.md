@@ -47,6 +47,13 @@ No production code, consumer, or machine changed.
 | R36 | Vendomat ships no host-side module. Everything a workspace needs comes through its own lock (R28, R33). The project 14 NixOS module's `share/vendomat/consumer-module.nix` and `machine.json` are removed when the project 14 code is replaced. Run-time host facts come from `/etc/devenv/machine-facts.json`. | "Go with option 1 for host side modules.", 2026-10-13 | Answers project 22 A7, part 3. Project 22's pointer file stays a project 22 idea. |
 | R37 | Basix publishes releases like Vendomat: immutable tags plus a fast-forward `release` branch. The collection hook allows `release` for any repository, not only `vendomat` (D3, option a, with the hook rule widened). The release contract names no transport; where a learner's machine fetches updates stays open. | "D3: agreed", 2026-10-13 | The hook change is the Vendomat side of S5. |
 | R38 | Basix keys live in a second file, `basix.yaml`, read with the parser from the Vendomat source (D5, option c). The recommendation was option a. The owner chose c knowing it breaks "one file" for the user (R6). Vendomat builds no catalog extension point for Basix keys. | "D5: I like c", 2026-10-13 | Supersedes the D5 extension-point plan in S3 and S5. `BSX-124` replaces `BSX-065`. How the Basix hatch hint reaches the shell line stays open. |
+| R39 | The new system configures no Attic. Harmonia is part of the initial install: every installed machine runs Harmonia from first boot and signs with a key it makes at first boot. `serve` is a Vendomat machine key in `vendomat.yaml`; it defaults to on, and `serve: false` turns it off. Vendomat owns the sharing module (Harmonia, and the substituter and key for clients) and proves it with two VMs in S3. Basix keeps the default on in its core (S5). The real two-machine check stays in S7. Build outputs stay in the building machine's store under a GC root. The Attic on today's `server` belongs to the current estate and stays untouched. | "I do *not* want to configure Attic from the beginning, lets make sure harmonia is a part of the initial install though."; "Agreed with your recommendation on harmonia" (every installed machine serves by default), 2026-10-13 | Supersedes `VMT-105` (by `VMT-126`) and `VMT-120` (by `VMT-127`). Adds `VMT-128` and Basix `BSX-129`. S2 drops the Attic push. Guide Section 2.3 is history. Settles the Basix `serve` key, which Basix deferred. |
+| R40 | D1, option a: the project 14 and V6 verbs and the `vendomat.toml` flow keep working until nix-systems and vendomat-demo move to `vendomat.yaml`; S8 then removes them all, `push` included. `machine install` moves to Basix (R13). S3 must not break the old flow. | "Agreed with all recommendations", 2026-10-13 | R39 removes the old reason to keep `push` (Attic); it goes in S8 with the rest. |
+| R41 | D2, option a: the module fork tag is Vendomat's second flake input, `devenv` (`dir=src/modules`). The template writes `devenv: follows: vendomat/devenv`. | as R40 | Changes the "one flake input" shape rule: `tests/test_repo_shape.py` and `AGENTS.md` change in S1 step 9. `VMT-073`, `VMT-111`. |
+| R42 | D4, option a: a committed `.machines/NAME/facter.json` marks a machine installed, and the catalog sets `vendomat.mode = "adopt-existing"`. The YAML key `mode: fresh-install` overrides it for a deliberate reinstall. | as R40 | S3 records the remote `facter` phase case (the file exists before a remote install) in a fixture. `VMT-099`. |
+| R43 | D6, option a: each machine keeps an append-only `/var/lib/vendomat/generations.jsonl`, one line per apply (generation, toplevel, commit, dirty flag, time). `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses clean entries only. | as R40 | `VMT-098`, `VMT-110`. |
+| R44 | D7, option a: the module fork's tags are `v2.4.0-vendomat-modules.N`. | as R40 | `VMT-082`. |
+| R45 | D8, option a: the environment variable `VENDOMAT_HIDE_ADVANCED=1` hides the shell `advanced:` line. | as R40 | `VMT-093`. |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
 recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
@@ -141,6 +148,8 @@ repeats the short form.
 
 ### D1: the project 14 verbs and the `vendomat.toml` flow
 
+**Ruled (R40), 2026-10-13: option a.**
+
 **Needed by:** S3 (launcher dispatch), S8. **Ledger:** none yet.
 
 Facts: the repository still ships the project 14 and V6 verbs `sync`, `path`, `check`, `push`,
@@ -149,8 +158,8 @@ Facts: the repository still ships the project 14 and V6 verbs `sync`, `path`, `c
 under `nix/devenv-module/`, `preflight/`, `direnv/vendomat.sh`, two templates, and their tests).
 The live consumers nix-systems and vendomat-demo use `vendomat.toml` and `.vendomat/`; none uses
 `vendomat.yaml`. Project 22's concept moves them "when project 21's catalog ships". Project 21
-rules on none of these verbs. R13 moves `install` to Basix. `VMT-120` keeps Attic until a
-two-machine Harmonia check passes.
+rules on none of these verbs. R13 moves `install` to Basix. `VMT-120` kept Attic until a
+two-machine Harmonia check passes; R39 supersedes that.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
@@ -161,6 +170,8 @@ two-machine Harmonia check passes.
 **Recommendation:** a.
 
 ### D2: how a plain Vendomat workspace pins the module-only `devenv` input
+
+**Ruled (R41), 2026-10-13: option a.**
 
 **Needed by:** S1 (step 9), S3 (template). **Ledger:** `VMT-073`, `VMT-111`.
 
@@ -195,6 +206,8 @@ of `refs/heads/release` only for the repository named `vendomat`. Vendomat works
 **Recommendation:** a.
 
 ### D4: how the catalog knows a machine is installed
+
+**Ruled (R42), 2026-10-13: option a.**
 
 **Needed by:** S3. **Ledger:** `VMT-099`.
 
@@ -233,6 +246,8 @@ the known ones (`VMT-032`). Vendomat must not import, test, or name Basix (R1).
 
 ### D6: where each machine keeps the rollback record
 
+**Ruled (R43), 2026-10-13: option a.**
+
 **Needed by:** S4. **Ledger:** `VMT-098`, `VMT-110`.
 
 Facts: R30 asks for a per-machine record from system path to workspace commit and rules out
@@ -249,6 +264,8 @@ two different dirty edits share that string.
 
 ### D7: the module fork's tag name
 
+**Ruled (R44), 2026-10-13: option a.**
+
 **Needed by:** S1. **Ledger:** `VMT-082`.
 
 Facts: the collection already holds `v2.4.0-vendomat.2`, `.3`, and `.4` for the old binary fork.
@@ -262,6 +279,8 @@ Tags never move or disappear.
 **Recommendation:** a.
 
 ### D8: the personal setting that hides the `advanced:` line
+
+**Ruled (R45), 2026-10-13: option a.**
 
 **Needed by:** S3. **Ledger:** `VMT-093`.
 

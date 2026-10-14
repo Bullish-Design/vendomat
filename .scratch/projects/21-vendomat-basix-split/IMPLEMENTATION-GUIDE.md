@@ -161,7 +161,11 @@ Store paths can be garbage-collected. In a new fixture, get QEMU and OVMF from t
   [published channel](../20-vendomat-front-door/evidence/slice-1/PUBLISHED-CHANNEL-2026-10-12.md)).
 - An unrelated test daemon listens on 127.0.0.1:19418. Leave it alone.
 
-### 2.3 Attic
+### 2.3 Attic (history; R39)
+
+**R39: the new system configures no Attic.** No slice pushes to Attic or configures it. The
+facts below describe today's `server` only. Leave that Attic untouched.
+
 
 - Cache `vendomat`. Server `atticd` on 127.0.0.1:8089 (nix-meta `machines/server.nix:338-359`),
   behind Tailscale Serve at `https://server.tail770f47.ts.net/attic/vendomat`. Public key
@@ -258,23 +262,21 @@ images from the scripts.
 
 ---
 
-## 4. Decisions to settle
+## 4. Decisions (all ruled)
 
-The rulings settle the design. These implementation choices have no ruling yet. Their full record
-(facts, options with pros and cons, recommendation) is in
-[DECISIONS.md, D1 to D8](DECISIONS.md#implementation-decisions-awaiting-a-ruling-d1-to-d8). Ask the
-owner before the slice that needs each one. Record each answer as a ruling (R37 onward).
+The owner ruled D1 to D8 on 2026-10-13. The full records are in
+[DECISIONS.md, D1 to D8](DECISIONS.md#implementation-decisions-awaiting-a-ruling-d1-to-d8).
 
-| # | Question | Needed by | Recommendation |
+| # | Ruling | Used by | Outcome |
 | --- | --- | --- | --- |
-| D1 | What happens to the project 14 and V6 verbs (`sync`, `path`, `check`, `push`, `bump`, `machine install`) and the `vendomat.toml` flow? | S3 (launcher), S8 | Keep them working until nix-systems and vendomat-demo move to `vendomat.yaml`. Then remove them in S8. `machine install` moves to Basix (R13). `push` stays until the Harmonia check passes (`VMT-120`). |
-| D2 | How does a plain Vendomat workspace (no Basix) pin the module-only `devenv` input? | S1, S3 | Add `devenv` (the module-only fork tag, `dir=src/modules`) as a second input of Vendomat's flake. The template writes `devenv: follows: vendomat/devenv`, so one update moves Vendomat and its tested modules together, as R28 does for Basix. This changes the "one flake input" shape rule and `AGENTS.md`. The other choice: the template pins the tag directly and `vendomat update` rewrites it. |
-| D3 | How does Basix publish releases? | S5 | **Ruled (R37):** like Vendomat: immutable tags plus a fast-forward `release` branch. Extend `hooks/collection-pre-receive` to allow `release` for any repository. |
-| D4 | How does the catalog know a machine is installed, to set `vendomat.mode = "adopt-existing"` (`VMT-099`)? | S3 | A machine with a committed `.machines/NAME/facter.json` is installed. A YAML key `mode: fresh-install` overrides it for a deliberate reinstall. |
-| D5 | How does Basix add its YAML keys (`profile`, `capabilities`, `serve`, `disk`) and its hatch lesson hint to Vendomat's catalog (`BSX-065`, `BSX-059`)? | S5 | **Ruled (R38):** Basix keeps its keys in a second file, `basix.yaml`. Vendomat builds no extension point for keys. How the Basix hint reaches the shell line is open (see the Basix decisions). |
-| D6 | Where and in what format does each machine keep the record from system path to commit (R30)? | S4 | An append-only JSON Lines file `/var/lib/vendomat/generations.jsonl`, one line per apply: generation number, toplevel path, workspace commit, a dirty flag, time. `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses only clean entries. |
-| D7 | What is the tag name of the module-only fork? | S1 | `v2.4.0-vendomat-modules.N`. It cannot collide with the old binary fork tags `v2.4.0-vendomat.N`. |
-| D8 | Where does the personal setting that hides the `advanced:` line live (R19)? | S3 | An environment variable, `VENDOMAT_HIDE_ADVANCED=1`, set in the owner's shell profile. A setting in `devenv.local.nix` would itself count as hatch use. |
+| D1 | R40 | S3 (launcher), S8 | The old verbs and the `vendomat.toml` flow keep working until nix-systems and vendomat-demo move to `vendomat.yaml`. S8 removes them all, `push` included. `machine install` moves to Basix (R13). |
+| D2 | R41 | S1, S3 | The module fork tag is Vendomat's second flake input `devenv` (`dir=src/modules`). The template writes `devenv: follows: vendomat/devenv`. The "one flake input" shape rule changes in S1 step 9. |
+| D3 | R37 | S5 | Basix publishes like Vendomat: immutable tags plus a fast-forward `release` branch. The collection hook allows `release` for any repository. |
+| D4 | R42 | S3 | A committed `.machines/NAME/facter.json` marks a machine installed (`adopt-existing`). `mode: fresh-install` overrides it. |
+| D5 | R38 | S5 | Basix keeps its keys in `basix.yaml`. Vendomat builds no extension point for keys. |
+| D6 | R43 | S4 | `/var/lib/vendomat/generations.jsonl`, one line per apply. `apply` refuses uncommitted changes unless `--dirty`; `rollback` uses clean entries only. |
+| D7 | R44 | S1 | `v2.4.0-vendomat-modules.N`. |
+| D8 | R45 | S3 | `VENDOMAT_HIDE_ADVANCED=1` hides the `advanced:` line. |
 
 ---
 
@@ -401,7 +403,8 @@ Steps:
 ### S2: the host binary
 
 **Goal.** Vendomat's flake builds the host and ISO devenv binary: `pkgs.devenv` from the pinned
-nixpkgs with patches 0003 and 0005. It is cached in Attic. The owner switches the host to it.
+nixpkgs with patches 0003 and 0005. It stays in the local store under a GC root (R39: no Attic).
+The owner switches the host to it.
 
 **Depends on:** nothing (B5 below needs S1). **Ledger:** `VMT-074`, `VMT-099`, `VMT-105`.
 **Evidence:** `evidence/S2-HOST-BINARY.md`.
@@ -439,14 +442,10 @@ Steps:
      before and after; all stay the same. An unmarked machine passes the refusal step (stop it at
      the SSH preflight with a closed port). VM files under `/mnt/shared/vendomat-p21/s2/`.
    - **B6 catalog**: the binary enters a slice 1 or S3 catalog workspace.
-7. Push to Attic, one job:
-
-   ```sh
-   nix shell nixpkgs#attic-client -c attic push -j 1 vendomat "$(readlink -f result)"
-   ```
-
-   Record the uploaded paths. Check with an authenticated `nix path-info --store
-   http://127.0.0.1:8089/vendomat <path>`.
+7. **Keep the binary; no Attic (R39).** Make an indirect GC root outside the repository, for
+   example `nix build .#devenv --out-link ~/.local/state/vendomat/roots/devenv-<commit>`. Record
+   the store path, its NAR hash (`nix path-info --json`), and its closure size. Other machines
+   get it through Harmonia once S3's sharing module runs, and the ISO carries it.
 8. **Owner gate: switch the host binary.** Prepare the change; do not apply it. Today nix-meta
    installs devenv in `profiles/developer.nix:10,75` (`pinnedDevenv` from
    `github:cachix/devenv/v2.4.0`). The change points that at Vendomat's `packages.devenv` (or adds
@@ -461,10 +460,10 @@ Steps:
 devenv 2.4.0 and the S1 module input. The commands `update` and `explain` exist. Errors show the
 `vendomat.yaml:` lines first.
 
-**Depends on:** S1, D1, D2, D4, D8. **Ledger:** `VMT-002`, `VMT-003`, `VMT-010` to `VMT-013`,
+**Depends on:** S1 (R40, R41, R42, R45 settle D1, D2, D4, D8). **Ledger:** `VMT-002`, `VMT-003`, `VMT-010` to `VMT-013`,
 `VMT-020` to `VMT-022`, `VMT-030` to `VMT-036`, `VMT-040` to `VMT-046`, `VMT-050` to `VMT-058`,
 `VMT-060` to `VMT-063`, `VMT-090` to `VMT-094`, `VMT-099` (catalog half), `VMT-103`, `VMT-111`,
-`VMT-112`, `VMT-116`, `VMT-117`, `VMT-121` (first half), `VMT-122`. **Evidence:**
+`VMT-112`, `VMT-116`, `VMT-117`, `VMT-121` (first half), `VMT-122`, `VMT-127` (two VMs), `VMT-128`. **Evidence:**
 `evidence/S3-CATALOG.md`.
 
 Steps:
@@ -550,9 +549,16 @@ Steps:
       fixed seeds.
     - Port W4 F1 to F14 and F4b as the opt-in check `catalog-e2e` on the pinned nixpkgs (Section
       2.5).
+11b. **Sharing module** (R39, `VMT-127`, `VMT-128`): a NixOS module in Vendomat that the catalog
+    turns on for every machine unless `serve: false`. It runs Harmonia, makes the signing key at
+    first boot (secrets never enter the store), and gives the other machines of the workspace the
+    substituter, the public key, `fallback = true`, and a short timeout. Project 19 and project 20
+    (S6, S7) hold the earlier proofs and the keyless-boot facts. Prove it with two VMs as the
+    opt-in check `sharing-vm`: machine A builds a path, machine B substitutes it from A, and a
+    machine with `serve: false` runs no Harmonia. VM files under `/mnt/shared/vendomat-p21/s3/`.
 12. **Docs.** Update `AGENTS.md` (layout, outputs, modules) and `README.md` to the project 21
     state. Keep project state out of `AGENTS.md`.
-13. Run `testee verify`, `catalog-e2e`, `parser-fuzz`, and the updated `front-door-e2e`.
+13. Run `testee verify`, `catalog-e2e`, `parser-fuzz`, `sharing-vm`, and the updated `front-door-e2e`.
 14. **Release.** Tag a Vendomat version and fast-forward `release` in the collection
     (`git://server/vendomat`). A fresh workspace from `vendomat new` must enter the shell with the
     S1 module input and stock devenv. This proves `VMT-020`'s "pin through a published lock".
@@ -657,7 +663,7 @@ Steps:
 
 **Goal.** Prove the design on real hardware and between two real machines.
 
-**Depends on:** S5. **Ledger:** `BSX-119`, `VMT-120`. **Evidence:** `evidence/S7-REAL-MACHINES.md`.
+**Depends on:** S5. **Ledger:** `BSX-119`, `VMT-127`. **Evidence:** `evidence/S7-REAL-MACHINES.md`.
 
 Steps:
 
@@ -667,10 +673,10 @@ Steps:
    disk, the hardware report (filtered), the time, and the first boot (no keys, zero failed
    units).
 3. On the installed machine: `vendomat apply` a change, then `vendomat rollback`.
-4. **Two-machine sharing** (`VMT-120`): a serving machine makes its own signing key and runs
-   Harmonia; a client substitutes from it with `fallback = true` and a short timeout. Attic stays
-   until this passes.
-5. Record everything. Do not remove Attic in this slice.
+4. **Two-machine sharing** (`VMT-127`, R39): each installed machine makes its own signing key at
+   first boot and runs Harmonia; the other substitutes from it with `fallback = true` and a short
+   timeout.
+5. Record everything. The new system has no Attic. Leave today's `server` Attic to project 22.
 
 ### S8 (proposed): move the consumers and retire the project 14 code
 

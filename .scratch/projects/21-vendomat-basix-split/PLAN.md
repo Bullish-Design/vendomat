@@ -38,12 +38,12 @@ the patched binary are long-lived.
 | # | Work | Depends on | Ledger rows |
 | --- | --- | --- | --- |
 | S1 | The module-only `devenv` fork: `nixos` as `deferredModule`; `build.vm` and `build.iso` with `iso.modules`; the module half of patch 0005; the version file. | none | `VMT-064`, `VMT-082`, `VMT-095`, `VMT-106`, `VMT-107`, `VMT-108`, `VMT-118` |
-| S2 | The host binary overlay: `pkgs.devenv` with patches 0003 and 0005, built and cached in Attic. | none | `VMT-074`, `VMT-099`, `VMT-105` |
-| S3 | The catalog rewrite in the repository: the Nix parser, the ruled keys, the hatch line, `explain`, error trimming, template `follows` lines, and `vendomat update`. | S1 | `VMT-002`, `VMT-003`, `VMT-057`, `VMT-090` to `VMT-094`, `VMT-111`, `VMT-116`, `VMT-117` |
+| S2 | The host binary overlay: `pkgs.devenv` with patches 0003 and 0005, built and kept under a GC root (R39: no Attic). | none | `VMT-074`, `VMT-099`, `VMT-126` |
+| S3 | The catalog rewrite in the repository: the Nix parser, the ruled keys, the hatch line, `explain`, error trimming, template `follows` lines, and `vendomat update`; and the Harmonia sharing module with its two-VM proof (R39). | S1 | `VMT-002`, `VMT-003`, `VMT-057`, `VMT-090` to `VMT-094`, `VMT-111`, `VMT-116`, `VMT-117` |
 | S4 | `vendomat apply` and `vendomat rollback` with the per-machine record. | S3 | `VMT-072`, `VMT-075`, `VMT-098`, `VMT-110` |
 | S5 | The Vendomat side of Basix: the collection hook change so any repository may fast-forward `release` (R37), and a parser that Basix imports for `basix.yaml` (R38). The Basix build is in `../basix/.scratch/projects/001-initial-concept/PLAN.md`. | S1 to S4 | `VMT-121` (with Basix); the `BSX-` rows are in the Basix ledger |
 | S6 | Retire the `v2.4.0-vendomat.4` fork and its other patches (0001, 0002, 0004, 0006 to 0009; see the fork table in the concept). | S1 and S2 | `VMT-080`, `VMT-081` |
-| S7 | Real-machine gates: real hardware, and the two-machine Harmonia check. | S5 | `BSX-119`, `VMT-120` |
+| S7 | Real-machine gates: real hardware, and the two-machine Harmonia check. | S5 | `BSX-119`, `VMT-127` |
 
 ### Owner gates
 

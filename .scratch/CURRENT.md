@@ -32,7 +32,9 @@ in the machine layer.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
-**The design is final as of 2026-10-13.** Project 21 is the design authority for Vendomat and Basix.
+**The design is final as of 2026-10-13.** R39 (2026-10-13): the new system configures no Attic;
+every installed machine runs Harmonia from first boot. R40 to R45 settle the implementation
+decisions D1, D2, D4, D6, D7, and D8. Project 21 is the design authority for Vendomat and Basix.
 Project 14 stays the implementation contract until a release meets the project 21 gates. The next
 work is slice S1 (the module-only `devenv` fork) and slice S2 (the host binary overlay). Both are in
 the [plan](projects/21-vendomat-basix-split/PLAN.md), with S3 to S7 after them. A new session starts
