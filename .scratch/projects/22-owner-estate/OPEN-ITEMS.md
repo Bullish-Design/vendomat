@@ -16,7 +16,7 @@ and the item here gets the ruling number. Do not renumber an item.
 | OI-05 | repoman's future (A9) | Phase 6 | Ruled (R15); partly done |
 | OI-06 | devman's `agent` group (A10) | Phase 2 | Recommendation ready |
 | OI-07 | The order of removing the old Vendomat module (A11) | Phase 2 | Recommendation ready |
-| OI-08 | Today's stale import of devman's link module | Nothing; a live defect | Done, except the owner's system switch |
+| OI-08 | Today's stale import of devman's link module | Nothing; a live defect | Done and verified after the switch |
 | OI-09 | Testee task-mode details | W4, phase 6 | Recommendation ready |
 | OI-10 | When the devenv binary moves to the machine (R13) | Phase 4, phase 7 | Recommendation ready |
 | OI-11 | mancore's future | linkman, the doctor contract | Recommendation ready |
@@ -194,6 +194,12 @@ toolchain closure (`profiles/developer.nix:184-211`), so the order matters.
 
 **Recommendation:** (b).
 
+**mancore, done 2026-10-13:** mancore commit `16c7093a` drops `vendor.toolchain.enable`, the RepoMan
+roster, and the RepoMan header text; Testee passed 4 of 4, and the repository evaluates without the
+consumer module. The overlay still imports the consumer module for mancore, because mancore's main
+checkout holds another session's uncommitted file on the old `main`, whose `devenv.nix` still sets
+the option. Remove the import after that checkout moves to the new `main`.
+
 **Found 2026-10-13:** mancore's overlay imports
 `/run/current-system/sw/share/vendomat/consumer-module.nix`, and mancore's `devenv.nix` sets
 `vendor.toolchain.enable = false`, an option from that module. So the module has one reader, and the
@@ -236,8 +242,13 @@ an old module with no error.
   (OI-15), `devman doctor --prune` removed 14 records of missing repositories, and the overlay's
   unlanded commits were landed on its `main` (OI-13).
 
-**Left:** the owner's `sudo nixos-rebuild switch --flake ~/Documents/Projects/nix-meta#server`, which
-activates the pointer step. Before that switch, the overlay had to stop importing RepoMan's host
+**Verified after the owner's switch (2026-10-13):** the running system is the generation that holds
+the pointer step. The pointer names the live devman-link 0.6.0 module and was not rewritten (same
+content, W10 F3). `devman doctor` exits 0. All 51 repositories with an overlay entered a shell: 38
+entered cleanly; 13 failed in exactly the same way with the old import swapped back, so none of the
+13 failures comes from this change (see the follow-ups). D05 fell from 60 findings to 7.
+
+**Earlier note:** the owner's switch activated the pointer step. Before that switch, the overlay had to stop importing RepoMan's host
 module (R15), because nix-meta commit `f173fd0` removes it from the system.
 
 ---
@@ -457,3 +468,20 @@ These need no option analysis; each has one obvious fix.
 - **W9's `doctor_check.py`** opens live caches in place (W5). **Done:** it now copies the database
   and its `-wal` file to a temporary directory and reads the copy. A test run on linkman left every
   cache file unchanged.
+
+## Findings from the check after the switch (2026-10-13)
+
+None of these comes from the OI-08 change: each failure was the same with the old import.
+
+- **Six repositories fail shell entry with `The option 'dotenv.resolved' was accessed but has no
+  value defined`:** PyGentic, clinch, parsedantic, pydantree, terminal-state, webdantic.
+- **Five repositories need a secrets reason** (`SECRETSPEC_REASON`) when an agent enters the shell:
+  browsee, fornix, templateer_v2, tyo3, zelligate. Their secretspec policy defaults to requiring one
+  for agents. Not a defect; their D05 rows appear after the owner's next shell entry.
+- **fsdantic fails:** `/nix/store/...-agentfs-src/cli/Cargo.toml` does not exist; an input changed
+  shape.
+- **nix-meta has an overlay `devenv.local.nix` but no `devenv.nix`,** so D05 can never pass for it.
+  The doctor should skip a repository without devenv files.
+- **nixvim's evaluation cache is a text file with jj conflict markers** (W5); delete it.
+- **nix-meta still installs RepoMan's host module** (`machines/server.nix:74-76`, input `repoman`
+  v0.14.1), added by another session after `f173fd0`. Nothing imports it now. Remove it under R15.
