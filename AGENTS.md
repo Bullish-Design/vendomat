@@ -27,8 +27,9 @@ testee verify e2e
 Run the first command from the repository root as the normal gate. Add named checks (for example
 `testee verify e2e`) when a change affects the Nix module, toolchain, or consumer
 integration. A pull request needs a green `testee verify` (or `testee status -r REV` for the exact
-revision). The end-to-end check stays opt-in because it builds a real consumer shell. The checks
-live in `devenv.nix` as `testee.checks`. During an edit, run `testee verify --profile quick` for
+revision). The end-to-end check stays opt-in because it builds a real consumer shell. The machine
+supplies the Testee module and the `testee` command. The project keeps its checks in
+`nix/testee.nix`. During an edit, run `testee verify --profile quick` for
 ruff and ruff-format only.
 
 The `testee` command is the host program (see the nix profile). It checks the commit in its own
