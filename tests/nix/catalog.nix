@@ -52,11 +52,42 @@ let
     };
   };
 
-  # The one NixOS option that the module sets, to read the machine name back.
-  hostNameOf = nixos:
-    (lib.evalModules {
-      modules = [{ options.networking.hostName = opt t.str "unset"; } nixos];
-    }).config.networking.hostName;
+  # The NixOS options that the machine module sets: the host name, and what the sharing module
+  # (devenv/sharing.nix) sets. The stub reads the sharing facts back. A separate check (sharing-vm)
+  # builds the real machines.
+  sharingFacts = nixos:
+    let
+      evaluated = lib.evalModules {
+        modules = [
+          {
+            options = {
+              networking.hostName = opt t.str "unset";
+              networking.firewall.allowedTCPPorts = opt (t.listOf t.int) [ ];
+              assertions = opt (t.listOf t.raw) [ ];
+              nix.package = opt t.raw null;
+              nix.settings = opt (t.attrsOf t.raw) { };
+              systemd.tmpfiles.rules = opt (t.listOf t.str) [ ];
+              systemd.services = opt (t.attrsOf t.raw) { };
+              systemd.sockets = opt (t.attrsOf t.raw) { };
+              services.harmonia.cache.enable = opt t.bool false;
+              services.harmonia.cache.signKeyPaths = opt (t.listOf t.str) [ ];
+            };
+            config._module.args = { inherit pkgs; };
+          }
+          nixos
+        ];
+      };
+      c = evaluated.config;
+    in
+    {
+      hostName = c.networking.hostName;
+      serve = c.vendomat.sharing.serve;
+      peers = c.vendomat.sharing.peers;
+      substituters = c.nix.settings.extra-substituters or [ ];
+      keys = c.nix.settings.extra-trusted-public-keys or [ ];
+      harmonia = c.services.harmonia.cache.enable;
+      keyUnit = c.systemd.services ? vendomat-cache-key;
+    };
 
   inputs =
     if pythons == "" then { }
@@ -90,13 +121,14 @@ let
     services = config.services;
     machines = lib.mapAttrs
       (_: m: {
-        hostName = if m.nixos == null then null else hostNameOf m.nixos;
+        hostName = if m.nixos == null then null else (sharingFacts m.nixos).hostName;
         host = m.target.host;
         facter = m.hardware.facter;
         mode = m.vendomat.mode;
       })
       config.machines;
     serve = config.vendomat.serve;
+    sharing = lib.mapAttrs (_: m: sharingFacts m.nixos) config.machines;
   };
 in
 {

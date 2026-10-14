@@ -168,10 +168,30 @@ let
   # The mode of a machine. A committed `.machines/NAME/facter.json` marks it installed (R42). The key
   # `mode` in the file overrides that. With neither, no mode is set and devenv keeps its default.
   installed = name: builtins.pathExists (root + "/.machines/${name}/facter.json");
+  # The sharing wiring (R39, VMT-127, VMT-128). A machine serves unless it says `serve: "false"`.
+  serves = m: (m.serve or "true") == "true";
+  # The peers of a machine: each other machine that serves and has a committed key. A key that is not
+  # committed yet gives no entry, so an install needs no key. The URL names the `host` without a `user@`
+  # prefix, else the machine name. The public key is the content of `.machines/NAME/cache-key.pub`.
+  keyFile = name: root + "/.machines/${name}/cache-key.pub";
+  peerHost = name: m: if m ? host then lib.last (lib.splitString "@" m.host) else name;
+  peersOf = self:
+    lib.concatLists (lib.mapAttrsToList
+      (name: m:
+        lib.optional (name != self && serves m && builtins.pathExists (keyFile name))
+          { url = "http://${peerHost name m}:5000"; publicKey = lib.trim (builtins.readFile (keyFile name)); })
+      machines);
+
   machine = name: m:
     {
       # The facts file holds networking.hostName, so the machine name must equal it (R21).
-      nixos = { networking.hostName = name; };
+      nixos = {
+        imports = [ ./sharing.nix ];
+        networking.hostName = name;
+        # A present `serve` key is a YAML value. Without it, the catalog default applies (R23).
+        vendomat.sharing.serve = if m ? serve then serves m else lib.mkDefault true;
+        vendomat.sharing.peers = lib.mkDefault (peersOf name);
+      };
     }
     // lib.optionalAttrs (m ? host) { target.host = m.host; }
     // lib.optionalAttrs ((m.virtual or "false") == "true") { hardware.facter = null; }
@@ -221,7 +241,7 @@ in
       type = lib.types.attrsOf lib.types.bool;
       internal = true;
       readOnly = true;
-      default = guard (lib.mapAttrs (_: m: (m.serve or "true") == "true") machines);
+      default = guard (lib.mapAttrs (_: serves) machines);
       description = "For each machine of vendomat.yaml, whether it serves its store (the key `serve`, on by default).";
     };
     explain = lib.mkOption {

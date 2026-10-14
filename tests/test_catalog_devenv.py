@@ -64,10 +64,11 @@ def nixpkgs_url() -> str:
     return f"github:NixOS/nixpkgs/{lock['nodes']['nixpkgs']['locked']['rev']}"
 
 
-@pytest.fixture(scope="module")
-def baseline(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """A locked workspace. Each test copies it."""
-    base = tmp_path_factory.mktemp("baseline")
+DISKO = "github:nix-community/disko/de5708739256238fb912c62f03988815db89ec9a"
+
+
+def make_baseline(base: Path, extra_inputs: str = "") -> Path:
+    """A locked workspace in ``base``, with ``extra_inputs`` (YAML lines of the `inputs` map) added."""
     shutil.copytree(ROOT / "devenv", base / "modsrc" / "devenv")
     ws = base / "ws"
     ws.mkdir()
@@ -82,10 +83,10 @@ def baseline(tmp_path_factory: pytest.TempPathFactory) -> Path:
                 url: path:{MODULES}
               nixpkgs:
                 url: {nixpkgs_url()}
-            imports:
-              - vendomat/devenv
             """
         )
+        + extra_inputs
+        + "imports:\n  - vendomat/devenv\n"
     )
     (ws / "devenv.nix").write_text("{ }\n")
     (ws / "vendomat.yaml").write_text("")
@@ -95,12 +96,34 @@ def baseline(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return ws
 
 
+@pytest.fixture(scope="module")
+def baseline(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A locked workspace. Each test copies it."""
+    return make_baseline(tmp_path_factory.mktemp("baseline"))
+
+
+@pytest.fixture(scope="module")
+def machines_baseline(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A locked workspace whose machines evaluate: `machines.nix` of the module tree needs `disko`."""
+    disko = f"  disko:\n    url: {DISKO}\n    inputs:\n      nixpkgs:\n        follows: nixpkgs\n"
+    return make_baseline(tmp_path_factory.mktemp("machines-baseline"), disko)
+
+
+def copy_of(base: Path, tmp_path: Path) -> Path:
+    target = tmp_path / "ws"
+    shutil.copytree(base, target, ignore=shutil.ignore_patterns(".devenv"))
+    return target
+
+
 @pytest.fixture
 def ws(baseline: Path, tmp_path: Path) -> Path:
-    target = tmp_path / "ws"
-    shutil.copytree(baseline, target, ignore=shutil.ignore_patterns(".devenv"))
     # The `vendomat` input is a path in the baseline; the lock names its hash, which the copy keeps.
-    return target
+    return copy_of(baseline, tmp_path)
+
+
+@pytest.fixture
+def mws(machines_baseline: Path, tmp_path: Path) -> Path:
+    return copy_of(machines_baseline, tmp_path)
 
 
 def shell_lines(ws: Path, **extra: str) -> list[str]:
@@ -225,3 +248,71 @@ def test_update_writes_the_lines_and_devenv_locks_them(ws: Path, tmp_path: Path,
     assert "  inputs.extra.url: path:" in result.stdout
     assert "extra" in json.loads((ws / "devenv.lock").read_text())["nodes"]
     assert CliRunner().invoke(app, ["update", "--check", "--root", str(ws)]).exit_code == 0
+
+
+# --- The sharing wiring (R39, VMT-127, VMT-128) -------------------------------------------------
+
+ALPHA_KEY = "alpha:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+TWO_MACHINES = textwrap.dedent(
+    """\
+    machines:
+      alpha:
+        host: root@192.0.2.1
+        virtual: "true"
+      beta:
+        host: 192.0.2.2
+        virtual: "true"
+        serve: "false"
+    """
+)
+
+
+def nixos(machine: str, option: str) -> str:
+    return f"machines.{machine}._nixosEval.config.{option}"
+
+
+def test_alpha_serves_and_beta_with_serve_false_runs_no_harmonia(mws: Path):
+    (mws / "vendomat.yaml").write_text(TWO_MACHINES)
+    enable = "services.harmonia.cache.enable"
+    done = run(["devenv", "eval", nixos("alpha", enable), nixos("beta", enable)], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    values = json.loads(done.stdout)
+    assert values == {nixos("alpha", enable): True, nixos("beta", enable): False}
+
+
+def test_beta_substitutes_from_alpha_only_after_the_key_is_committed(mws: Path):
+    (mws / "vendomat.yaml").write_text(TWO_MACHINES.replace('serve: "false"', 'serve: "true"'))
+    settings = nixos("beta", "nix.settings")
+    names = [f"{settings}.extra-substituters", f"{settings}.extra-trusted-public-keys", f"{settings}.fallback"]
+    # No key file: no peer, and the evaluation works without a key (keyless at install).
+    peers = nixos("beta", "vendomat.sharing.peers")
+    keyless = run(["devenv", "eval", peers], mws)
+    assert keyless.returncode == 0, keyless.stderr[-3000:]
+    assert json.loads(keyless.stdout) == {peers: []}
+    # The key is committed: the peer appears. The URL has the host without `root@`.
+    key = mws / ".machines" / "alpha" / "cache-key.pub"
+    key.parent.mkdir(parents=True)
+    key.write_text(ALPHA_KEY + "\n")
+    done = run(["devenv", "eval", *names], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    values = json.loads(done.stdout)
+    assert values[names[0]] == ["http://192.0.2.1:5000"]
+    assert values[names[1]] == [ALPHA_KEY]
+    assert values[names[2]] is True
+    # Alpha lists no peer: beta serves too in this file, but it has no key.
+    own = nixos("alpha", "vendomat.sharing.peers")
+    done = run(["devenv", "eval", own], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    assert json.loads(done.stdout)[own] == []
+
+
+def test_a_beta_that_does_not_serve_gives_no_peer_entry(mws: Path):
+    # `beta` has `serve: "false"`. Its key file, if any, does not make it a peer of `alpha`.
+    (mws / "vendomat.yaml").write_text(TWO_MACHINES)
+    key = mws / ".machines" / "beta" / "cache-key.pub"
+    key.parent.mkdir(parents=True)
+    key.write_text("beta:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=\n")
+    attribute = nixos("alpha", "vendomat.sharing.peers")
+    done = run(["devenv", "eval", attribute], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    assert json.loads(done.stdout)[attribute] == []

@@ -30,13 +30,15 @@ def evaluate(
     read: str = "summary",
     *,
     files: tuple[str, ...] = (),
+    contents: dict[str, str] | None = None,
     pythons: str = "",
     extra: str | None = None,
 ):
     """Evaluate the module for a workspace.
 
     ``text`` is the content of ``vendomat.yaml``, or None for no file. ``files`` are empty files to create
-    in the workspace. ``extra`` is the text of one more module, as the user's ``devenv.nix`` would be.
+    in the workspace. ``contents`` maps more file names to their text.
+    ``extra`` is the text of one more module, as the user's ``devenv.nix`` would be.
     """
     if text is not None:
         (workspace / "vendomat.yaml").write_text(text)
@@ -44,6 +46,10 @@ def evaluate(
         target = workspace / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("")
+    for name, body in (contents or {}).items():
+        target = workspace / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
     argv = ["nix-instantiate", "--extra-experimental-features", "flakes", "--eval", "--strict", "--json"]
     argv += [str(ROOT / "tests/nix/catalog.nix"), "--argstr", "root", str(workspace)]
     argv += ["--argstr", "repo", str(ROOT), "--argstr", "nixpkgs", nixpkgs_rev(), "--argstr", "read", read]
@@ -368,9 +374,93 @@ def test_a_bad_serve_value_fails_with_its_position(tmp_path: Path):
 
 
 def test_serve_sets_no_other_option(tmp_path: Path):
-    # The catalog only exposes `serve`. The sharing wiring comes later and reads it.
+    # `serve` feeds the sharing module only. The other machine options keep their values.
     out = summary(tmp_path, 'machines:\n  a:\n    serve: "false"\n')["machines"]["a"]
     assert out == {"hostName": "a", "host": None, "facter": ".machines/a/facter.json", "mode": None}
+
+
+ALPHA_KEY = "alpha:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+GAMMA_KEY = "gamma:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+
+
+def key_file(name: str) -> str:
+    return f".machines/{name}/cache-key.pub"
+
+
+def sharing(tmp_path: Path, text: str, **keys: str) -> dict:
+    """The sharing facts of each machine, with a committed key file (and a trailing newline) per keyword."""
+    contents = {key_file(name): key + "\n" for name, key in keys.items()}
+    return summary(tmp_path, text, contents=contents)["sharing"]
+
+
+TWO = "machines:\n  alpha:\n    host: alpha.lan\n  beta:\n    host: root@10.0.0.2\n"
+
+
+def test_every_machine_imports_the_sharing_module_and_serves_by_default(tmp_path: Path):
+    # R39, VMT-128. A machine without `serve` gets the module with serve on, and no peer.
+    out = sharing(tmp_path, TWO)
+    for name in ("alpha", "beta"):
+        assert out[name]["serve"] is True
+        assert out[name]["harmonia"] is True
+        assert out[name]["keyUnit"] is True
+        assert out[name]["peers"] == []
+        assert out[name]["substituters"] == []
+
+
+def test_serve_false_gives_the_module_with_serve_off(tmp_path: Path):
+    text = 'machines:\n  alpha:\n    serve: "true"\n  beta:\n    serve: "false"\n'
+    out = sharing(tmp_path, text)
+    assert (out["alpha"]["serve"], out["alpha"]["harmonia"]) == (True, True)
+    assert (out["beta"]["serve"], out["beta"]["harmonia"], out["beta"]["keyUnit"]) == (False, False, False)
+
+
+def test_a_peer_needs_a_committed_key(tmp_path: Path):
+    # Keyless at install: no key file, no peer. The key appears, and the peer follows.
+    assert sharing(tmp_path, TWO)["beta"]["peers"] == []
+    out = sharing(tmp_path, TWO, alpha=ALPHA_KEY)
+    assert out["beta"]["peers"] == [{"url": "http://alpha.lan:5000", "publicKey": ALPHA_KEY}]
+    assert out["beta"]["substituters"] == ["http://alpha.lan:5000"]
+    assert out["beta"]["keys"] == [ALPHA_KEY]
+
+
+def test_the_peer_url_drops_the_user_and_falls_back_to_the_name(tmp_path: Path):
+    text = "machines:\n  alpha:\n    host: root@alpha.lan\n  beta:\n    host: b\n  gamma:\n    virtual: 'true'\n"
+    out = sharing(tmp_path, text, alpha=ALPHA_KEY, gamma=GAMMA_KEY)
+    assert out["beta"]["substituters"] == ["http://alpha.lan:5000", "http://gamma:5000"]
+    assert out["beta"]["keys"] == [ALPHA_KEY, GAMMA_KEY]
+
+
+def test_the_key_is_trimmed(tmp_path: Path):
+    contents = {key_file("alpha"): f"  {ALPHA_KEY} \n\n"}
+    out = summary(tmp_path, TWO, contents=contents)["sharing"]
+    assert out["beta"]["keys"] == [ALPHA_KEY]
+
+
+def test_a_machine_never_lists_itself(tmp_path: Path):
+    out = sharing(tmp_path, TWO, alpha=ALPHA_KEY, beta="beta:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=")
+    assert out["alpha"]["substituters"] == ["http://10.0.0.2:5000"]
+    assert out["beta"]["substituters"] == ["http://alpha.lan:5000"]
+
+
+def test_a_peer_with_serve_false_is_not_listed(tmp_path: Path):
+    text = 'machines:\n  alpha:\n    host: alpha.lan\n    serve: "false"\n  beta:\n    host: b\n'
+    out = sharing(tmp_path, text, alpha=ALPHA_KEY)
+    assert out["beta"]["peers"] == []
+    assert out["alpha"]["serve"] is False
+
+
+def test_the_nix_files_can_override_the_sharing_values(tmp_path: Path):
+    # R23: the YAML `serve` is a plain definition; the peers are a catalog default.
+    peers = '[ { url = "http://x:5000"; publicKey = "x:AAAA="; } ]'
+    nix = f"{{ machines.beta.nixos.vendomat.sharing.peers = {peers}; }}"
+    text = TWO
+    out = summary(tmp_path, text, contents={key_file("alpha"): ALPHA_KEY}, extra=nix)["sharing"]
+    assert out["beta"]["substituters"] == ["http://x:5000"]
+    clash = evaluate(
+        tmp_path, 'machines:\n  a:\n    serve: "false"\n', extra="{ machines.a.nixos.vendomat.sharing.serve = true; }"
+    )
+    assert clash.returncode != 0
+    assert "vendomat.sharing.serve" in clash.stderr
 
 
 def test_error_lines_come_first_and_match_one_pattern(tmp_path: Path):
