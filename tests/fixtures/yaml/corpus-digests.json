@@ -1,0 +1,85 @@
+{
+ "about": "sha256 over the sorted *.yaml files (name, NUL, bytes, NUL) of each project 21 spike corpus, and of its first 100 source documents (key@100). tests/test_parser_fuzz.py checks that tests/tools/yamlgen_*.py reproduce them byte for byte.",
+ "digests": {
+  "p2": {
+   "files": 3200,
+   "sha256": "793dc70e67b985e0a1fd2b4690085bcfcd50c692d01839ab32ec5ff24a8a37a0"
+  },
+  "p2@100": {
+   "files": 100,
+   "sha256": "c5248c14af4bd43020161d460eef44578f0b55779918ac57c9f86ce2c7eaf3eb"
+  },
+  "p2n": {
+   "files": 1500,
+   "sha256": "2bfc31b4737397fb17f19060d67a54fb33a84c0dd97a1dc720d0127ac9eee587"
+  },
+  "p2n@100": {
+   "files": 100,
+   "sha256": "980e1ac6df7424b912af78807825f4eeacd73ce5f3b439e5022aa935a075fb80"
+  },
+  "p2tab": {
+   "files": 400,
+   "sha256": "f1c2c365ddc3b01ecf73c05e3fdf5832b2513081d8ade5f98ae234bc3dd77ebe"
+  },
+  "p2tab@100": {
+   "files": 100,
+   "sha256": "794fdffc3aa44890d4e20ef5b974054d28ecd0c0fafe34ef2d187767e6878446"
+  },
+  "p2-valid": {
+   "files": 9416,
+   "sha256": "5a444cfafd06cb84d5a7501c6b2e7334b64b4353953fe3536c39e21ac0787d70"
+  },
+  "p2-valid@100": {
+   "files": 300,
+   "sha256": "c4722d1492197d9e786733a4e5c8da897d44087b49138db5a156e31e4383bb60"
+  },
+  "p2-invalid": {
+   "files": 4552,
+   "sha256": "7ee89e4e937f977928da6f431316687ade5e69a3109848fbf28e984478eeb732"
+  },
+  "p2-invalid@100": {
+   "files": 164,
+   "sha256": "e1d71b01eeba59166a88ff3eae6f74a656d10ea03371f00c69efbfb550fa28b1"
+  },
+  "p2n-valid": {
+   "files": 6200,
+   "sha256": "4a4574f11a5b9acb7d3685c3a31a81a2001878cddde94e99d70df190bfd4654c"
+  },
+  "p2n-valid@100": {
+   "files": 432,
+   "sha256": "d33421325f2e61bb4ac9e0a005460f650dc71939ff01f913ed60507950cb5a51"
+  },
+  "p2n-invalid": {
+   "files": 3482,
+   "sha256": "df4c55a3653c308ac63590051571c8c7b0d04c31c6ca339314113814388e3c76"
+  },
+  "p2n-invalid@100": {
+   "files": 242,
+   "sha256": "2dc90df060fa8867ab81be52cc93cc84fc5332206c51d0203c5363919999fe50"
+  },
+  "fuzz": {
+   "files": 2500,
+   "sha256": "376e29fe5c880e4f15178dc60f782e01baf16ef45674e5e60da11394a0b6d6b0"
+  },
+  "fuzz@100": {
+   "files": 100,
+   "sha256": "8fd4cfe749103285150402bdfb7c94ccab46e246ee64801d5eb3a31dcf84f97b"
+  },
+  "fuzz3": {
+   "files": 2500,
+   "sha256": "37ca9ac6a49f0324ae5da775fbe01e7442199bf20b4e492a3596dfd789a636c3"
+  },
+  "fuzz3@100": {
+   "files": 100,
+   "sha256": "e25daef5f0335a138ad71c806d632239f26edaaf64a34294716672f985ea1d92"
+  },
+  "mut1": {
+   "files": 4000,
+   "sha256": "5569c60d94bc0d75b05de8c6300049ffb63a42a9d39c3a3c6d8b73ae4861cc7a"
+  },
+  "mut2": {
+   "files": 5000,
+   "sha256": "6ac8d060619e2bd0527680c72a4411f7b79cbcd2e011e207efd260d49d7cdd9a"
+  }
+ }
+}

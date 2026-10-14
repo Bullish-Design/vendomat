@@ -1,0 +1,33 @@
+{
+ "about": "Results of devenv/parse.nix on the unlabelled generated corpora (tests/test_parser_fuzz.py). files, ok (trees), err (error lines), and sha256 over all results.",
+ "results": {
+  "fuzz": {
+   "files": 2500,
+   "ok": 344,
+   "err": 2156,
+   "round_trip": 313,
+   "sha256": "483cb8b17545d57e263b22b21b8f2ba4463fa2162ec2aee9c4dead42560ec81f"
+  },
+  "fuzz3": {
+   "files": 2500,
+   "ok": 1588,
+   "err": 912,
+   "round_trip": 1562,
+   "sha256": "de24fafa6d2b30c2f52e96dbed03f4b5222eebc282508361027f86fe69dc8591"
+  },
+  "mut1": {
+   "files": 4000,
+   "ok": 1847,
+   "err": 2153,
+   "round_trip": 1798,
+   "sha256": "063d6654b158451597c472212efd2c8fe8295912578043b5777bb5fdde92c885"
+  },
+  "mut2": {
+   "files": 5000,
+   "ok": 2386,
+   "err": 2614,
+   "round_trip": 2327,
+   "sha256": "f59114862ac7e3745194592e32ec1db7b823ea9ed455b6a633a03cb2a53a3f38"
+  }
+ }
+}

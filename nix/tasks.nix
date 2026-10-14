@@ -154,6 +154,37 @@ in
     '';
   };
 
+  # Opt-in fuzz of the Nix parser (project 24, S3). It generates the large corpora of the project 21
+  # parser spike from fixed seeds into a temporary directory (about 38 000 files) and parses them with
+  # devenv/parse.nix. The module docstring of tests/test_parser_fuzz.py names the oracle of each corpus.
+  # Run `testee verify opt:parser-fuzz`. The summaries go to ~/.local/state/vendomat/p24/parser-fuzz/TIME.
+  tasks."opt:parser-fuzz" = optIn {
+    timeout_s = 7200;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_PARSER_FUZZ_LOGS="''${VENDOMAT_PARSER_FUZZ_LOGS:-$HOME/.local/state/vendomat/p24/parser-fuzz/$(date -u +%Y%m%dT%H%M%SZ)}"
+      ${venvBin}/python -m pytest -q tests/test_parser_fuzz.py --junitxml="$out/parser-fuzz.junit.xml"
+    '';
+  };
+
+  # Opt-in fixtures of the catalog on a real devenv (project 24, S3): W4 F1 to F14 and F4b, the template, and
+  # the rows VMT-022, VMT-036, and VMT-042. It uses the host `devenv` on PATH, this checkout's `devenv/` as the
+  # Vendomat module, and the S1 module tree as the `devenv` input (VENDOMAT_E2E_S1_MODULES, default: the scratch
+  # tree under ~/.local/state/vendomat/p21/2026-10-14/s3/). It needs the network once. Run
+  # `testee verify opt:catalog-e2e`. The module docstring of tests/test_catalog_e2e.py names the inputs.
+  tasks."opt:catalog-e2e" = optIn {
+    timeout_s = 7200;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_E2E_LOGS="''${VENDOMAT_E2E_LOGS:-$HOME/.local/state/vendomat/p24/catalog-e2e/$(date -u +%Y%m%dT%H%M%SZ)}"
+      ${venvBin}/python -m pytest -q tests/test_catalog_e2e.py --junitxml="$out/catalog-e2e.junit.xml"
+    '';
+  };
+
   # The front-door gates (project 24, S3). The task builds a workspace from the host launcher and runs
   # stock devenv 2.4.0 from PATH on it, with the catalog and a copy of this repository as the release.
   # The `devenv` input is the S1 module tree: until S1 publishes its tag, set VENDOMAT_FRONT_DOOR_MODULES
