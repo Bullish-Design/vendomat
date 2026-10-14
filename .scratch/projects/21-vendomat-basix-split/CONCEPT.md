@@ -167,7 +167,8 @@ No `eject` command exists until a clear need appears (R5). A read-only `explain`
 Nix.
 
 **Ruled (R26):** Basix uses a soft lock on the hatch. It is a Basix decision. Vendomat supplies the
-shell line and `explain`, and a hint hook for it (decision D5). See `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
+shell line and `explain`. How the Basix hint reaches that line is open (decision D5 chose a second
+file, R38). See `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
 
 ## Machines
 
@@ -236,8 +237,8 @@ Vendomat adds the local path.
   ([W8-ISO-POLICY](evidence/W8-ISO-POLICY.md)). A module that changes an option which `build.iso`
   overrides needs `lib.mkForce`. The Basix live-ISO deny list (R29) is in `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`.
 - **The YAML machine table.** Vendomat maps `host` to `target.host`. The keys `profile`,
-  `capabilities`, `serve`, and `disk` belong to Basix (`BSX-065`). Basix registers them through the
-  extension point of decision D5 (see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`).
+  `capabilities`, `serve`, and `disk` belong to Basix. Basix keeps them in a second file,
+  `basix.yaml` (R38; `BSX-124` replaces `BSX-065`), and reads it with this parser (see `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`).
 - **Sharing** stays a NixOS module per machine: a serving machine makes its own signing key and runs
   Harmonia; clients get the substituter, the key, `fallback = true`, and a short timeout (carried
   from project 20). devenv's `--use-machines-as-builders` gives shared builds over SSH.

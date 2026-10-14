@@ -81,7 +81,7 @@ in an earlier session does not carry over.
 - Raw logs go under `~/.local/state/vendomat/p21/<date>/<slice>/`. Never in the repository.
 - Update the ledger rows the slice names. A fixture pass changes the status. A changed claim gets
   a new ID that supersedes the old one. Never reuse or renumber an ID. The highest IDs on
-  2026-10-13 are `VMT-123` and `BSX-119`; numbers continue across both prefixes.
+  2026-10-13 are `VMT-123` and `BSX-124`; numbers continue across both prefixes.
 - Treat a new option name, command, or file format as proposed until a fixture proves it on the
   pinned tools.
 - A unit test does not replace a required real-consumer, cache, restore, or machine proof.
@@ -269,9 +269,9 @@ owner before the slice that needs each one. Record each answer as a ruling (R37 
 | --- | --- | --- | --- |
 | D1 | What happens to the project 14 and V6 verbs (`sync`, `path`, `check`, `push`, `bump`, `machine install`) and the `vendomat.toml` flow? | S3 (launcher), S8 | Keep them working until nix-systems and vendomat-demo move to `vendomat.yaml`. Then remove them in S8. `machine install` moves to Basix (R13). `push` stays until the Harmonia check passes (`VMT-120`). |
 | D2 | How does a plain Vendomat workspace (no Basix) pin the module-only `devenv` input? | S1, S3 | Add `devenv` (the module-only fork tag, `dir=src/modules`) as a second input of Vendomat's flake. The template writes `devenv: follows: vendomat/devenv`, so one update moves Vendomat and its tested modules together, as R28 does for Basix. This changes the "one flake input" shape rule and `AGENTS.md`. The other choice: the template pins the tag directly and `vendomat update` rewrites it. |
-| D3 | How does Basix publish releases? | S5 | Like Vendomat: immutable tags plus a fast-forward `release` branch. Extend `hooks/collection-pre-receive` to allow `release` for `basix`. |
+| D3 | How does Basix publish releases? | S5 | **Ruled (R37):** like Vendomat: immutable tags plus a fast-forward `release` branch. Extend `hooks/collection-pre-receive` to allow `release` for any repository. |
 | D4 | How does the catalog know a machine is installed, to set `vendomat.mode = "adopt-existing"` (`VMT-099`)? | S3 | A machine with a committed `.machines/NAME/facter.json` is installed. A YAML key `mode: fresh-install` overrides it for a deliberate reinstall. |
-| D5 | How does Basix add its YAML keys (`profile`, `capabilities`, `serve`, `disk`) and its hatch lesson hint to Vendomat's catalog (`BSX-065`, `BSX-059`)? | S3 (extension point), S5 | Vendomat's catalog exposes a typed extension point, for example `vendomat.catalog.extraMachineKeys` (name, type, mapping), and checks unknown keys against it. Vendomat never names Basix (R1). |
+| D5 | How does Basix add its YAML keys (`profile`, `capabilities`, `serve`, `disk`) and its hatch lesson hint to Vendomat's catalog (`BSX-065`, `BSX-059`)? | S5 | **Ruled (R38):** Basix keeps its keys in a second file, `basix.yaml`. Vendomat builds no extension point for keys. How the Basix hint reaches the shell line is open (see the Basix decisions). |
 | D6 | Where and in what format does each machine keep the record from system path to commit (R30)? | S4 | An append-only JSON Lines file `/var/lib/vendomat/generations.jsonl`, one line per apply: generation number, toplevel path, workspace commit, a dirty flag, time. `apply` refuses uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless `--dirty`; `rollback` uses only clean entries. |
 | D7 | What is the tag name of the module-only fork? | S1 | `v2.4.0-vendomat-modules.N`. It cannot collide with the old binary fork tags `v2.4.0-vendomat.N`. |
 | D8 | Where does the personal setting that hides the `advanced:` line live (R19)? | S3 | An environment variable, `VENDOMAT_HIDE_ADVANCED=1`, set in the owner's shell profile. A setting in `devenv.local.nix` would itself count as hatch use. |
@@ -461,7 +461,7 @@ Steps:
 devenv 2.4.0 and the S1 module input. The commands `update` and `explain` exist. Errors show the
 `vendomat.yaml:` lines first.
 
-**Depends on:** S1, D1, D2, D4, D5, D8. **Ledger:** `VMT-002`, `VMT-003`, `VMT-010` to `VMT-013`,
+**Depends on:** S1, D1, D2, D4, D8. **Ledger:** `VMT-002`, `VMT-003`, `VMT-010` to `VMT-013`,
 `VMT-020` to `VMT-022`, `VMT-030` to `VMT-036`, `VMT-040` to `VMT-046`, `VMT-050` to `VMT-058`,
 `VMT-060` to `VMT-063`, `VMT-090` to `VMT-094`, `VMT-099` (catalog half), `VMT-103`, `VMT-111`,
 `VMT-112`, `VMT-116`, `VMT-117`, `VMT-121` (first half), `VMT-122`. **Evidence:**
@@ -504,8 +504,8 @@ Steps:
    | `machines.NAME.virtual` | `hardware.facter = null` | R23, `VMT-063` |
    | `machines.NAME.mode` | `machines.NAME.vendomat.mode` | D4, `VMT-099` |
 
-   No home key (R35, `VMT-122`). Add the D5 extension point for keys that another module (Basix)
-   registers.
+   No home key (R35, `VMT-122`). Basix keys live in `basix.yaml` (R38), so the catalog builds no
+   extension point for them. Keep the parser a plain function that another module can import.
 4. **Template.** Rewrite `templates/workspace/devenv.yaml` (R11, R28, R22):
    - `vendomat` at `git://server/vendomat?ref=release`;
    - `nixpkgs` follows `vendomat/nixpkgs`;
@@ -611,21 +611,21 @@ Steps:
 
 ### S5: the Vendomat side of Basix
 
-**Goal.** Vendomat serves the Basix release channel and exposes the extension point that Basix
-uses. Vendomat never names Basix in code (R1). The Basix repository is `../basix`; its build is the
-Basix plan, `../basix/.scratch/projects/001-initial-concept/PLAN.md`. The Basix design, the `BSX-` ledger, and steps 1 to 15 of the former S5 moved
-there on 2026-10-13.
+**Goal.** Vendomat serves the Basix release channel. Vendomat never names Basix in code (R1). The
+Basix repository is `../basix`; its build is the Basix plan, `../basix/.scratch/projects/001-initial-concept/PLAN.md`. The Basix design, the `BSX-`
+ledger, and steps 1 to 15 of the former S5 moved there on 2026-10-13.
 
-**Depends on:** S1 to S4, D3, D5. **Ledger:** `VMT-121` (with Basix). **Evidence:**
-`evidence/S5-BASIX.md` here; the Basix evidence is in the Basix repository.
+**Depends on:** S1 to S4. D3 (R37) and D5 (R38) are ruled. **Ledger:** `VMT-121` (with Basix).
+**Evidence:** `evidence/S5-BASIX.md` here; the Basix evidence is in the Basix repository.
 
 Steps:
 
-1. **Collection hook** (D3). Extend `hooks/collection-pre-receive` so the repository `basix` may
-   fast-forward `refs/heads/release`, with a test in `tests/test_collection_hook.py`. Creating
-   `~/vendor/basix` is an owner gate and a Basix plan step.
-2. **Extension point** (D5). S3 builds the typed catalog extension point and the hatch hint hook.
-   Check here that Basix registers its keys through it, with no Basix name in Vendomat code.
+1. **Collection hook** (D3, R37). Extend `hooks/collection-pre-receive` so any repository may
+   fast-forward `refs/heads/release`, not only `vendomat`, with a test in
+   `tests/test_collection_hook.py`. Creating `~/vendor/basix` is an owner gate and a Basix plan step.
+2. **Parser import** (D5, R38). Basix reads `basix.yaml` with the parser from the Vendomat source.
+   Check that S3 leaves the parser a plain function that another module can import, with the file
+   name in its error lines.
 3. **Fixtures.** The fresh Basix workspace and the pair update (`VMT-121`) run from the Basix
    repository. Record the Vendomat-side result in `evidence/S5-BASIX.md`.
 4. Close the slice in both repositories (Section 1.6).

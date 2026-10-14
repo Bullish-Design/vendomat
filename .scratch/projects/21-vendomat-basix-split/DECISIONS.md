@@ -45,12 +45,16 @@ No production code, consumer, or machine changed.
 | R34 | Vendomat never opens upstream pull requests for its devenv patches. The patches are evaluated through personal patched use; the owner may revisit this after months of use. This supersedes "offered upstream" in R14 and "upstream in two patches" in R17; the rest of R14 and R17 stands. | "we will never open upstream PRs for this. We'll evaluate thoroughly in our personal patched usage, and can check back in after months of usage.", 2026-10-13 | The module-only fork and the patched binary are long-lived. Watching upstream (PR #3244, releases) stays allowed. |
 | R35 | Homes stay outside Vendomat. The owner's home is standalone Home Manager (project 22), switched with `home-manager switch`. The catalog maps no home key; devenv's native `machines.NAME.home-manager` stays reachable only through the escape hatch. A two-command alias may later make a home switch look native in Vendomat or Basix. | "For home manager target, just keep homes outside vendomat - option 1. We can always add a two command alias if we want things to appear \"native\" for vendomat/basix", 2026-10-13 | Answers project 22 A7, part 2. |
 | R36 | Vendomat ships no host-side module. Everything a workspace needs comes through its own lock (R28, R33). The project 14 NixOS module's `share/vendomat/consumer-module.nix` and `machine.json` are removed when the project 14 code is replaced. Run-time host facts come from `/etc/devenv/machine-facts.json`. | "Go with option 1 for host side modules.", 2026-10-13 | Answers project 22 A7, part 3. Project 22's pointer file stays a project 22 idea. |
+| R37 | Basix publishes releases like Vendomat: immutable tags plus a fast-forward `release` branch. The collection hook allows `release` for any repository, not only `vendomat` (D3, option a, with the hook rule widened). The release contract names no transport; where a learner's machine fetches updates stays open. | "D3: agreed", 2026-10-13 | The hook change is the Vendomat side of S5. |
+| R38 | Basix keys live in a second file, `basix.yaml`, read with the parser from the Vendomat source (D5, option c). The recommendation was option a. The owner chose c knowing it breaks "one file" for the user (R6). Vendomat builds no catalog extension point for Basix keys. | "D5: I like c", 2026-10-13 | Supersedes the D5 extension-point plan in S3 and S5. `BSX-124` replaces `BSX-065`. How the Basix hatch hint reaches the shell line stays open. |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
 recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
 
 R6 and R12 together: routine use needs only `vendomat.yaml`. Native files remain for settings the
 catalog does not cover.
+
+**2026-10-13 (later):** The owner ruled on D3 (R37) and D5 (R38).
 
 **2026-10-13:** The Basix design, the 13 `BSX-` ledger rows, and the Basix plan moved to the Basix
 repository (`../basix`, `../basix/.scratch/projects/001-initial-concept/CONCEPT.md`). No ruling changed. Decisions D3 and D5 stay here and are copied there.
@@ -175,6 +179,8 @@ guard against V4 code coming back.
 
 ### D3: how Basix publishes releases
 
+**Ruled (R37), 2026-10-13: option a,** with the hook rule widened to any repository.
+
 **Needed by:** S5. **Ledger:** `BSX-070`.
 
 Facts: the collection's `hooks/collection-pre-receive` accepts only new tags, and a fast-forward
@@ -207,6 +213,9 @@ workspace into the new system (R13, R32).
 fixture.
 
 ### D5: how Basix adds its keys to Vendomat's catalog
+
+**Ruled (R38), 2026-10-13: option c,** a second file, `basix.yaml`. The recommendation below was a. The
+Basix key types are ruled in the Basix repository (`../basix/.scratch/projects/001-initial-concept/DECISIONS.md`, Basix R1).
 
 **Needed by:** S3 (the extension point), S5. **Ledger:** `BSX-059`, `BSX-065`.
 

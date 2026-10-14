@@ -98,7 +98,7 @@ number is `BSX-100` before the section "Added at the design freeze".
 | `VMT-062` | A different `networking.hostName` from another file MUST fail with a conflict that names both files, unless it uses `lib.mkForce`. | F10 | Ruled (R21); fixture pass |
 | `VMT-063` | A machine marked `virtual` MUST set `hardware.facter = null`, and a machine without a report MUST NOT evaluate. | F14 (A14) | Fixture pass at evaluation level; key name ruled (R23) |
 | `VMT-064` | `machines.NAME.nixos` from the YAML, from `devenv.nix`, and from an imported file MUST merge, whether each is an attribute set or a function. | F9 on the module-only fork input; W2 T4 | Ruled (R14, R22, R34); fixture pass |
-| `BSX-065` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved |
+| `BSX-065` | Moved to the Basix repository, `.scratch/projects/001-initial-concept/REQUIREMENTS.md`. | — | Moved; superseded by `BSX-124` in the Basix ledger (R38) |
 
 ## Items that awaited an owner ruling (all ruled)
 
