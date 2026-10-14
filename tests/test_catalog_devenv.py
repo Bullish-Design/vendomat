@@ -6,8 +6,8 @@ These checks run stock devenv 2.4.0 from `PATH` on a workspace that imports the 
 
 Environment:
     VENDOMAT_DEVENV_E2E=1         opt in.
-    VENDOMAT_DEVENV_MODULES=DIR   the `src/modules` directory of the `devenv` input. S1 publishes the tag; until
-                                  then a scratch tree of the S1 patches on upstream b904dcb5 stands in.
+    VENDOMAT_DEVENV_MODULES=DIR   a `src/modules` directory to use as a `path:` input. The default is the `devenv`
+                                  input that `flake.lock` pins (the published S1 tag).
     VENDOMAT_DEVENV_LOGS=DIR      keep the command, status, and output of each run outside the repository.
 """
 
@@ -21,18 +21,19 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from nixfixture import s1_devenv_input
 from typer.testing import CliRunner
 
 from vendomat import explain
 from vendomat.cli import app
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = os.environ.get("VENDOMAT_DEVENV_MODULES", "")
+DEVENV_INPUT, DEVENV_LABEL = s1_devenv_input(os.environ.get("VENDOMAT_DEVENV_MODULES"))
 LAUNCHER = ROOT / "launcher" / "vendomat"
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("VENDOMAT_DEVENV_E2E") != "1" or shutil.which("devenv") is None or not Path(MODULES).is_dir(),
-    reason="real devenv check; set VENDOMAT_DEVENV_E2E=1, VENDOMAT_DEVENV_MODULES, and provide devenv to opt in",
+    os.environ.get("VENDOMAT_DEVENV_E2E") != "1" or shutil.which("devenv") is None,
+    reason="real devenv check; set VENDOMAT_DEVENV_E2E=1 and provide devenv to opt in",
 )
 
 _COUNTER = {"n": 0}
@@ -69,6 +70,10 @@ DISKO = "github:nix-community/disko/de5708739256238fb912c62f03988815db89ec9a"
 
 def make_baseline(base: Path, extra_inputs: str = "") -> Path:
     """A locked workspace in ``base``, with ``extra_inputs`` (YAML lines of the `inputs` map) added."""
+    log_dir = os.environ.get("VENDOMAT_DEVENV_LOGS")
+    if log_dir:
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        (Path(log_dir) / "trees.txt").write_text(f"devenv input: {DEVENV_LABEL}\n")
     shutil.copytree(ROOT / "devenv", base / "modsrc" / "devenv")
     ws = base / "ws"
     ws.mkdir()
@@ -80,7 +85,7 @@ def make_baseline(base: Path, extra_inputs: str = "") -> Path:
                 url: path:{base / "modsrc"}
                 flake: false
               devenv:
-                url: path:{MODULES}
+                url: {DEVENV_INPUT}
               nixpkgs:
                 url: {nixpkgs_url()}
             """

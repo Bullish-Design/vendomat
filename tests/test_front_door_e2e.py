@@ -13,11 +13,12 @@ Project 24, slice S3. The gates (the project 20 slice 1 list, rewritten for the 
   invalid file, GREEN after the restore.
 
 It runs stock devenv from `PATH` and a scratch copy of this repository as the `vendomat` release. The `devenv`
-input is a `path:` module tree, because Vendomat's flake has no `devenv` input yet (S1 adds it). Environment:
+input is the one that the lock of the copied repository pins (the published S1 tag), through the template line
+`devenv: follows: vendomat/devenv`. Environment:
 
     VENDOMAT_FRONT_DOOR_E2E=1         opt in (run through `testee verify front-door-e2e`).
     VENDOMAT_FRONT_DOOR_DEVENV=PATH   the devenv command (default: `devenv` on PATH).
-    VENDOMAT_FRONT_DOOR_MODULES=DIR   the `src/modules` tree of the `devenv` input (default: the scratch S1 tree).
+    VENDOMAT_FRONT_DOOR_MODULES=DIR   a `src/modules` tree that replaces the `follows` line with a `path:` input.
     VENDOMAT_FRONT_DOOR_TESTEE=PATH   the testee command (default: `testee` on PATH).
     VENDOMAT_FRONT_DOOR_LOGS=DIR      the log directory, outside the repository.
 """
@@ -34,13 +35,12 @@ import time
 from pathlib import Path
 
 import pytest
+from nixfixture import s1_devenv_input
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVENV = Path(os.environ.get("VENDOMAT_FRONT_DOOR_DEVENV") or shutil.which("devenv") or "")
-MODULES = Path(
-    os.environ.get("VENDOMAT_FRONT_DOOR_MODULES")
-    or Path.home() / ".local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules"
-)
+MODULES = os.environ.get("VENDOMAT_FRONT_DOOR_MODULES", "")
+DEVENV_LABEL = s1_devenv_input(MODULES)[1] if MODULES else "follows: vendomat/devenv, " + s1_devenv_input()[1]
 LOGS = Path(os.environ.get("VENDOMAT_FRONT_DOOR_LOGS", "/tmp/vendomat-front-door-logs"))
 TESTEE = Path(os.environ.get("VENDOMAT_FRONT_DOOR_TESTEE") or shutil.which("testee") or "")
 ENABLED = os.environ.get("VENDOMAT_FRONT_DOOR_E2E") == "1"
@@ -92,7 +92,7 @@ def command(
         argv, cwd=cwd, env=clean, capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL
     )
     text = (
-        f"{DEVENV_VERSION} (x86_64-linux), devenv input tree {MODULES}\n"
+        f"{DEVENV_VERSION} (x86_64-linux), devenv input {DEVENV_LABEL}\n"
         f"$ cd {cwd} && {' '.join(argv)}\n"
         f"exit={result.returncode}\n"
         f"--- stdout ---\n{result.stdout}\n"
@@ -212,12 +212,17 @@ def make_release_remote(tmp_path: Path) -> tuple[Path, subprocess.Popen[str], st
 
 
 def set_fixture_inputs(workspace: Path, url: str) -> None:
-    """Point `vendomat` at the throwaway release, `devenv` at the module tree, and pin the language inputs."""
+    """Point `vendomat` at the throwaway release, and pin the language inputs.
+
+    `devenv` keeps the template line `follows: vendomat/devenv`, so the lock of the release copy pins it.
+    An override replaces the line with a `path:` input.
+    """
     path = workspace / "devenv.yaml"
     text = path.read_text().replace("git://server/vendomat?ref=release", url)
     follows = "  devenv:\n    follows: vendomat/devenv\n"
     assert follows in text
-    text = text.replace(follows, f"  devenv:\n    url: path:{MODULES}\n", 1)
+    if MODULES:
+        text = text.replace(follows, f"  devenv:\n    url: {s1_devenv_input(MODULES)[0]}\n", 1)
     for old, pinned in PINS.items():
         assert f"url: {old}\n" in text, old
         text = text.replace(f"url: {old}\n", f"url: {pinned}\n", 1)
@@ -286,7 +291,7 @@ def commit_workspace(workspace: Path, name: str) -> None:
 
 def test_front_door_and_catalog_gates(tmp_path: Path):
     assert DEVENV.is_file(), f"missing devenv: {DEVENV}"
-    assert MODULES.is_dir(), f"missing devenv module tree: {MODULES}"
+    assert not MODULES or Path(MODULES).is_dir(), f"missing devenv module tree: {MODULES}"
     LOGS.mkdir(parents=True, exist_ok=True)
     version = require_ok(command("devenv-version", tmp_path, str(DEVENV), "version"), "devenv version")
     assert version.startswith(DEVENV_VERSION), version
@@ -317,6 +322,10 @@ def test_front_door_and_catalog_gates(tmp_path: Path):
         assert (workspace / "devenv.lock").exists()
         lock = json.loads((workspace / "devenv.lock").read_text())
         assert lock["nodes"]["vendomat"]["locked"]["rev"] == release_one
+        # The workspace lock pins the S1 tag of the release lock (VMT-020, "pin through a published lock").
+        pinned = json.loads((ROOT / "flake.lock").read_text())["nodes"]["devenv"]["locked"]["rev"]
+        if not MODULES:
+            assert pinned in {n.get("locked", {}).get("rev") for n in lock["nodes"].values()}, "S1 rev not in lock"
 
         # The launcher passes native devenv commands to devenv and preserves its status.
         pass_through = command("vendomat-pass-through", workspace, str(launcher), "version")

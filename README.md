@@ -1,7 +1,7 @@
 # Vendomat
 
 Vendomat composes one owner's development workspaces and NixOS machines from native devenv,
-NixOS, and Home Manager modules. The `0.7.0-rc.1` release candidate is not released. Its design is
+NixOS, and Home Manager modules. Release `0.8.0` adds the `vendomat.yaml` catalog. Its design is
 project 21 (`.scratch/projects/21-vendomat-basix-split/`). The older V6 flow stays until the owner
 accepts the new one.
 

@@ -4,14 +4,14 @@ Each fixture builds a workspace on disk and runs the real `devenv` in it. The wo
 a Vendomat workspace:
 
 - `vendomat`: a scratch flake with the inputs `nixpkgs` and `devenv`, and the catalog module files in `devenv/`. It
-  stands in for the Vendomat flake, which has no `devenv` input yet (decision R41). The workspace `devenv.yaml` is
+  stands in for the Vendomat flake (decision R41). The workspace `devenv.yaml` is
   the template `templates/workspace/devenv.yaml`. Only the `vendomat` URL changes: a `path:` input replaces
   `git://server/vendomat?ref=release`. So the template lines `nixpkgs: follows: vendomat/nixpkgs` and
   `devenv: follows: vendomat/devenv` run as written.
 - `nixpkgs`: the revision of `flake.lock` of this repository (NixOS/nixpkgs e7439b6b14ad, guide Section 2.5). The spike
   W4 used `cachix/devenv-nixpkgs` 256551e4.
-- `devenv`: the module-only fork, as a `path:` tree (the S1 tree). Set `VENDOMAT_E2E_S1_MODULES` to its `src/modules`
-  directory. Run the check again on the published S1 tag when the S1 session pushes it.
+- `devenv`: the module-only fork. The default is the input that `flake.lock` pins (the published S1 tag). Set
+  `VENDOMAT_E2E_S1_MODULES` to a `src/modules` directory to use a `path:` tree instead.
 - the host `devenv` 2.4.0 on `PATH` (or `VENDOMAT_E2E_DEVENV`).
 
 The catalog under test is `devenv/` of this checkout (or `VENDOMAT_E2E_CATALOG`).
@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from nixfixture import s1_devenv_input
 from tools import yamlgen_valid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +55,6 @@ TEMPLATE = ROOT / "templates" / "workspace"
 FIXTURES = ROOT / "tests" / "fixtures" / "yaml"
 HARNESS = ROOT / "tests" / "nix" / "catalog_parsed.nix"
 
-S1_DEFAULT = Path.home() / ".local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules"
 DISKO = "github:nix-community/disko/de5708739256238fb912c62f03988815db89ec9a"
 FACTER = "github:nix-community/nixos-facter-modules/139dcef4dfc97009629c445806f197883351ab4a"
 #: Extra inputs of the fixtures that evaluate a machine: `machines.nix` of the devenv fork needs both.
@@ -100,7 +100,7 @@ class Run:
 class Site:
     base: Path
     devenv: str
-    s1: Path
+    s1: str
     catalog: Path
     nixpkgs: str
     logs: Path
@@ -120,7 +120,7 @@ class Site:
             (flake / "flake.nix").write_text(
                 "{\n"
                 f'  inputs.nixpkgs.url = "github:NixOS/nixpkgs/{self.nixpkgs}";\n'
-                f'  inputs.devenv.url = "path:{self.s1}";\n'
+                f'  inputs.devenv.url = "{self.s1}";\n'
                 "  outputs = _: { };\n"
                 "}\n"
             )
@@ -215,8 +215,7 @@ def nixpkgs_rev() -> str:
 def site() -> Iterator[Site]:
     devenv = os.environ.get("VENDOMAT_E2E_DEVENV") or shutil.which("devenv")
     assert devenv, "no devenv on PATH; set VENDOMAT_E2E_DEVENV"
-    s1 = Path(os.environ.get("VENDOMAT_E2E_S1_MODULES") or S1_DEFAULT)
-    assert (s1 / "machines.nix").exists(), f"no S1 module tree at {s1}; set VENDOMAT_E2E_S1_MODULES"
+    s1, s1_label = s1_devenv_input(os.environ.get("VENDOMAT_E2E_S1_MODULES"))
     catalog = Path(os.environ.get("VENDOMAT_E2E_CATALOG") or ROOT / "devenv")
     assert (catalog / "devenv.nix").exists(), catalog
     default_logs = Path.home() / ".local/state/vendomat/p24/catalog-e2e" / time.strftime("%Y%m%dT%H%M%S")
@@ -226,7 +225,7 @@ def site() -> Iterator[Site]:
     version = subprocess.run([devenv, "--version"], capture_output=True, text=True).stdout.strip()
     (logs / "trees.txt").write_text(
         f"devenv binary: {Path(devenv).resolve()} ({version})\n"
-        f"devenv input (S1 tree): {s1.resolve()}\n"
+        f"devenv input (S1 tree): {s1_label}\n"
         f"vendomat module (catalog): {catalog.resolve()}\n"
         f"nixpkgs: NixOS/nixpkgs {nixpkgs_rev()}\n"
         f"template: {TEMPLATE}\n"

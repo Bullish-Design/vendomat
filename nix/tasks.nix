@@ -138,18 +138,17 @@ in
 
   # Opt-in real devenv task for the hatch line, `vendomat explain`, the trimmed error, and `vendomat update`
   # (project 24, S3 part 2). It runs stock devenv from PATH on a workspace that imports the catalog of this
-  # repository and the module source of the `devenv` input. Until S1 publishes its tag, a tree of the S1
-  # patches on upstream b904dcb5 stands in. Set VENDOMAT_DEVENV_MODULES to use another `src/modules`
-  # directory. The task prints the tree it used. Run `testee verify opt:catalog-devenv`.
+  # repository and the module source of the `devenv` input. The input is the one that flake.lock
+  # pins (the published S1 tag). Set VENDOMAT_DEVENV_MODULES to use a `src/modules` directory instead. The test
+  # writes the input it used to trees.txt in VENDOMAT_DEVENV_LOGS. Run `testee verify opt:catalog-devenv`.
   tasks."opt:catalog-devenv" = optIn {
     timeout_s = 1800;
     script = ''
       ${hostEnv}
       export VENDOMAT_DEVENV_E2E=1
       export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
-      export VENDOMAT_DEVENV_MODULES="''${VENDOMAT_DEVENV_MODULES:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules}"
       export VENDOMAT_DEVENV_LOGS="''${VENDOMAT_DEVENV_LOGS:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/catalog-devenv-task}"
-      echo "devenv input tree: $VENDOMAT_DEVENV_MODULES"
+      echo "devenv input: ''${VENDOMAT_DEVENV_MODULES:-the input that flake.lock pins}"
       ${venvBin}/python -m pytest -q tests/test_catalog_devenv.py --junitxml="$out/catalog-devenv.junit.xml"
     '';
   };
@@ -171,8 +170,8 @@ in
 
   # Opt-in fixtures of the catalog on a real devenv (project 24, S3): W4 F1 to F14 and F4b, the template, and
   # the rows VMT-022, VMT-036, and VMT-042. It uses the host `devenv` on PATH, this checkout's `devenv/` as the
-  # Vendomat module, and the S1 module tree as the `devenv` input (VENDOMAT_E2E_S1_MODULES, default: the scratch
-  # tree under ~/.local/state/vendomat/p21/2026-10-14/s3/). It needs the network once. Run
+  # Vendomat module, and the S1 module tree as the `devenv` input (VENDOMAT_E2E_S1_MODULES overrides the default, the input
+  # that flake.lock pins: the published S1 tag). It needs the network once. Run
   # `testee verify opt:catalog-e2e`. The module docstring of tests/test_catalog_e2e.py names the inputs.
   tasks."opt:catalog-e2e" = optIn {
     timeout_s = 7200;
@@ -242,8 +241,9 @@ in
 
   # The front-door gates (project 24, S3). The task builds a workspace from the host launcher and runs
   # stock devenv 2.4.0 from PATH on it, with the catalog and a copy of this repository as the release.
-  # The `devenv` input is the S1 module tree: until S1 publishes its tag, set VENDOMAT_FRONT_DOOR_MODULES
-  # to another `src/modules` directory, or use the default scratch tree. The inner `testee` runs under 0.8.
+  # The `devenv` input is the one that flake.lock pins (the published S1 tag), through the template line
+  # `follows: vendomat/devenv`. Set VENDOMAT_FRONT_DOOR_MODULES to use a `src/modules` directory instead.
+  # The inner `testee` runs under 0.8.
   # Run `testee verify opt:front-door-e2e`.
   tasks."opt:front-door-e2e" = optIn {
     timeout_s = 3600;
@@ -253,9 +253,8 @@ in
       export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:${pkgs.direnv}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
       export VENDOMAT_FRONT_DOOR_DEVENV="''${VENDOMAT_FRONT_DOOR_DEVENV:-$(command -v devenv)}"
       export VENDOMAT_FRONT_DOOR_TESTEE="''${VENDOMAT_FRONT_DOOR_TESTEE:-$(command -v testee || echo /etc/profiles/per-user/$(id -un)/bin/testee)}"
-      export VENDOMAT_FRONT_DOOR_MODULES="''${VENDOMAT_FRONT_DOOR_MODULES:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules}"
       export VENDOMAT_FRONT_DOOR_LOGS="''${VENDOMAT_FRONT_DOOR_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s3/front-door}"
-      echo "devenv input tree: $VENDOMAT_FRONT_DOOR_MODULES"
+      echo "devenv input: ''${VENDOMAT_FRONT_DOOR_MODULES:-the input that flake.lock pins}"
       ${venvBin}/python -m pytest -q tests/test_front_door_e2e.py --junitxml="$out/front-door-e2e.junit.xml"
     '';
   };

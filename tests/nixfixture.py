@@ -26,6 +26,21 @@ import pytest
 NIXPKGS_URL = "github:cachix/devenv-nixpkgs/12866ae2dddbc0ab8b329915f8072bb9c75bde89"
 SYSTEM = "x86_64-linux"
 
+
+def s1_devenv_input(override: str | None = None) -> tuple[str, str]:
+    """The `devenv` input of the fixtures: ``(flake URL, label)``.
+
+    The default is the input that `flake.lock` of this repository pins (the published S1 tag), so the default
+    follows S1 releases. A non-empty ``override`` is a ``src/modules`` directory and gives a ``path:`` input.
+    """
+    if override:
+        return f"path:{Path(override).resolve()}", f"path:{Path(override).resolve()} (override)"
+    root = Path(__file__).resolve().parents[1]
+    locked = json.loads((root / "flake.lock").read_text())["nodes"]["devenv"]["locked"]
+    url = f"{locked['url']}?dir={locked['dir']}&ref={locked['ref']}&rev={locked['rev']}"
+    return url, f"{locked['ref'].removeprefix('refs/tags/')} rev {locked['rev'][:8]} ({url})"
+
+
 needs_nix_fixture = pytest.mark.skipif(
     os.environ.get("VENDOMAT_E2E") != "1" or shutil.which("nix") is None or shutil.which("git") is None,
     reason="Nix fixture; set VENDOMAT_E2E=1 and provide nix and git to opt in",
