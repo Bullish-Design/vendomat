@@ -14,8 +14,10 @@
       systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
 
-      # The pinned fork for slice 1: `devenv 2.4.0+c66ba87`, tag `v2.4.0-vendomat.4`.
-      defaultFork = "/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin/devenv";
+      # The host devenv: `pkgs.devenv` from the pinned nixpkgs, plus the patches in
+      # `devenv-dist/binary/patches` (overlay `nix/devenv-overlay.nix`).
+      devenvOverlay = import ./nix/devenv-overlay.nix { patchDir = ./devenv-dist/binary/patches; };
+      devenvFor = system: (import nixpkgs { inherit system; overlays = [ devenvOverlay ]; }).devenv;
 
       perSystem = forAllSystems (pkgs:
         let
@@ -63,11 +65,16 @@
       # The devenv module (DEL-019). A workspace imports `inputs.vendomat.devenvModules.default`.
       devenvModules.default = import ./nix/devenv-module self;
 
+      # The overlay that patches `pkgs.devenv`. A host that wants the same binary applies it.
+      overlays.devenv = devenvOverlay;
+
       packages = nixpkgs.lib.mapAttrs
-        (_: built: {
+        (system: built: rec {
           inherit (built) vendomat;
-          # The host launcher with the fork that this release pins by default.
-          launcher = built.mkLauncher { devenvFork = defaultFork; };
+          # The patched host devenv binary.
+          devenv = devenvFor system;
+          # The host launcher with the devenv that this release builds.
+          launcher = built.mkLauncher { devenvFork = "${devenv}/bin/devenv"; };
         })
         perSystem;
 

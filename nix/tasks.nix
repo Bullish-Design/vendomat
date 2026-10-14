@@ -219,6 +219,27 @@ in
     '';
   };
 
+  # Opt-in proof for the patched host devenv binary (project 23, S2). Fixture B2 enters offline with a
+  # locked git input. B5 boots a VM and shows that `devenv machines install` refuses an adopted machine.
+  # B6 enters a catalog workspace. The binary under test is `devenv` on PATH, so put the patched binary
+  # first: `PATH=$HOME/.local/state/vendomat/roots/devenv-s2-build/bin:$PATH testee verify opt:binary-e2e`.
+  # The `devenv` input is the published module fork tag. VM scratch goes under /mnt/shared/vendomat-p21/s2/.
+  # Logs go under ~/.local/state/vendomat/p21/<date>/s2/binary-e2e/<UTC time>/.
+  tasks."opt:binary-e2e" = optIn {
+    timeout_s = 7200;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_BINARY_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_BINARY_E2E_DEVENV="''${VENDOMAT_BINARY_E2E_DEVENV:-$(command -v devenv)}"
+      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s2/binary-e2e/$(date -u +%Y%m%dT%H%M%SZ)}"
+      echo "binary under test: $VENDOMAT_BINARY_E2E_DEVENV"
+      mkdir -p /mnt/shared/vendomat-p21/s2/tmp
+      export TMPDIR=/mnt/shared/vendomat-p21/s2/tmp
+      ${venvBin}/python -m pytest -q tests/test_binary_e2e.py --junitxml="$out/binary-e2e.junit.xml"
+    '';
+  };
+
   # The front-door gates (project 24, S3). The task builds a workspace from the host launcher and runs
   # stock devenv 2.4.0 from PATH on it, with the catalog and a copy of this repository as the release.
   # The `devenv` input is the S1 module tree: until S1 publishes its tag, set VENDOMAT_FRONT_DOOR_MODULES

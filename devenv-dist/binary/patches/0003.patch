@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Allsimon <simon.allegraud@gmail.com>
+Date: Thu, 1 Oct 2026 11:24:40 +0200
+Subject: [PATCH 3/6] fix(bootstrap): reuse locked inputs already in the store
+
+resolve-lock.nix fetched every locked input with builtins.fetchTree, which
+only short-circuits to the narHash store path for inputs marked `__final`,
+an attribute it refuses from Nix code. A source the store already held was
+thus fetched again, and `devenv shell` failed whenever the input's remote
+was unreachable.
+
+Derive the store path from the locked narHash and use it when it exists,
+building the same attributes fetchTree returns from the locked ones.
+
+Upstream: cachix/devenv PR #3244 (open on 2026-10-09), commit 86b798f1e69781a5da68b7bcfc3691aad537e935.
+Drop when a pinned upstream release carries it.
+---
+ CHANGELOG.md                                  |  1 +
+ devenv-nix-backend/bootstrap/resolve-lock.nix | 44 ++++++++++++++++++-
+ 2 files changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b371d2933b1d2299ede6b5f083e734ae83813cbe..38b2730be878293ab3c876326ccce809bd8d9f4f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,7 @@
+ ### Bug Fixes
+ 
+ - Fixed `devenv machines install` hanging while uploading store paths when no SSH connection was already open ([#3254](https://github.com/cachix/devenv/issues/3254)).
++- Locked git, GitHub, GitLab, SourceHut, and tarball inputs whose source is already in the Nix store are now used from the store instead of fetched again, so `devenv shell` keeps working when the input's remote is unreachable.
+ 
+ ## 2.4.0 (2026-09-24)
+ 
+diff --git a/devenv-nix-backend/bootstrap/resolve-lock.nix b/devenv-nix-backend/bootstrap/resolve-lock.nix
+index 392c5b3bed6af034542f2b82b56701e654e779ad..bcf9c68ca9289201bf57f76e0740262d156c6b34 100644
+--- a/devenv-nix-backend/bootstrap/resolve-lock.nix
++++ b/devenv-nix-backend/bootstrap/resolve-lock.nix
+@@ -87,8 +87,50 @@ let
+               && builtins.substring 0 1 (resolvedLocked.path or "") == "/";
+ 
+             fetchedSource = builtins.fetchTree (node.info or { } // removeAttrs resolvedLocked [ "dir" ]);
++
++            # fetchTree only reuses the store path of an input marked `__final`, which
++            # it refuses from Nix code, so it would refetch a source the store holds.
++            storedPath =
++              builtins.unsafeDiscardStringContext
++                (derivation {
++                  name = "source";
++                  system = "builtin";
++                  builder = "builtin:fetchurl";
++                  outputHashMode = "recursive";
++                  outputHash = locked.narHash;
++                }).outPath;
++            isStored =
++              builtins.elem (locked.type or null) [
++                "git"
++                "github"
++                "gitlab"
++                "sourcehut"
++                "tarball"
++              ]
++              && locked ? narHash
++              && builtins.pathExists storedPath;
++            storedSource =
++              builtins.intersectAttrs {
++                lastModified = null;
++                narHash = null;
++                rev = null;
++                revCount = null;
++              } locked
++              // {
++                outPath = builtins.appendContext storedPath { ${storedPath}.path = true; };
++              }
++              // (
++                if locked ? lastModified then
++                  { lastModifiedDate = formatSecondsSinceEpoch locked.lastModified; }
++                else
++                  { }
++              )
++              // (if locked ? rev then { shortRev = builtins.substring 0 7 locked.rev; } else { })
++              // (if locked.type == "git" then { submodules = locked.submodules or false; } else { });
+           in
+-          if isLivePath then
++          if isStored then
++            storedSource
++          else if isLivePath then
+             {
+               # Keep fetchTree's public metadata available to flakes that use
+               # self.narHash or self.lastModified. These inherited values stay

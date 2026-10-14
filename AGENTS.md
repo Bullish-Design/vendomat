@@ -34,11 +34,12 @@ Testee 0.8 runs devenv tasks. The project defines them in `nix/tasks.nix`. The r
 subset). During an edit, run `testee verify --profile quick` for `check:lint` and `check:format`
 only. The opt-in tasks (`opt:e2e`, `opt:workspace-e2e`, `opt:front-door-e2e`, `opt:catalog-eval`,
 `opt:catalog-devenv`, `opt:catalog-e2e`, `opt:parser-fuzz`, `opt:modules-e2e`, `opt:modules-vm`,
-`opt:sharing-vm`, `opt:live-cache`, `opt:live-cache-load`) never count for green. Each carries its own
+`opt:binary-e2e`, `opt:sharing-vm`, `opt:live-cache`, `opt:live-cache-load`) never count for green. Each carries its own
 time limit in `input.testee.timeout_s`.
 Run `opt:catalog-e2e`, `opt:front-door-e2e`, and `opt:parser-fuzz` after a change to the parser, the
 catalog, the template, or the launcher. Run `opt:sharing-vm` after a change to `devenv/sharing.nix`.
 Run `opt:modules-e2e` and `opt:modules-vm` after a change to `devenv-dist/modules/`.
+Run `opt:binary-e2e` after a change to `devenv-dist/binary/` or `nix/devenv-overlay.nix`.
 
 The `testee` command is the host program (see the nix profile). It checks the commit in its own
 workspace. The `setup:sync` task fills the venv before the checks. Do not wrap `testee` in
@@ -72,8 +73,8 @@ Use Gitman for every version-control action. Do not run raw `git` or `jj`.
 - `.scratch/CURRENT.md`: the active project and its authority documents.
 - `.scratch/projects/`: numbered project directories. Older numbers are closed history.
 - `flake.nix`: two inputs (`nixpkgs`, and `devenv`, the module-only fork tag `v2.4.0-vendomat-modules.1`).
-  Outputs: `packages.<system>.vendomat`,
-  `packages.<system>.launcher`, `lib.<system>.mkLauncher`, and `devenvModules.default`.
+  Outputs: `packages.<system>.{vendomat,launcher,devenv}`, `overlays.devenv`,
+  `devenvModules.default`, and `lib.<system>.mkLauncher`.
 - `devenv/`: the catalog that a workspace imports as `vendomat/devenv`. `parse.nix` is the
   `vendomat.yaml` parser (plain Nix, builtins only). `devenv.nix` is the catalog. `hatch.nix` counts
   the settings of `devenv.nix` and `devenv.local.nix` for the `advanced:` line. `explain.nix` builds
@@ -85,7 +86,7 @@ Use Gitman for every version-control action. Do not run raw `git` or `jj`.
 - `src/vendomat/`: the Python command line, `cli.py`, with `explain.py`, `update.py`, `errortrim.py`, and
   the older modules (`registry.py`, `generate.py`, `store.py`, `locate.py`, and others).
 - `nix/`: `tasks.nix` (the Testee tasks) and `devenv-module/`.
-- `devenv-dist/`: the recipe of the binary devenv fork (`patches/`, retired in S6) and of the module-only fork (`modules/`, `--series modules`).
+- `devenv-dist/`: the recipe of the older binary devenv fork (`patches/`, retired in S6), of the module-only fork (`modules/`, `--series modules`), and the two patches of the host binary (`binary/patches/`, built by `nix/devenv-overlay.nix`).
 - `hooks/`: the collection `post-receive` and `pre-receive` hooks. `direnv/`: the direnv function.
 - `tests/`: Python checks, Nix checks, and fixtures (`fixtures/yaml/` is the parser corpus;
   `tools/` holds the corpus generators).
