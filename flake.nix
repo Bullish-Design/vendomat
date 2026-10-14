@@ -1,12 +1,15 @@
 {
   description = "Vendomat: manage workspaces and their devenv catalog.";
 
-  # The only input. Vendomat packages no one else's tools: every tool is its own flake input of
-  # the machine or project that wants it. The revision is the plain nixpkgs that this release tests
+  # Two inputs. Vendomat packages no one else's tools: every tool is its own flake input of the
+  # machine or project that wants it. `nixpkgs` is the plain revision that this release tests
   # (MACH-018). `src/vendomat/defaults.py` names the same revision, and a check compares them.
+  # `devenv` is the module-only devenv fork tag (R41). Workspaces follow it as `vendomat/devenv`.
+  # No output of this flake uses it. Its tag and its locked revision are the published pin.
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
+  inputs.devenv.url = "git://server/devenv?ref=refs/tags/v2.4.0-vendomat-modules.1&dir=src/modules";
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, ... }:
     let
       systems = [ "x86_64-linux" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));

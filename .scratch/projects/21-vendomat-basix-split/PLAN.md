@@ -31,6 +31,7 @@ The ledger is [REQUIREMENTS.md](REQUIREMENTS.md). Its rows for these gaps name w
 The [implementation guide](IMPLEMENTATION-GUIDE.md) gives the step-by-step work for each slice, the
 facts and spike artifacts it needs, and the open implementation decisions D1 to D8.
 
+S1 is done, as of 2026-10-14: [S1-MODULE-FORK](evidence/S1-MODULE-FORK.md).
 S3 is done except step 14 (release, an owner gate), as of 2026-10-14:
 [S3-CATALOG](evidence/S3-CATALOG.md). The catalog wiring of the sharing module landed in `79e46310ef30`.
 Project 23 keeps the state of S1 and S2. Project 24 continues with S4. Every slice changes code, so it needs its own branch, its own verify, and
@@ -39,7 +40,7 @@ the patched binary are long-lived.
 
 | # | Work | Depends on | Ledger rows |
 | --- | --- | --- | --- |
-| S1 | The module-only `devenv` fork: `nixos` as `deferredModule`; `build.vm` and `build.iso` with `iso.modules`; the module half of patch 0005; the version file. | none | `VMT-064`, `VMT-082`, `VMT-095`, `VMT-106`, `VMT-107`, `VMT-108`, `VMT-118` |
+| S1 | The module-only `devenv` fork: `nixos` as `deferredModule`; `build.vm` and `build.iso` with `iso.modules`; the module half of patch 0005; the version file. **Done 2026-10-14**: tag `v2.4.0-vendomat-modules.1` published and locked as input `devenv`; see [S1-MODULE-FORK](evidence/S1-MODULE-FORK.md). | none | `VMT-064`, `VMT-082`, `VMT-095`, `VMT-106`, `VMT-107`, `VMT-108`, `VMT-118` |
 | S2 | The host binary overlay: `pkgs.devenv` with patches 0003 and 0005, built and kept under a GC root (R39: no Attic). | none | `VMT-074`, `VMT-099`, `VMT-126` |
 | S3 (done except step 14, release; [evidence](evidence/S3-CATALOG.md)) | The catalog rewrite in the repository: the Nix parser, the ruled keys, the hatch line, `explain`, error trimming, template `follows` lines, and `vendomat update`; and the Harmonia sharing module with its two-VM proof (R39). | S1 | `VMT-002`, `VMT-003`, `VMT-057`, `VMT-090` to `VMT-094`, `VMT-111`, `VMT-116`, `VMT-117` |
 | S4 | `vendomat apply` and `vendomat rollback` with the per-machine record. | S3 | `VMT-072`, `VMT-075`, `VMT-098`, `VMT-110` |

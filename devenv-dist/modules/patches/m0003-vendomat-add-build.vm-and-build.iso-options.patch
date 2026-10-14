@@ -1,0 +1,56 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 3/5] vendomat: add the public machines.<name>.build.vm and
+ build.iso options
+
+Both options have the type `nullOr package`, not `output`: an `output`
+makes `devenv build` build every image. Name one to build it, for example
+`devenv build machines.<name>.build.vm`.
+
+Upstream: none (Vendomat module fork; R34: no upstream pull request)
+---
+ src/modules/machines.nix | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index 6b0732a2645610411ce68b1b62dceec74e367b80..eafdc3932a66d554b07c2c325b76f633e9f2f5d4 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -678,6 +678,25 @@ let
+         description = "Disko mount script (mount only, no partitioning) for this machine.";
+       };
+ 
++      # Image outputs. The type is not `output`, so the `build` walker skips them:
++      # `devenv build` and `devenv build machines.<name>` do not build images.
++      # Name one to build it: `devenv build machines.<name>.build.vm`.
++      build.vm = lib.mkOption {
++        type = lib.types.nullOr lib.types.package;
++        default = null;
++        description = "Script that runs this machine in a QEMU virtual machine, or null if no `nixos` module is set.";
++      };
++
++      build.iso = lib.mkOption {
++        type = lib.types.nullOr lib.types.package;
++        default = null;
++        description = ''
++          Bootable ISO image of this machine, or null if no `nixos` module is set.
++          The `nixos` module must import a NixOS ISO module, such as
++          `modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix"`.
++        '';
++      };
++
+       # Shared lazy NixOS evaluation, set once per machine when `nixos != null`.
+       # Every `build.*` and `installCheck` consumer reads through this option
+       # so `nixosSystem { … }` runs exactly once, instead of once per output.
+@@ -720,6 +739,10 @@ let
+       diskoScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.diskoScript;
+       diskoFormatScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.formatScript;
+       diskoMountScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.mountScript;
++      vm = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.vm;
++      iso = lib.mkIf (config.nixos != null) (
++        config._nixosEval.config.system.build.isoImage or (throw
++          "machines.${name}.build.iso: the NixOS configuration of machine '${name}' has no ISO image. Import an ISO module in machines.${name}.nixos, for example (modulesPath + \"/installer/cd-dvd/installation-cd-minimal.nix\")."));
+       nix-darwin = lib.mkIf (config.nix-darwin != null) (lib.mkDefault (buildNixDarwinToplevel config));
+       home-manager = lib.mkIf (config.home-manager != null) (lib.mkDefault (buildHomeManagerToplevel config));
+     };

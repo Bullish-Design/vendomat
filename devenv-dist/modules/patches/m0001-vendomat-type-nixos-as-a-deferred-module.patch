@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 1/5] vendomat: type machines.<name>.nixos as a deferred module
+
+`machines.<name>.nixos` used `nullOr unspecified`, which cannot merge two
+definitions. Use `nullOr deferredModule` so that an attribute set, a
+function, and a default module all merge into one NixOS module. Leave the
+`home-manager` and `nix-darwin` option types as upstream has them.
+
+Upstream: none (Vendomat module fork; R34: no upstream pull request)
+---
+ src/modules/machines.nix | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index 69df84dfc3c07b4e807363692098f107b87ce507..6b0732a2645610411ce68b1b62dceec74e367b80 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -299,7 +299,7 @@ let
+       };
+ 
+       nixos = lib.mkOption {
+-        type = lib.types.nullOr lib.types.unspecified;
++        type = lib.types.nullOr lib.types.deferredModule;
+         description = "NixOS configuration for the machine.";
+         default = null;
+         example = lib.literalExpression ''

@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 5/5] vendomat: add machines.<name>.vendomat.mode
+
+Add the enum option "fresh-install" or "adopt-existing", with a null
+default. Copy it into `machinesMeta.<name>.vendomat.mode` for the CLI.
+This is the module half of the host binary change. The binary half ships
+separately.
+
+Upstream: none (Vendomat module fork; R34: no upstream pull request)
+---
+ src/modules/machines.nix | 39 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index d38d59cbb844e95c83c2ef650952ec5758bceda8..91268c6aba0191c2a886ea48052b5022c37f343c 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -586,6 +586,33 @@ let
+         description = "Install-time settings for `devenv machines install`.";
+       };
+ 
++      # vendomat: fork-only policy options. See patches/0005 in the vendomat
++      # devenv distribution. Upstream devenv has no `vendomat` option.
++      vendomat = lib.mkOption {
++        type = lib.types.submodule {
++          options = {
++            mode = lib.mkOption {
++              type = lib.types.nullOr (lib.types.enum [ "fresh-install" "adopt-existing" ]);
++              default = null;
++              description = ''
++                Lifecycle mode of this machine.
++
++                `"adopt-existing"` marks a machine that already runs a system.
++                `devenv machines install` refuses it for every phase and every
++                disko mode, before it contacts the target. Use `plan`, `apply`,
++                or `deploy` for such a machine.
++
++                `"fresh-install"` marks a machine that `devenv machines install`
++                may install.
++              '';
++              example = "adopt-existing";
++            };
++          };
++        };
++        default = { };
++        description = "Vendomat policy for this machine. Fork-only.";
++      };
++
+       home-manager = lib.mkOption {
+         type = lib.types.nullOr lib.types.unspecified;
+         description = "Home Manager configuration for the machine.";
+@@ -879,6 +906,17 @@ in
+             type = lib.types.bool;
+             description = "Whether install should preserve SSH host keys.";
+           };
++          vendomat = lib.mkOption {
++            description = "Vendomat policy metadata. Fork-only.";
++            type = lib.types.submodule {
++              options = {
++                mode = lib.mkOption {
++                  type = lib.types.nullOr (lib.types.enum [ "fresh-install" "adopt-existing" ]);
++                  description = "Vendomat lifecycle mode copied into CLI metadata.";
++                };
++              };
++            };
++          };
+           secretspec = lib.mkOption {
+             description = "SecretSpec bootstrap execution metadata.";
+             type = lib.types.submodule {
+@@ -935,6 +973,7 @@ in
+       kexecImage = m.install.kexec.image;
+       kexecPostSshPort = m.install.kexec.postSshPort;
+       copyHostKeys = m.install.copyHostKeys;
++      vendomat = { inherit (m.vendomat) mode; };
+       secretspec = {
+         inherit (m.install.secretspec) execution;
+         provider =

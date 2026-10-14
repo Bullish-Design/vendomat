@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 2/5] vendomat: set latest-version to 2.4.0
+
+Silence the `devenv 2.4.0 is newer than devenv input (2.3.1)` warning.
+The content equals cachix/devenv a5c34429421e077df6f8f133e502617bedc22206,
+which is on main after v2.4.0.
+
+Upstream: none (Vendomat module fork; R34: no upstream pull request)
+---
+ src/modules/latest-version | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/modules/latest-version b/src/modules/latest-version
+index a6254504e40175d135cea7feb34ad31fa0d0bca3..9183195ace754fcdd6f1c474b04618f222bf6f71 100644
+--- a/src/modules/latest-version
++++ b/src/modules/latest-version
+@@ -1 +1 @@
+-2.3.1
+\ No newline at end of file
++2.4.0
+\ No newline at end of file

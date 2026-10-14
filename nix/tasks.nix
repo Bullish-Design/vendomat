@@ -185,6 +185,40 @@ in
     '';
   };
 
+  # Opt-in module fork proof (project 23, S1). It materializes the module-only devenv fork and uses it
+  # as the `devenv` input of small workspaces, next to the stock upstream modules. It only evaluates
+  # (plus one `devenv build machines.target`) and boots no image. It needs `devenv` 2.4.0 on the
+  # inherited PATH. Logs go under ~/.local/state/vendomat/p21/<date>/s1/modules-e2e/<UTC time>/.
+  # Run `testee verify opt:modules-e2e`.
+  tasks."opt:modules-e2e" = optIn {
+    timeout_s = 7200;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_MODULES_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s1/modules-e2e/$(date -u +%Y%m%dT%H%M%SZ)}"
+      ${venvBin}/python -m pytest -q tests/test_modules_e2e.py --junitxml="$out/modules-e2e.junit.xml"
+    '';
+  };
+
+  # Opt-in boot proof for the module fork (project 23, S1). It builds `build.vm` of a plain machine
+  # and `build.iso` of a disko machine with stock devenv 2.4.0, and boots both under QEMU with KVM
+  # (the ISO under OVMF). Each guest must show zero failed units. Images and VM scratch go under
+  # /mnt/shared/vendomat-p21/s1/. Logs go under ~/.local/state/vendomat/p21/<date>/s1/modules-vm/<UTC time>/.
+  # Run `testee verify opt:modules-vm`.
+  tasks."opt:modules-vm" = optIn {
+    timeout_s = 7200;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_MODULES_VM=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s1/modules-vm/$(date -u +%Y%m%dT%H%M%SZ)}"
+      mkdir -p /mnt/shared/vendomat-p21/s1/tmp
+      export TMPDIR=/mnt/shared/vendomat-p21/s1/tmp
+      ${venvBin}/python -m pytest -q tests/test_modules_vm.py --junitxml="$out/modules-vm.junit.xml"
+    '';
+  };
+
   # The front-door gates (project 24, S3). The task builds a workspace from the host launcher and runs
   # stock devenv 2.4.0 from PATH on it, with the catalog and a copy of this repository as the release.
   # The `devenv` input is the S1 module tree: until S1 publishes its tag, set VENDOMAT_FRONT_DOOR_MODULES

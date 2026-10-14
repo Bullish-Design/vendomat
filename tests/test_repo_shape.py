@@ -45,9 +45,9 @@ def test_no_v4_directory_remains():
         assert not (ROOT / name).exists(), f"{name}/ is V4 and must not return"
 
 
-def test_the_flake_has_nixpkgs_as_its_only_input():
+def test_the_flake_has_nixpkgs_and_the_module_fork_as_its_only_inputs():
     lock = json.loads((ROOT / "flake.lock").read_text())
-    assert set(lock["nodes"]["root"]["inputs"]) == {"nixpkgs"}
+    assert set(lock["nodes"]["root"]["inputs"]) == {"nixpkgs", "devenv"}
 
 
 def test_the_package_needs_only_typer():

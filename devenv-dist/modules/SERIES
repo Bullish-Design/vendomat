@@ -1,0 +1,6 @@
+# Ordered module-only patch series. Apply top to bottom on the upstream pin in ../UPSTREAM.
+m0001-vendomat-type-nixos-as-a-deferred-module.patch
+m0002-vendomat-set-latest-version-to-2.4.0.patch
+m0003-vendomat-add-build.vm-and-build.iso-options.patch
+m0004-vendomat-build-an-iso-for-any-machine.patch
+m0005-vendomat-add-machines-vendomat-mode.patch

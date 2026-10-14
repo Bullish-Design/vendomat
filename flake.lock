@@ -1,5 +1,23 @@
 {
   "nodes": {
+    "devenv": {
+      "locked": {
+        "dir": "src/modules",
+        "lastModified": 1791504000,
+        "narHash": "sha256-tOYEk6WSJZ8yquJv61p6Xwi0giBjZqeutcBMSOaeZkQ=",
+        "ref": "refs/tags/v2.4.0-vendomat-modules.1",
+        "rev": "061c2184cfcc2e84d2013b5f5a0b57b003ccc7a9",
+        "revCount": 7374,
+        "type": "git",
+        "url": "git://server/devenv"
+      },
+      "original": {
+        "dir": "src/modules",
+        "ref": "refs/tags/v2.4.0-vendomat-modules.1",
+        "type": "git",
+        "url": "git://server/devenv"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1791456040,
@@ -18,6 +36,7 @@
     },
     "root": {
       "inputs": {
+        "devenv": "devenv",
         "nixpkgs": "nixpkgs"
       }
     }

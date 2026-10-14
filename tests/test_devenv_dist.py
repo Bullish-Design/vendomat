@@ -197,3 +197,148 @@ def test_patch_0009_adds_the_yaml_primop_with_one_unit_test_for_each_spike_case(
     assert "VendomatYamlPlugin" in text
     assert text.count("\n+    fn case_") == 27
     assert "NAME:LINE:COL: reason" in text
+
+
+# The module-only series (`--series modules`): upstream plus module changes, no binary changes.
+MODULES = DIST / "modules"
+MODULE_PATCHES = MODULES / "patches"
+
+
+def module_series() -> list[str]:
+    return read_lines(MODULES / "SERIES")
+
+
+def module_header(name: str) -> str:
+    return (MODULE_PATCHES / name).read_text().split("\n---\n", 1)[0]
+
+
+def module_patch(prefix: str) -> str:
+    return (MODULE_PATCHES / next(n for n in module_series() if n.startswith(prefix))).read_text()
+
+
+def key_values(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in read_lines(path):
+        key, _, value = line.partition("=")
+        out[key.strip()] = value.strip()
+    return out
+
+
+def test_the_module_series_numbers_are_contiguous_from_m0001():
+    listed = module_series()
+    assert len(listed) == 5
+    assert listed == sorted(p.name for p in MODULE_PATCHES.glob("*.patch"))
+    numbers = [re.fullmatch(r"m(\d{4})-.+\.patch", name) for name in listed]
+    assert all(numbers)
+    assert [int(m.group(1)) for m in numbers if m] == list(range(1, len(listed) + 1))
+
+
+def test_the_module_manifest_matches_the_patch_bytes():
+    recorded: dict[str, str] = {}
+    for line in read_lines(MODULES / "MANIFEST.sha256"):
+        digest, _, name = line.partition("  ")
+        recorded[name.strip()] = digest.strip()
+    assert set(recorded) == set(module_series())
+    for name, digest in recorded.items():
+        assert hashlib.sha256((MODULE_PATCHES / name).read_bytes()).hexdigest() == digest, name
+
+
+def test_each_module_patch_has_the_fixed_header_and_says_no_upstream_pull_request():
+    total = len(module_series())
+    for index, name in enumerate(module_series(), start=1):
+        text = (MODULE_PATCHES / name).read_text()
+        assert text.startswith("From 0000000000000000000000000000000000000000 "), name
+        assert "\nFrom: Vendomat Fork <vendomat-fork@users.noreply.invalid>\n" in text, name
+        assert "\nDate: Fri, 9 Oct 2026 00:00:00 +0000\n" in text, name
+        assert f"\nSubject: [PATCH {index}/{total}] vendomat: " in text, name
+        lines = [line for line in module_header(name).splitlines() if line.startswith("Upstream:")]
+        assert lines == ["Upstream: none (Vendomat module fork; R34: no upstream pull request)"], name
+        assert "\ndiff --git " in text, name
+
+
+def test_the_module_patches_touch_only_module_files():
+    for name in module_series():
+        text = (MODULE_PATCHES / name).read_text()
+        paths = set(re.findall(r"^diff --git a/(\S+) b/", text, re.MULTILINE))
+        assert paths, name
+        assert all(path.startswith("src/modules/") for path in paths), (name, paths)
+
+
+def test_m0001_changes_only_the_nixos_option_type():
+    text = module_patch("m0001-")
+    body = text.split("\ndiff --git ", 1)[1]
+    changed = [line for line in body.splitlines()[4:] if line[:1] in "+-"]
+    assert changed == [
+        "-        type = lib.types.nullOr lib.types.unspecified;",
+        "+        type = lib.types.nullOr lib.types.deferredModule;",
+    ]
+    assert "      nixos = lib.mkOption {" in body  # the hunk context is the nixos option
+    # R35: the home-manager and nix-darwin option types stay as upstream has them.
+    assert "home-manager" not in "\n".join(changed)
+    assert "nix-darwin" not in "\n".join(changed)
+
+
+def test_m0002_sets_the_latest_version_to_2_4_0_in_that_file_only():
+    text = module_patch("m0002-")
+    assert re.findall(r"^diff --git a/(\S+) b/", text, re.MULTILINE) == ["src/modules/latest-version"]
+    assert "\n-2.3.1\n" in text
+    assert "\n+2.4.0\n\\ No newline at end of file\n" in text
+
+
+def test_m0003_and_m0004_keep_the_image_options_out_of_the_build_walker():
+    build = module_patch("m0003-")
+    assert build.count("type = lib.types.nullOr lib.types.package;") == 2
+    assert "build.vm = lib.mkOption" in build
+    assert "build.iso = lib.mkOption" in build
+    assert "types.output" not in build
+    iso = module_patch("m0004-")
+    assert "extendModules" in iso
+    assert "type = lib.types.listOf lib.types.deferredModule;" in iso
+    assert iso.count("lib.mkImageMediaOverride") == 4  # priority 60: files, swap, LUKS, timeout
+    assert "isoImage.makeEfiBootable = true;" in iso
+    assert "isoImage.makeUsbBootable = true;" in iso
+
+
+def test_m0005_adds_the_vendomat_mode_option_and_copies_it_into_the_meta():
+    text = module_patch("m0005-")
+    assert 'lib.types.enum [ "fresh-install" "adopt-existing" ]' in text
+    assert "vendomat = { inherit (m.vendomat) mode; };" in text
+    assert re.findall(r"^diff --git a/(\S+) b/", text, re.MULTILINE) == ["src/modules/machines.nix"]
+
+
+def test_the_module_recipe_names_the_agreed_tag_on_the_same_upstream_pin():
+    pin = upstream()
+    own = key_values(MODULES / "UPSTREAM")
+    assert own == {"fork_tag": "v2.4.0-vendomat-modules.1"}  # R44
+    result = key_values(MODULES / "RESULT")
+    assert result["fork_tag"] == own["fork_tag"]
+    assert result["source_commit"] == pin["commit"]
+    assert re.fullmatch(r"[0-9a-f]{40}", result["fork_commit"])
+    assert result["fork_commit"] != key_values(DIST / "RESULT")["fork_commit"]
+
+
+def test_the_module_patches_stay_out_of_the_binary_series():
+    assert not any(n.startswith("m0") for n in series())
+    assert not list(PATCHES.glob("m0*.patch"))
+
+
+def test_materialize_refuses_a_module_patch_that_differs_from_the_manifest(tmp_path: Path):
+    dist = tmp_path / "dist"
+    (dist / "modules" / "patches").mkdir(parents=True)
+    for name in ("UPSTREAM", "materialize"):
+        (dist / name).write_bytes((DIST / name).read_bytes())
+    for name in ("UPSTREAM", "SERIES", "MANIFEST.sha256"):
+        (dist / "modules" / name).write_bytes((MODULES / name).read_bytes())
+    for name in module_series():
+        (dist / "modules" / "patches" / name).write_bytes((MODULE_PATCHES / name).read_bytes())
+    first = dist / "modules" / "patches" / module_series()[0]
+    first.write_text(first.read_text() + "\n")
+    run = subprocess.run(
+        [sys.executable, "-I", str(dist / "materialize"), str(tmp_path / "out"), "--series", "modules"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert run.returncode != 0
+    assert "does not match MANIFEST.sha256" in run.stderr
+    assert not (tmp_path / "out").exists()

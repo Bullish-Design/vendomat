@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vendomat Fork <vendomat-fork@users.noreply.invalid>
+Date: Fri, 9 Oct 2026 00:00:00 +0000
+Subject: [PATCH 4/5] vendomat: build machines.<name>.build.iso for any machine
+
+If the `nixos` module imports an ISO module, devenv builds that image.
+Otherwise devenv extends the NixOS evaluation with the `iso-image` module
+for the image only, through `extendModules`. The extension sets six
+options so that the image builds and boots. Four of them (file systems,
+swap devices, LUKS devices, loader timeout) use priority 60, so a module
+in `iso.modules` must use `lib.mkForce` to change them. Add
+`machines.<name>.iso.modules`, a list of deferred modules that apply to the
+image only. The machine's own `build.nixos` does not change.
+
+Upstream: none (Vendomat module fork; R34: no upstream pull request)
+---
+ src/modules/machines.nix | 52 ++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 48 insertions(+), 4 deletions(-)
+
+diff --git a/src/modules/machines.nix b/src/modules/machines.nix
+index eafdc3932a66d554b07c2c325b76f633e9f2f5d4..d38d59cbb844e95c83c2ef650952ec5758bceda8 100644
+--- a/src/modules/machines.nix
++++ b/src/modules/machines.nix
+@@ -181,6 +181,27 @@ let
+         ] ++ facterModules;
+       };
+ 
++  # Extend a machine's NixOS evaluation so it can build an ISO of itself. The
++  # extension applies to the image only; the machine's own system is unchanged.
++  # It sets only what an ISO needs to build and boot: the EFI and USB boot
++  # flags, and the image's own file systems, swap, LUKS devices, and loader
++  # timeout in place of the machine's. `iso.modules` adds distribution policy.
++  # These overrides have priority 60: a module in `iso.modules` that changes one
++  # of them must use `lib.mkForce`.
++  isoEval = eval: modules: eval.extendModules {
++    modules = [
++      ({ config, lib, modulesPath, ... }: {
++        imports = [ (modulesPath + "/installer/cd-dvd/iso-image.nix") ];
++        isoImage.makeEfiBootable = true;
++        isoImage.makeUsbBootable = true;
++        swapDevices = lib.mkImageMediaOverride [ ];
++        fileSystems = lib.mkImageMediaOverride config.lib.isoFileSystems;
++        boot.initrd.luks.devices = lib.mkImageMediaOverride { };
++        boot.loader.timeout = lib.mkImageMediaOverride 10;
++      })
++    ] ++ modules;
++  };
++
+   # Build the nix-darwin toplevel closure for a machine's `nix-darwin` module.
+   buildNixDarwinToplevel = machine:
+     if nixDarwin == null then
+@@ -692,8 +713,27 @@ let
+         default = null;
+         description = ''
+           Bootable ISO image of this machine, or null if no `nixos` module is set.
+-          The `nixos` module must import a NixOS ISO module, such as
+-          `modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix"`.
++          If the `nixos` module imports an ISO module, devenv builds that image. Otherwise devenv
++          adds the NixOS `iso-image` module for this image only. The machine's file systems, swap,
++          and LUKS devices do not apply to the image. Modules in `iso.modules` apply in both cases.
++        '';
++      };
++
++      iso.modules = lib.mkOption {
++        type = lib.types.listOf lib.types.deferredModule;
++        default = [ ];
++        description = ''
++          NixOS modules that apply to the ISO image of this machine only, not to `build.nixos`.
++          Use them for image policy, such as the boot menu timeout, extra packages, or services to
++          turn off in a live session. Devenv sets a few options so that the image builds and boots.
++          To change one of them (`boot.loader.timeout`, `fileSystems`, `swapDevices`,
++          `boot.initrd.luks.devices`), use `lib.mkForce`.
++        '';
++        example = lib.literalExpression ''
++          [ ({ lib, pkgs, ... }: {
++              boot.loader.timeout = lib.mkForce 5;
++              environment.systemPackages = [ pkgs.parted ];
++            }) ]
+         '';
+       };
+ 
+@@ -741,8 +781,12 @@ let
+       diskoMountScript = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.mountScript;
+       vm = lib.mkIf (config.nixos != null) config._nixosEval.config.system.build.vm;
+       iso = lib.mkIf (config.nixos != null) (
+-        config._nixosEval.config.system.build.isoImage or (throw
+-          "machines.${name}.build.iso: the NixOS configuration of machine '${name}' has no ISO image. Import an ISO module in machines.${name}.nixos, for example (modulesPath + \"/installer/cd-dvd/installation-cd-minimal.nix\")."));
++        let eval = config._nixosEval;
++        in (
++          if eval.config.system.build ? isoImage
++          then eval.extendModules { modules = config.iso.modules; }
++          else isoEval eval config.iso.modules
++        ).config.system.build.isoImage);
+       nix-darwin = lib.mkIf (config.nix-darwin != null) (lib.mkDefault (buildNixDarwinToplevel config));
+       home-manager = lib.mkIf (config.home-manager != null) (lib.mkDefault (buildHomeManagerToplevel config));
+     };

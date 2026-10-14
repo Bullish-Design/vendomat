@@ -1,0 +1,6 @@
+# sha256 of each patch file. materialize refuses a patch that differs.
+a6282af509fd25bc4044a97722a18b3d12b1a6942f50527c14816f8dd47c9187  m0001-vendomat-type-nixos-as-a-deferred-module.patch
+39601fdfa78dd33686400fdfa78c444a6070e86307923c2bb277b2dd7c95d1a5  m0002-vendomat-set-latest-version-to-2.4.0.patch
+052c70503202feb5aa2783e20b3df3ddd71e2d24ebfb23efae8ea1cfc4733f02  m0003-vendomat-add-build.vm-and-build.iso-options.patch
+bddbd5c3f08b4f91f7fa71c938c859fde1a82b18a3881d9ebe109ca4b921ab81  m0004-vendomat-build-an-iso-for-any-machine.patch
+ff37a3a23c0d3c313677a396bbe3ce9e3764a5217fc8fb2cd164fcdfa4195539  m0005-vendomat-add-machines-vendomat-mode.patch

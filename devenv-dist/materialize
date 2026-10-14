@@ -5,11 +5,15 @@ Clone upstream devenv at the pinned commit into an empty directory, apply the
 ordered patch series with a fixed committer, and create the fork tag. The same
 inputs always give the same commit id.
 
-usage: python3 -I materialize DEST [--source URL_OR_PATH] [--verify]
+usage: python3 -I materialize DEST [--series modules] [--source URL_OR_PATH] [--verify]
 
 DEST must not exist, or must be an empty directory. --source overrides the
 upstream repo URL in UPSTREAM (for a local mirror). --verify compares the
 result with the commit id recorded in RESULT.
+
+Without --series, the script applies the binary series in this directory.
+--series modules applies the module-only series in modules/ on the same
+upstream pin. It reads its fork tag from modules/UPSTREAM.
 """
 import argparse
 import hashlib
@@ -56,6 +60,14 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def git_try(dest, *args):
+    """Run git as git() does, but return the exit code instead of exiting."""
+    env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null",
+               GIT_TERMINAL_PROMPT="0")
+    return subprocess.run(["git", "-C", str(dest), *args], env=env, text=True,
+                          capture_output=True, check=False).returncode
+
+
 def git(dest, *args, env_extra=None, capture=True):
     env = dict(os.environ)
     env.update(
@@ -82,19 +94,24 @@ def git(dest, *args, env_extra=None, capture=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("dest", type=Path)
+    parser.add_argument("--series", choices=["modules"],
+                        help="series to apply (default: the binary series in this directory)")
     parser.add_argument("--source", help="upstream URL or path (default: repo in UPSTREAM)")
     parser.add_argument("--verify", action="store_true", help="compare with RESULT")
     args = parser.parse_args()
 
     upstream = read_kv(DIST / "UPSTREAM")
-    series = read_series(DIST / "SERIES")
-    manifest = read_manifest(DIST / "MANIFEST.sha256")
+    base = DIST / args.series if args.series else DIST
+    if args.series:
+        upstream.update(read_kv(base / "UPSTREAM"))
+    series = read_series(base / "SERIES")
+    manifest = read_manifest(base / "MANIFEST.sha256")
     dest = args.dest.resolve()
 
     if dest.exists() and (not dest.is_dir() or any(dest.iterdir())):
         sys.exit(f"materialize: {dest} exists and is not an empty directory")
     for name in series:
-        digest = sha256(DIST / "patches" / name)
+        digest = sha256(base / "patches" / name)
         if manifest.get(name) != digest:
             sys.exit(f"materialize: hash of {name} does not match MANIFEST.sha256")
     if set(manifest) != set(series):
@@ -102,15 +119,19 @@ def main():
 
     dest.mkdir(parents=True, exist_ok=True)
     git(dest, "init", "-q")
-    git(dest, "fetch", "-q", "--no-tags", args.source or upstream["repo"],
-        f"refs/tags/{upstream['tag']}:refs/tags/{upstream['tag']}")
+    remote = args.source or upstream["repo"]
+    tag_ref = f"refs/tags/{upstream['tag']}"
+    if git_try(dest, "fetch", "-q", "--no-tags", remote, f"{tag_ref}:{tag_ref}") != 0:
+        # A local mirror may hold the pinned commit without the upstream tag.
+        git(dest, "fetch", "-q", "--no-tags", remote, upstream["commit"])
+        git(dest, "update-ref", tag_ref, upstream["commit"])
     source_commit = git(dest, "rev-parse", f"refs/tags/{upstream['tag']}^{{commit}}")
     if source_commit != upstream["commit"]:
         sys.exit(f"materialize: tag {upstream['tag']} is {source_commit}, expected {upstream['commit']}")
     git(dest, "checkout", "-q", "--detach", source_commit)
     for name in series:
         git(dest, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
-            "am", "-q", "--no-3way", str(DIST / "patches" / name))
+            "am", "-q", "--no-3way", str(base / "patches" / name))
     head = git(dest, "rev-parse", "HEAD")
     git(dest, "tag", upstream["fork_tag"], head)
 
@@ -124,7 +145,7 @@ def main():
     }
     print(json.dumps(result, indent=2))
     if args.verify:
-        result_file = DIST / "RESULT"
+        result_file = base / "RESULT"
         expected = read_kv(result_file)["fork_commit"] if result_file.exists() else None
         if expected != head:
             sys.exit(f"materialize: fork commit {head} differs from RESULT {expected}")

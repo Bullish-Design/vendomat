@@ -64,6 +64,8 @@ from the [implementation guide](projects/21-vendomat-basix-split/IMPLEMENTATION-
 then the open implementation decisions D1 to D8 (recorded with options and recommendations in
 the decisions file), then the slices. S3 is done except its release step (see project 24 above).
 
+S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is published at `git://server/devenv?ref=refs/tags/v2.4.0-vendomat-modules.1&dir=src/modules`, and Vendomat's flake has it as input `devenv` ([evidence](projects/21-vendomat-basix-split/evidence/S1-MODULE-FORK.md)).
+
 **Basix now lives in `~/Documents/Projects/basix`** (moved 2026-10-13). Its design, the `BSX-` ledger, and
 its plan are in that repository, under `.scratch/projects/001-initial-concept/`. The project 21 files here keep
 stub rows and pointers.

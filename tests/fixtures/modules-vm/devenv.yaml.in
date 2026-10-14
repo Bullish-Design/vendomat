@@ -1,0 +1,12 @@
+inputs:
+  devenv:
+    url: path:@MODULES@
+  nixpkgs:
+    url: github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8
+  disko:
+    url: github:nix-community/disko/de5708739256238fb912c62f03988815db89ec9a
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  nixos-facter-modules:
+    url: github:nix-community/nixos-facter-modules/139dcef4dfc97009629c445806f197883351ab4a
