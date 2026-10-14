@@ -21,20 +21,23 @@ select dependencies. NixOS and Home Manager own activation. Attic owns cached ob
 
 ```bash
 testee verify
-testee verify e2e
+testee verify opt:e2e
 ```
 
-Run the first command from the repository root as the normal gate. Add named checks (for example
-`testee verify e2e`) when a change affects the Nix module, toolchain, or consumer
+Run the first command from the repository root as the normal gate. Add named tasks (for example
+`testee verify opt:e2e`) when a change affects the Nix module, toolchain, or consumer
 integration. A pull request needs a green `testee verify` (or `testee status -r REV` for the exact
-revision). The end-to-end check stays opt-in because it builds a real consumer shell. The machine
-supplies the Testee module and the `testee` command. The project keeps its checks in
-`nix/testee.nix`. During an edit, run `testee verify --profile quick` for
-ruff and ruff-format only.
+revision). The end-to-end task stays opt-in because it builds a real consumer shell.
+
+Testee 0.8 runs devenv tasks. The project defines them in `nix/tasks.nix`. The required tasks are
+`check:lint`, `check:format`, `check:types`, and `test:full`. `test:quick` is "n/a" (no quick
+subset). During an edit, run `testee verify --profile quick` for `check:lint` and `check:format`
+only. The opt-in tasks (`opt:e2e`, `opt:workspace-e2e`, `opt:front-door-e2e`, `opt:live-cache`, `opt:live-cache-load`)
+never count for green. Each carries its own time limit in `input.testee.timeout_s`.
 
 The `testee` command is the host program (see the nix profile). It checks the commit in its own
-workspace and runs `testee.prepare` before the checks. Do not wrap it in `devenv shell`. The uv
-dependency graph and the venv do not carry Testee.
+workspace. The `setup:sync` task fills the venv before the checks. Do not wrap `testee` in
+`devenv shell`. The uv dependency graph and the venv do not carry Testee.
 
 Run `devenv shell -- cleanup` to list the regenerable leftovers (Testee venvs, stale Testee slots,
 caches) with their sizes. Add `--yes` to delete them. It never deletes `.worktrees/`.

@@ -8,7 +8,7 @@
 { pkgs, lib, config, inputs, ... }:
 
 {
-  imports = [ ./nix/testee.nix ];
+  imports = [ ./nix/tasks.nix ];
 
   # https://devenv.sh/basics/
   env.PROJ = "vendomat";
@@ -62,18 +62,5 @@
 
   # See full reference at https://devenv.sh/reference/options/
 
-  # https://devenv.sh/tasks/
-  #
-  # The two task names the `base` group calls (groups/base/README.md). devenv
-  # owns each implementation; Dagu owns the composition (§6). `uv run --group
-  # dev` rather than bare names: the venv bin is on the interactive shell's PATH
-  # but not on the task runner's PATH (STAGE_7_LOG.md, wave 2b); dev deps are a
-  # uv `[dependency-groups]`. `ruff check src` matches the repo's own scope.
-  tasks = {
-    "vendomat:lint".exec = "uv run --group dev ruff check src";
-    "vendomat:test".exec = "uv run --group dev pytest";
-
-    "base:check".after = [ "vendomat:lint" ];
-    "base:test".after = [ "vendomat:test" ];
-  };
+  # The tasks live in nix/tasks.nix: the five Testee tasks, the opt-in tasks, and base:check/base:test.
 }

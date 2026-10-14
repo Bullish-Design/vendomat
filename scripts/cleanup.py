@@ -7,7 +7,7 @@ Add `--yes` to delete. The script uses only the standard library.
 What it deletes, for this repository only:
 
 - A Testee slot whose workspace no longer exists. Testee recreates a slot on the next run.
-- The venv and the caches inside each other idle Testee slot. `testee.prepare` runs
+- The venv and the caches inside each other idle Testee slot. The `setup:sync` task runs
   `uv sync --locked`, which rebuilds the venv on the next run.
 - `__pycache__`, `.pytest_cache`, and `.ruff_cache` directories in the working copy.
 - Dangling `result*` symlinks at the repository root.
@@ -218,7 +218,7 @@ def plan_slot(slot_dir: Path, live_roots: set[Path] | None, live_names: set[str]
         return
     venv = ws / ".devenv" / "state" / "venv"
     if venv.is_dir() and not venv.is_symlink():
-        why = "venv in idle Testee slot (testee.prepare rebuilds it)"
+        why = "venv in idle Testee slot (setup:sync rebuilds it)"
         plan.items.append(Item(venv, tree_size(venv), why, slot_dir))
     if ws.is_dir():
         for cache in find_caches(ws, None):

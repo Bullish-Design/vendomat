@@ -33,9 +33,9 @@ activation. The source collection holds tagged source; Attic holds cached build 
 
 ## Verify
 
-Run `testee verify` from the repository root. Run `testee verify e2e` after a change to the
-module, toolchain, or consumer path. Testee checks the commit in its own workspace and opens a
-clean devenv shell there.
+Run `testee verify` from the repository root. Run `testee verify opt:e2e` (an opt-in task) after a change to the
+module, toolchain, or consumer path. Testee runs the devenv tasks of `nix/tasks.nix` on the commit in its own
+workspace.
 
 The V6 concept, specification, guide, and gate records are under
 `.scratch/projects/16-vendomat-devenv-layer/`. Read `.scratch/CURRENT.md` for the current authority
