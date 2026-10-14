@@ -13,10 +13,10 @@ and the item here gets the ruling number. Do not renumber an item.
 | OI-02 | How the pointer path option reaches the overlay imports (R14) | Phase 5 | W10 done; recommendation ready |
 | OI-03 | Where the fleet doctor lives (A6) | W5 to production, every phase gate | Recommendation ready |
 | OI-04 | nix-meta's flake structure (A8) | W6, phase 4 | Recommendation ready |
-| OI-05 | repoman's future (A9) | Phase 6 | Recommendation ready; one check first |
+| OI-05 | repoman's future (A9) | Phase 6 | Ruled (R15); partly done |
 | OI-06 | devman's `agent` group (A10) | Phase 2 | Recommendation ready |
 | OI-07 | The order of removing the old Vendomat module (A11) | Phase 2 | Recommendation ready |
-| OI-08 | Today's stale import of devman's link module | Nothing; a live defect | Recommendation ready; W10 unblocks it |
+| OI-08 | Today's stale import of devman's link module | Nothing; a live defect | Done, except the owner's system switch |
 | OI-09 | Testee task-mode details | W4, phase 6 | Recommendation ready |
 | OI-10 | When the devenv binary moves to the machine (R13) | Phase 4, phase 7 | Recommendation ready |
 | OI-11 | mancore's future | linkman, the doctor contract | Recommendation ready |
@@ -151,6 +151,12 @@ Project 21 `VMT-112` and this concept both forbid the pins.
 **Recommendation:** (c), then (d) later. **Check first:** that no repository uses a roster other than
 the default.
 
+**Ruled (R15), 2026-10-13. Done:** the central overlay no longer imports RepoMan's host module (18
+files, overlay commit `da3a4f58`); mnemonix dropped its RepoMan files and text (`9af72666`). **Left:**
+the RepoMan repository itself; the generated router skill in the overlay; the template-nix seed of
+`.repoman/project.toml` (mnemonix's CopyRoom state still lists it, so a template update could create
+it again); the `.repoman/` files in the other repositories (W5 D03).
+
 ---
 
 ## OI-06: devman's `agent` group (A10)
@@ -207,6 +213,27 @@ an old module with no error.
 | d. A devenv binary patch that tracks symlinked imports | Fixes it at the source for all repositories | Needs a project 21 ruling (`VMT-105`); a patch carried forever | Optional extra safety |
 
 **Recommendation:** (a). W10 passed, so this can start now.
+
+**Done 2026-10-13 (option a):**
+
+- The pointer `~/.local/state/devlayer/current.nix` exists. It names devman-link 0.6.0's module by
+  its store path. `common/devlayer-pointer.sh` in the overlay rewrites it by hand when needed.
+- The overlay holds `common/devlayer.nix` (a regular file with a `pathExists` guard), and all 64
+  project `devenv.local.nix` files import it (overlay commit `d484e975`, on overlay `main` at
+  `da3a4f58`).
+- nix-meta commit `49bceb34` adds the option `nix-meta.devlayer.pointerPath` (R14) and an activation
+  step that rewrites the pointer on each switch, only when its content changes.
+- devman commit `cb16dd77` makes new projects' overlay files import `../../common/devlayer.nix`.
+- Five repositories entered their shells; their caches now track the shared file and the pointer,
+  and a pointer change was picked up with no flag. D05 dropped from 60 to 50 at once; each remaining
+  repository clears on its next shell entry.
+- `devman doctor` exits 0 after a cleanup: the nix-meta-channel4 worktree was archived and removed
+  (OI-15), `devman doctor --prune` removed 14 records of missing repositories, and the overlay's
+  unlanded commits were landed on its `main` (OI-13).
+
+**Left:** the owner's `sudo nixos-rebuild switch --flake ~/Documents/Projects/nix-meta#server`, which
+activates the pointer step. Before that switch, the overlay had to stop importing RepoMan's host
+module (R15), because nix-meta commit `f173fd0` removes it from the system.
 
 ---
 
@@ -308,6 +335,11 @@ repoman's own (18 found earlier), and `gitman.toml` fell from 62 files to 4.
 
 **Recommendation:** (c), and give the other sessions this project's concept and open items.
 
+**2026-10-13:** the overlay's unlanded commits from another session (`0633dbd8`, and `9df52a8b`, which
+had no description) were landed with the OI-08 work, then corrected by R15. One undescribed overlay
+change (`9f3038b6`, 2026-10-11) is left; it is probably superseded. devman's main checkout sits on
+another session's unlanded stack (`step7-fix1-exit-codes`), so it does not show devman `main` yet.
+
 ---
 
 ## OI-14: workspaces and worktrees not checked for unlanded work
@@ -336,7 +368,8 @@ with no commits that `main` lacks (vendomat's three).
 **What.** Decisions on flakes around nix-meta ([SUB-FLAKES](evidence/SUB-FLAKES.md)).
 
 - **nixvim:** archive. nix-nvim supersedes it.
-- **nix-meta-channel4:** delete. It is a worktree of nix-meta with no commits.
+- **nix-meta-channel4:** delete. It is a worktree of nix-meta with no commits. **Done 2026-10-13:**
+  archived to `~/.local/state/vendomat/p22/oi-15-channel4/` and removed with `git worktree remove`.
 - **nix-desktop:** (a) keep as a home module for a future laptop home; (b) archive. It is clean Home
   Manager with no consumer. **Recommendation:** (a): it costs nothing while it sits.
 - **nixbuild:** (a) a plain package installed by the home; (b) keep its NixOS module and
@@ -399,3 +432,17 @@ repository develops that tool, so someone who clones it does need it.
 
 **Recommendation:** (c) where it is planned (repoman, Testee), and (a) for any tool that keeps a
 devenv module.
+
+---
+
+## Follow-ups found during the OI-08 work
+
+These need no option analysis; each has one obvious fix.
+
+- **mancore's overlay has no `devman.link` block.** Its shell prints a devman-link error
+  ("attribute 'devman' missing") and still enters. Fix: add the block in the overlay.
+- **An undescribed overlay change, `9f3038b6` (2026-10-11),** adds devenv-py overlay content that
+  `9df52a8b` probably supersedes. Fix: compare, then abandon it.
+- **forgelab's overlay file** (archived set) lost its RepoMan import line with the other 18. Keep the
+  removal: the line named a path that the next switch removes.
+- **W9's `doctor_check.py`** opens live caches in place (W5). Fix it before `ESTATE-043` reuses it.
