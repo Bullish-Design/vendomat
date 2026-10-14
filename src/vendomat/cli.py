@@ -10,6 +10,7 @@ runs ``sync`` with that build before the shell exists, and the host release else
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -19,6 +20,8 @@ from .bump import bump as run_bump
 from .bump import summary as bump_summary
 from .check import check_workspace
 from .devenvgen import DevenvSyncError, sync_devenv
+from .explain import ExplainError, read_report
+from .explain import render as render_report
 from .generate import GenerateError, load_registry, sync_flake, tool_version
 from .locate import LocateError, input_path
 from .lockpath import LockPathError, input_path_from_lock
@@ -27,6 +30,7 @@ from .push import PushError
 from .push import push as run_push
 from .registry import RegistryError, read_registry
 from .store import exit_code, source_root, sync_store
+from .update import UpdateError, check_lines, describe, devenv_command, run_update
 
 app = typer.Typer(
     help="vendomat - write project inputs from vendomat.toml, check pins, push outputs, and keep source clones.",
@@ -268,6 +272,72 @@ def bump_command(
         typer.echo(f"vendomat bump: {'applied' if apply else 'dry run'}: {verdict}", err=not good)
     if not good:
         raise typer.Exit(code=1)
+
+
+@app.command("explain")
+def explain_command(
+    root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON."),
+) -> None:
+    """Show where each setting of the workspace comes from.
+
+    For each key of vendomat.yaml it prints the native devenv option, the value, and the file that sets
+    it. A second section lists the options that only a Nix file sets. It shows every source, also when
+    VENDOMAT_HIDE_ADVANCED hides the line of the shell entry. It writes nothing.
+    """
+
+    project = Path(root) if root is not None else Path.cwd()
+    try:
+        report = read_report(project)
+    except ExplainError as exc:
+        typer.echo(f"vendomat explain: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
+    typer.echo(json.dumps(report, indent=2, ensure_ascii=False) if json_output else render_report(report))
+
+
+@app.command("update")
+def update_command(
+    inputs: Annotated[list[str] | None, typer.Argument(help="Inputs for `devenv update` (default: all).")] = None,
+    root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
+    check: bool = typer.Option(False, "--check", help="Report the missing template lines and change nothing."),
+) -> None:
+    """Add the lines that the template needs to devenv.yaml, then run `devenv update`.
+
+    A newer template can need a new input. This command adds each missing line and names it. It keeps
+    every line that you wrote. Names after `update` pass to `devenv update`, so `vendomat update vendomat`
+    moves only the vendomat input. With --check it only reports the missing lines and exits 1 when there are any.
+    """
+
+    project = Path(root) if root is not None else Path.cwd()
+    try:
+        if check:
+            missing = check_lines(project)
+            if missing:
+                typer.echo("vendomat update: devenv.yaml lacks these lines of the template:", err=True)
+                for line in describe(missing):
+                    typer.echo(line, err=True)
+                typer.echo("vendomat update: run `vendomat update` to add them", err=True)
+                raise typer.Exit(code=1)
+            typer.echo("vendomat update: devenv.yaml has every line of the template")
+            return
+        added = run_update(project)
+    except UpdateError as exc:
+        typer.echo(f"vendomat update: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
+    if added:
+        typer.echo("vendomat update: added to devenv.yaml:")
+        for line in describe(added):
+            typer.echo(line)
+    else:
+        typer.echo("vendomat update: devenv.yaml has every line of the template")
+    try:
+        result = subprocess.run([devenv_command(), "update", *(inputs or [])], cwd=project, check=False)
+    except FileNotFoundError as exc:
+        typer.echo("vendomat update: cannot run devenv (set VENDOMAT_DEVENV to the devenv command)", err=True)
+        raise typer.Exit(code=2) from exc
+    if result.returncode != 0:
+        typer.echo(f"vendomat update: `devenv update` failed (exit {result.returncode})", err=True)
+        raise typer.Exit(code=2)
 
 
 machine_app = typer.Typer(help="Machine commands. Only a fresh install lives here; devenv Machines does the rest.")

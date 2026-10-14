@@ -2,13 +2,19 @@
 # The Vendomat host launcher (DEL-020, which supersedes DEL-017; DOOR-071).
 #
 # It is the `vendomat` command on a host. It dispatches on the first argument:
-#   (none)         enter the pinned devenv shell: `devenv shell`
+#   (none)         enter the pinned devenv shell: `devenv shell`. In a workspace with a vendomat.yaml,
+#                  a cheap evaluation runs first. When it fails, the launcher prints the lines of
+#                  vendomat.yaml and the text after the last `error:`, keeps the full trace in
+#                  ~/.local/state/vendomat/logs/, and does not enter the shell (VMT-117).
 #   new [DIR]      copy the workspace template into DIR (default: the current directory)
+#   update, explain
+#                  the Vendomat commands that read a vendomat.yaml workspace (R25, R27). They run
+#                  the host release, which calls the pinned devenv fork. `update` adds the missing
+#                  template lines to devenv.yaml, then runs `devenv update`.
 #   sync, path, check, push, bump, machine, --version, --help
 #                  the current Vendomat commands, kept until the release (DOOR-063)
 #   anything else  pass to the pinned devenv fork with `exec`, so the exit status, the signals,
-#                  and the terminal reach the caller untouched. `vendomat test` is `devenv test`,
-#                  and `vendomat update` is `devenv update`.
+#                  and the terminal reach the caller untouched. `vendomat test` is `devenv test`.
 #
 # For the current commands, inside a workspace with a vendomat.toml, the launcher serves only `sync`,
 # the step that must run before the shell exists. It runs the Vendomat build that the workspace's
@@ -69,9 +75,90 @@ use_host() {
   exec "$host_release" "$@"
 }
 
+# Print the failure text of a devenv evaluation (VMT-117): the lines `vendomat.yaml:LINE:COL: ...` first,
+# then the text after the last `error:` line. src/vendomat/errortrim.py follows the same rules.
+trim_error() {
+  local ansi=$'\e\\[[0-9;?]*[A-Za-z]' line f i n=0 last=0 dup first=-1 stop=-1
+  local -a lines=() faults=() body=()
+  while IFS= read -r line || [ -n "$line" ]; do
+    while [[ "$line" =~ $ansi ]]; do line="${line/"${BASH_REMATCH[0]}"/}"; done
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    lines[n]="$line"
+    n=$((n + 1))
+  done < "$1"
+  for ((i = 0; i < n; i++)); do
+    if [[ "${lines[i]}" =~ ^vendomat\.yaml:[0-9]+:[0-9]+: ]]; then
+      dup=0
+      for f in ${faults[@]+"${faults[@]}"}; do [ "$f" = "${lines[i]}" ] && dup=1; done
+      [ "$dup" = 1 ] || faults+=("${lines[i]}")
+    fi
+    if [[ "${lines[i]}" == error:* ]]; then last=$((i + 1)); fi
+  done
+  body=(${faults[@]+"${faults[@]}"})
+  if [ "$last" -gt 0 ]; then
+    line="${lines[last - 1]#error:}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    body+=("$line")
+    for ((i = last; i < n; i++)); do
+      dup=0
+      for f in ${faults[@]+"${faults[@]}"}; do [ "$f" = "${lines[i]}" ] && dup=1; done
+      [ "$dup" = 1 ] || body+=("${lines[i]}")
+    done
+  elif [ "${#faults[@]}" -eq 0 ]; then
+    body=(${lines[@]+"${lines[@]}"})
+  fi
+  for ((i = 0; i < ${#body[@]}; i++)); do
+    if [ -n "${body[i]}" ]; then
+      [ "$first" -ge 0 ] || first=$i
+      stop=$i
+    fi
+  done
+  [ "$first" -ge 0 ] || return 0
+  for ((i = first; i <= stop; i++)); do printf '%s\n' "${body[i]}"; done
+  # A short message such as a syntax error names its place in the lines before it. Keep that place.
+  if [ "$last" -gt 0 ] && [ "${#faults[@]}" -eq 0 ] && [ "$first" -eq "$stop" ]; then
+    for ((i = last - 2; i >= 0; i--)); do
+      if [[ "${lines[i]}" =~ ^at\ ([^[:space:]]+:[0-9]+:[0-9]+):?$ ]]; then
+        printf 'at %s\n' "${BASH_REMATCH[1]}"
+        break
+      fi
+    done
+  fi
+}
+
+# Before the shell: evaluate the workspace once. A fault of vendomat.yaml then shows at once, with the
+# lines of the file first (VMT-117). The eval cache makes the shell's own evaluation fast afterwards.
+# `devenv.root` feeds from no catalog value, and any read of the final config runs the catalog checks.
+check_workspace() {
+  [ -f vendomat.yaml ] || return 0
+  [ -x "$fork" ] || return 0 # use_fork reports a missing fork
+  local err log logs rc=0
+  err="$(mktemp)"
+  "$fork" eval devenv.root >/dev/null 2>"$err" || rc=$?
+  if [ "$rc" -eq 0 ]; then rm -f "$err"; return 0; fi
+  logs="${XDG_STATE_HOME:-$HOME/.local/state}/vendomat/logs"
+  log="$logs/shell-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+  if mkdir -p "$logs" 2>/dev/null && cp "$err" "$log" 2>/dev/null; then :; else log=""; fi
+  say "the workspace does not evaluate (devenv exit $rc)"
+  trim_error "$err" >&2
+  [ -z "$log" ] || say "the full trace is in $log"
+  rm -f "$err"
+  exit 2
+}
+
+# `update` and `explain` run the host release. It calls the pinned devenv fork and reads the template
+# from the install tree of the host release.
+use_host_with_fork() {
+  export VENDOMAT_DEVENV="${VENDOMAT_DEVENV:-$fork}"
+  export VENDOMAT_TEMPLATE="${VENDOMAT_TEMPLATE:-$(dirname "$host_release")/../share/vendomat/templates/workspace}"
+  use_host "$@"
+}
+
 case "${1:-}" in
-  "") use_fork shell ;;
+  "") check_workspace; use_fork shell ;;
   new) shift; new_workspace "$@" ;;
+  update | explain) use_host_with_fork "$@" ;;
   sync | path | check | push | bump | machine | --version | --help) ;; # the current commands, below
   *) use_fork "$@" ;;
 esac

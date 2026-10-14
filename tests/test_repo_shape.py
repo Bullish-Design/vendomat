@@ -20,6 +20,8 @@ MODULES = {
     "cli.py",
     "defaults.py",
     "devenvgen.py",
+    "errortrim.py",
+    "explain.py",
     "generate.py",
     "locate.py",
     "lockpath.py",
@@ -28,6 +30,7 @@ MODULES = {
     "push.py",
     "registry.py",
     "store.py",
+    "update.py",
     "yamlsubset.py",
 }
 

@@ -1,0 +1,318 @@
+  [31m×[0m Failed to get attribute 'config.cachix.enable': 
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:430:9[0m:
+  [31m [0m    429|         in
+  [31m [0m    430|         if allPrioritizedModules == [ ] then
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    431|           baseProject
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:327:35[0m:
+  [31m [0m    326|           # Map over expanded profiles and apply priorities
+  [31m [0m    327|           allPrioritizedModules = lib.imap0 (
+  [31m [0m       |                                   [31;1m^[0m
+  [31m [0m    328|             index: profileName:
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'imap0'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:14[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |              [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mgenList[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:20[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |                    [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the second argument passed to builtins.genList
+  [31m [0m
+  [31m [0m … while calling the '[35;1mlength[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:54[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |                                                      [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mfoldl'[0m' builtin
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:318:30[0m:
+  [31m [0m    317|           # Fold over ordered profiles to build final list with extends
+  [31m [0m    318|           expandedProfiles = lib.foldl' (
+  [31m [0m       |                              [31;1m^[0m
+  [31m [0m    319|             acc: profileName:
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:264:30[0m:
+  [31m [0m    263|           currentUsername = username;
+  [31m [0m    264|           hostnameProfiles = lib.optional (
+  [31m [0m       |                              [31;1m^[0m
+  [31m [0m    265|             currentHostname != null
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'optional'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:801:20[0m:
+  [31m [0m    800|   */
+  [31m [0m    801|   optional = cond: elem: if cond then [ elem ] else [ ];
+  [31m [0m       |                    [31;1m^[0m
+  [31m [0m    802|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:801:26[0m:
+  [31m [0m    800|   */
+  [31m [0m    801|   optional = cond: elem: if cond then [ elem ] else [ ];
+  [31m [0m       |                          [31;1m^[0m
+  [31m [0m    802|
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the right operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:267:13[0m:
+  [31m [0m    266|             && currentHostname != ""
+  [31m [0m    267|             && builtins.hasAttr currentHostname (baseProject.config.profiles.hostname or { })
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    268|           ) "hostname.${currentHostname}";
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mhasAttr[0m' builtin
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:267:16[0m:
+  [31m [0m    266|             && currentHostname != ""
+  [31m [0m    267|             && builtins.hasAttr currentHostname (baseProject.config.profiles.hostname or { })
+  [31m [0m       |                [31;1m^[0m
+  [31m [0m    268|           ) "hostname.${currentHostname}";
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mconfig.profiles.hostname[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:404:9[0m:
+  [31m [0m    403|         options = checked options;
+  [31m [0m    404|         config = checked (removeAttrs config [ "_module" ]);
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    405|         _module = checked (config._module);
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mseq[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:404:18[0m:
+  [31m [0m    403|         options = checked options;
+  [31m [0m    404|         config = checked (removeAttrs config [ "_module" ]);
+  [31m [0m       |                  [31;1m^[0m
+  [31m [0m    405|         _module = checked (config._module);
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:9[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:72[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |                                                                        [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:33[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |                                 [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:12[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |            [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:283:38[0m:
+  [31m [0m    282|             let
+  [31m [0m    283|               recurse = mapAttrs (n: v: if isOption v then v.value else recurse v);
+  [31m [0m       |                                      [31;1m^[0m
+  [31m [0m    284|             in
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mvalue[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1181:7[0m:
+  [31m [0m   1180|     // {
+  [31m [0m   1181|       value = addErrorContext "while evaluating the option `${showOption loc}':" (
+  [31m [0m       |       [31;1m^[0m
+  [31m [0m   1182|         # Apply the 'apply' function to the merged value. This allows options to
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the option `_module.check':
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mmergedValue[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1276:5[0m:
+  [31m [0m   1275|     # Type-check the remaining definitions, and merge them. Or throw if no definitions.
+  [31m [0m   1276|     mergedValue =
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1277|       if isDefined then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1277:7[0m:
+  [31m [0m   1276|     mergedValue =
+  [31m [0m   1277|       if isDefined then
+  [31m [0m       |       [31;1m^[0m
+  [31m [0m   1278|         if type.merge ? v2 then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mvalues[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1270:11[0m:
+  [31m [0m   1269|         {
+  [31m [0m   1270|           values = defsSorted;
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m   1271|           inherit (defsFiltered) highestPrio;
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1264:13[0m:
+  [31m [0m   1263|             # Avoid sorting if we don't have to.
+  [31m [0m   1264|             if any (def: def.value._type or "" == "order") defsFiltered.values then
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m   1265|               sortProperties defsFiltered.values
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1many[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1264:16[0m:
+  [31m [0m   1263|             # Avoid sorting if we don't have to.
+  [31m [0m   1264|             if any (def: def.value._type or "" == "order") defsFiltered.values then
+  [31m [0m       |                [31;1m^[0m
+  [31m [0m   1265|               sortProperties defsFiltered.values
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1259:26[0m:
+  [31m [0m   1258|           # Process mkOverride properties.
+  [31m [0m   1259|           defsFiltered = filterOverrides' defsNormalized;
+  [31m [0m       |                          [31;1m^[0m
+  [31m [0m   1260|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1460:5[0m:
+  [31m [0m   1459|     in
+  [31m [0m   1460|     defs:
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1461|     # Optimize for the singleton case, equivalent to the `else` clause.
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1462:5[0m:
+  [31m [0m   1461|     # Optimize for the singleton case, equivalent to the `else` clause.
+  [31m [0m   1462|     if length defs == 1 then
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1463|       {
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mlength[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1462:8[0m:
+  [31m [0m   1461|     # Optimize for the singleton case, equivalent to the `else` clause.
+  [31m [0m   1462|     if length defs == 1 then
+  [31m [0m       |        [31;1m^[0m
+  [31m [0m   1463|       {
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mconcatMap[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1244:28[0m:
+  [31m [0m   1243|           # Process mkMerge and mkIf properties.
+  [31m [0m   1244|           defsNormalized = concatMap (
+  [31m [0m       |                            [31;1m^[0m
+  [31m [0m   1245|             m:
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1245:13[0m:
+  [31m [0m   1244|           defsNormalized = concatMap (
+  [31m [0m   1245|             m:
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m   1246|             map (
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mmap[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1246:13[0m:
+  [31m [0m   1245|             m:
+  [31m [0m   1246|             map (
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m   1247|               value:
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating definitions from `/path
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1255:82[0m:
+  [31m [0m   1254|                 }
+  [31m [0m   1255|             ) (addErrorContext "while evaluating definitions from `${m.file}':" (dischargeProperties m.value))
+  [31m [0m       |                                                                                  [31;1m^[0m
+  [31m [0m   1256|           ) defs;
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'dischargeProperties'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1411:5[0m:
+  [31m [0m   1410|   dischargeProperties =
+  [31m [0m   1411|     def:
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1412|     if def ? _type then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:1412:5[0m:
+  [31m [0m   1411|     def:
+  [31m [0m   1412|     if def ? _type then
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1413|       if def._type == "if" then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mvalue[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:866:21[0m:
+  [31m [0m    865|             inherit (module) file;
+  [31m [0m    866|             inherit value;
+  [31m [0m       |                     [31;1m^[0m
+  [31m [0m    867|           }) module.config
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/path
+  [31m [0m    236|   config = {
+  [31m [0m    237|     _module.check = guard true;
+  [31m [0m       |                     [31;1m^[0m
+  [31m [0m    238|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'guard'[0m
+  [31m [0m   [34;1mat [35;1m/path
+  [31m [0m    149|   faults = map (f: f.text) (lib.sort (a: b: a.pos < b.pos) faultList);
+  [31m [0m    150|   guard = v: if faults != [ ] then throw ("\n" + lib.concatStringsSep "\n" faults) else v;
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m    151|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mthrow[0m' builtin
+  [31m [0m   [34;1mat [35;1m/path
+  [31m [0m    149|   faults = map (f: f.text) (lib.sort (a: b: a.pos < b.pos) faultList);
+  [31m [0m    150|   guard = v: if faults != [ ] then throw ("\n" + lib.concatStringsSep "\n" faults) else v;
+  [31m [0m       |                                    [31;1m^[0m
+  [31m [0m    151|
+  [31m [0m
+  [31m [0m
+  [31m [0m
+  [31m [0m [31;1merror:[0m
+  [31m [0m vendomat.yaml:3:5: programs[1]: unknown program "nosuchprog" (nixpkgs has no package with this name)
+  [31m [0m vendomat.yaml:6:14: languages.python.version must be a version such as "3.12", found "x"
+  [31m [0m vendomat.yaml:9:11: machines.box.mode must be "fresh-install" or "adopt-existing", found "nope"
+  [31m [0m vendomat.yaml:10:1: home: unknown key (known: env, languages, machines, programs, services)
+

@@ -1,0 +1,445 @@
+  [31m×[0m Failed to get attribute 'config.cachix.enable': 
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:430:9[0m:
+  [31m [0m    429|         in
+  [31m [0m    430|         if allPrioritizedModules == [ ] then
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    431|           baseProject
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:327:35[0m:
+  [31m [0m    326|           # Map over expanded profiles and apply priorities
+  [31m [0m    327|           allPrioritizedModules = lib.imap0 (
+  [31m [0m       |                                   [31;1m^[0m
+  [31m [0m    328|             index: profileName:
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'imap0'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:14[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |              [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mgenList[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:20[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |                    [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the second argument passed to builtins.genList
+  [31m [0m
+  [31m [0m … while calling the '[35;1mlength[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:314:54[0m:
+  [31m [0m    313|   */
+  [31m [0m    314|   imap0 = f: list: genList (n: f n (elemAt list n)) (length list);
+  [31m [0m       |                                                      [31;1m^[0m
+  [31m [0m    315|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mfoldl'[0m' builtin
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:318:30[0m:
+  [31m [0m    317|           # Fold over ordered profiles to build final list with extends
+  [31m [0m    318|           expandedProfiles = lib.foldl' (
+  [31m [0m       |                              [31;1m^[0m
+  [31m [0m    319|             acc: profileName:
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:264:30[0m:
+  [31m [0m    263|           currentUsername = username;
+  [31m [0m    264|           hostnameProfiles = lib.optional (
+  [31m [0m       |                              [31;1m^[0m
+  [31m [0m    265|             currentHostname != null
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'optional'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:801:20[0m:
+  [31m [0m    800|   */
+  [31m [0m    801|   optional = cond: elem: if cond then [ elem ] else [ ];
+  [31m [0m       |                    [31;1m^[0m
+  [31m [0m    802|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:801:26[0m:
+  [31m [0m    800|   */
+  [31m [0m    801|   optional = cond: elem: if cond then [ elem ] else [ ];
+  [31m [0m       |                          [31;1m^[0m
+  [31m [0m    802|
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the right operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:267:13[0m:
+  [31m [0m    266|             && currentHostname != ""
+  [31m [0m    267|             && builtins.hasAttr currentHostname (baseProject.config.profiles.hostname or { })
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    268|           ) "hostname.${currentHostname}";
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mhasAttr[0m' builtin
+  [31m [0m   [34;1mat [35;1m/ws/.devenv/bootstrap/bootstrapLib.nix:267:16[0m:
+  [31m [0m    266|             && currentHostname != ""
+  [31m [0m    267|             && builtins.hasAttr currentHostname (baseProject.config.profiles.hostname or { })
+  [31m [0m       |                [31;1m^[0m
+  [31m [0m    268|           ) "hostname.${currentHostname}";
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mconfig.profiles.hostname[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:404:9[0m:
+  [31m [0m    403|         options = checked options;
+  [31m [0m    404|         config = checked (removeAttrs config [ "_module" ]);
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    405|         _module = checked (config._module);
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mseq[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:404:18[0m:
+  [31m [0m    403|         options = checked options;
+  [31m [0m    404|         config = checked (removeAttrs config [ "_module" ]);
+  [31m [0m       |                  [31;1m^[0m
+  [31m [0m    405|         _module = checked (config._module);
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:9[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:72[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |                                                                        [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the AND (&&) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:307:33[0m:
+  [31m [0m    306|       checkUnmatched =
+  [31m [0m    307|         if config._module.check && config._module.freeformType == null && merged.unmatchedDefns != [ ] then
+  [31m [0m       |                                 [31;1m^[0m
+  [31m [0m    308|           let
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:298:9[0m:
+  [31m [0m    297|         in
+  [31m [0m    298|         if declaredConfig._module.freeformType == null then
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    299|           declaredConfig
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mmapAttrs[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:285:13[0m:
+  [31m [0m    284|             in
+  [31m [0m    285|             recurse options;
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    286|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mmatchedOptions[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:978:15[0m:
+  [31m [0m    977|     {
+  [31m [0m    978|       inherit matchedOptions;
+  [31m [0m       |               [31;1m^[0m
+  [31m [0m    979|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mmapAttrs[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:968:24[0m:
+  [31m [0m    967|
+  [31m [0m    968|       matchedOptions = mapAttrs (n: v: v.matchedOptions) resultsByName;
+  [31m [0m       |                        [31;1m^[0m
+  [31m [0m    969|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mmapAttrs[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:890:23[0m:
+  [31m [0m    889|
+  [31m [0m    890|       resultsByName = mapAttrs (
+  [31m [0m       |                       [31;1m^[0m
+  [31m [0m    891|         name: decls:
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mzipAttrsWith[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:806:21[0m:
+  [31m [0m    805|       # an attrset 'name' => list of submodules that declare ‘name’.
+  [31m [0m    806|       declsByName = zipAttrs (
+  [31m [0m       |                     [31;1m^[0m
+  [31m [0m    807|         map (
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mmap[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:807:9[0m:
+  [31m [0m    806|       declsByName = zipAttrs (
+  [31m [0m    807|         map (
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    808|           module:
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:273:37[0m:
+  [31m [0m    272|
+  [31m [0m    273|       merged = mergeModules prefix (reverseList (doCollect { }).modules);
+  [31m [0m       |                                     [31;1m^[0m
+  [31m [0m    274|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'reverseList'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:1139:5[0m:
+  [31m [0m   1138|   reverseList =
+  [31m [0m   1139|     xs:
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1140|     let
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mgenList[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:1144:5[0m:
+  [31m [0m   1143|     in
+  [31m [0m   1144|     genList (n: elemAt xs (lastIndex - n)) (lastIndex + 1);
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1145|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the second argument passed to builtins.genList
+  [31m [0m
+  [31m [0m … while calling the '[35;1msub[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:1142:29[0m:
+  [31m [0m   1141|       # subtract one to save an __sub call on every element
+  [31m [0m   1142|       lastIndex = length xs - 1;
+  [31m [0m       |                             [31;1m^[0m
+  [31m [0m   1143|     in
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mlength[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/lists.nix:1142:19[0m:
+  [31m [0m   1141|       # subtract one to save an __sub call on every element
+  [31m [0m   1142|       lastIndex = length xs - 1;
+  [31m [0m       |                   [31;1m^[0m
+  [31m [0m   1143|     in
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating the attribute '[35;1mmodules[0m'
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:604:7[0m:
+  [31m [0m    603|     modulesPath: initialModules: args: {
+  [31m [0m    604|       modules = filterModules modulesPath (collectStructuredModules unknownModule "" initialModules args);
+  [31m [0m       |       [31;1m^[0m
+  [31m [0m    605|       # Intentionally not shared with `modules` above: this allows
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:604:17[0m:
+  [31m [0m    603|     modulesPath: initialModules: args: {
+  [31m [0m    604|       modules = filterModules modulesPath (collectStructuredModules unknownModule "" initialModules args);
+  [31m [0m       |                 [31;1m^[0m
+  [31m [0m    605|       # Intentionally not shared with `modules` above: this allows
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'filterModules'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:568:9[0m:
+  [31m [0m    567|         modulesPath:
+  [31m [0m    568|         { disabled, modules }:
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    569|         let
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mcatAttrs[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:573:9[0m:
+  [31m [0m    572|         in
+  [31m [0m    573|         catAttrs "module" (
+  [31m [0m       |         [31;1m^[0m
+  [31m [0m    574|           genericClosure (
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mgenericClosure[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:574:11[0m:
+  [31m [0m    573|         catAttrs "module" (
+  [31m [0m    574|           genericClosure (
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m    575|             if disabled == [ ] then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:575:13[0m:
+  [31m [0m    574|           genericClosure (
+  [31m [0m    575|             if disabled == [ ] then
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    576|               {
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mconcatLists[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:529:24[0m:
+  [31m [0m    528|           collectResults = modules: {
+  [31m [0m    529|             disabled = concatLists (catAttrs "disabled" modules);
+  [31m [0m       |                        [31;1m^[0m
+  [31m [0m    530|             inherit modules;
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:547:19[0m:
+  [31m [0m    546|                 (
+  [31m [0m    547|                   if module.disabledModules != [ ] then
+  [31m [0m       |                   [31;1m^[0m
+  [31m [0m    548|                     [
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:538:24[0m:
+  [31m [0m    537|             let
+  [31m [0m    538|               module = checkModule (loadModule args parentFile "${parentKey}:anon-${toString n}" x);
+  [31m [0m       |                        [31;1m^[0m
+  [31m [0m    539|               collectedImports = collectStructuredModules module._file module.key module.imports args;
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:457:11[0m:
+  [31m [0m    456|         if class != null then
+  [31m [0m    457|           m:
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m    458|           if m._class == null || m._class == class then
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:458:11[0m:
+  [31m [0m    457|           m:
+  [31m [0m    458|           if m._class == null || m._class == class then
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m    459|             m
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the OR (||) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:458:31[0m:
+  [31m [0m    457|           m:
+  [31m [0m    458|           if m._class == null || m._class == class then
+  [31m [0m       |                               [31;1m^[0m
+  [31m [0m    459|             m
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:538:37[0m:
+  [31m [0m    537|             let
+  [31m [0m    538|               module = checkModule (loadModule args parentFile "${parentKey}:anon-${toString n}" x);
+  [31m [0m       |                                     [31;1m^[0m
+  [31m [0m    539|               collectedImports = collectStructuredModules module._file module.key module.imports args;
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'loadModule'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:422:42[0m:
+  [31m [0m    421|       loadModule =
+  [31m [0m    422|         args: fallbackFile: fallbackKey: m:
+  [31m [0m       |                                          [31;1m^[0m
+  [31m [0m    423|         if isFunction m then
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:451:11[0m:
+  [31m [0m    450|         else
+  [31m [0m    451|           unifyModuleSyntax (toString m) (toString m) (
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m    452|             applyModuleArgsIfFunction (toString m) (import m) args
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:670:16[0m:
+  [31m [0m    669|     in
+  [31m [0m    670|     file: key: m:
+  [31m [0m       |                [31;1m^[0m
+  [31m [0m    671|     let
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:691:5[0m:
+  [31m [0m    690|     in
+  [31m [0m    691|     if m ? config || m ? options then
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m    692|       let
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the OR (||) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:691:19[0m:
+  [31m [0m    690|     in
+  [31m [0m    691|     if m ? config || m ? options then
+  [31m [0m       |                   [31;1m^[0m
+  [31m [0m    692|       let
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:452:13[0m:
+  [31m [0m    451|           unifyModuleSyntax (toString m) (toString m) (
+  [31m [0m    452|             applyModuleArgsIfFunction (toString m) (import m) args
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    453|           );
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1m'applyModuleArgsIfFunction'[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:723:13[0m:
+  [31m [0m    722|   applyModuleArgsIfFunction =
+  [31m [0m    723|     key: f: args@{ config, ... }: if isFunction f then applyModuleArgs key f args else f;
+  [31m [0m       |             [31;1m^[0m
+  [31m [0m    724|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while evaluating a branch condition
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:723:35[0m:
+  [31m [0m    722|   applyModuleArgsIfFunction =
+  [31m [0m    723|     key: f: args@{ config, ... }: if isFunction f then applyModuleArgs key f args else f;
+  [31m [0m       |                                   [31;1m^[0m
+  [31m [0m    724|
+  [31m [0m
+  [31m [0m
+  [31m [0m … from call site
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:723:38[0m:
+  [31m [0m    722|   applyModuleArgsIfFunction =
+  [31m [0m    723|     key: f: args@{ config, ... }: if isFunction f then applyModuleArgs key f args else f;
+  [31m [0m       |                                      [31;1m^[0m
+  [31m [0m    724|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling [35;1manonymous lambda[0m
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/trivial.nix:1131:5[0m:
+  [31m [0m   1130|     in
+  [31m [0m   1131|     f: isFunction f || (f ? __functor && isFunction f.__functor && isFunction (f.__functor f));
+  [31m [0m       |     [31;1m^[0m
+  [31m [0m   1132|
+  [31m [0m
+  [31m [0m
+  [31m [0m … in the left operand of the OR (||) operator
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/trivial.nix:1131:21[0m:
+  [31m [0m   1130|     in
+  [31m [0m   1131|     f: isFunction f || (f ? __functor && isFunction f.__functor && isFunction (f.__functor f));
+  [31m [0m       |                     [31;1m^[0m
+  [31m [0m   1132|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1misFunction[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/trivial.nix:1131:8[0m:
+  [31m [0m   1130|     in
+  [31m [0m   1131|     f: isFunction f || (f ? __functor && isFunction f.__functor && isFunction (f.__functor f));
+  [31m [0m       |        [31;1m^[0m
+  [31m [0m   1132|
+  [31m [0m
+  [31m [0m
+  [31m [0m … while calling the '[35;1mimport[0m' builtin
+  [31m [0m   [34;1mat [35;1m/nix/store/2010s04mqpq7q1kch0ddc9b429s2vh9v-source/lib/modules.nix:452:53[0m:
+  [31m [0m    451|           unifyModuleSyntax (toString m) (toString m) (
+  [31m [0m    452|             applyModuleArgsIfFunction (toString m) (import m) args
+  [31m [0m       |                                                     [31;1m^[0m
+  [31m [0m    453|           );
+  [31m [0m
+  [31m [0m
+  [31m [0m
+  [31m [0m [34;1mat [35;1m/ws/devenv.nix:1:11[0m:
+  [31m [0m      1| { env.A = ; }
+  [31m [0m       |           [31;1m^[0m
+  [31m [0m      2|
+  [31m [0m
+  [31m [0m [31;1merror:[0m syntax error, unexpected ';'
+

@@ -16,6 +16,9 @@
 #
 # The mappings sit in an inner module with `_file = "vendomat.yaml"`, so a conflict error names the
 # file. YAML values are plain definitions. Catalog defaults use `lib.mkDefault` (R23).
+#
+# The escape hatch stays visible. ./hatch.nix counts the settings of `devenv.nix` and `devenv.local.nix`
+# for the `advanced:` line of the shell entry. ./explain.nix builds the data of `vendomat explain`.
 { lib, config, options, pkgs, inputs, ... }:
 let
   file = "vendomat.yaml";
@@ -146,6 +149,9 @@ let
   faults = map (f: f.text) (lib.sort (a: b: a.pos < b.pos) faultList);
   guard = v: if faults != [ ] then throw ("\n" + lib.concatStringsSep "\n" faults) else v;
 
+  # --- The escape hatch -----------------------------------------------------------------------
+  hatch = import ./hatch.nix { inherit lib root; args = { inherit lib config options pkgs inputs; }; };
+
   # --- Mapping -------------------------------------------------------------------------------
   # A present entry turns the item on, unless it says `enable: "false"`.
   on = p: let e = get p; in e != null && (e.enable or "true") != "false";
@@ -218,7 +224,21 @@ in
       default = guard (lib.mapAttrs (_: m: (m.serve or "true") == "true") machines);
       description = "For each machine of vendomat.yaml, whether it serves its store (the key `serve`, on by default).";
     };
+    explain = lib.mkOption {
+      type = lib.types.raw;
+      internal = true;
+      readOnly = true;
+      default = guard (import ./explain.nix { inherit lib config options root parsed hatch raw; });
+      description = "What `vendomat explain` prints: each key of vendomat.yaml with its option, value, and files, and the options that only Nix sets.";
+    };
   };
 
-  config._module.check = guard true;
+  config = {
+    _module.check = guard true;
+
+    # The `advanced:` line (VMT-054 to VMT-056). `VENDOMAT_HIDE_ADVANCED=1` hides it (R45, VMT-093). The
+    # shell reads the variable, so the evaluation does not depend on it. `vendomat explain` still shows every source.
+    enterShell = lib.mkAfter (lib.optionalString (hatch.line != "")
+      "[ \"\${VENDOMAT_HIDE_ADVANCED:-}\" = 1 ] || echo ${lib.escapeShellArg hatch.line}");
+  };
 }

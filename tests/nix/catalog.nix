@@ -7,9 +7,11 @@
 #   nix-instantiate --extra-experimental-features flakes --eval --strict --json tests/nix/catalog.nix \
 #     --argstr root DIR --argstr repo REPO --argstr nixpkgs REV --argstr read summary
 #
+# `read` picks one of: summary, shell (the text of `enterShell`), explain (the data of `vendomat explain`), root.
+#
 # Optional arguments:
 #   pythons  Comma-separated Python versions of a stub `nixpkgs-python` input. Empty means no such input.
-#   extra    A Nix file that holds one more module (the user's `devenv.nix` in a real workspace).
+#   extra    Comma-separated Nix files, each one more module (the user's `devenv.nix` in a real workspace).
 { root, repo, nixpkgs, read, pythons ? "", extra ? "" }:
 let
   pkgs = import (builtins.getFlake "github:NixOS/nixpkgs/${nixpkgs}") { system = "x86_64-linux"; };
@@ -22,6 +24,7 @@ let
     options = {
       devenv.root = opt t.str "";
       packages = opt (t.listOf t.package) [ ];
+      enterShell = opt t.lines "";
       env = opt (t.attrsOf t.str) { };
       languages.python.enable = opt t.bool false;
       languages.python.version = opt (t.nullOr t.str) null;
@@ -71,7 +74,7 @@ let
           _module.args = { inherit pkgs inputs; };
         };
       }
-    ] ++ lib.optional (extra != "") extra;
+    ] ++ lib.filter (m: m != "") (lib.splitString "," extra);
   };
   config = evaluated.config;
 
@@ -97,7 +100,10 @@ let
   };
 in
 {
-  # Read the whole summary, or only `devenv.root`, which no catalog value feeds.
+  # Read the whole summary, the shell entry text, the data of `vendomat explain`, or only `devenv.root`,
+  # which no catalog value feeds.
   inherit summary;
+  shell = config.enterShell;
+  explain = config.vendomat.explain;
   root = config.devenv.root;
 }.${read}

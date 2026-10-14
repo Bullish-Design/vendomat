@@ -253,8 +253,6 @@ def test_no_argument_enters_the_shell_of_the_fork_anywhere(env, tmp_path):
     "argv",
     [
         ("test",),
-        ("update",),
-        ("update", "vendomat"),
         ("shell", "--", "ls", "-l"),
         ("--verbose", "test"),
         ("tasks", "run", "x y"),
@@ -366,3 +364,95 @@ def test_new_refuses_when_a_template_file_exists_and_writes_nothing(env, tmp_pat
 def test_new_takes_at_most_one_directory(env, tmp_path):
     done = env.run(tmp_path, "new", "a", "b")
     assert done.returncode == 3 and "usage: vendomat new [DIR]" in done.stderr
+
+
+# --- update, explain, and the check before the shell (S3 part 2) -----------------------------------
+
+TRACE = Path(__file__).parent / "fixtures" / "trim" / "yaml-faults.txt"
+
+
+@pytest.mark.parametrize("argv", [("update",), ("update", "vendomat"), ("update", "--check"), ("explain", "--json")])
+def test_update_and_explain_run_the_host_release_with_the_fork_and_the_template(env, tmp_path, argv):
+    host = script(
+        tmp_path / "host2" / "bin" / "vendomat",
+        'echo "HOST $*"; echo "DEVENV=$VENDOMAT_DEVENV"; echo "TEMPLATE=$VENDOMAT_TEMPLATE"\n',
+    )
+    env.source("aa")
+    root = env.workspace("a", "aa")  # a project 14 workspace: it must not send these commands to the shell
+    for cwd in (tmp_path, root):
+        done = env.run(cwd, *argv, extra_env={"VENDOMAT_HOST_RELEASE": str(host)})
+        assert done.returncode == 0, done.stderr
+        assert done.stdout.splitlines() == [
+            f"HOST {' '.join(argv)}",
+            f"DEVENV={env.fork}",
+            f"TEMPLATE={host.parent}/../share/vendomat/templates/workspace",
+        ]
+    assert env.builds() == []
+
+
+def test_a_set_devenv_command_wins_over_the_fork_for_update(env, tmp_path):
+    host = script(tmp_path / "host2" / "bin" / "vendomat", 'echo "DEVENV=$VENDOMAT_DEVENV"\n')
+    done = env.run(
+        tmp_path, "update", extra_env={"VENDOMAT_HOST_RELEASE": str(host), "VENDOMAT_DEVENV": "/chosen/devenv"}
+    )
+    assert done.stdout.strip() == "DEVENV=/chosen/devenv"
+
+
+def precheck_workspace(env, tmp_path, *, evaluates: bool) -> tuple[Path, Path]:
+    """A workspace with a vendomat.yaml and a fork whose `eval` passes or prints the real trace of a bad file."""
+    work = tmp_path / "yamlws"
+    work.mkdir()
+    (work / "vendomat.yaml").write_text("programs:\n  - jq\n")
+    calls = tmp_path / "fork-calls"
+    fork = script(
+        tmp_path / "pre" / "devenv",
+        f"""
+        echo "$*" >> {calls}
+        if [ "$1" = eval ]; then
+          {"exit 0" if evaluates else f"cat {TRACE} >&2; exit 1"}
+        fi
+        echo "SHELL $*"
+        """,
+    )
+    env.env["VENDOMAT_DEVENV_FORK"] = str(fork)
+    env.env["XDG_STATE_HOME"] = str(tmp_path / "state")
+    return work, calls
+
+
+def test_a_workspace_that_evaluates_enters_the_shell(env, tmp_path):
+    work, calls = precheck_workspace(env, tmp_path, evaluates=True)
+    done = env.run(work)
+    assert done.returncode == 0
+    assert done.stdout.strip() == "SHELL shell"
+    assert done.stderr == ""
+    assert calls.read_text().splitlines() == ["eval devenv.root", "shell"]
+
+
+def test_a_workspace_that_fails_prints_the_yaml_lines_first_and_keeps_the_trace(env, tmp_path):
+    # VMT-117.
+    work, calls = precheck_workspace(env, tmp_path, evaluates=False)
+    done = env.run(work)
+    assert done.returncode == 2
+    assert done.stdout == ""  # the shell did not start
+    assert calls.read_text().splitlines() == ["eval devenv.root"]
+    lines = done.stderr.splitlines()
+    assert lines[0] == "vendomat: the workspace does not evaluate (devenv exit 1)"
+    assert [line.split(" ", 1)[0] for line in lines[1:5]] == [
+        "vendomat.yaml:3:5:",
+        "vendomat.yaml:6:14:",
+        "vendomat.yaml:9:11:",
+        "vendomat.yaml:10:1:",
+    ]
+    assert len(lines) == 6
+    assert lines[5].startswith("vendomat: the full trace is in ")
+    log = Path(lines[5].removeprefix("vendomat: the full trace is in "))
+    assert log.parent == tmp_path / "state" / "vendomat" / "logs"
+    assert log.read_text() == TRACE.read_text()
+
+
+def test_a_directory_without_vendomat_yaml_runs_no_check(env, tmp_path):
+    work, calls = precheck_workspace(env, tmp_path, evaluates=False)
+    (work / "vendomat.yaml").unlink()
+    done = env.run(work)
+    assert done.returncode == 0
+    assert calls.read_text().splitlines() == ["shell"]

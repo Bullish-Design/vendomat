@@ -132,22 +132,44 @@ in
       ${hostEnv}
       export VENDOMAT_E2E=1
       export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
-      ${venvBin}/python -m pytest -q tests/test_catalog_parser_nix.py tests/test_catalog_module_nix.py --junitxml="$out/catalog-eval.junit.xml"
+      ${venvBin}/python -m pytest -q tests/test_catalog_parser_nix.py tests/test_catalog_module_nix.py tests/test_catalog_hatch_nix.py --junitxml="$out/catalog-eval.junit.xml"
     '';
   };
 
-  # Project 20 slice 1. This task builds a workspace from the host launcher and exercises the
-  # catalog against the patched fork. Run it with the fork first on Testee's inherited PATH:
-  # `PATH=/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin:$PATH testee verify opt:front-door-e2e`.
+  # Opt-in real devenv task for the hatch line, `vendomat explain`, the trimmed error, and `vendomat update`
+  # (project 24, S3 part 2). It runs stock devenv from PATH on a workspace that imports the catalog of this
+  # repository and the module source of the `devenv` input. Until S1 publishes its tag, a tree of the S1
+  # patches on upstream b904dcb5 stands in. Set VENDOMAT_DEVENV_MODULES to use another `src/modules`
+  # directory. The task prints the tree it used. Run `testee verify opt:catalog-devenv`.
+  tasks."opt:catalog-devenv" = optIn {
+    timeout_s = 1800;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_DEVENV_E2E=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_DEVENV_MODULES="''${VENDOMAT_DEVENV_MODULES:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules}"
+      export VENDOMAT_DEVENV_LOGS="''${VENDOMAT_DEVENV_LOGS:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/catalog-devenv-task}"
+      echo "devenv input tree: $VENDOMAT_DEVENV_MODULES"
+      ${venvBin}/python -m pytest -q tests/test_catalog_devenv.py --junitxml="$out/catalog-devenv.junit.xml"
+    '';
+  };
+
+  # The front-door gates (project 24, S3). The task builds a workspace from the host launcher and runs
+  # stock devenv 2.4.0 from PATH on it, with the catalog and a copy of this repository as the release.
+  # The `devenv` input is the S1 module tree: until S1 publishes its tag, set VENDOMAT_FRONT_DOOR_MODULES
+  # to another `src/modules` directory, or use the default scratch tree. The inner `testee` runs under 0.8.
+  # Run `testee verify opt:front-door-e2e`.
   tasks."opt:front-door-e2e" = optIn {
     timeout_s = 3600;
     script = ''
       ${hostEnv}
       export VENDOMAT_FRONT_DOOR_E2E=1
-      export PATH="/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin:${pkgs.nix}/bin:${pkgs.git}/bin:${pkgs.direnv}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
-      export VENDOMAT_FRONT_DOOR_FORK="/nix/store/1bqfcc56bc1xgkfaihfz7kdjiqx8qbqg-devenv-wrapped-2.4.0/bin/devenv"
-      export VENDOMAT_FRONT_DOOR_TESTEE="$(command -v testee || echo /etc/profiles/per-user/$(id -un)/bin/testee)"
-      export VENDOMAT_FRONT_DOOR_LOGS="$HOME/.local/state/vendomat/p20/$(date -u +%F)/slice-1/F-front-door"
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:${pkgs.direnv}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_FRONT_DOOR_DEVENV="''${VENDOMAT_FRONT_DOOR_DEVENV:-$(command -v devenv)}"
+      export VENDOMAT_FRONT_DOOR_TESTEE="''${VENDOMAT_FRONT_DOOR_TESTEE:-$(command -v testee || echo /etc/profiles/per-user/$(id -un)/bin/testee)}"
+      export VENDOMAT_FRONT_DOOR_MODULES="''${VENDOMAT_FRONT_DOOR_MODULES:-$HOME/.local/state/vendomat/p21/2026-10-14/s3/devenv-modules/src/modules}"
+      export VENDOMAT_FRONT_DOOR_LOGS="''${VENDOMAT_FRONT_DOOR_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s3/front-door}"
+      echo "devenv input tree: $VENDOMAT_FRONT_DOOR_MODULES"
       ${venvBin}/python -m pytest -q tests/test_front_door_e2e.py --junitxml="$out/front-door-e2e.junit.xml"
     '';
   };
