@@ -1,0 +1,24 @@
+# The hatch file of the fixture workspace. The harness fills the two marks for each variant.
+{ inputs, ... }:
+{
+  imports = [ ./expose.nix ];
+  cachix.enable = false; # the test machine has no network
+  machines.box = {
+    system = "x86_64-linux";
+    hardware.facter = null;
+    nixos =
+      { pkgs, ... }:
+      {
+        imports = [ ./base.nix ];
+        environment.etc."t1-marker".text = "@MARKER@\n";
+        environment.systemPackages = [ @PACKAGES@ ];
+        # The test machine builds offline, so it keeps the input sources in its own store. A path input
+        # is a plain string without context, so storePath adds the context.
+        system.extraDependencies = map (i: builtins.storePath (toString i)) [
+          inputs.nixpkgs
+          inputs.disko
+          inputs.nixos-facter-modules
+        ];
+      };
+  };
+}

@@ -10,12 +10,15 @@ runs ``sync`` with that build before the shell exists, and the host release else
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
+from .apply import apply as run_apply
+from .apply import deploy_argv, machine_name
 from .bump import bump as run_bump
 from .bump import summary as bump_summary
 from .check import check_workspace
@@ -28,9 +31,12 @@ from .lockpath import LockPathError, input_path_from_lock
 from .machine import MachineError, plan_install, run_install
 from .push import PushError
 from .push import push as run_push
+from .record import RecordError
 from .registry import RegistryError, read_registry
+from .rollback import rollback as run_rollback
 from .store import exit_code, source_root, sync_store
 from .update import UpdateError, check_lines, describe, devenv_command, run_update
+from .workspace import find_root
 
 app = typer.Typer(
     help="vendomat - write project inputs from vendomat.toml, check pins, push outputs, and keep source clones.",
@@ -384,6 +390,83 @@ def machine_install(
             "do both by hand before the reboot",
             err=True,
         )
+
+
+def _echo(line: str) -> None:
+    typer.echo(line)
+
+
+def _workspace_root(root: str | None) -> Path:
+    """The workspace directory: ``--root`` as given, else the nearest parent that holds the workspace files."""
+
+    return find_root(Path(root) if root is not None else Path.cwd())
+
+
+@app.command("apply")
+def apply_command(
+    name: str | None = typer.Argument(None, help="A machine name. Leave it out to apply this machine."),
+    root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
+    dirty: bool = typer.Option(
+        False, "--dirty", help="Apply even when vendomat.yaml, devenv.lock, or a hatch file has uncommitted changes."
+    ),
+) -> None:
+    """Activate this machine from the workspace. No SSH.
+
+    Build `machines.NAME.build.nixos`, move the system profile, run `switch-to-configuration switch`,
+    and add one line to /var/lib/vendomat/generations.jsonl. The machine name comes from
+    /etc/devenv/machine-facts.json. A name that is another machine runs `devenv machines deploy NAME`.
+    The command refuses uncommitted changes to vendomat.yaml, devenv.lock, devenv.nix, and
+    devenv.local.nix unless you give --dirty. A dirty generation is never a rollback target.
+    """
+
+    try:
+        own = machine_name()
+        if name is not None and name != own:
+            typer.echo(f"vendomat apply: {name} is not this machine ({own}); running devenv machines deploy {name}")
+            argv = deploy_argv(name)
+            os.execvp(argv[0], argv)
+        run_apply(_workspace_root(root), dirty_ok=dirty, emit=_echo)
+    except RecordError as exc:
+        typer.echo(f"vendomat apply: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
+
+
+@app.command("rollback")
+def rollback_command(
+    root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
+    to: str | None = typer.Option(None, "--to", help="Roll back to this commit."),
+    generation: int | None = typer.Option(None, "--generation", help="Roll back to the commit of this generation."),
+    exact: bool = typer.Option(False, "--exact", help="Restore every tracked file, not only the watched files."),
+    fast: bool = typer.Option(
+        False, "--fast", help="Move the profile to the recorded generation. Build nothing. Still commit the restore."
+    ),
+    boot_only: bool = typer.Option(
+        False, "--boot-only", help="Set the next boot entry only. For recovery. No file, no commit."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the target and the diff. Change nothing."),
+) -> None:
+    """Return this machine to an earlier commit, with a lasting result.
+
+    Without options: pick the newest earlier clean entry of the record with a different system path.
+    Show the diff. Restore vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix from that
+    commit. Build, commit the restore as `rollback to REV`, and activate. The command refuses
+    uncommitted changes, an unknown commit, and a commit that the repository lacks.
+    """
+
+    try:
+        run_rollback(
+            _workspace_root(root),
+            to=to,
+            generation=generation,
+            exact=exact,
+            fast=fast,
+            boot_only=boot_only,
+            dry_run=dry_run,
+            emit=_echo,
+        )
+    except RecordError as exc:
+        typer.echo(f"vendomat rollback: {exc}", err=True)
+        raise typer.Exit(code=exc.code) from exc
 
 
 def main() -> None:

@@ -1,0 +1,310 @@
+"""``vendomat apply``: a machine activates its own configuration, with no SSH (R15, ``VMT-075``).
+
+The command runs on the machine. It does the steps that devenv's deploy worker does over SSH:
+
+1. read the machine name from ``/etc/devenv/machine-facts.json`` (the catalog sets
+   ``networking.hostName`` to the machine name, R21);
+2. refuse uncommitted changes to the watched files, unless ``--dirty`` (R43);
+3. ``devenv build machines.NAME.build.nixos``;
+4. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
+5. ``sudo TOP/bin/switch-to-configuration switch``;
+6. append one line to the generation record (see ``record.py``), as root.
+
+A name that is not this machine passes through to ``devenv machines deploy NAME``. The workspace
+commit is never written into the system (``VMT-110``).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import workspace
+from .record import RECORD_PATH, Entry, RecordError, now
+
+FACTS_PATH = Path("/etc/devenv/machine-facts.json")
+PROFILE = Path("/nix/var/nix/profiles/system")
+#: The setuid sudo. The copy first on PATH may not be setuid.
+SUDO = "/run/wrappers/bin/sudo"
+#: A build can fetch a kernel. The limit stops a hung command, not a slow one.
+BUILD_TIMEOUT = 7200
+#: The public key of the machine's cache, made at first boot by the sharing module.
+CACHE_KEY_PATH = Path("/var/lib/vendomat/cache-key.pub")
+
+
+@dataclass
+class Result:
+    returncode: int
+    stdout: str = ""
+    stderr: str = ""
+
+
+#: ``run(argv, cwd=..., input=..., capture=...)``. Tests replace it with a fake.
+Runner = Callable[..., Result]
+Emit = Callable[[str], None]
+
+
+def run_command(
+    argv: Sequence[str],
+    *,
+    cwd: Path | None = None,
+    input: str | None = None,
+    capture: bool = True,
+    timeout: float | None = None,
+) -> Result:
+    """Run one command. With ``capture=False`` the command writes to the terminal."""
+
+    try:
+        proc = subprocess.run(
+            list(argv),
+            cwd=cwd,
+            input=input,
+            text=True,
+            capture_output=capture,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return Result(127, "", str(exc))
+    except subprocess.TimeoutExpired:
+        return Result(124, "", f"timed out after {timeout} s: {' '.join(argv)}")
+    return Result(proc.returncode, proc.stdout or "", proc.stderr or "")
+
+
+@dataclass
+class Applied:
+    generation: int
+    toplevel: str
+    commit: str
+    dirty: bool
+    failed_units: list[str]
+
+
+def machine_name(facts: Path | None = None) -> str:
+    """The machine name, from the facts file that devenv writes on every machine."""
+
+    facts = facts or FACTS_PATH
+    try:
+        data = json.loads(facts.read_text())
+    except FileNotFoundError as exc:
+        raise RecordError(f"no facts file at {facts}: this host is not a devenv machine", 2) from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RecordError(f"cannot read {facts}: {exc}", 2) from exc
+    name = data.get("hostname") if isinstance(data, dict) else None
+    if not isinstance(name, str) or not name:
+        raise RecordError(f"{facts} names no hostname", 2)
+    return name
+
+
+def devenv_binary() -> str:
+    """The devenv to run: ``$VENDOMAT_DEVENV``, else ``devenv`` on PATH."""
+
+    return os.environ.get("VENDOMAT_DEVENV") or "devenv"
+
+
+def deploy_argv(name: str) -> list[str]:
+    """The command for a machine that is not this one: devenv's own deploy over SSH."""
+
+    return [devenv_binary(), "machines", "deploy", name]
+
+
+def refuse_uncommitted(root: Path, *, allow: bool, emit: Emit) -> bool:
+    """Return whether the watched files are dirty. Refuse unless ``allow`` is set."""
+
+    changes = workspace.watched_changes(root)
+    if not changes:
+        return False
+    listing = "; ".join(change.text() for change in changes)
+    if not allow:
+        raise RecordError(
+            f"uncommitted changes to watched files ({listing}). Commit them, or run with --dirty to apply "
+            "them anyway. A dirty apply cannot be a rollback target."
+        )
+    emit(f"warning: applying uncommitted changes ({listing}); the record marks this generation dirty")
+    return True
+
+
+def build_toplevel(root: Path, name: str, run: Runner) -> str:
+    """Build ``machines.NAME.build.nixos`` and return the system path."""
+
+    attr = f"machines.{name}.build.nixos"
+    result = run([devenv_binary(), "build", attr], cwd=root, timeout=BUILD_TIMEOUT)
+    if result.returncode != 0:
+        tail = (result.stderr or result.stdout).strip().splitlines()[-12:]
+        raise RecordError(f"devenv build {attr} failed (exit {result.returncode}):\n" + "\n".join(tail), 2)
+    top = ""
+    try:
+        parsed = json.loads(result.stdout)
+        if isinstance(parsed, dict) and isinstance(parsed.get(attr), str):
+            top = parsed[attr]
+    except json.JSONDecodeError:
+        pass
+    if not top:
+        lines = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("/nix/store/")]
+        top = lines[-1] if lines else ""
+    if not top.startswith("/nix/store/"):
+        raise RecordError(f"devenv build {attr} printed no system path:\n{result.stdout.strip()[-400:]}", 2)
+    return top
+
+
+def profile_generation(profile: Path | None = None) -> int:
+    """The number of the generation that the profile points at."""
+
+    profile = profile or PROFILE
+    try:
+        target = os.readlink(profile)
+    except OSError as exc:
+        raise RecordError(f"cannot read the profile link {profile}: {exc}", 2) from exc
+    stem = profile.name + "-"
+    if not (target.startswith(stem) and target.endswith("-link")):
+        raise RecordError(f"{profile} points at {target}, which is not a generation link", 2)
+    number = target[len(stem) : -len("-link")]
+    if not number.isdigit():
+        raise RecordError(f"{profile} points at {target}, which is not a generation link", 2)
+    return int(number)
+
+
+def current_toplevel(profile: Path | None = None) -> str:
+    """The system path that the profile points at."""
+
+    return str((profile or PROFILE).resolve())
+
+
+def sudo(run: Runner, *argv: str, input: str | None = None) -> Result:
+    return run([SUDO, *argv], input=input, capture=False if input is None else True)
+
+
+#: switch-to-configuration exits 4 when the new system is active but some units failed to start or
+#: restart. That is a warning: the profile moved and the system runs the new configuration.
+SWITCH_UNITS_FAILED = 4
+
+
+def switch(
+    run: Runner,
+    top: str,
+    *,
+    set_profile: bool,
+    profile: Path | None = None,
+    generation: int | None = None,
+) -> int:
+    """Point the profile at ``top`` (or at a generation), then run ``switch-to-configuration switch``.
+
+    The profile moves first, as in devenv's own deploy worker, so that the boot entry the switch writes
+    is the new default. Return the exit status of the switch: 0, or 4 for "active, but some units failed".
+    """
+
+    profile = profile or PROFILE
+    if set_profile:
+        step = sudo(run, "nix-env", "--profile", str(profile), "--set", top)
+        label = f"nix-env --set {top}"
+    else:
+        step = sudo(run, "nix-env", "--profile", str(profile), "--switch-generation", str(generation))
+        label = f"nix-env --switch-generation {generation}"
+    if step.returncode != 0:
+        raise RecordError(f"{label} failed (exit {step.returncode}); the running system did not change", 2)
+    activated = sudo(run, f"{top}/bin/switch-to-configuration", "switch")
+    if activated.returncode not in (0, SWITCH_UNITS_FAILED):
+        raise RecordError(
+            f"switch-to-configuration failed (exit {activated.returncode}). The profile already points at the new "
+            "generation. Run `vendomat rollback --fast` to return, or fix the fault and run apply again. "
+            "No record line was written.",
+            2,
+        )
+    return activated.returncode
+
+
+def append_record(run: Runner, entry: Entry, path: Path | None = None) -> None:
+    """Append one line to the record, as root. Create the directory when it is missing."""
+
+    path = path or RECORD_PATH
+    made = sudo(run, "install", "-d", "-m", "755", str(path.parent))
+    if made.returncode != 0:
+        raise RecordError(f"cannot create {path.parent} (exit {made.returncode})", 2)
+    wrote = run([SUDO, "tee", "-a", str(path)], input=entry.line() + "\n", capture=True)
+    if wrote.returncode != 0:
+        raise RecordError(f"cannot append to {path} (exit {wrote.returncode}): {wrote.stderr.strip()}", 2)
+
+
+def failed_units(run: Runner) -> list[str]:
+    """The units that ``systemctl --failed`` lists."""
+
+    result = run(["systemctl", "--failed", "--no-legend", "--plain"])
+    return [line.split()[0] for line in result.stdout.splitlines() if line.strip()]
+
+
+def activate(
+    run: Runner,
+    top: str,
+    commit: str,
+    dirty: bool,
+    emit: Emit,
+    *,
+    profile: Path | None = None,
+    record: Path | None = None,
+    generation: int | None = None,
+) -> Applied:
+    """Switch to ``top`` and write the record line. With ``generation``, move to that existing generation."""
+
+    status = switch(run, top, set_profile=generation is None, profile=profile, generation=generation)
+    if status == SWITCH_UNITS_FAILED:
+        emit("warning: switch-to-configuration exited 4: the new system is active, but some units failed")
+    number = profile_generation(profile)
+    append_record(run, Entry(number, top, commit, dirty, now()), record)
+    failed = failed_units(run)
+    emit(f"generation {number} is active: {top}")
+    emit(f"commit {commit[:12]}{' (uncommitted changes applied)' if dirty else ''}")
+    emit("failed units: " + (", ".join(failed) if failed else "none"))
+    return Applied(number, top, commit, dirty, failed)
+
+
+def publish_cache_key(root: Path, name: str, emit: Emit, source: Path | None = None) -> bool:
+    """Copy the machine's public cache key to ``.machines/NAME/cache-key.pub`` in the workspace.
+
+    The other machines read that committed file to trust this machine's cache. Copy it only when the
+    file is missing or differs, and tell the user to commit it. Never commit it. A machine with no
+    key (``serve: false``) has no source file, and nothing happens. Return whether the file changed.
+    """
+
+    source = source or CACHE_KEY_PATH
+    try:
+        key = source.read_text()
+    except OSError:
+        return False
+    target = root / ".machines" / name / "cache-key.pub"
+    try:
+        if target.read_text() == key:
+            return False
+    except OSError:
+        pass
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(key)
+    emit(f"wrote .machines/{name}/cache-key.pub; commit it so that your other machines trust this one")
+    return True
+
+
+def apply(
+    root: Path,
+    *,
+    dirty_ok: bool = False,
+    run: Runner = run_command,
+    emit: Emit = print,
+    facts: Path | None = None,
+    profile: Path | None = None,
+    record: Path | None = None,
+    cache_key: Path | None = None,
+) -> Applied:
+    """Activate this machine's configuration from the workspace at ``root``."""
+
+    name = machine_name(facts)
+    dirty = refuse_uncommitted(root, allow=dirty_ok, emit=emit)
+    commit = workspace.head(root)
+    emit(f"machine {name}: building machines.{name}.build.nixos")
+    top = build_toplevel(root, name, run)
+    emit(f"built {top}")
+    applied = activate(run, top, commit, dirty, emit, profile=profile, record=record)
+    publish_cache_key(root, name, emit, cache_key)
+    return applied

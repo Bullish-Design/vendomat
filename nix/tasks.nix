@@ -136,6 +136,24 @@ in
     '';
   };
 
+  # Opt-in VM proof of `vendomat apply` and `vendomat rollback` (project 24, S4; R15, R30, R43).
+  # It builds one NixOS machine through devenv Machines (stock devenv 2.4.0 on PATH and the S1 module
+  # tree), boots it from an EFI image under /mnt/shared/vendomat-p21/s4, and runs the real commands in
+  # it. It needs /dev/kvm. QEMU and OVMF come from the pinned nixpkgs. It deletes the image at the end.
+  # Run `testee verify opt:machines-vm`. The `devenv` input is the one that flake.lock pins (the
+  # published S1 tag), read from the local collection. Set VENDOMAT_MACHINES_VM_DEVENV to use another
+  # src/modules directory. The raw logs go under ~/.local/state/vendomat/p21/<date>/s4/machines-vm/.
+  tasks."opt:machines-vm" = optIn {
+    timeout_s = 5400;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_MACHINES_VM=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_MACHINES_VM_LOGS="$HOME/.local/state/vendomat/p21/$(date -u +%F)/s4/machines-vm/run-$(date -u +%H%M%SZ)"
+      ${venvBin}/python -m pytest -q -s tests/test_machines_vm.py --junitxml="$out/machines-vm.junit.xml"
+    '';
+  };
+
   # Opt-in real devenv task for the hatch line, `vendomat explain`, the trimmed error, and `vendomat update`
   # (project 24, S3 part 2). It runs stock devenv from PATH on a workspace that imports the catalog of this
   # repository and the module source of the `devenv` input. The input is the one that flake.lock

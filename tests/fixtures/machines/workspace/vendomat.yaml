@@ -1,0 +1,3 @@
+# Fixture stand-in. The machine config of this fixture lives in the hatch file devenv.nix.
+machines:
+  box: {}

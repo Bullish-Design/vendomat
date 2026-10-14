@@ -11,6 +11,7 @@
 #                  the Vendomat commands that read a vendomat.yaml workspace (R25, R27). They run
 #                  the host release, which calls the pinned devenv fork. `update` adds the missing
 #                  template lines to devenv.yaml, then runs `devenv update`.
+#   apply, rollback  activate or roll back this machine: the host release runs them (R15, R30)
 #   sync, path, check, push, bump, machine, --version, --help
 #                  the current Vendomat commands, kept until the release (DOOR-063)
 #   anything else  pass to the pinned devenv fork with `exec`, so the exit status, the signals,
@@ -159,6 +160,7 @@ case "${1:-}" in
   "") check_workspace; use_fork shell ;;
   new) shift; new_workspace "$@" ;;
   update | explain) use_host_with_fork "$@" ;;
+  apply | rollback) use_host "$@" ;; # they act on this machine, and need no pinned build or shell
   sync | path | check | push | bump | machine | --version | --help) ;; # the current commands, below
   *) use_fork "$@" ;;
 esac

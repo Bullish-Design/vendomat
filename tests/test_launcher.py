@@ -320,6 +320,21 @@ def test_the_current_commands_keep_their_old_path(env, tmp_path):
     assert env.run(elsewhere, "machine", "install", "h").stdout.strip() == "HOST machine install h"
 
 
+@pytest.mark.parametrize("argv", [("apply",), ("apply", "--dirty"), ("rollback",), ("rollback", "--fast")])
+def test_apply_and_rollback_always_run_the_host_release(env, tmp_path, argv):
+    # They act on this machine. They need neither a pinned build nor the workspace shell (R15, R30).
+    elsewhere = tmp_path / "machine"
+    elsewhere.mkdir()
+    assert env.run(elsewhere, *argv).stdout.strip() == "HOST " + " ".join(argv)
+    # A workspace of the old flow does not send them to the shell either.
+    env.source("aa")
+    root = env.workspace("a", "aa")
+    done = env.run(root, *argv)
+    assert done.stdout.strip() == "HOST " + " ".join(argv)
+    assert done.returncode == 0 and "runs in the workspace shell" not in done.stderr
+    assert env.builds() == []
+
+
 TEMPLATE_FILES = {"vendomat.yaml", "devenv.yaml", "devenv.nix", ".gitignore", "sub/file"}
 
 

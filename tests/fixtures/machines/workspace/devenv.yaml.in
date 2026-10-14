@@ -1,0 +1,14 @@
+# The test machine has no network. Each input is a path in the Nix store, filled in by the harness
+# from the pins of tools.nix: nixpkgs (the pin of Vendomat's flake.lock), disko, and nixos-facter-modules.
+inputs:
+  devenv:
+    url: path:@DEVENV@
+  nixpkgs:
+    url: path:@NIXPKGS@
+  disko:
+    url: path:@DISKO@
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  nixos-facter-modules:
+    url: path:@FACTER@

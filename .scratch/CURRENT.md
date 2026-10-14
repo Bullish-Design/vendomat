@@ -49,8 +49,8 @@ Each kickoff lists the files its session owns.
 except step 14, the release, which is an owner gate: nobody tagged Vendomat or moved `release`. The
 catalog wiring of the sharing module landed in `79e46310ef30` (proved at evaluation level). The fixtures ran on a scratch S1
 tree, not on a published tag. Evidence:
-[S3-CATALOG](projects/21-vendomat-basix-split/evidence/S3-CATALOG.md). Next: S4 (`vendomat apply` and
-`vendomat rollback`), then the release gate. The opt-in checks are `opt:NAME` tasks in `nix/tasks.nix`.
+[S3-CATALOG](projects/21-vendomat-basix-split/evidence/S3-CATALOG.md). S4 (`vendomat apply` and `vendomat rollback`) is done and proved in a VM
+([S4-APPLY-ROLLBACK](projects/21-vendomat-basix-split/evidence/S4-APPLY-ROLLBACK.md)). Next: the release gate. The opt-in checks are `opt:NAME` tasks in `nix/tasks.nix`.
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
