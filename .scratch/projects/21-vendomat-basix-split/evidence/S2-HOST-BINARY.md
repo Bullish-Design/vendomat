@@ -186,8 +186,17 @@ Adding these run IDs to this file changed the tree again. A last `verify --profi
 
 ## Host switch (owner gate)
 
-The owner approved the switch on 2026-10-14 (R48). Not applied yet: the switch needs the owner's
-password.
+The owner approved the switch on 2026-10-14 (R48) and ran it the same day. The owner reported
+"Rebuilt". Observed after the switch:
+
+- `/run/current-system` is `/nix/store/mqsc6x484fbvj2dmk6nmhsspnpvnrjwa-nixos-system-server-26.11.20260705.d407951`,
+  the path built below. The previous generation is `wgnhiw8d…`.
+- `/etc/profiles/per-user/andrew/bin/devenv` resolves to
+  `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0/bin/devenv`; `devenv version` prints
+  `devenv 2.4.0 (x86_64-linux)` (the old build printed `2.4.0+b904dcb`).
+- `systemctl --failed` lists no unit.
+- A process that started before the switch keeps the old store path `axhrys71…-devenv-wrapped-2.4.0`
+  on its inherited `PATH`. A new login shell gets the profile path.
 
 - Change: nix-meta `main` `cf8ef3cc` (pushed). New input `vendomat-host`
   (`git+file:///home/andrew/Documents/Projects/vendomat?rev=465ce48f…`). `profiles/developer.nix`
