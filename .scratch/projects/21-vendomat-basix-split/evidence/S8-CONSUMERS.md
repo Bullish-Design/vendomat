@@ -112,3 +112,22 @@ The `secrets/` directory was never read.
 3. Owner: a catalog key (or another route) for the settings of authored modules, for the demo.
 4. S8 step 2 (nix-meta's old module import, project 22) and step 3 (remove the TOML flow here)
    stay open. Step 3 must wait for nix-systems: it still uses `vendomat.toml`.
+
+## R60 follow-up: the demo settings in `vendomat.yaml` (2026-10-15)
+
+Open item 3 is answered by R60 (`VMT-183`, [R60-SETTINGS](R60-SETTINGS.md)). The demo change is prepared and
+**not landed**, because the released `v0.9.0` has no `settings` key.
+
+- Workspace: `/home/andrew/Documents/Projects/vendomat-demo/.gitman/workspaces/move-settings-to-yaml`
+  (change "Move module settings to vendomat.yaml (needs a Vendomat release with R60)", parent demo `main`
+  `01e6d409`). It moves both settings to `vendomat.yaml`, empties `devenv.nix`, and edits `scripts/smoke`.
+- The proof used an untracked `devenv.local.yaml` that sets the `vendomat` input to
+  `git+file:///home/andrew/Documents/Projects/vendomat?ref=main&rev=aa5919517e2bd638af29dd4728df17287fe79132`
+  (Vendomat `main` after R60). The tracked `devenv.lock` is unchanged. The local file is in the demo
+  repository's `.git/info/exclude`.
+- `scripts/smoke`: exit 0, `PASS`, log `~/.local/state/vendomat-demo/runs/20261015T151615Z/smoke.log`.
+  `vendomat explain` in the smoke copy lists both keys with their options and "Set only in Nix: (none)".
+- With the released `v0.9.0` the same files fail: `vendomat.yaml:22:1: settings: unknown key (known: env,
+  languages, machines, programs, services)`.
+- To land it: after the owner releases a Vendomat with R60, run `devenv update vendomat` in the workspace,
+  delete `devenv.local.yaml`, run `scripts/smoke`, and land the change.
