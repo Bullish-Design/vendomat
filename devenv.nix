@@ -53,7 +53,7 @@
 
   enterShell = ''
     # Only announce in an interactive terminal; stay silent when a command captures stdout
-    # (e.g. an agent running `devenv shell -- vendomat path <name>`).
+    # (e.g. an agent running `devenv shell -- vendomat explain --json`).
     if [ -t 1 ]; then
       echo "vendomat devenv"
       python --version

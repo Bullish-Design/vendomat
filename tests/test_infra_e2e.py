@@ -1,4 +1,4 @@
-"""Source, cache, and builder infrastructure in NixOS VMs (V6 Step 5). Opt in with `testee verify e2e`.
+"""Source, cache, and builder infrastructure in NixOS VMs (V6 Step 5). Opt in with `testee verify opt:infra-vm`.
 
 Each test builds the Vendomat package from this repository, then runs one NixOS VM test under
 `tests/nix/infra/`. The VM tests make every key and token inside the VM. The checks here read the
@@ -117,8 +117,8 @@ def test_the_collection_serves_immutable_tags_and_a_release_branch_in_every_repo
         "RESULT unmarked repository not served; push over git:// fails from both VMs",
         "RESULT nix fetch over git:// on framework: lib-a-1.0.1",
         "RESULT nix fetch over git:// on server: lib-a-1.0.1",
-        "RESULT mirror: skipped without --collection; copied with it; no marker; not served",
         "RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original",
+        "RESULT collection hooks: lib-b tree shows v1.0.1 after one push; hook reinstalled with --hooks",
         "RESULT other repositories accept refs/heads/release; rewind refused",
         "RESULT idle cpu ns in 15 s: ",
     )

@@ -88,38 +88,18 @@ in
     '';
   };
 
-  # Opt-in end-to-end task. It builds real consumer shells with Nix.
-  # Run it with `testee verify opt:e2e`. It runs three NixOS VM builds.
-  # Each child build may need 3,000 seconds.
-  tasks."opt:e2e" = optIn {
+  # Opt-in infrastructure VM tasks (collection, cache, and build-host NixOS tests, and the two-machine
+  # collection fixture). They run the Vendomat package from this tree in disposable VMs. Run
+  # `testee verify opt:infra-vm`. Each child build may need 3,000 seconds.
+  tasks."opt:infra-vm" = optIn {
     timeout_s = 10800;
     script = ''
       ${hostEnv}
       export VENDOMAT_E2E=1
       export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
-      # The sync fixture runs a real devenv. Use the host's, which is the pinned release build.
-      export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
-      # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
-      # The default is the live devenv environment. The old .venv is stale.
-      export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.devenv/state/venv/bin/templateer}"
-      # Keep every fixture command, exit status, and output outside the repository.
-      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p20/$(date -u +%Y%m%dT%H%M%SZ)/slice-1/F-infra}"
-      ${venvBin}/python -m pytest -q tests --junitxml="$out/e2e.junit.xml"
-    '';
-  };
-
-  tasks."opt:workspace-e2e" = optIn {
-    timeout_s = 900;
-    script = ''
-      ${hostEnv}
-      export VENDOMAT_E2E=1
-      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
-      export VENDOMAT_DEVENV="''${VENDOMAT_DEVENV:-$(command -v devenv || true)}"
-      # The workspace runs in Testee's own directory, so the sibling Templateer checkout is out of reach.
-      # The default is the live devenv environment. The old .venv is stale.
-      export VENDOMAT_TEMPLATEER="''${VENDOMAT_TEMPLATEER:-$HOME/Documents/Projects/templateer_v2/.devenv/state/venv/bin/templateer}"
-      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/v6/fixture-logs/$(date -u +%Y%m%dT%H%M%SZ)}"
-      ${venvBin}/python -m pytest -q tests/test_workspace_user_e2e.py --junitxml="$out/workspace-e2e.junit.xml"
+      # Keep every VM log outside the repository.
+      export VENDOMAT_FIXTURE_LOGS="''${VENDOMAT_FIXTURE_LOGS:-$HOME/.local/state/vendomat/p21/$(date -u +%F)/s8/infra-vm/$(date -u +%Y%m%dT%H%M%SZ)}"
+      ${venvBin}/python -m pytest -q tests/test_infra_e2e.py tests/test_collection_vm.py --junitxml="$out/infra-vm.junit.xml"
     '';
   };
 

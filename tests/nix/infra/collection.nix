@@ -205,67 +205,13 @@ pkgs.testers.runNixOSTest {
         assert "git://server/lib-a" in lock and "refs/tags/v1.0.1" in lock, lock
         print("RESULT nix fetch over git:// on " + machine.name + ": " + marker)
 
-    # ---- STORE-009, STORE-016 to STORE-019: keep on framework ----
-    def project(machine, home, entries):
-        write(machine, home + "/proj/vendomat.toml", '[forge]\nurl = "git://server"\n\n[inputs]\n' + entries)
-        write(machine, home + "/proj/flake-outputs.nix", "inputs: { lib.src = inputs.lib-a.outPath; }")
-        machine.succeed("cd " + home + "/proj && git init -q 2>/dev/null; git -C " + home + "/proj add -A")
-
-    project(framework, "/root", 'lib-a = { ref = "refs/tags/v1.0.0", keep = true }\n')
-    env = "VENDOMAT_SOURCE_ROOT=/root/clones "
-    out = framework.succeed("cd /root/proj && " + env + "vendomat sync --root . 2>&1")
-    assert "lib-a: cloned" in out, out
-    assert framework.succeed("git -C /root/clones/lib-a describe --tags --exact-match HEAD").strip() == "v1.0.0"
-    framework.fail("git -C /root/clones/lib-a symbolic-ref -q HEAD")
-    out = framework.succeed("cd /root/proj && " + env + "vendomat sync --root . 2>&1")
-    assert "lib-a: unchanged" in out, out
-    framework.succeed("sed -i s/v1.0.0/v1.0.1/ /root/proj/vendomat.toml")
-    out = framework.succeed("cd /root/proj && " + env + "vendomat sync --root . 2>&1")
-    assert framework.succeed("git -C /root/clones/lib-a describe --tags --exact-match HEAD").strip() == "v1.0.1"
-    framework.succeed("echo x >> /root/clones/lib-a/flake.nix")
-    status, out = framework.execute("cd /root/proj && " + env + "vendomat sync --root . 2>&1")
-    assert status == 1 and "uncommitted changes" in out, (status, out)
-    framework.succeed("git -C /root/clones/lib-a checkout -- flake.nix")
-    # STORE-010: a keep clone is a cache. Delete it and sync restores it.
-    framework.succeed("rm -rf /root/clones/lib-a")
-    out = framework.succeed("cd /root/proj && " + env + "vendomat sync --root . 2>&1")
-    assert "lib-a: cloned" in out, out
-    assert framework.succeed("git -C /root/clones/lib-a describe --tags --exact-match HEAD").strip() == "v1.0.1"
-    print("RESULT keep: cloned at tag, unchanged on rerun, moved to v1.0.1, dirty tree refused (exit 1), restored after delete")
-
-    # ---- STORE-018: mirror acts only with --collection and gets no marker and no hook ----
-    andrew(
-        "rm -rf /tmp/tw && git init -q -b main /tmp/tw && cd /tmp/tw"
-        " && git config user.name t && git config user.email t@example.invalid"
-        " && echo third > README && git add README && git commit -qm c && git tag -a v0.1.8 -m v0.1.8"
-        " && git init -q --bare -b main /srv/upstream/third.git && git push -q /srv/upstream/third.git v0.1.8 main"
-    )
-    write(server, "/home/andrew/proj/vendomat.toml",
-          '[inputs]\nthird = { url = "git+file:///srv/upstream/third.git", ref = "refs/tags/v0.1.8", mirror = true }\n')
-    write(server, "/home/andrew/proj/flake-outputs.nix", "inputs: { lib.src = inputs.third.outPath; }")
-    server.succeed("chown -R andrew:users /home/andrew/proj")
-    andrew("cd ~/proj && git init -q && git add -A")
-    senv = "VENDOMAT_SOURCE_ROOT=/home/andrew/vendor "
-    out = andrew("cd ~/proj && " + senv + "vendomat sync --root . 2>&1")
-    assert "mirror skipped: not the collection host" in out, out
-    andrew("test ! -e ~/vendor/third")
-    out = andrew("cd ~/proj && " + senv + "vendomat sync --root . --collection 2>&1")
-    print("RESULT sync --collection output:\n" + out)
-    assert andrew("git -C ~/vendor/third describe --tags --exact-match HEAD").strip() == "v0.1.8"
-    andrew("test ! -e ~/vendor/third/.git/git-daemon-export-ok && test ! -e ~/vendor/third/.git/hooks/pre-receive")
-    framework.fail("git ls-remote git://server/third")
-    print("RESULT mirror: skipped without --collection; copied with it; no marker; not served")
-
-    # ---- STORE-022: sync --collection checks out the newest tag where no hook ran ----
-    andrew("rm ~/vendor/lib-b/.git/hooks/post-receive")
+    # ---- STORE-023: --hooks reinstalls a removed hook (S8 removed `sync --collection`, the old refresh) ----
     framework.succeed("cd /root/lib-a && " + SSH + "git push " + DEST + "lib-b v0.9.0 v1.0.0 v1.0.1 2>&1")
-    assert andrew("ls ~/vendor/lib-b | wc -l").strip() == "0"
-    out = andrew("cd ~/proj && " + senv + "vendomat sync --root . --collection 2>&1")
-    assert "lib-b" in out, out
     assert andrew("git -C ~/vendor/lib-b describe --tags --exact-match HEAD").strip() == "v1.0.1"
+    andrew("rm ~/vendor/lib-b/.git/hooks/post-receive")
     andrew(COL + "collection-add --hooks lib-b")
     andrew("cmp ${repoHook} ~/vendor/lib-b/.git/hooks/post-receive")
-    print("RESULT collection refresh: lib-b tree filled by sync --collection; hook reinstalled with --hooks")
+    print("RESULT collection hooks: lib-b tree shows v1.0.1 after one push; hook reinstalled with --hooks")
 
     # ---- STORE-010: delete a disposable copy, push the release tags again, compare ----
     def listing(root, repo):
@@ -281,7 +227,7 @@ pkgs.testers.runNixOSTest {
     andrew("rm -rf ~/vendor-copy && cp -a ~/vendor ~/vendor-copy")
     copied = {repo: listing("~/vendor-copy", repo) for repo in ("lib-a", "lib-b")}
     assert copied == original, "the copy must equal the original before the deletion"
-    andrew("rm -rf ~/vendor-copy/lib-a ~/vendor-copy/lib-b ~/vendor-copy/third")
+    andrew("rm -rf ~/vendor-copy/lib-a ~/vendor-copy/lib-b")
     andrew("VENDOMAT_COLLECTION=/home/andrew/vendor-copy collection-add lib-a")
     andrew("VENDOMAT_COLLECTION=/home/andrew/vendor-copy collection-add lib-b")
     for repo in ("lib-a", "lib-b"):
@@ -294,10 +240,7 @@ pkgs.testers.runNixOSTest {
         print("RESULT STORE-010 original " + repo + ":\n" + original[repo])
         print("RESULT STORE-010 rebuilt " + repo + ":\n" + rebuilt[repo])
     assert rebuilt == original, "the rebuilt collection must equal the original"
-    # A mirror is a cache too: delete the copy and sync restores it.
-    out = andrew("cd ~/proj && VENDOMAT_SOURCE_ROOT=/home/andrew/vendor-copy vendomat sync --root . --collection 2>&1")
-    assert andrew("git -C ~/vendor-copy/third describe --tags --exact-match HEAD").strip() == "v0.1.8"
-    print("RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original; mirror restored by sync")
+    print("RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original")
 
     # ---- R37: every repository accepts a release branch, fast-forward only ----
     # This runs after the STORE-010 comparison, which expects tags and no branches.

@@ -33,12 +33,10 @@
             dependencies = [ pkgs.python313.pkgs.typer ];
             # Tests run through Testee in the devenv shell, not at build time.
             doCheck = false;
-            # The direnv function `use_vendomat` ships with the command (PRE-009).
+            # The workspace template ships with the command; `vendomat new` copies it.
             postInstall = ''
-              install -Dm644 direnv/vendomat.sh $out/share/vendomat/direnv/vendomat.sh
               mkdir -p $out/share/vendomat/templates
-              cp -r templates/workspace templates/workspace-v6 templates/workspace-registry $out/share/vendomat/templates/
-              install -Dm755 templates/workspace-v6/init $out/bin/vendomat-workspace-init
+              cp -r templates/workspace $out/share/vendomat/templates/
             '';
             meta.mainProgram = "vendomat";
           };
@@ -62,9 +60,6 @@
         { inherit vendomat mkLauncher; });
     in
     {
-      # The devenv module (DEL-019). A workspace imports `inputs.vendomat.devenvModules.default`.
-      devenvModules.default = import ./nix/devenv-module self;
-
       # The overlay that patches `pkgs.devenv`. A host that wants the same binary applies it.
       overlays.devenv = devenvOverlay;
 

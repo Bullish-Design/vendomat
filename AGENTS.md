@@ -21,18 +21,17 @@ select dependencies. NixOS and Home Manager own activation. Harmonia serves buil
 
 ```bash
 testee verify
-testee verify opt:e2e
+testee verify opt:infra-vm
 ```
 
 Run the first command from the repository root as the normal gate. Add named tasks (for example
-`testee verify opt:e2e`) when a change affects the Nix module, toolchain, or consumer
-integration. A pull request needs a green `testee verify` (or `testee status -r REV` for the exact
-revision). The end-to-end task stays opt-in because it builds a real consumer shell.
+`testee verify opt:infra-vm`) when a change affects the hooks, the collection, or the cache VMs. A pull request needs a green `testee verify` (or `testee status -r REV` for the exact
+revision). The VM tasks stay opt-in because they boot NixOS machines.
 
 Testee 0.8 runs devenv tasks. The project defines them in `nix/tasks.nix`. The required tasks are
 `check:lint`, `check:format`, `check:types`, and `test:full`. `test:quick` is "n/a" (no quick
 subset). During an edit, run `testee verify --profile quick` for `check:lint` and `check:format`
-only. The opt-in tasks (`opt:e2e`, `opt:workspace-e2e`, `opt:front-door-e2e`, `opt:catalog-eval`,
+only. The opt-in tasks (`opt:infra-vm`, `opt:front-door-e2e`, `opt:catalog-eval`,
 `opt:catalog-devenv`, `opt:catalog-e2e`, `opt:parser-fuzz`, `opt:modules-e2e`, `opt:modules-vm`,
 `opt:binary-e2e`, `opt:sharing-vm`, `opt:live-cache`, `opt:live-cache-load`) never count for green. Each carries its own
 time limit in `input.testee.timeout_s`.
@@ -73,21 +72,21 @@ Use Gitman for every version-control action. Do not run raw `git` or `jj`.
 - `.scratch/CURRENT.md`: the active project and its authority documents.
 - `.scratch/projects/`: numbered project directories. Older numbers are closed history.
 - `flake.nix`: two inputs (`nixpkgs`, and `devenv`, the module-only fork tag `v2.4.0-vendomat-modules.1`).
-  Outputs: `packages.<system>.{vendomat,launcher,devenv}`, `overlays.devenv`,
-  `devenvModules.default`, and `lib.<system>.mkLauncher`.
+  Outputs: `packages.<system>.{vendomat,launcher,devenv}`, `overlays.devenv`, and
+  `lib.<system>.mkLauncher`.
 - `devenv/`: the catalog that a workspace imports as `vendomat/devenv`. `parse.nix` is the
   `vendomat.yaml` parser (plain Nix, builtins only). `devenv.nix` is the catalog. `hatch.nix` counts
   the settings of `devenv.nix` and `devenv.local.nix` for the `advanced:` line. `explain.nix` builds
   the data of `vendomat explain`. `sharing.nix` is the Harmonia module of a machine.
-- `templates/workspace/`: the `vendomat.yaml` workspace template. `workspace-v6/` and
-  `workspace-registry/` serve the older flow, which stays until S8.
+- `templates/workspace/`: the `vendomat.yaml` workspace template.
 - `launcher/vendomat`: the host launcher. It enters the shell, trims errors, and dispatches
-  `new`, `update`, `explain`, and the older verbs.
-- `src/vendomat/`: the Python command line, `cli.py`, with `explain.py`, `update.py`, `errortrim.py`, and
-  the older modules (`registry.py`, `generate.py`, `store.py`, `locate.py`, and others).
-- `nix/`: `tasks.nix` (the Testee tasks) and `devenv-module/`.
+  `new`, `update`, `explain`, `apply`, `rollback`, and `push`.
+- `src/vendomat/`: the Python command line, `cli.py`, with `explain.py`, `update.py`, `errortrim.py`,
+  `apply.py`, `rollback.py`, `record.py`, `workspace.py`, `yamlsubset.py`, `defaults.py`, and `push.py`
+  (kept until `VMT-120` passes).
+- `nix/`: `tasks.nix` (the Testee tasks) and `devenv-overlay.nix`.
 - `devenv-dist/`: the recipe of the module-only fork (`modules/`, `--series modules`; the older binary fork was retired in S6) and the two patches of the host binary (`binary/patches/`, built by `nix/devenv-overlay.nix`).
-- `hooks/`: the collection `post-receive` and `pre-receive` hooks. `direnv/`: the direnv function.
+- `hooks/`: the collection `post-receive` and `pre-receive` hooks.
 - `tests/`: Python checks, Nix checks, and fixtures (`fixtures/yaml/` is the parser corpus;
   `tools/` holds the corpus generators).
 

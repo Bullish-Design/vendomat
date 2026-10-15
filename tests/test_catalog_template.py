@@ -81,13 +81,3 @@ def test_the_module_maps_no_home_key_and_builds_no_extension_point():
     text = (MODULE / "devenv.nix").read_text()
     assert re.search(r"^\s*home(-manager)?\s*=", text, re.M) is None
     assert "options.vendomat.catalog" not in text and "extensions" not in text
-
-
-def test_the_old_template_files_moved_to_workspace_v6():
-    old = ROOT / "templates" / "workspace-v6"
-    assert {p.name for p in old.iterdir()} == {"devenv.nix", "devenv.yaml", "init"}
-    init = (old / "init").read_text()
-    assert "$templates/workspace-v6/devenv.nix" in init
-    assert "$templates/workspace/" not in init
-    flake = (ROOT / "flake.nix").read_text()
-    assert "templates/workspace-v6/init" in flake

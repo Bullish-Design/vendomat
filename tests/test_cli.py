@@ -10,7 +10,7 @@ from vendomat.cli import app
 runner = CliRunner()
 
 #: The commands `CLI-001` allows. A command appears here only when it is built.
-BUILT = {"sync", "path", "check", "push", "bump", "machine", "explain", "update", "apply", "rollback"}
+BUILT = {"push", "explain", "update", "apply", "rollback"}
 
 
 def test_help_exits_zero():
@@ -31,15 +31,3 @@ def test_the_surface_is_the_built_v5_commands_and_nothing_else():
 
 def test_an_unknown_command_is_invalid_usage():
     assert runner.invoke(app, ["plane", "show"]).exit_code == 2
-
-
-def test_sync_without_a_registry_names_the_file_and_exits_two(tmp_path):
-    result = runner.invoke(app, ["sync", "--root", str(tmp_path)])
-    assert result.exit_code == 2
-    assert "vendomat.toml" in result.output
-
-
-def test_path_without_a_flake_asks_for_sync(tmp_path):
-    result = runner.invoke(app, ["path", "lib-a", "--root", str(tmp_path)])
-    assert result.exit_code == 2
-    assert "vendomat sync" in result.output

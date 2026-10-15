@@ -4,9 +4,8 @@ Vendomat composes one owner's development workspaces and NixOS machines from nat
 NixOS, and Home Manager modules. Release `0.9.0` adds the machine key `trustedInterfaces`, an empty
 machine entry in `vendomat.yaml`, machine `programs`, the `release` branch in the collection hook, and
 the Basix contracts. It retires the old binary fork. Release `0.8.0` added the `vendomat.yaml` catalog.
-The design is
-project 21 (`.scratch/projects/21-vendomat-basix-split/`). The older V6 flow stays until the owner
-accepts the new one.
+The design and the implementation contract is
+project 21 (`.scratch/projects/21-vendomat-basix-split/`). The `vendomat.toml` flow is gone (S8).
 
 ## Workspaces
 
@@ -51,23 +50,19 @@ vendomat update         # add the lines a newer template needs, then run devenv 
   can add more. `serve: false` opens nothing, even with a list.
   With `networking.firewall.enable = false` the port is open on every interface, and the module warns.
 
-## The older flow
+## Removed: the `vendomat.toml` flow
 
-The `vendomat.toml` flow (V6) still works until the consumers move: `vendomat sync` writes `.vendomat/`
-and asks devenv to update `devenv.lock`. The flake target writes `flake.nix` for a project that
-publishes its own flake outputs. Vendomat also provides `check`, `path`, `push`, `bump`, and a guarded
-fresh-machine install command. NixOS and Home Manager own machine activation. The source collection
-holds tagged source.
-
-The package includes `vendomat-workspace-init`. It needs Templateer on `PATH` and a JSON model
-with `forge_url`, `vendomat_tag`, and optional `devenv_tag`.
+S8 step 3 removed the `vendomat.toml` flow: the commands `sync`, `path`, `check`, `bump`, and
+`machine`, the `.vendomat/` fragment, the V6 devenv module, and `vendomat-workspace-init`. Both
+consumers use `vendomat.yaml`. `vendomat push` stays until a two-machine Harmonia check passes on real
+machines (`VMT-120`, `VMT-127`). The source collection holds tagged source (`hooks/`).
 
 ## Verify
 
 Run `testee verify` from the repository root. Testee runs the devenv tasks of `nix/tasks.nix` on the
 commit in its own workspace. Run the opt-in tasks after a change to the area they cover:
 `testee verify opt:catalog-e2e`, `opt:parser-fuzz`, `opt:front-door-e2e`, `opt:sharing-vm` (three VMs),
-or `opt:e2e`.
+or `opt:infra-vm` (collection, cache, and build-host VMs).
 
 Read `.scratch/CURRENT.md` for the current authority and open gates. The evidence for the catalog
 slice is `.scratch/projects/21-vendomat-basix-split/evidence/S3-CATALOG.md`.

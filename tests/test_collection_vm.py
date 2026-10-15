@@ -4,8 +4,8 @@ A disposable NixOS test boots a `server` with the git-daemon settings from nix-m
 The client pushes a release tag over SSH, is refused a branch push and a moved tag, and then fetches
 the tag with Nix over the virtual network. The server's idle daemon must use no CPU. This needs
 /dev/kvm and a Nix with the `nixos-test` system feature. It does not touch the real `server`.
-`tests/nix/infra/collection.nix` (run by `test_infra_e2e.py`) is the V6 superset: hooks, `keep`,
-`mirror`, and `STORE-010`. The pin here is the V6 release nixpkgs.
+`tests/nix/infra/collection.nix` (run by `test_infra_e2e.py`) is the V6 superset: hooks, the release branch,
+and `STORE-010`. The pin here is the V6 release nixpkgs.
 """
 
 from __future__ import annotations

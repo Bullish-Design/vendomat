@@ -12,8 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from vendomat.store import refresh_collection
-
 HOOK = Path(__file__).resolve().parent.parent / "hooks" / "collection-post-receive"
 PRE_RECEIVE = Path(__file__).resolve().parent.parent / "hooks" / "collection-pre-receive"
 
@@ -210,17 +208,18 @@ def test_every_other_branch_is_still_refused(collection: Path, author: Path):
         assert "only release tags are accepted" in done.stderr
 
 
-def test_the_hook_leaves_tags_alone_and_agrees_with_the_sync_refresh(collection: Path, author: Path):
+def test_the_hook_picks_the_newest_tag_by_version_and_leaves_tags_alone(collection: Path, author: Path):
     release(author, "v0.10.0")
     release(author, "v0.9.0")
-    push(author, collection, "refs/tags/v0.9.0", "refs/tags/v0.10.0")
-    tags_before = git(collection, "for-each-ref", "refs/tags").stdout
 
-    [outcome] = refresh_collection(collection.parent)
+    done = push(author, collection, "refs/tags/v0.9.0", "refs/tags/v0.10.0")
 
-    assert outcome.status == "unchanged"
+    assert done.returncode == 0, done.stderr
     assert head_tag(collection) == "v0.10.0"
-    assert git(collection, "for-each-ref", "refs/tags").stdout == tags_before
+    assert git(collection, "for-each-ref", "--format=%(refname)", "refs/tags").stdout.split() == [
+        "refs/tags/v0.10.0",
+        "refs/tags/v0.9.0",
+    ]
 
 
 def test_a_bare_repository_is_ignored(tmp_path: Path, author: Path):

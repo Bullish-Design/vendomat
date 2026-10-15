@@ -1,10 +1,7 @@
 """Isolate the suite from the shell it runs in.
 
-`vendomat sync` reads `REPOMAN_SKILLS_DIR` to decide where per-dependency skills
-install (`src/vendomat/cli.py:65`, defaulting to `.claude/skills`). A devenv
-shell exports that variable, so a test that asserts the default path passed in a
-bare shell and failed inside `devenv shell` — which is where the publish gate
-runs. A suite must not depend on who invoked it.
+A devenv shell exports variables such as `REPOMAN_SKILLS_DIR`. A test that passes in a bare
+shell can fail inside `devenv shell`. A suite must not depend on who invoked it.
 """
 
 from __future__ import annotations

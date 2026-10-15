@@ -1,8 +1,8 @@
 #!/bin/sh
 # Collection post-receive hook (STORE-023).
 # After a tag push, show the newest release tag in the working tree, so the owner and agents read
-# current files. The rules match `vendomat sync --collection` (STORE-022): newest tag by version
-# order, detached checkout, clean tree only, unborn branch allowed, tags never changed.
+# current files. The rules: newest tag by version order, detached checkout, clean tree only,
+# unborn branch allowed, tags never changed.
 # A post-receive hook cannot reject a push. This one also never reports failure.
 
 git_dir=$(git rev-parse --absolute-git-dir 2>/dev/null) || exit 0
@@ -26,6 +26,6 @@ fi
 if git checkout --quiet --detach "$commit" 2>/dev/null; then
   echo "collection: working tree now shows ${ref#refs/tags/}" >&2
 else
-  echo "collection: could not check out ${ref#refs/tags/}; run 'vendomat sync --collection'" >&2
+  echo "collection: could not check out ${ref#refs/tags/}; check out the tag by hand" >&2
 fi
 exit 0

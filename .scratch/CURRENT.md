@@ -67,7 +67,7 @@ every installed machine runs Harmonia from first boot. R40 to R45 settle the imp
 decisions D1, D2, D4, D6, D7, and D8. Project 21 is the design authority for Vendomat and Basix.
 S1 to S4 are complete on Vendomat `main`; v0.8.0 is published on `release` at `e5923a8f`, and the
 S2 host switch is complete under R48. S6 retired the old binary fork. Do not restart those slices.
-Project 14 stays the implementation contract until a release meets the project 21 gates.
+Project 21 is the implementation contract (2026-10-15, S8 step 4). Project 14 is history.
 The `p21-contracts` work is on `main`. It resolves the Basix requests VR1 to VR4, VR6, and VR7 and
 adds rulings R49 to R51. VR5 is not done: Basix keeps its own hint. No release carries this work yet.
 Its evidence is [VR contract resolutions](projects/21-vendomat-basix-split/evidence/VR-CONTRACT-RESOLUTIONS-2026-10-14.md).
@@ -76,7 +76,9 @@ S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is pu
 
 S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The host runs it since 2026-10-14 (R48): nix-meta `main` `cf8ef3cc` installs it, and the owner switched `server` ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
 
-S8 step 1 is done (2026-10-15): vendomat-demo (`main` `85e6c725`) and nix-systems (`main` `9419924d`) run on `vendomat.yaml` and the S3 template; the VM checks of nix-systems pass. Step 3 (remove the TOML flow) is unblocked; step 2 waits for project 22 and the V4 backlog; see [S8-CONSUMERS](projects/21-vendomat-basix-split/evidence/S8-CONSUMERS.md).
+S8 step 1 is done (2026-10-15): vendomat-demo (`main` `85e6c725`) and nix-systems (`main` `9419924d`) run on `vendomat.yaml` and the S3 template; the VM checks of nix-systems pass. Step 3 is done (below); step 2 waits for project 22 and the V4 backlog; see [S8-CONSUMERS](projects/21-vendomat-basix-split/evidence/S8-CONSUMERS.md).
+
+S8 steps 3 and 4 are done (2026-10-15). `main` no longer holds the `vendomat.toml` flow: the commands `sync`, `path`, `check`, `bump`, and `machine`, their modules, `direnv/`, `preflight/`, the V6 devenv module and its output `devenvModules.default`, and two templates. `VMT-123` is done: no host-side module output exists. R40's condition is met and its effect is done, except `push`: `push.py` stays until `VMT-120` passes. Step 2 (nix-meta's old module import) waits for project 22 and the V4 backlog. Evidence: [S8-REMOVAL](projects/21-vendomat-basix-split/evidence/S8-REMOVAL.md).
 
 S5, the Vendomat side: steps 1 and 2 are done (2026-10-14). The collection hook accepts the `release` branch in every repository (R37, `VMT-171`), and `devenv/parse.nix` imports with a plain file name (R38, `VMT-164`). Step 3, the Basix fixtures, runs from the Basix repository. The live hooks under `~/vendor/` are not updated, and `~/vendor/basix` does not exist (owner gate). The evidence is [S5-BASIX](projects/21-vendomat-basix-split/evidence/S5-BASIX.md).
 
@@ -280,60 +282,15 @@ shared across checkouts; the end-to-end `VENDOMAT_TEMPLATEER` default is machine
 Devman push hook resolves `testee` from the session `PATH`, so a session from an old shell carries
 Testee 0.5.1. The project does not change the authority of project 14 or project 16.
 
-## Current implementation contract: project 14 — Vendomat V5
+## History: project 14 — Vendomat V5 (and project 16, V6)
 
-Authority, in reading order, all in `.scratch/projects/14-vendomat-local/`:
-
-1. `CONCEPT-V5.md` — the shape and the worked examples.
-2. `SPEC-V5.md` — normative. 195 requirement IDs in its tables, 152 active, 32 superseded, 10 withdrawn, 1 narrowed (count verified in [R1](projects/20-vendomat-front-door/evidence/R1-requirements-v5.md)); 19 withdrawn resolver and emitter IDs are preserved.
-3. `GUIDE-V5.md` — the commands. Steps 0 to 10.
-4. `REFINEMENT-2026-10-08.md` — named paths and drive identity.
-
-`KICKOFF-V5.md` in the same directory is the prompt for starting an implementation session.
-
-### State
-
-Updated 2026-10-08, fourth session (the store step). The V5 machine steps have not run. Step 8, the registry and
-generator, ran in isolation under the owner's authorization, and its fixtures pass: the project-output
-interface on pinned Nix ([PV-13](projects/14-vendomat-local/prelim-verification/results/PV-13.md)) and
-the real `vendomat sync` output ([PV-14](projects/14-vendomat-local/prelim-verification/results/PV-14.md)).
-This is not fleet acceptance.
-
-The store step is built and passes its fixtures ([PV-20](projects/14-vendomat-local/prelim-verification/results/PV-20.md)):
-`vendomat sync` handles `keep`, `mirror`, `--dry-run`, and `--collection`, and `vendomat path <name>`
-prints a locked input's store path. A real run on `server` moved `devman` to `v0.7.0` and left the
-other clones alone, and a `keep` clone of `devman` over the live daemon worked ([PV-21](projects/14-vendomat-local/prelim-verification/results/PV-21.md)). No `mirror` entry ran on
-`server`. A push-time hook for the tree refresh exists in `hooks/collection-post-receive` and passes its
-fixtures (`STORE-023`). It is installed on the live `devman` ([PV-22](projects/14-vendomat-local/prelim-verification/results/PV-22.md)). The `collection-add` change that installs it
-for new repositories is landed and pushed in `nix-meta` `main` (`1629188`). `vendomat` 0.5.0 is released on `main` ([PV-23](projects/14-vendomat-local/prelim-verification/results/PV-23.md)), pinned in `nix-meta` `main` (`a8bba69`), and the owner switched
-`server` to it on 2026-10-09. It is the system command there, and PV-24 checked the result ([PV-24](projects/14-vendomat-local/prelim-verification/results/PV-24.md)): no failed units, the closure changed only in `vendomat`, and the collection and hooks are unchanged. `STORE-010`, the release task, and the explicit use of `backup` are not built.
-
-Owner decisions of 2026-10-08: Vendomat is a system-installed command, added by a host delta at
-`packages.<system>.vendomat`. It generates no development shell and no `devenv` input. A generated
-`flake.nix` bridges to a project-owned `flake-outputs.nix`. The laptop is `framework`. Nix owns
-`flake.lock`. Vendomat tracks two things: build outputs, which Attic holds, and source, which one
-collection on `server` holds. Nix reads personal inputs from that collection over `git://`, CI pushes
-release tags to it, and every input pins a tag. Attic never needs to hold source. The library is
-aligned to the V5 concept; V4 is removed, not kept. See
-[DECISIONS.md](projects/14-vendomat-local/prelim-verification/DECISIONS.md). PV-05 stays as history.
-
-Still blocked, each by evidence:
-
-- **Step 0 and Step 7 (PV-02):** the 4 TB target's identity matches, but its partition table and
-  signatures cannot be read without privilege. The owner runs the scan.
-- **Step 2, 3, and 10 (PV-09):** a cold VM reaches the private route and meets HTTP 401 without a
-  credential. The owner chooses how the installer gets the pull credential.
-- **Step 8 acceptance:** Step 6.3 is done. The daemon settings were proved on two NixOS test machines
-  (PV-18), landed in `nix-meta` (`6cfcba5`, not pushed to origin), and switched on `server`. The
-  collection holds `devman` at `v0.7.0`. The owner reports from `framework` that `git ls-remote
-  git://server/devman` works, that `nix flake lock` plus a build against the collection works, and
-  that `ssh server true` works (PV-19). All three are owner-reported and not observed here. I did not
-  verify that any output came from Attic. A tag push from `framework` is untested.
-- **`DEL-010`:** proved on two fixture shapes on `server` ([PV-25](projects/14-vendomat-local/prelim-verification/results/PV-25.md)); not run in an existing repository's shell or on `framework`. The V4 consumer module prints an `install-hook` error on a V5 `vendomat.toml` (`DEL-011` open).
-
-The Nix-only core booted in a disposable PV-11 VM without the Vendomat CLI. That fixture did not
-prove production boot or tailnet reachability. See
-[results](projects/14-vendomat-local/prelim-verification/RESULTS.md).
+Project 14 was the implementation contract until 2026-10-15. Project 21 replaced it (S8 step 4).
+The V5 and V6 ledgers (`SPEC-V5.md`, the project 16 ledger) are now history: the rows stay as
+written, and project 20 R4 already ruled that they do not bind new work. The code of the
+`vendomat.toml` flow is gone from `main` (S8 step 3, 2026-10-15); it stays in Git history. Project
+14's long state of 2026-10-08, with its owner decisions and blockers, is in
+[STATE-2026-10-08](projects/14-vendomat-local/STATE-2026-10-08.md). Its authority documents stay in
+`.scratch/projects/14-vendomat-local/`.
 
 ## V4 removal backlog (outside the `vendomat` repository)
 
@@ -365,7 +322,7 @@ its own terminal note.
 
 ## Inherited facts that still hold
 
-- `vendomat` `main` holds V5 only (0.6.0, `DEL-012`). The V4 code is in Git history and in the
+- `vendomat` `main` holds the project 21 code only (S8). The V4 and V5 code is in Git history and in the
   revision `nix-meta` still pins (`d5a90f0`). Nothing reads it for direction.
 - Eleven central overlays, ten local-checkout overlays, and one flake-input consumer use the
   current paths. Every machine is reconfigured, so those paths are replaced. `BOOT-010` carries the
