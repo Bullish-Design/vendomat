@@ -50,6 +50,8 @@ let
     else if n == 3 && at 0 == "machines" && at 2 == "serve" then { option = [ "vendomat" "serve" (at 1) ]; merge = false; }
     else if n == 3 && at 0 == "machines" && at 2 == "programs" then
       { option = [ "machines" (at 1) "nixos" "environment" "systemPackages" ]; merge = true; }
+    else if n == 3 && at 0 == "machines" && at 2 == "trustedInterfaces" then
+      { option = [ "machines" (at 1) "nixos" "vendomat" "sharing" "trustedInterfaces" ]; merge = true; }
     else if n == 3 && at 0 == "machines" && machineKeys ? ${at 2} then
       { option = [ "machines" (at 1) ] ++ machineKeys.${at 2}; merge = false; }
     else null;

@@ -250,10 +250,8 @@ def test_no_home_key_exists(tmp_path: Path):
     top = evaluate(tmp_path, "home:\n  user: andrew\n")
     assert "vendomat.yaml:1:1: home: unknown key" in top.stderr
     inner = evaluate(tmp_path, "machines:\n  box:\n    home: andrew\n")
-    assert (
-        "vendomat.yaml:3:5: machines.box.home: unknown key (known: host, mode, programs, serve, virtual)"
-        in inner.stderr
-    )
+    known = "host, mode, programs, serve, trustedInterfaces, virtual"
+    assert f"vendomat.yaml:3:5: machines.box.home: unknown key (known: {known})" in inner.stderr
 
 
 # --- Python -------------------------------------------------------------------------------------
@@ -566,6 +564,80 @@ def test_serve_false_keeps_port_closed_even_with_a_trust_marker(tmp_path: Path):
     assert facts["harmonia"] is False
     assert facts["globalPorts"] == []
     assert facts["trustedPorts"] == []
+
+
+# --- trustedInterfaces (R52, VMT-173) ----------------------------------------------------------
+
+
+def test_trusted_interfaces_key_opens_the_cache_port_on_the_listed_interfaces_only(tmp_path: Path):
+    text = "machines:\n  alpha:\n    trustedInterfaces:\n      - eth1\n      - wg0\n  beta:\n    host: b\n"
+    facts = summary(tmp_path, text)["sharing"]
+    assert facts["alpha"]["trustedInterfaces"] == ["eth1", "wg0"]
+    assert facts["alpha"]["interfacePorts"] == {"eth1": [5000], "wg0": [5000]}
+    assert facts["alpha"]["globalPorts"] == []
+    # A machine with no key keeps the module default: nothing is open.
+    assert facts["beta"]["trustedInterfaces"] == [] and facts["beta"]["interfacePorts"] == {}
+
+
+def test_trusted_interfaces_accepts_every_linux_interface_character(tmp_path: Path):
+    names = ["eth0.100", "br-lan", "wlan_0", "veth@if5", "eth0:1", "A", "123456789012345"]
+    items = "".join(f"      - {n}\n" for n in names)
+    facts = summary(tmp_path, f"machines:\n  alpha:\n    trustedInterfaces:\n{items}")["sharing"]["alpha"]
+    assert facts["trustedInterfaces"] == names
+
+
+def test_a_bad_trusted_interface_names_its_file_line_column_and_path(tmp_path: Path):
+    text = (
+        "machines:\n  alpha:\n    trustedInterfaces:\n"
+        '      - eth1\n      - "bad name"\n      - "1234567890123456"\n      - ""\n      - "eth/0"\n'
+    )
+    result = evaluate(tmp_path, text)
+    assert result.returncode != 0
+    lines = fault_lines(result.stderr)
+    assert len(lines) == 4, lines
+    found = ['"bad name"', '"1234567890123456"', '""', '"eth/0"']
+    for index, (line, text_found) in enumerate(zip(lines, found, strict=True), start=1):
+        assert line.startswith(f"vendomat.yaml:{index + 4}:"), line
+        assert f"machines.alpha.trustedInterfaces[{index}] must be an interface name" in line, line
+        assert "(1 to 15 letters, digits, '.', '-', '_', '@', ':')" in line, line
+        assert line.endswith(f"found {text_found}"), line
+
+
+def test_a_trusted_interface_error_path_uses_the_zero_based_index(tmp_path: Path):
+    result = evaluate(tmp_path, 'machines:\n  alpha:\n    trustedInterfaces:\n      - eth1\n      - "a b"\n')
+    [line] = fault_lines(result.stderr)
+    assert line.startswith("vendomat.yaml:5:9: machines.alpha.trustedInterfaces[1] must be an interface name")
+
+
+@pytest.mark.parametrize("value", ["eth1", "\n      a: b"], ids=["text", "map"])
+def test_trusted_interfaces_that_is_not_a_list_fails(tmp_path: Path, value: str):
+    result = evaluate(tmp_path, f"machines:\n  alpha:\n    trustedInterfaces: {value}\n")
+    assert result.returncode != 0
+    [line] = fault_lines(result.stderr)
+    assert line.startswith("vendomat.yaml:3:") or line.startswith("vendomat.yaml:4:")
+    assert "machines.alpha.trustedInterfaces must be a list, found" in line, line
+
+
+def test_trusted_interfaces_item_that_is_a_map_fails(tmp_path: Path):
+    result = evaluate(tmp_path, "machines:\n  alpha:\n    trustedInterfaces:\n      - a: b\n")
+    [line] = fault_lines(result.stderr)
+    assert "machines.alpha.trustedInterfaces[0] must be an interface name" in line and "found a map" in line
+
+
+def test_serve_false_opens_nothing_even_with_trusted_interfaces_in_the_yaml(tmp_path: Path):
+    text = 'machines:\n  alpha:\n    serve: "false"\n    trustedInterfaces:\n      - eth1\n'
+    facts = summary(tmp_path, text)["sharing"]["alpha"]
+    assert facts["trustedInterfaces"] == ["eth1"]
+    assert facts["serve"] is False and facts["harmonia"] is False
+    assert facts["globalPorts"] == [] and facts["interfacePorts"] == {} and facts["trustedPorts"] == []
+
+
+def test_the_nix_files_add_to_the_yaml_trusted_interfaces(tmp_path: Path):
+    # R23: the YAML list is a plain definition. A Nix definition of the same option merges with it.
+    text = "machines:\n  alpha:\n    trustedInterfaces:\n      - eth1\n"
+    nix = '{ machines.alpha.nixos.vendomat.sharing.trustedInterfaces = [ "wg0" ]; }'
+    facts = summary(tmp_path, text, extra=nix)["sharing"]["alpha"]
+    assert sorted(facts["trustedInterfaces"]) == ["eth1", "wg0"]
 
 
 def test_a_serving_machine_with_the_firewall_off_gets_a_warning(tmp_path: Path):

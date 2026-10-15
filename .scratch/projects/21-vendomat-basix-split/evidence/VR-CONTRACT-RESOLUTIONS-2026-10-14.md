@@ -83,7 +83,7 @@ watched file (`test_apply_commits_an_untracked_watched_file`, `test_apply_commit
 `tests/nix/infra/collection-add` is now a byte copy of `../nix-meta/scripts/collection-add` (nix-meta
 `main` `ee768f74`).
 
-Gap, not fixed: the catalog has no key for `trustedInterfaces` (`VMT-172`). No ruling covers it.
+Gap, not fixed at the time: the catalog had no key for `trustedInterfaces` (`VMT-172`). The owner ruled R52 on 2026-10-15, and `VMT-173` closed the gap.
 
 Limit of the committer check (inference): a Git hook that fails (for example `pre-commit`) still fails
 the commit after the build. The check cannot see hooks, and the fix keeps hooks on by design. The

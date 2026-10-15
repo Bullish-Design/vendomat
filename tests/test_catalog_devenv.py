@@ -416,6 +416,47 @@ def test_a_beta_that_does_not_serve_gives_no_peer_entry(mws: Path):
     assert json.loads(done.stdout)[attribute] == []
 
 
+def test_trusted_interfaces_open_the_cache_port_only_while_the_machine_serves(mws: Path):
+    # R52, VMT-173. The YAML list feeds the real NixOS firewall of a machine built through the catalog.
+    # This proves evaluation level. The module VM proof (VMT-169) boots the module, not a catalog machine.
+    (mws / "vendomat.yaml").write_text(
+        textwrap.dedent(
+            """\
+            machines:
+              alpha:
+                host: root@192.0.2.1
+                virtual: "true"
+                trustedInterfaces:
+                  - eth1
+                  - wg0
+              beta:
+                host: 192.0.2.2
+                virtual: "true"
+                serve: "false"
+                trustedInterfaces:
+                  - eth1
+            """
+        )
+    )
+    options = (
+        "vendomat.sharing.trustedInterfaces",
+        "networking.firewall.interfaces",
+        "networking.firewall.allowedTCPPorts",
+    )
+    names = {(m, o): nixos(m, o) for m in ("alpha", "beta") for o in options}
+    done = run(["devenv", "eval", *names.values()], mws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    values = json.loads(done.stdout)
+    assert values[names["alpha", "vendomat.sharing.trustedInterfaces"]] == ["eth1", "wg0"]
+    opened = values[names["alpha", "networking.firewall.interfaces"]]
+    assert opened["eth1"]["allowedTCPPorts"] == [5000] and opened["wg0"]["allowedTCPPorts"] == [5000]
+    assert 5000 not in values[names["alpha", "networking.firewall.allowedTCPPorts"]]
+    # `serve: "false"` keeps the list but opens nothing.
+    assert values[names["beta", "vendomat.sharing.trustedInterfaces"]] == ["eth1"]
+    assert values[names["beta", "networking.firewall.interfaces"]].get("eth1", {}).get("allowedTCPPorts", []) == []
+    assert 5000 not in values[names["beta", "networking.firewall.allowedTCPPorts"]]
+
+
 def test_machine_programs_are_installed_as_nixos_packages(mws: Path):
     (mws / "vendomat.yaml").write_text(
         'programs:\n  - jq\nmachines:\n  learner:\n    virtual: "true"\n    programs:\n      - ripgrep\n'

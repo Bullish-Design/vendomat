@@ -91,6 +91,8 @@ let
     {
       hostName = c.networking.hostName;
       serve = c.vendomat.sharing.serve;
+      trustedInterfaces = c.vendomat.sharing.trustedInterfaces;
+      interfacePorts = lib.mapAttrs (_: i: i.allowedTCPPorts) c.networking.firewall.interfaces;
       peers = c.vendomat.sharing.peers;
       substituters = c.nix.settings.extra-substituters or [ ];
       keys = c.nix.settings.extra-trusted-public-keys or [ ];

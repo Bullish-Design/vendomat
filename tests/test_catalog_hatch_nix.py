@@ -160,6 +160,18 @@ def test_explain_maps_machine_programs_to_the_machine_system_packages(tmp_path: 
     assert entry["value"] == ["ripgrep", "hello"]
 
 
+def test_explain_maps_machine_trusted_interfaces_to_the_sharing_option(tmp_path: Path):
+    # R52: the key `machines.NAME.trustedInterfaces` sets `vendomat.sharing.trustedInterfaces` in the machine.
+    yaml = "machines:\n  box:\n    trustedInterfaces:\n      - eth1\n      - wg0\n"
+    report = read(tmp_path, "explain", yaml=yaml, nix="{ }\n", local="{ }\n")
+    entry = {e["key"]: e for e in report["yaml"]}["machines.box.trustedInterfaces"]
+    assert entry["option"] == "machines.box.nixos.vendomat.sharing.trustedInterfaces"
+    assert entry["value"] == ["eth1", "wg0"]
+    assert entry["files"] == ["vendomat.yaml"]
+    assert (entry["line"], entry["column"]) == (3, 5)
+    assert report["nix"] == []
+
+
 def test_explain_names_the_file_that_wins_and_lists_the_options_only_nix_sets(tmp_path: Path):
     # R27: a `mkForce` in devenv.nix replaces vendomat.yaml as the source; a merged option lists both files.
     (tmp_path / "extra.nix").write_text('{ env.EXTRA = "e"; }\n')

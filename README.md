@@ -34,8 +34,9 @@ vendomat update         # add the lines a newer template needs, then run devenv 
 - The module `devenv/sharing.nix` runs Harmonia on a machine, with a signing key that the machine makes at
   first boot. Other machines of the workspace substitute from it. `serve: false` turns it off. The
   new system configures no Attic. The module opens TCP port 5000 only on the interfaces in the NixOS
-  option `vendomat.sharing.trustedInterfaces` (default: none). The catalog has no YAML key for it
-  (open gap `VMT-172`): a hatch file sets `machines.NAME.nixos.vendomat.sharing.trustedInterfaces`.
+  option `vendomat.sharing.trustedInterfaces` (default: none). The machine key `trustedInterfaces`
+  in `vendomat.yaml` sets it (R52, `VMT-173`): a list of interface names, for example `eth1`. A Nix file
+  can add more. `serve: false` opens nothing, even with a list.
   With `networking.firewall.enable = false` the port is open on every interface, and the module warns.
 
 ## The older flow

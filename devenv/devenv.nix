@@ -57,6 +57,9 @@ let
   rustVersion = scalar ''"latest", a version such as "1.81.0", or a date such as "2025-01-31"''
     (s: builtins.match "latest|[0-9]+\\.[0-9]+\\.[0-9]+|[0-9]{4}-[0-9]{2}-[0-9]{2}" s != null);
   hostName = "[a-z0-9]([a-z0-9-]*[a-z0-9])?";
+  # A Linux interface name: 1 to 15 characters of letters, digits, '.', '-', '_', '@', ':' (R52).
+  interfaceName = scalar "an interface name (1 to 15 letters, digits, '.', '-', '_', '@', ':')"
+    (s: builtins.match "[A-Za-z0-9._@:-]{1,15}" s != null);
 
   schema = map' {
     programs = list "a nixpkgs attribute name" (s: s != "");
@@ -82,6 +85,7 @@ let
         mode = oneOf [ "fresh-install" "adopt-existing" ];
         serve = bool;
         programs = list "a nixpkgs package attribute name" (s: s != "");
+        trustedInterfaces = list interfaceName.what interfaceName.ok;
       });
   };
 
@@ -214,6 +218,9 @@ let
         # A present `serve` key is a YAML value. Without it, the catalog default applies (R23).
         vendomat.sharing.serve = if m ? serve then serves m else lib.mkDefault true;
         vendomat.sharing.peers = lib.mkDefault (peersOf name);
+        # The interfaces that may reach the cache port (R52). The key is a plain definition (R23). A Nix file can
+        # add more, since lists merge. The module opens nothing under `serve: "false"` (R50).
+        vendomat.sharing.trustedInterfaces = guard (m.trustedInterfaces or [ ]);
       };
     }
     // lib.optionalAttrs (m ? host) { target.host = m.host; }

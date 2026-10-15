@@ -17,3 +17,7 @@
 #     enable: true
 # env:
 #   GREETING: hello
+# machines:
+#   server:
+#     trustedInterfaces:
+#       - eth1

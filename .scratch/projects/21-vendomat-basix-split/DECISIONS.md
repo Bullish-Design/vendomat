@@ -58,8 +58,9 @@ No production code, consumer, or machine changed.
 | R47 | The owner commits each machine's public cache key as `.machines/NAME/cache-key.pub`. A bare `apply` writes the file and asks for a commit. | "2. Confirmed" (2026-10-14) | `VMT-157` and `VMT-161` are ruled. |
 | R48 | Switch the host to the S2 binary. | "4. Confirmed, let me know if theres something I need to do" (2026-10-14) | nix-meta `main` `cf8ef3cc` installs it. The owner runs the switch (it needs a password). |
 | R49 | A successful `vendomat apply` builds first, commits only the allowlisted watched workspace configuration, then activates and records it. A present ignored watched file must be force-added or removed. `--dirty` skips the config commit and records the current HEAD as dirty. A failed build makes no config commit, activation, or record. | Option selected, 2026-10-14: “Use proposed policy (Recommended).” (an option label; the owner did not see the details in the effect column) | Supersedes R43 in part, for apply only (apply commits watched changes after the build); the record and clean-rollback rules of R43 remain. `VMT-166`. The details below are implementer choices that the owner was not asked about: an ignored watched file blocks even with `--dirty`; the config commit stays if activation fails; the path-scoped rollback commit and the meaning of `--exact`. |
-| R50 | The sharing module exposes `trustedInterfaces` (default empty), opens TCP 5000 only on those interfaces while `serve = true`, and leaves unmarked interfaces closed. `serve = false` disables the service and all openings. | Option selected, 2026-10-14: “Explicit trusted interfaces; unmarked closed (Recommended).” (an option label; the owner did not see the details in the effect column) | `VMT-169`; the passing VR7 scratch fixture remains proposal evidence only. The details below are implementer choices that the owner was not asked about: the module opens no global port 5000; `serve = false` disables the key unit. The catalog has no YAML key for `trustedInterfaces`; no ruling covers it (`VMT-172`). |
+| R50 | The sharing module exposes `trustedInterfaces` (default empty), opens TCP 5000 only on those interfaces while `serve = true`, and leaves unmarked interfaces closed. `serve = false` disables the service and all openings. | Option selected, 2026-10-14: “Explicit trusted interfaces; unmarked closed (Recommended).” (an option label; the owner did not see the details in the effect column) | `VMT-169`; the passing VR7 scratch fixture remains proposal evidence only. The details below are implementer choices that the owner was not asked about: the module opens no global port 5000; `serve = false` disables the key unit. The catalog had no YAML key for `trustedInterfaces` (`VMT-172`); R52 added it. |
 | R51 | A machine entry with no value (`machines:` then `laptop:`) is an empty map, so the machine takes every default. Every other key with no value still fails with `no value`. The parser stays strict by default; the catalog names the one path (`machines.NAME`) where no value is an empty map. A list item never takes the exception. | "Great, lets go for option 2" (2026-10-14, after the options for `VMT-160`) | `VMT-170` supersedes `VMT-012` in part and closes the gap `VMT-160`. Basix imports the same parser (R38) and names its own paths. R49 and R50 are left to the `p21-contracts` session. |
+| R52 | The catalog gets the machine key `trustedInterfaces`, mapped to `vendomat.sharing.trustedInterfaces`. | "VMT 172 - yes" (2026-10-15) | `VMT-173` closes the gap `VMT-172`. The key is a list of interface names (1 to 15 letters, digits, `.`, `-`, `_`, `@`, `:`). It is a plain definition (R23), so a Nix file adds to it. `serve: "false"` still opens nothing (R50). |
 
 R13 to R32 come from the 2026-10-13 review of A1 to A14 and the follow-up decisions. Every
 recommendation A1 to A14 now has a ruling. The VM images were deleted on 2026-10-13.
@@ -321,7 +322,7 @@ staged work; `rollback --exact` retains its whole-tree semantics.
 
 **Ruled (R50), 2026-10-14: option selected, "explicit trusted interfaces; unmarked closed".** The owner chose the option label. That the module opens no global port and that `serve = false` disables the key unit are implementer choices that the question did not state.
 
-**Ledger:** `VMT-169`, gap `VMT-172`.
+**Ledger:** `VMT-169`, gap `VMT-172` (closed by R52, `VMT-173`).
 
 The NixOS module option is `vendomat.sharing.trustedInterfaces`, a list of interface names whose
 incoming TCP 5000 traffic may reach Harmonia. It defaults to `[]`. The module opens no global
@@ -338,7 +339,7 @@ the list is nonempty. The tests prove these parts:
   `networking.firewall.enable = false`, port 5000 is open on every interface and the list has no
   effect, so the module warns.
 
-The catalog has no YAML key for `trustedInterfaces` (gap `VMT-172`, no ruling).
+The catalog had no YAML key for `trustedInterfaces` (gap `VMT-172`). R52 (2026-10-15) added it.
 
 ## Ideas recorded, not pursued now
 
