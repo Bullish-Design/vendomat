@@ -52,6 +52,10 @@ since `bd7baeb06b1a`. The fixtures ran on the published S1 tag. Report:
 [S4-APPLY-ROLLBACK](projects/21-vendomat-basix-split/evidence/S4-APPLY-ROLLBACK.md). The opt-in
 checks are `opt:NAME` tasks in `nix/tasks.nix`.
 
+**Release v0.9.0, 2026-10-15.** Vendomat v0.9.0 is published: tag `v0.9.0` and `release` are at `9b8885e3`
+(owner approval in session). It adds the catalog key `trustedInterfaces` (R52, `VMT-173`) and the project 21
+contracts (R49 to R51). Evidence: [RELEASE-0.9.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.9.0.md).
+
 ## Final design: project 21 — Vendomat and Basix, separated
 
 **Current status, 2026-10-14.** R39 (2026-10-13): the new system configures no Attic;
