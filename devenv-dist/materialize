@@ -5,15 +5,15 @@ Clone upstream devenv at the pinned commit into an empty directory, apply the
 ordered patch series with a fixed committer, and create the fork tag. The same
 inputs always give the same commit id.
 
-usage: python3 -I materialize DEST [--series modules] [--source URL_OR_PATH] [--verify]
+usage: python3 -I materialize DEST --series modules [--source URL_OR_PATH] [--verify]
 
 DEST must not exist, or must be an empty directory. --source overrides the
 upstream repo URL in UPSTREAM (for a local mirror). --verify compares the
-result with the commit id recorded in RESULT.
+result with the commit id recorded in modules/RESULT.
 
-Without --series, the script applies the binary series in this directory.
---series modules applies the module-only series in modules/ on the same
-upstream pin. It reads its fork tag from modules/UPSTREAM.
+--series modules applies the module-only series in modules/ on the upstream
+pin in UPSTREAM. It reads its fork tag from modules/UPSTREAM. The binary
+patches in binary/patches are not a series: the Nix overlay applies them.
 """
 import argparse
 import hashlib
@@ -94,16 +94,15 @@ def git(dest, *args, env_extra=None, capture=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("dest", type=Path)
-    parser.add_argument("--series", choices=["modules"],
-                        help="series to apply (default: the binary series in this directory)")
+    parser.add_argument("--series", choices=["modules"], required=True,
+                        help="series to apply")
     parser.add_argument("--source", help="upstream URL or path (default: repo in UPSTREAM)")
     parser.add_argument("--verify", action="store_true", help="compare with RESULT")
     args = parser.parse_args()
 
     upstream = read_kv(DIST / "UPSTREAM")
-    base = DIST / args.series if args.series else DIST
-    if args.series:
-        upstream.update(read_kv(base / "UPSTREAM"))
+    base = DIST / args.series
+    upstream.update(read_kv(base / "UPSTREAM"))
     series = read_series(base / "SERIES")
     manifest = read_manifest(base / "MANIFEST.sha256")
     dest = args.dest.resolve()

@@ -1,8 +1,9 @@
-"""Fast offline checks for the Vendomat devenv distribution (DVN-003, DVN-005).
+"""Fast offline checks for the Vendomat devenv distribution recipe (DVN-003, DVN-005).
 
-The recipe lives in `devenv-dist/`: the upstream pin, the ordered patch series, a hash manifest,
-and the materialization tool. These checks need no network and no Nix. The runtime proofs (build,
-version, offline shell, install VM) are fixtures that record raw logs outside the repository.
+The recipe lives in `devenv-dist/`: the upstream pin, the module-only patch series with its hash
+manifest, the two patches of the host binary, and the materialization tool. S6 retired the older
+binary series (fork tag `v2.4.0-vendomat.4`). These checks need no network and no Nix. The runtime
+proofs are the opt-in checks `modules-e2e`, `modules-vm`, and `binary-e2e`.
 """
 
 from __future__ import annotations
@@ -15,24 +16,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "devenv-dist"
-PATCHES = DIST / "patches"
+BINARY_PATCHES = DIST / "binary" / "patches"
 
 
 def read_lines(path: Path) -> list[str]:
     lines = (line.strip() for line in path.read_text().splitlines())
     return [line for line in lines if line and not line.startswith("#")]
-
-
-def series() -> list[str]:
-    return read_lines(DIST / "SERIES")
-
-
-def manifest() -> dict[str, str]:
-    out: dict[str, str] = {}
-    for line in read_lines(DIST / "MANIFEST.sha256"):
-        digest, _, name = line.partition("  ")
-        out[name.strip()] = digest.strip()
-    return out
 
 
 def upstream() -> dict[str, str]:
@@ -43,160 +32,53 @@ def upstream() -> dict[str, str]:
     return out
 
 
-def header(name: str) -> str:
-    """The commit message part of a format-patch file: everything before the diffstat."""
-    text = (PATCHES / name).read_text()
-    return text.split("\n---\n", 1)[0]
-
-
-def test_the_upstream_pin_names_tag_and_commit():
+def test_the_upstream_pin_names_tag_and_commit_and_no_fork_tag():
     pin = upstream()
     assert pin["tag"] == "v2.4.0"
     assert pin["commit"] == "b904dcb51fe48c30db250038241507f60752f222"
     assert re.fullmatch(r"[0-9a-f]{40}", pin["commit"])
-    assert pin["fork_tag"] == "v2.4.0-vendomat.4"
     assert pin["repo"].startswith("https://github.com/cachix/devenv")
+    # S6: the module series owns the only fork tag.
+    assert "fork_tag" not in pin
 
 
-def test_the_series_lists_every_patch_file_once_in_numeric_order():
-    listed = series()
-    assert listed == sorted(listed)
-    assert len(set(listed)) == len(listed)
-    assert listed == sorted(p.name for p in PATCHES.glob("*.patch"))
-    numbers = [int(name.split("-", 1)[0]) for name in listed]
-    assert numbers == list(range(1, len(listed) + 1))
+def test_the_old_binary_series_is_gone():
+    for name in ("SERIES", "MANIFEST.sha256", "RESULT", "patches", "fixtures"):
+        assert not (DIST / name).exists(), name
 
 
-def test_the_manifest_matches_the_patch_bytes():
-    recorded = manifest()
-    assert set(recorded) == set(series())
-    for name, digest in recorded.items():
-        assert hashlib.sha256((PATCHES / name).read_bytes()).hexdigest() == digest, name
+def test_the_host_binary_keeps_exactly_patches_0003_and_0005():
+    names = sorted(p.name for p in BINARY_PATCHES.iterdir())
+    assert names == ["0003.patch", "0005.patch"]
+    digests = {n: hashlib.sha256((BINARY_PATCHES / n).read_bytes()).hexdigest() for n in names}
+    assert digests == {
+        "0003.patch": "c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5",
+        "0005.patch": "85eea6e22e52fdc3103381a69fa9765305433b4273d0e728e553123c0aedd2a3",
+    }  # S2 evidence: a changed hash changes the host binary
 
 
-def test_each_patch_names_an_upstream_reference_or_says_fork_only():
-    for name in series():
-        lines = [line for line in header(name).splitlines() if line.startswith("Upstream:")]
-        assert len(lines) == 1, name
-        value = lines[0].removeprefix("Upstream:").strip()
-        assert value.startswith("fork-only") or re.search(r"cachix/devenv (PR #\d+|[0-9a-f]{8,40})", value), name
-
-
-def test_each_patch_is_a_plain_format_patch_with_a_fixed_header():
-    for name in series():
-        text = (PATCHES / name).read_text()
-        assert text.startswith("From 0000000000000000000000000000000000000000 "), name
-        assert re.search(r"^From: .+ <.+>$", text, re.MULTILINE), name
-        assert re.search(r"^Date: .+$", text, re.MULTILINE), name
-        assert re.search(r"^Subject: \[PATCH \d+/\d+\] .+$", text, re.MULTILINE), name
-        assert "\ndiff --git " in text, name
-
-
-def test_the_series_keeps_the_agreed_order_of_the_project_15_patches():
-    names = series()
-    assert len(names) >= 4
-    subjects = [re.search(r"^Subject: \[PATCH[^\]]*\] (.+)$", header(n), re.MULTILINE) for n in names[:4]]
-    assert all(subjects)
-    texts = [m.group(1) for m in subjects if m]
-    assert "SSH connection handshake" in texts[0]
-    assert "latest devenv version" in texts[1]
-    assert "reuse locked inputs" in texts[2]
-    assert "release" in texts[3]
-
-
-def test_the_adopted_host_denial_and_fresh_host_rule_are_separate_patches():
-    names = series()
-    adopt = [n for n in names if "adopt" in n]
-    fresh = [n for n in names if "preflight" in n or "fresh" in n]
-    assert len(adopt) == 1
-    assert len(fresh) == 1
-    assert adopt != fresh
+def test_materialize_needs_the_series_argument(tmp_path: Path):
+    run = subprocess.run(
+        [sys.executable, "-I", str(DIST / "materialize"), str(tmp_path / "out")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert run.returncode != 0
+    assert "--series" in run.stderr
+    assert not (tmp_path / "out").exists()
 
 
 def test_materialize_refuses_a_directory_that_is_not_empty(tmp_path: Path):
     (tmp_path / "keep").write_text("x")
     run = subprocess.run(
-        [sys.executable, "-I", str(DIST / "materialize"), str(tmp_path)],
+        [sys.executable, "-I", str(DIST / "materialize"), str(tmp_path), "--series", "modules"],
         capture_output=True,
         text=True,
         check=False,
     )
     assert run.returncode != 0
     assert "not an empty directory" in run.stderr
-
-
-def test_materialize_refuses_a_patch_that_differs_from_the_manifest(tmp_path: Path):
-    # Copy the recipe, change one patch byte, and expect a refusal before any git call.
-    dist = tmp_path / "dist"
-    (dist / "patches").mkdir(parents=True)
-    for name in ("UPSTREAM", "SERIES", "MANIFEST.sha256", "materialize"):
-        (dist / name).write_bytes((DIST / name).read_bytes())
-    for name in series():
-        (dist / "patches" / name).write_bytes((PATCHES / name).read_bytes())
-    first = dist / "patches" / series()[0]
-    first.write_text(first.read_text() + "\n")
-    run = subprocess.run(
-        [sys.executable, "-I", str(dist / "materialize"), str(tmp_path / "out")],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert run.returncode != 0
-    assert "does not match MANIFEST.sha256" in run.stderr
-    assert not (tmp_path / "out").exists()
-
-
-def test_the_recorded_result_matches_the_pin_and_names_a_new_fork_tag():
-    result: dict[str, str] = {}
-    for line in read_lines(DIST / "RESULT"):
-        key, _, value = line.partition("=")
-        result[key.strip()] = value.strip()
-    pin = upstream()
-    assert result["fork_tag"] == pin["fork_tag"]
-    assert result["source_commit"] == pin["commit"]
-    assert re.fullmatch(r"[0-9a-f]{40}", result["fork_commit"])
-    # The `.1` tag was local only. A new series gets a new tag.
-    assert pin["fork_tag"] != "v2.4.0-vendomat.1"
-
-
-def test_patch_0006_refuses_the_default_phase_list_and_names_failed_checks():
-    text = (PATCHES / next(n for n in series() if n.startswith("0006-"))).read_text()
-    assert "fresh_install_phase_conflict" in text
-    assert "use `--phases disko,install`" in text
-    assert "the preflight reported failed checks" in text
-
-
-def test_patch_0007_inherits_source_inputs_with_a_named_conflict_rule():
-    """DVN-011: the inheritance patch states its conflict rule and its upstream relation."""
-    name = next(n for n in series() if n.startswith("0007-"))
-    text = (PATCHES / name).read_text()
-    head = header(name)
-    assert "Conflict rule: an input that the consumer declares wins." in head
-    assert "cachix/devenv PR #3055" in head
-    assert "devenv-core/src/config.rs" in text
-    assert "inherit_inputs" in text
-
-
-def test_patch_0008_copies_a_lazily_mounted_source_into_the_store():
-    """DVN-012: the locked-source reuse of patch 0003 registers the path it returns."""
-    name = next(n for n in series() if n.startswith("0008-"))
-    text = (PATCHES / name).read_text()
-    assert "Upstream: fork-only." in header(name)
-    assert "resolve-lock.nix" in text
-    assert "+                outPath = builtins.path {" in text
-    assert "-                outPath = builtins.appendContext storedPath" in text
-
-
-def test_patch_0009_adds_the_yaml_primop_with_one_unit_test_for_each_spike_case():
-    """DOOR-074, DOOR-075: the fork carries `vendomatFromYAML` and its strict-subset tests."""
-    name = next(n for n in series() if n.startswith("0009-"))
-    text = (PATCHES / name).read_text()
-    assert "Upstream: fork-only." in header(name)
-    assert 'name: cstr!("vendomatFromYAML")' in text
-    assert "devenv-nix-backend/src/yaml_subset.rs" in text
-    assert "VendomatYamlPlugin" in text
-    assert text.count("\n+    fn case_") == 27
-    assert "NAME:LINE:COL: reason" in text
 
 
 # The module-only series (`--series modules`): upstream plus module changes, no binary changes.
@@ -314,12 +196,10 @@ def test_the_module_recipe_names_the_agreed_tag_on_the_same_upstream_pin():
     assert result["fork_tag"] == own["fork_tag"]
     assert result["source_commit"] == pin["commit"]
     assert re.fullmatch(r"[0-9a-f]{40}", result["fork_commit"])
-    assert result["fork_commit"] != key_values(DIST / "RESULT")["fork_commit"]
 
 
-def test_the_module_patches_stay_out_of_the_binary_series():
-    assert not any(n.startswith("m0") for n in series())
-    assert not list(PATCHES.glob("m0*.patch"))
+def test_the_module_patches_stay_out_of_the_binary_patches():
+    assert not list(BINARY_PATCHES.glob("m0*.patch"))
 
 
 def test_materialize_refuses_a_module_patch_that_differs_from_the_manifest(tmp_path: Path):

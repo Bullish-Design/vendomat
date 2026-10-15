@@ -115,8 +115,8 @@ number is `BSX-100` before the section "Added at the design freeze".
 
 | ID | Claim | Evidence | Status |
 | --- | --- | --- | --- |
-| `VMT-080` | Patch 0009 (`vendomatFromYAML`) MUST be dropped. | `VMT-002`, `VMT-003` (F1 to F13) | Ruled (R7); fixture pass |
-| `VMT-081` | Patch 0007 (inherit an imported source's inputs) MUST be dropped. | `VMT-043` | Ruled (R11); fixture pass |
+| `VMT-080` | Patch 0009 (`vendomatFromYAML`) MUST be dropped. | `VMT-002`, `VMT-003` (F1 to F13) | Ruled (R7); fixture pass; retired in S6 ([evidence](evidence/S6-FORK-RETIRED.md)) |
+| `VMT-081` | Patch 0007 (inherit an imported source's inputs) MUST be dropped. | `VMT-043` | Ruled (R11); fixture pass; retired in S6 ([evidence](evidence/S6-FORK-RETIRED.md)) |
 | `VMT-082` | The `nixos = deferredModule` change MUST ship in a module-only `devenv` input; Vendomat MUST NOT open an upstream pull request for it (R34). | `VMT-064`; [S1](evidence/S1-MODULE-FORK.md) (tag published, locked as flake input `devenv`) | Ruled (R14, R22, R34); fixture pass; tag name ruled (R44); S1 proved: `v2.4.0-vendomat-modules.1` (061c2184) published, input locked |
 
 ## Added by the owner rulings of 2026-10-13

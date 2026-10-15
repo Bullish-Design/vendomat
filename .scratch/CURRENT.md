@@ -68,6 +68,8 @@ S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is pu
 
 S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The host runs it since 2026-10-14 (R48): nix-meta `main` `cf8ef3cc` installs it, and the owner switched `server` ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
 
+S6 is done (2026-10-14): the `v2.4.0-vendomat.4` binary fork series, its fixtures, and patches 0001, 0002, 0004, and 0006 to 0009 are gone from `devenv-dist/`; the S1 module series and the S2 binary patches stay ([evidence](projects/21-vendomat-basix-split/evidence/S6-FORK-RETIRED.md)).
+
 **Basix now lives in `~/Documents/Projects/basix`** (moved 2026-10-13). Its design, the `BSX-` ledger, and
 its plan are in that repository, under `.scratch/projects/001-initial-concept/`. The project 21 files here keep
 stub rows and pointers.

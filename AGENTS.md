@@ -86,7 +86,7 @@ Use Gitman for every version-control action. Do not run raw `git` or `jj`.
 - `src/vendomat/`: the Python command line, `cli.py`, with `explain.py`, `update.py`, `errortrim.py`, and
   the older modules (`registry.py`, `generate.py`, `store.py`, `locate.py`, and others).
 - `nix/`: `tasks.nix` (the Testee tasks) and `devenv-module/`.
-- `devenv-dist/`: the recipe of the older binary devenv fork (`patches/`, retired in S6), of the module-only fork (`modules/`, `--series modules`), and the two patches of the host binary (`binary/patches/`, built by `nix/devenv-overlay.nix`).
+- `devenv-dist/`: the recipe of the module-only fork (`modules/`, `--series modules`; the older binary fork was retired in S6) and the two patches of the host binary (`binary/patches/`, built by `nix/devenv-overlay.nix`).
 - `hooks/`: the collection `post-receive` and `pre-receive` hooks. `direnv/`: the direnv function.
 - `tests/`: Python checks, Nix checks, and fixtures (`fixtures/yaml/` is the parser corpus;
   `tools/` holds the corpus generators).
