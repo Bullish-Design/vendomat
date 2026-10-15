@@ -12,12 +12,17 @@ was unreachable.
 Derive the store path from the locked narHash and use it when it exists,
 building the same attributes fetchTree returns from the locked ones.
 
+Return the path through builtins.path with the locked hash. A fetchTree of an
+earlier input with the same narHash only mounts the path (lazy trees), and
+`pathExists` is then true although the store lacks the path. builtins.path
+keeps a path that the store holds and copies the mounted source otherwise.
+
 Upstream: cachix/devenv PR #3244 (open on 2026-10-09), commit 86b798f1e69781a5da68b7bcfc3691aad537e935.
 Drop when a pinned upstream release carries it.
 ---
  CHANGELOG.md                                  |  1 +
- devenv-nix-backend/bootstrap/resolve-lock.nix | 44 ++++++++++++++++++-
- 2 files changed, 44 insertions(+), 1 deletion(-)
+ devenv-nix-backend/bootstrap/resolve-lock.nix | 52 +++++++++++++++++++++-
+ 2 files changed, 52 insertions(+), 1 deletion(-)
 
 diff --git a/CHANGELOG.md b/CHANGELOG.md
 index b371d2933b1d2299ede6b5f083e734ae83813cbe..38b2730be878293ab3c876326ccce809bd8d9f4f 100644
@@ -35,7 +40,7 @@ diff --git a/devenv-nix-backend/bootstrap/resolve-lock.nix b/devenv-nix-backend/
 index 392c5b3bed6af034542f2b82b56701e654e779ad..bcf9c68ca9289201bf57f76e0740262d156c6b34 100644
 --- a/devenv-nix-backend/bootstrap/resolve-lock.nix
 +++ b/devenv-nix-backend/bootstrap/resolve-lock.nix
-@@ -87,8 +87,50 @@ let
+@@ -87,8 +87,58 @@ let
                && builtins.substring 0 1 (resolvedLocked.path or "") == "/";
  
              fetchedSource = builtins.fetchTree (node.info or { } // removeAttrs resolvedLocked [ "dir" ]);
@@ -69,7 +74,15 @@ index 392c5b3bed6af034542f2b82b56701e654e779ad..bcf9c68ca9289201bf57f76e0740262d
 +                revCount = null;
 +              } locked
 +              // {
-+                outPath = builtins.appendContext storedPath { ${storedPath}.path = true; };
++                # `pathExists` is true for a store path that fetchTree only mounted (lazy
++                # trees), such as the source of an earlier input with the same narHash. The
++                # path is then not in the store. builtins.path with the locked hash returns
++                # a path that the store holds as it is, and copies the mounted source otherwise.
++                outPath = builtins.path {
++                  path = storedPath;
++                  name = "source";
++                  sha256 = locked.narHash;
++                };
 +              }
 +              // (
 +                if locked ? lastModified then

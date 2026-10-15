@@ -52,7 +52,7 @@ def test_the_host_binary_keeps_exactly_patches_0003_and_0005():
     assert names == ["0003.patch", "0005.patch"]
     digests = {n: hashlib.sha256((BINARY_PATCHES / n).read_bytes()).hexdigest() for n in names}
     assert digests == {
-        "0003.patch": "c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5",
+        "0003.patch": "aa7fb1e59e36cbdbde74bed9c1d941ff7febebbc1cf3add479a4d2c7169c550b",
         "0005.patch": "85eea6e22e52fdc3103381a69fa9765305433b4273d0e728e553123c0aedd2a3",
     }  # S2 evidence: a changed hash changes the host binary
 

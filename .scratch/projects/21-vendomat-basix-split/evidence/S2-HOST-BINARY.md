@@ -22,7 +22,7 @@ prove it with fixtures B2, B5, and B6.
 | --- | --- |
 | nixpkgs pin | `e7439b6b14ad3cc35d05608ebca9bce01a25f5f8` (unchanged in `flake.lock`) |
 | Source | `devenv` 2.4.0 of that nixpkgs (stock `/nix/store/5sbcspxmvsj6g41dmv20flpvj9v8pzi8-devenv-2.4.0`) |
-| `devenv-dist/binary/patches/0003.patch` | sha256 `c4a121b9d237740e47243754a3ec6c6b9d7dc83e7fb05f019b6e769052aaa1c5` |
+| `devenv-dist/binary/patches/0003.patch` | sha256 `aa7fb1e59e36cbdbde74bed9c1d941ff7febebbc1cf3add479a4d2c7169c550b` (changed 2026-10-15, `VMT-184`; the S2 build used `c4a121b9d237...`) |
 | `devenv-dist/binary/patches/0005.patch` | sha256 `85eea6e22e52fdc3103381a69fa9765305433b4273d0e728e553123c0aedd2a3` |
 | Overlay | `nix/devenv-overlay.nix` |
 | Testee | 0.7.0 for the first GREEN run, 0.8.0 for all later runs |
@@ -218,3 +218,7 @@ The owner approved the switch on 2026-10-14 (R48) and ran it the same day. The o
 - `~/.local/state/vendomat/p21/2026-10-14/s2/binary-e2e/`: hand runs, driver runs, and the Testee run directory `20261014T182737Z`.
 - Testee reports: `~/.local/state/testee/repos/e6fc47612c7a1650/slots/s2-host-binary-172c18d7/runs/<run id>/report.json`.
 - VM scratch under `/mnt/shared/vendomat-p21/s2/`.
+
+## Later change
+
+2026-10-15: patch 0003 changed to fall back to a fetch when the store lacks a locked input's path (`VMT-184`). See [P0003-MISSING-PATH](P0003-MISSING-PATH.md). The new binary is `/nix/store/s3x37wa0x8y3c9wkkzjbgpk44z2sgbx5-devenv-2.4.0`.

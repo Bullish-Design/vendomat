@@ -6,6 +6,9 @@ pinned Nixpkgs (`VENDOMAT_BINARY_E2E_STOCK` names another stock binary).
 
 - B2 offline entry (VMT-074, patch 0003): a locked git input is in the store, the fetcher cache is empty,
   and the remote is stopped. Stock fails to fetch. The patched binary enters.
+- B2b missing store path (VMT-184, patch 0003): two locked git inputs share one source. The store path of the
+  source is deleted, and the remote is up. Stock and patched enter. With the remote down, both fail to fetch.
+  `VENDOMAT_BINARY_E2E_PREVIOUS` may name a binary from before the fix. That control must fail.
 - B5 refusal (VMT-099, patch 0005): `devenv machines install` refuses a machine marked
   `vendomat.mode = "adopt-existing"` before it contacts the target. The target is a running VM. The VM keeps
   its boot id, its `/root`, and its store, and sshd sees no login from devenv.
@@ -257,38 +260,11 @@ def lab() -> Lab:
     return Lab(logs, binary, stock)
 
 
-# --- B2: offline entry ------------------------------------------------------------------------
-
-
-def test_b2_patched_binary_enters_offline_with_a_locked_git_input(lab: Lab, tmp_path: Path):
-    """VMT-074: source in the store, empty fetcher cache, remote stopped. Stock fails. The patched binary enters."""
-    srv = tmp_path / "srv"
-    work = tmp_path / "work"
-    seed = tmp_path / "seed"
-    for directory in (srv, work, seed):
-        directory.mkdir()
-    git_env = clean_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid")
-    git_env.update(GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
-    (work / "data.txt").write_text("b2 data\n")
-    for name, argv in (
-        ("git-init", ["git", "init", "-q", "-b", "main", str(work)]),
-        ("git-add", ["git", "-C", str(work), "add", "data.txt"]),
-        ("git-commit", ["git", "-C", str(work), "commit", "-q", "-m", "seed"]),
-        ("git-bare", ["git", "clone", "-q", "--bare", str(work), str(srv / "extra.git")]),
-    ):
-        made = lab.logs.run(name, argv, env=git_env)
-        assert made.returncode == 0, made.stderr
-    (srv / "extra.git" / "git-daemon-export-ok").touch()
-
-    port = free_port()
-    url = f"git://127.0.0.1:{port}/extra.git"
-    (seed / "devenv.yaml").write_text(
-        f"inputs:\n  nixpkgs:\n    url: {NIXPKGS}\n  extra:\n    url: git+{url}\n    flake: false\n"
-    )
-    shutil.copyfile(FIXTURES / "b2-devenv.nix", seed / "devenv.nix")
-    probe = ["shell", "--", "sh", "-c", "echo EXTRA=$EXTRA; cat $EXTRA/data.txt"]
-
-    daemon_log = (lab.logs.root / "b2-git-daemon.log").open("w")
+@contextlib.contextmanager
+def serve_git(lab: Lab, name: str, srv: Path, port: int, git_env: dict[str, str]) -> Iterator[str]:
+    """Serve every bare repository under `srv` with `git daemon` and yield the base URL."""
+    url = f"git://127.0.0.1:{port}"
+    daemon_log = (lab.logs.root / f"{name}-git-daemon.log").open("w")
     daemon = subprocess.Popen(
         ["git", "daemon", "--reuseaddr", "--export-all", f"--base-path={srv}", "--listen=127.0.0.1"]
         + [f"--port={port}", "--verbose"],
@@ -300,13 +276,62 @@ def test_b2_patched_binary_enters_offline_with_a_locked_git_input(lab: Lab, tmp_
     try:
         for _ in range(50):
             assert daemon.poll() is None, "git daemon exited"
-            listing = lab.logs.run("b2-ls-remote", ["git", "ls-remote", url], env=git_env)
+            listing = lab.logs.run(f"{name}-ls-remote", ["git", "ls-remote", f"{url}/extra.git"], env=git_env)
             if listing.returncode == 0 and "refs/heads/main" in listing.stdout:
                 break
             time.sleep(0.2)
         else:
             pytest.fail("git daemon did not serve the repository", pytrace=False)
+        yield url
+    finally:
+        os.killpg(daemon.pid, signal.SIGTERM)
+        daemon.wait(timeout=30)
+        daemon_log.close()
+    assert port_is_closed(port), f"port {port} still accepts connections"
 
+
+def seed_repo(lab: Lab, name: str, base: Path, files: dict[str, str], *, tag: str | None = None) -> dict[str, str]:
+    """Make `base/srv/extra.git` from `files` on branch main. Return the Git environment."""
+    srv, work = base / "srv", base / "work"
+    for directory in (srv, work):
+        directory.mkdir(parents=True)
+    git_env = clean_env(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid")
+    git_env.update(GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
+    for relative, text in files.items():
+        (work / relative).parent.mkdir(parents=True, exist_ok=True)
+        (work / relative).write_text(text)
+    steps = [
+        ("init", ["git", "init", "-q", "-b", "main", str(work)]),
+        ("add", ["git", "-C", str(work), "add", "."]),
+        ("commit", ["git", "-C", str(work), "commit", "-q", "-m", "seed"]),
+    ]
+    if tag:
+        steps.append(("tag", ["git", "-C", str(work), "tag", tag]))
+    steps.append(("bare", ["git", "clone", "-q", "--bare", str(work), str(srv / "extra.git")]))
+    for step, argv in steps:
+        made = lab.logs.run(f"{name}-git-{step}", argv, env=git_env)
+        assert made.returncode == 0, made.stderr
+    (srv / "extra.git" / "git-daemon-export-ok").touch()
+    return git_env
+
+
+# --- B2: offline entry ------------------------------------------------------------------------
+
+
+def test_b2_patched_binary_enters_offline_with_a_locked_git_input(lab: Lab, tmp_path: Path):
+    """VMT-074: source in the store, empty fetcher cache, remote stopped. Stock fails. The patched binary enters."""
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    git_env = seed_repo(lab, "b2", tmp_path, {"data.txt": "b2 data\n"})
+    port = free_port()
+    url = f"git://127.0.0.1:{port}/extra.git"
+    (seed / "devenv.yaml").write_text(
+        f"inputs:\n  nixpkgs:\n    url: {NIXPKGS}\n  extra:\n    url: git+{url}\n    flake: false\n"
+    )
+    shutil.copyfile(FIXTURES / "b2-devenv.nix", seed / "devenv.nix")
+    probe = ["shell", "--", "sh", "-c", "echo EXTRA=$EXTRA; cat $EXTRA/data.txt"]
+
+    with serve_git(lab, "b2", tmp_path / "srv", port, git_env):
         # The patched binary locks the input and puts the source in the store while the remote is up.
         warm = tmp_path / "cache-warm"
         warm.mkdir()
@@ -315,10 +340,6 @@ def test_b2_patched_binary_enters_offline_with_a_locked_git_input(lab: Lab, tmp_
         )
         assert online.returncode == 0 and "b2 data" in online.output, online.output[-3000:]
         assert (seed / "devenv.lock").is_file()
-    finally:
-        os.killpg(daemon.pid, signal.SIGTERM)
-        daemon.wait(timeout=30)
-        daemon_log.close()
 
     # The remote is stopped now.
     assert port_is_closed(port), f"port {port} still accepts connections"
@@ -345,6 +366,96 @@ def test_b2_patched_binary_enters_offline_with_a_locked_git_input(lab: Lab, tmp_
     assert "Connection refused" in stock.output, stock.output[-3000:]
     patched = results["patched"]
     assert patched.returncode == 0, patched.output[-3000:]
+
+
+# --- B2b: missing store path ------------------------------------------------------------------
+
+
+def test_b2b_entry_falls_back_to_a_fetch_when_the_store_path_is_gone(lab: Lab, tmp_path: Path):
+    """VMT-184: two locked inputs share one source. The store path is deleted and the remote is up. Both enter."""
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    flake = "{ outputs = { self }: { }; }\n"
+    files = {"a/flake.nix": flake, "a/data.txt": "b2b data a\n", "b/flake.nix": flake, "b/data.txt": "b2b data b\n"}
+    git_env = seed_repo(lab, "b2b", tmp_path, files, tag="v1")
+    port = free_port()
+    base = f"git+git://127.0.0.1:{port}/extra.git?ref=refs/tags/v1"
+    (seed / "devenv.yaml").write_text(
+        f"inputs:\n  nixpkgs:\n    url: {NIXPKGS}\n  a:\n    url: {base}&dir=a\n  b:\n    url: {base}&dir=b\n"
+    )
+    shutil.copyfile(FIXTURES / "b2b-devenv.nix", seed / "devenv.nix")
+    probe = ["shell", "--", "sh", "-c", "echo A=$A_DATA; echo B=$B_DATA"]
+
+    def enter(label: str, which: Path, workspace: Path, cache: Path, *flags: str) -> Result:
+        return lab.devenv(f"b2b-{label}", which, workspace, *flags, *probe, env=clean_env(XDG_CACHE_HOME=str(cache)))
+
+    def workspace_for(label: str) -> Path:
+        workspace = tmp_path / f"ws-{label}"
+        workspace.mkdir()
+        for name in ("devenv.yaml", "devenv.nix", "devenv.lock"):
+            shutil.copyfile(seed / name, workspace / name)
+        return workspace
+
+    warm = tmp_path / "cache-warm"
+    warm.mkdir()
+    with serve_git(lab, "b2b", tmp_path / "srv", port, git_env):
+        # Lock the inputs with the stock binary, which leaves the source out of the store. Prefetch puts it in.
+        warm_env = clean_env(XDG_CACHE_HOME=str(warm))
+        locked = lab.devenv("b2b-lock", lab.stock, seed, "--no-eval-cache", *probe, env=warm_env)
+        assert locked.returncode == 0, locked.output[-3000:]
+        nodes = json.loads((seed / "devenv.lock").read_text())["nodes"]
+        assert nodes["a"]["locked"]["narHash"] == nodes["b"]["locked"]["narHash"], "the inputs do not share a source"
+        rev = nodes["a"]["locked"]["rev"]
+        prefetch = lab.logs.run(
+            "b2b-prefetch",
+            ["nix", "flake", "prefetch", "--json", f"git+git://127.0.0.1:{port}/extra.git?rev={rev}"],
+            env=warm_env,
+        )
+        assert prefetch.returncode == 0, prefetch.stderr[-2000:]
+        info = json.loads(prefetch.stdout)
+        source = info["storePath"]
+        assert info["hash"] == nodes["a"]["locked"]["narHash"], "prefetch made another source than the lock names"
+
+        # The source is in the store and the patched binary reuses it.
+        present = enter("patched-present", lab.binary, workspace_for("present"), warm)
+        assert present.returncode == 0 and "A=b2b data a" in present.output, present.output[-3000:]
+        assert Path(source).is_dir()
+
+        # Delete that one fixture path. Nothing roots it and no store path refers to it.
+        gone = lab.logs.run("b2b-delete", ["nix", "store", "delete", source])
+        assert gone.returncode == 0 and not Path(source).exists(), gone.output
+        results = {}
+        for label, which in (("stock", lab.stock), ("patched", lab.binary)):
+            for flags in ((), ("--no-eval-cache",), ("--refresh-eval-cache",)):
+                key = f"{label}-{flags[0].removeprefix('--') if flags else 'cache'}"
+                workspace = workspace_for(key)
+                if Path(source).exists():
+                    lab.logs.run(f"b2b-delete-{key}", ["nix", "store", "delete", source])
+                results[key] = enter(key, which, workspace, warm, *flags)
+        previous = os.environ.get("VENDOMAT_BINARY_E2E_PREVIOUS")
+        if previous:
+            if Path(source).exists():
+                lab.logs.run("b2b-delete-previous", ["nix", "store", "delete", source])
+            results["previous"] = enter("previous", Path(previous), workspace_for("previous"), warm, "--no-eval-cache")
+
+    for key, result in results.items():
+        if key == "previous":
+            assert result.returncode != 0, "the binary from before the fix entered; the control does not hold"
+            assert "is required, but there is no substituter that can build it" in result.output, result.output[-2000:]
+        else:
+            assert result.returncode == 0, f"{key}: {result.output[-3000:]}"
+            assert "A=b2b data a" in result.output and "B=b2b data b" in result.output, result.output
+
+    # The remote is down and the store lacks the source: both binaries fail with the fetch error.
+    for label, which in (("stock", lab.stock), ("patched", lab.binary)):
+        if Path(source).exists():
+            lab.logs.run(f"b2b-delete-down-{label}", ["nix", "store", "delete", source])
+        empty = tmp_path / f"cache-empty-{label}"
+        empty.mkdir()
+        down = enter(f"{label}-down", which, workspace_for(f"{label}-down"), empty, "--no-eval-cache")
+        assert down.returncode != 0, f"{label}: entered with the remote down and the source gone"
+        assert "Failed to fetch git repository" in down.output, down.output[-2000:]
+        assert "Connection refused" in down.output, down.output[-2000:]
 
 
 # --- B5: install refusal ----------------------------------------------------------------------
