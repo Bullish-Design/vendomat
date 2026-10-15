@@ -105,7 +105,7 @@ def test_no_infra_file_holds_a_credential():
 
 @needs_nix_fixture
 @needs_vm
-def test_the_collection_serves_immutable_tags_and_vendomat_release_branch(vendomat_package, tmp_path):
+def test_the_collection_serves_immutable_tags_and_a_release_branch_in_every_repository(vendomat_package, tmp_path):
     log = _run_vm_test("collection", vendomat_package, tmp_path)
     _expect(
         log,
@@ -114,12 +114,12 @@ def test_the_collection_serves_immutable_tags_and_vendomat_release_branch(vendom
         "RESULT tag push from framework over ssh: accepted; tree shows v1.0.0",
         "RESULT branch push refused; moved tag refused; tag delete refused",
         "RESULT Vendomat release branch: create and fast-forward accepted; rewind, delete, and main refused",
-        "RESULT other repositories reject refs/heads/release",
         "RESULT unmarked repository not served; push over git:// fails from both VMs",
         "RESULT nix fetch over git:// on framework: lib-a-1.0.1",
         "RESULT nix fetch over git:// on server: lib-a-1.0.1",
         "RESULT mirror: skipped without --collection; copied with it; no marker; not served",
         "RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original",
+        "RESULT other repositories accept refs/heads/release; rewind refused",
         "RESULT idle cpu ns in 15 s: ",
     )
     # The hook messages (`only release tags are accepted`, `releases are immutable`) are asserted in

@@ -2,8 +2,8 @@
 #
 # `server` holds the collection under /home/andrew/vendor and serves it with `git daemon`, with the
 # settings of nix-meta's machines/server.nix. `framework` pushes release tags over SSH and fetches
-# over git://. Only Vendomat also accepts fast-forward updates to its `release` branch. The
-# repositories come from `collection-add` (a copy of the nix-meta script) and the collection hooks.
+# over git://. Every repository also accepts creation and fast-forward updates of its `release`
+# branch (R37). The repositories come from `collection-add` (a copy of the nix-meta script) and the collection hooks.
 #
 # Run (needs /dev/kvm and the `nixos-test` system feature):
 #   VENDOMAT_PACKAGE=$(nix build .#packages.x86_64-linux.vendomat --no-link --print-out-paths) \
@@ -167,13 +167,7 @@ pkgs.testers.runNixOSTest {
       + "vendomat main:refs/heads/main 2>&1"
     )
     assert "only release tags are accepted" in out, out
-    out = framework.fail(
-      "cd /root/lib-a && " + SSH + "git push " + DEST
-      + "lib-a main:refs/heads/release 2>&1"
-    )
-    assert "only release tags are accepted" in out, out
     print("RESULT Vendomat release branch: create and fast-forward accepted; rewind, delete, and main refused")
-    print("RESULT other repositories reject refs/heads/release")
 
     # ---- STORE-023: version order, not push order ----
     out = framework.succeed("cd /root/lib-a && " + SSH + "git push " + DEST + "lib-a v1.0.1 2>&1")
@@ -304,6 +298,29 @@ pkgs.testers.runNixOSTest {
     out = andrew("cd ~/proj && VENDOMAT_SOURCE_ROOT=/home/andrew/vendor-copy vendomat sync --root . --collection 2>&1")
     assert andrew("git -C ~/vendor-copy/third describe --tags --exact-match HEAD").strip() == "v0.1.8"
     print("RESULT STORE-010: rebuilt refs, tree files, and selected tag equal the original; mirror restored by sync")
+
+    # ---- R37: every repository accepts a release branch, fast-forward only ----
+    # This runs after the STORE-010 comparison, which expects tags and no branches.
+    framework.succeed(
+        "cd /root/lib-a && " + SSH + "git push " + DEST
+        + "lib-a main:refs/heads/release 2>&1"
+    )
+    lib_a_release = framework.succeed("git -C /root/lib-a rev-parse main").strip()
+    assert andrew("git -C ~/vendor/lib-a rev-parse refs/heads/release").strip() == lib_a_release
+    framework.succeed(
+        "cd /root/lib-a && git config user.name t && git config user.email t@example.invalid"
+        " && git commit -q --allow-empty -m next"
+    )
+    framework.succeed(
+        "cd /root/lib-a && " + SSH + "git push " + DEST
+        + "lib-a main:refs/heads/release 2>&1"
+    )
+    out = framework.fail(
+        "cd /root/lib-a && " + SSH + "git push --force " + DEST
+        + "lib-a main~1:refs/heads/release 2>&1"
+    )
+    assert "refs/heads/release must move forward" in out, out
+    print("RESULT other repositories accept refs/heads/release; rewind refused")
 
     # ---- Idle cost of the daemon (STORE-008) ----
     read = "systemctl show -p CPUUsageNSec --value git-daemon.service"

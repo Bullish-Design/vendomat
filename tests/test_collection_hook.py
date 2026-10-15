@@ -54,9 +54,10 @@ def collection(tmp_path: Path) -> Path:
     return make_collection(tmp_path, "devman")
 
 
-@pytest.fixture
-def vendomat_collection(tmp_path: Path) -> Path:
-    return make_collection(tmp_path, "vendomat")
+@pytest.fixture(params=["vendomat", "basix", "devman"])
+def release_collection(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
+    # R37: every collection repository takes a `release` branch, not only `vendomat`.
+    return make_collection(tmp_path, request.param)
 
 
 @pytest.fixture
@@ -157,23 +158,23 @@ def test_a_refused_branch_push_changes_neither_refs_nor_tree(collection: Path, a
     assert (collection / "README").read_text() == "one\n"
 
 
-def test_only_the_vendomat_release_branch_is_allowed_and_only_fast_forward(vendomat_collection: Path, author: Path):
+def test_every_repository_accepts_a_release_branch_that_only_moves_forward(release_collection: Path, author: Path):
     release(author, "v1.0.0", "one\n")
     first = git(author, "rev-parse", "HEAD").stdout.strip()
-    created = push(author, vendomat_collection, "HEAD:refs/heads/release")
+    created = push(author, release_collection, "HEAD:refs/heads/release")
     assert created.returncode == 0, created.stderr
 
     release(author, "v1.1.0", "two\n")
-    moved = push(author, vendomat_collection, "HEAD:refs/heads/release")
+    moved = push(author, release_collection, "HEAD:refs/heads/release")
     assert moved.returncode == 0, moved.stderr
-    assert git(vendomat_collection, "rev-parse", "refs/heads/release").stdout.strip() != first
+    assert git(release_collection, "rev-parse", "refs/heads/release").stdout.strip() != first
 
     git(author, "checkout", "--quiet", "--detach", "v1.0.0")
     rewound = git(
         author,
         "push",
         "--force",
-        f"file://{vendomat_collection}",
+        f"file://{release_collection}",
         "HEAD:refs/heads/release",
         check=False,
     )
@@ -183,7 +184,7 @@ def test_only_the_vendomat_release_branch_is_allowed_and_only_fast_forward(vendo
     deleted = git(
         author,
         "push",
-        f"file://{vendomat_collection}",
+        f"file://{release_collection}",
         ":refs/heads/release",
         check=False,
     )
@@ -193,7 +194,7 @@ def test_only_the_vendomat_release_branch_is_allowed_and_only_fast_forward(vendo
     other_branch = git(
         author,
         "push",
-        f"file://{vendomat_collection}",
+        f"file://{release_collection}",
         "HEAD:refs/heads/main",
         check=False,
     )
@@ -201,12 +202,12 @@ def test_only_the_vendomat_release_branch_is_allowed_and_only_fast_forward(vendo
     assert "only release tags are accepted" in other_branch.stderr
 
 
-def test_other_collection_repositories_still_reject_the_release_branch(collection: Path, author: Path):
+def test_every_other_branch_is_still_refused(collection: Path, author: Path):
     release(author, "v1.0.0", "one\n")
-    done = push(author, collection, "HEAD:refs/heads/release")
-
-    assert done.returncode != 0
-    assert "only release tags are accepted" in done.stderr
+    for ref in ("HEAD:refs/heads/main", "HEAD:refs/heads/releases", "HEAD:refs/heads/release/next"):
+        done = push(author, collection, ref)
+        assert done.returncode != 0, ref
+        assert "only release tags are accepted" in done.stderr
 
 
 def test_the_hook_leaves_tags_alone_and_agrees_with_the_sync_refresh(collection: Path, author: Path):

@@ -15,7 +15,7 @@ Basix is a separate product in `../basix`, and this repository never names it in
 
 It is not a dependency resolver's replacement, a second lock, a daemon, a general runtime, a
 deployment engine, a workspace orchestrator, or a cache protocol. Native declarations and locks
-select dependencies. NixOS and Home Manager own activation. Attic owns cached objects.
+select dependencies. NixOS and Home Manager own activation. Harmonia serves build outputs from each machine (R39); the new system configures no Attic.
 
 ## Working here
 
