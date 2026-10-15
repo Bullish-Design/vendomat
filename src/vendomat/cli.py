@@ -409,14 +409,18 @@ def apply_command(
     dirty: bool = typer.Option(
         False,
         "--dirty",
-        help="Apply watched config changes without committing them; ignored config files must still be force-added.",
+        help="Apply uncommitted changes without a commit and record the generation as dirty. "
+        "Ignored config files must still be force-added.",
     ),
 ) -> None:
     """Build this machine, commit watched config, then activate it. No SSH.
 
-    After a successful build, apply commits only vendomat.yaml, devenv.lock, devenv.nix, and
-    devenv.local.nix before activation. --dirty skips that config commit and records the generation
-    as dirty, so rollback skips it. An ignored watched file must be force-added or removed first.
+    A record is always a whole commit. Before the build, apply refuses any uncommitted change under
+    the workspace root other than vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix. This
+    covers tracked and new files. Commit or remove them first. Files that Git ignores do not count.
+    After a successful build, apply commits those four files before activation. --dirty skips that
+    commit, allows other changes, and records the generation as dirty, so rollback skips it. An
+    ignored watched file must be force-added or removed first.
     """
 
     try:
@@ -436,7 +440,9 @@ def rollback_command(
     root: str | None = typer.Option(None, "--root", help="Workspace directory (defaults to the current directory)."),
     to: str | None = typer.Option(None, "--to", help="Roll back to this commit."),
     generation: int | None = typer.Option(None, "--generation", help="Roll back to the commit of this generation."),
-    exact: bool = typer.Option(False, "--exact", help="Restore every tracked file, not only the watched files."),
+    exact: bool = typer.Option(
+        False, "--exact", help="Deprecated. The default now restores the whole workspace tree. Kept as an alias."
+    ),
     fast: bool = typer.Option(
         False, "--fast", help="Move the profile to the recorded generation. Build nothing. Still commit the restore."
     ),
@@ -448,9 +454,10 @@ def rollback_command(
     """Return this machine to an earlier commit, with a lasting result.
 
     Without options: pick the newest earlier clean entry of the record with a different system path.
-    Show the diff. Restore vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix from that
-    commit. Build, commit the restore as `rollback to REV`, and activate. The command refuses
-    uncommitted changes, an unknown commit, and a commit that the repository lacks.
+    Show the diff. Restore the whole workspace tree (every tracked file under the workspace root)
+    from that commit. Build, commit the restore as `rollback to REV`, and activate. The command
+    refuses uncommitted changes (tracked or new), an unknown commit, and a commit that the
+    repository lacks.
     """
 
     try:

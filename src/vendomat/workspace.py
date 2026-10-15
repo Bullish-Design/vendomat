@@ -4,15 +4,19 @@ A workspace made by ``vendomat new`` is a plain Git repository. These commands r
 with the ``git`` binary. A rollback ends in a commit, so Git gives the one history that every
 machine and every clone shares (R30).
 
-The watched files are the files that decide what a machine runs: ``vendomat.yaml``, ``devenv.lock``,
-and the hatch files ``devenv.nix`` and ``devenv.local.nix``. A watched file that differs from the
-commit counts as a change. Apply commits those paths after a successful build; an ignored file must
-be force-added first. ``--dirty`` skips that commit and marks the generation dirty.
+A record is always a whole commit (R55, ``VMT-182``). The watched files are the four files that
+apply commits: ``vendomat.yaml``, ``devenv.lock``, and the hatch files ``devenv.nix`` and
+``devenv.local.nix``. Apply commits those paths after a successful build; an ignored one must be
+force-added first. Any other uncommitted change under the workspace root, tracked or new, stops
+apply before the build. Git-ignored files and the cache key file that apply writes do not count.
+``--dirty`` skips the commit, allows other changes, and marks the generation dirty. Rollback
+restores the whole workspace tree.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -133,13 +137,44 @@ def watched_changes(root: Path) -> list[Change]:
     return changes
 
 
-def fingerprint(root: Path) -> tuple[str, dict[str, str | None]]:
-    """The commit at HEAD and the content hash of each watched file (``None`` for a missing file)."""
+def _tree_paths(root: Path) -> list[str]:
+    """The files under ``root`` that a build can read: tracked files and new files that Git does not ignore.
 
-    hashes: dict[str, str | None] = {}
-    for name in WATCHED:
-        file = root / name
-        hashes[name] = hashlib.sha256(file.read_bytes()).hexdigest() if file.is_file() else None
+    The names are relative to ``root`` (``git ls-files`` run in ``root`` does this). A watched file
+    that exists counts even when Git ignores it.
+    """
+
+    proc = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ".")
+    names = {name for name in proc.stdout.split("\0") if name}
+    names.update(name for name in WATCHED if (root / name).exists() or (root / name).is_symlink())
+    return sorted(names)
+
+
+def _file_hash(file: Path) -> str | None:
+    """The content hash of a file, of the target text of a symlink, or ``None`` for a missing path."""
+
+    if file.is_symlink():
+        return "link:" + hashlib.sha256(os.readlink(file).encode()).hexdigest()
+    if not file.is_file():
+        return None
+    digest = hashlib.sha256()
+    with file.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def fingerprint(root: Path) -> tuple[str, dict[str, str | None]]:
+    """The commit at HEAD and the content hash of every file of the tree under ``root``.
+
+    The tree is the tracked files, the new files that Git does not ignore, and the four watched
+    files (``None`` for a missing watched file). A file that a build can read must not change during
+    the build (R55).
+    """
+
+    hashes: dict[str, str | None] = {name: None for name in WATCHED}
+    for name in _tree_paths(root):
+        hashes[name] = _file_hash(root / name)
     return head(root), hashes
 
 
@@ -211,55 +246,76 @@ def commit_watched(root: Path, message: str = "vendomat apply configuration") ->
     return head(root)
 
 
-def tree_changes(root: Path) -> list[str]:
-    """Tracked files that differ from HEAD, as ``git status`` lines. Untracked files do not count."""
+def tree_changes(root: Path) -> list[Change]:
+    """Every uncommitted change under ``root``: tracked files that differ from HEAD and new files.
 
-    # `-- .` limits the list to the workspace directory, the same scope as the `--exact` restore.
-    return git(root, "status", "--porcelain", "--untracked-files=no", "--", ".").stdout.splitlines()
+    Files that Git ignores do not count. The names are relative to ``root``. Git reports a rename as a
+    deletion and an addition (``--no-renames``), so each name appears once. A change outside ``root``
+    does not count.
+    """
+
+    proc = git(root, "status", "--porcelain", "-z", "--no-renames", "--untracked-files=all", "--", ".")
+    prefix = _prefix(root)
+    changes: list[Change] = []
+    for entry in proc.stdout.split("\0"):
+        if len(entry) < 4:
+            continue
+        name = entry[3:]
+        if name.startswith(prefix):
+            changes.append(Change(name[len(prefix) :], entry[:2]))
+    return changes
 
 
-def diff_text(root: Path, rev: str, *, exact: bool) -> str:
-    """The change that a restore from ``rev`` makes: the stat, then the patch."""
+def cache_key_path(name: str) -> str:
+    """The workspace path of the public cache key of machine ``name`` (``VMT-161``)."""
 
-    paths = ["."] if exact else list(WATCHED)
-    stat = git(root, "diff", "--no-color", "--stat", "HEAD", rev, "--", *paths).stdout
-    patch = git(root, "diff", "--no-color", "HEAD", rev, "--", *paths).stdout
+    return f".machines/{name}/cache-key.pub"
+
+
+def written_key_file(root: Path, name: str, source: Path) -> str | None:
+    """The path of the key file that apply writes for this machine, or ``None``.
+
+    Apply copies the machine's public key from ``source`` into the workspace after each activation
+    and never commits it. The file is apply's own output, so a change to it must not stop the next
+    apply, whatever it holds: apply writes it again from ``source``. A machine with no ``source``
+    (``serve: false``) has no such output, and its key file counts as a change of the user.
+    """
+
+    return cache_key_path(name) if source.is_file() else None
+
+
+def uncommitted_changes(root: Path, *, skip: tuple[str, ...] = ()) -> list[Change]:
+    """The uncommitted changes under ``root`` except the paths in ``skip``."""
+
+    return [change for change in tree_changes(root) if change.path not in skip]
+
+
+def diff_text(root: Path, rev: str) -> str:
+    """The change that a restore of the workspace tree from ``rev`` makes: the stat, then the patch."""
+
+    stat = git(root, "diff", "--no-color", "--stat", "HEAD", rev, "--", ".").stdout
+    patch = git(root, "diff", "--no-color", "HEAD", rev, "--", ".").stdout
     return (stat + "\n" + patch).strip()
 
 
-def restore(root: Path, rev: str, *, exact: bool) -> None:
-    """Make the watched files (or every tracked file, for ``exact``) equal to ``rev``, in index and tree."""
+def restore(root: Path, rev: str) -> None:
+    """Make every tracked file under ``root`` equal to ``rev``, in index and tree.
 
-    if exact:
-        git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", ".")
-        return
-    for path in WATCHED:
-        in_rev = git(root, "cat-file", "-e", f"{rev}:{path}", check=False).returncode == 0
-        tracked = _tracked(root, path)
-        if in_rev:
-            git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", path)
-        elif tracked:
-            git(root, "rm", "-q", "-f", "--", path)
+    ``git restore --source`` also removes a tracked file that ``rev`` lacks. New files that Git does
+    not track stay. Paths outside ``root`` stay as they are.
+    """
+
+    git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", ".")
 
 
-def undo_restore(root: Path, *, exact: bool) -> None:
-    """Return the index and the tree to HEAD after a failed rollback step."""
+def undo_restore(root: Path) -> None:
+    """Return the index and the tree under ``root`` to HEAD after a failed rollback step."""
 
-    if exact:
-        git(root, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
-        return
-    for path in WATCHED:
-        in_head = git(root, "cat-file", "-e", f"HEAD:{path}", check=False).returncode == 0
-        if in_head:
-            git(root, "restore", "--source=HEAD", "--staged", "--worktree", "--", path)
+    git(root, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".")
 
 
-def commit_restore(root: Path, message: str, *, exact: bool = False) -> str:
-    """Commit a restore, keeping unrelated staged files out of a watched-file rollback."""
+def commit_restore(root: Path, message: str) -> str:
+    """Commit a restore of the workspace tree. Staged files outside ``root`` stay out of the commit."""
 
-    if exact:
-        git(root, "commit", "-q", "--allow-empty", "-m", message)
-    else:
-        paths = _commit_paths(root, watched_changes(root))
-        git(root, "commit", "-q", "--allow-empty", "--only", "-m", message, "--", *paths)
+    git(root, "commit", "-q", "--allow-empty", "--only", "-m", message, "--", ".")
     return head(root)

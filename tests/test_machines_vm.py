@@ -8,9 +8,10 @@ EFI disk image, and runs the real commands inside it, as an unprivileged user wi
 2. W9 R1 to R6: the default rollback gives the identical path of A, copies nothing, adds a generation
    that is the default boot entry, and boots clean; a working-copy-only restore is refused; a rollback
    works after the path left the store (the cache supplies it); `--fast`; `--boot-only`.
-3. R43 and VR3: apply commits allowlisted configuration after build and before activation, leaves
-   unrelated staged files alone, refuses ignored configuration, and `--dirty` skips the commit;
-   rollback skips dirty entries.
+3. R43, R49, and R55: apply commits the four watched files after build and before activation, refuses
+   every other uncommitted change and ignored configuration before the build, is not blocked by the
+   key file that an earlier apply wrote, and `--dirty` skips the commit; rollback skips dirty entries
+   and restores the whole workspace tree (`--exact` is a deprecated alias).
 
 The machine has no network. A local binary cache serves the system paths over HTTP (the harness counts
 the downloads), and the workspace pins its inputs by store path. See tests/fixtures/machines/. The
@@ -376,22 +377,29 @@ def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world
     assert line["generation"] == 1 and line["toplevel"] == world.tops["A"]
     assert line["commit"] == world.commits["A"] and line["dirty"] is False
     assert "failed units: none" in out and "generation 1 is active" in out
-    world.machine.ok("tester", "cd ws && rm -rf .machines")
+    # The key file stays. It is untracked, and the next apply must not stop for it (R55, VMT-161).
     world.log.result(f"apply A: record {line}")
 
 
 def test_apply_a_prime_builds_in_the_machine_and_boots_clean(world: World) -> None:
     world.write_hatch("A-prime")
     world.machine.ok("tester", "cd ws && echo two > notes.txt && git add notes.txt")  # staged addition, not watched
+    # R55: a record is a whole commit. A change to a file that is not watched stops apply before the build.
+    before = world.state()
+    rc, out = world.vendomat("apply")
+    assert rc == 1 and "added: notes.txt" in out and "Nothing was built" in out, out
+    assert world.state() == before and len(world.record()) == 1
+    assert world.git("status --porcelain") == " M devenv.nix\nA  notes.txt\n?? .machines/", (
+        "the refusal changes nothing; the key file of apply A did not count as a change"
+    )
+    world.git("commit -q -m 'add notes' -- notes.txt")
     began = world.downloads()
     rc, out = world.vendomat("apply")
     assert rc == 0, out
     world.commits["A-prime"] = world.git("rev-parse HEAD")
     assert world.git("log -1 --format=%s") == "vendomat apply configuration"
     assert world.git("show --format= --name-only HEAD") == "devenv.nix"
-    assert world.git("status --porcelain") == "A  notes.txt\n?? .machines/", (
-        "apply preserves unrelated staged work and leaves its trust key outside the config commit"
-    )
+    assert world.git("status --porcelain") == "?? .machines/", "apply leaves its trust key outside the config commit"
     world.machine.ok("tester", "cd ws && rm -rf .machines")
     assert world.downloads() > began, "A-prime needs paths from the cache (hello)"
     state = world.state()
@@ -419,11 +427,19 @@ def test_ignored_configuration_is_refused_by_apply_and_rollback(world: World) ->
     rc, out = world.vendomat("apply")
     assert rc == 1 and "Force-add them with `git add -f`" in out, out
     rc, out = world.vendomat("rollback")
-    assert rc == 1 and "uncommitted changes to watched files" in out, out
+    assert rc == 1 and "uncommitted changes in the workspace" in out, out
     assert world.state() == before and len(world.record()) == 2
     world.machine.ok("tester", "cd ws && rm devenv.local.nix")
-    assert world.git("status --porcelain") == "A  notes.txt", "the unrelated staged addition stays staged"
-    world.log.result("apply and rollback refused a present ignored config file without changing the machine")
+    # R55: a new file that is not watched also stops both commands.
+    world.machine.ok("tester", "cd ws && echo x > scratch.txt")
+    rc, out = world.vendomat("apply")
+    assert rc == 1 and "untracked: scratch.txt" in out and "Nothing was built" in out, out
+    rc, out = world.vendomat("rollback")
+    assert rc == 1 and "untracked: scratch.txt" in out, out
+    assert world.state() == before and len(world.record()) == 2
+    world.machine.ok("tester", "cd ws && rm scratch.txt")
+    assert world.git("status --porcelain") == ""
+    world.log.result("apply and rollback refused an ignored config file and a new file without changing the machine")
 
 
 def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world: World) -> None:
@@ -438,21 +454,19 @@ def test_rollback_gives_the_identical_path_copies_nothing_and_boots_clean(world:
     assert state["gens"].split() == ["1", "2", "3"] and state["pointer"] == "system-3-link"
     assert default_generation(state) == 3 and state["marker"] == "A" and state["hello"] == "no"
     assert state["failed"].strip("[] ") == ""
-    # The restore is a commit. Another clone sees it, while unrelated staged work stays staged.
+    # R55: the restore is a commit of the whole tree. notes.txt did not exist at commit A, so it goes too.
     short = world.commits["A"][:12]
     assert world.git("log -1 --format=%s") == f"rollback to {short}"
-    assert world.git("show --format= --name-only HEAD") == "devenv.nix"
-    assert world.git("status --porcelain") == "A  notes.txt"
-    assert world.git(f"diff {world.commits['A']} HEAD -- vendomat.yaml devenv.lock devenv.nix") == ""
-    assert world.machine.ok("tester", "cd ws && cat notes.txt").strip() == "two", "an unwatched file stays"
+    assert sorted(world.git("show --format= --name-only HEAD").split()) == ["devenv.nix", "notes.txt"]
+    assert world.git("status --porcelain") == ""
+    assert world.git(f"diff {world.commits['A']} HEAD") == "", "the whole tree equals commit A"
+    rc, _ = world.machine.run("tester", "cd ws && test -e notes.txt")
+    assert rc != 0, "a file that is not watched is restored too"
     world.commits["R1"] = world.git("rev-parse HEAD")
     line = world.record()[-1]
     assert line["generation"] == 3 and line["toplevel"] == world.tops["A"]
     assert line["commit"] == world.commits["R1"] and line["dirty"] is False
     world.log.result(f"rollback: {world.timings['vendomat rollback']:.1f} s, 0 downloads, record {line}")
-    world.git("reset -- notes.txt")
-    world.machine.ok("tester", "cd ws && rm notes.txt")
-    assert world.git("status --porcelain") == ""
     world.machine.reboot()
     state = world.state()
     assert state["booted"] == world.tops["A"] and state["marker"] == "A" and state["hello"] == "no"
@@ -512,10 +526,11 @@ def test_fast_moves_the_profile_builds_nothing_and_still_commits(world: World) -
     assert state["gens"].split() == [str(n) for n in range(1, 8)], "no new generation"
     assert default_generation(state) == 6 and state["failed"].strip("[] ") == ""
     assert world.git("log -1 --format=%s") == f"rollback to {world.commits['R2'][:12]}"
-    assert world.git("rev-parse HEAD") != head and world.git("status --porcelain") == ""
-    assert world.git(f"diff {world.commits['R2']} HEAD -- vendomat.yaml devenv.lock devenv.nix") == "", (
-        "the files match the system"
-    )
+    # The apply before wrote the trust key into the workspace (the whole-tree rollback R2 removed a tracked
+    # copy). The key stays untracked, and it did not stop the rollback (R55, VMT-161).
+    assert world.git("rev-parse HEAD") != head and world.git("status --porcelain") == "?? .machines/"
+    world.machine.ok("tester", "cd ws && rm -rf .machines")
+    assert world.git(f"diff {world.commits['R2']} HEAD") == "", "the whole tree matches the system"
     line = world.record()[-1]
     assert line["generation"] == 6 and line["commit"] == world.git("rev-parse HEAD") and line["dirty"] is False
     world.commits["R3"] = world.git("rev-parse HEAD")
@@ -597,14 +612,15 @@ def test_rollback_works_after_the_target_path_left_the_store(world: World) -> No
     )
 
 
-def test_exact_restores_every_tracked_file(world: World) -> None:
+def test_exact_is_a_deprecated_alias_of_the_default(world: World) -> None:
     rc, out = world.vendomat(f"rollback --exact --to {world.commits['A']}")
     assert rc == 0, out
     assert world.git(f"diff {world.commits['A']} HEAD") == "", "the whole tree equals commit A"
+    assert "--exact is deprecated" in out, out
     rc, _ = world.machine.run("tester", "cd ws && test -e notes.txt")
     assert rc != 0, "notes.txt did not exist at commit A"
     state = world.state()
     assert state["current"] == world.tops["A"] and state["marker"] == "A"
     assert world.git("log -1 --format=%s") == f"rollback to {world.commits['A'][:12]}"
     assert state["failed"].strip("[] ") == ""
-    world.log.result("rollback --exact: the whole tree equals commit A, system A")
+    world.log.result("rollback --exact (deprecated alias): the whole tree equals commit A, system A")

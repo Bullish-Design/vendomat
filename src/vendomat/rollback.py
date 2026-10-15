@@ -4,11 +4,16 @@ A lasting rollback changes the files, not only the machine. The command:
 
 1. reads the generation record (``record.py``) and picks a target: the newest earlier clean entry
    with a different system path, or ``--to REV``, or ``--generation N``;
-2. refuses uncommitted changes to the watched files, an unknown commit, and a recorded commit that
-   the repository no longer holds;
+2. refuses any uncommitted change under the workspace root (tracked or new; Git-ignored files and the
+   cache key file that apply wrote do not count), an unknown commit, and a recorded commit that the
+   repository no longer holds;
 3. shows the diff that the restore makes;
-4. restores the watched files from the target commit (``--exact``: every tracked file);
+4. restores the whole workspace tree from the target commit, scoped to the workspace root (R55,
+   ``VMT-182``);
 5. builds, commits the restore as ``rollback to REV``, and activates.
+
+``--exact`` was the whole-tree restore before R55. The default is now the same, so ``--exact`` is a
+deprecated alias.
 
 A restore that stays in the working copy is not allowed: the next apply from another clone, or after
 a reset, would silently roll forward (W9 R3). The commit is always made.
@@ -25,6 +30,7 @@ from pathlib import Path
 
 from . import workspace
 from .apply import (
+    CACHE_KEY_PATH,
     PROFILE,
     Applied,
     Emit,
@@ -110,6 +116,7 @@ def rollback(
     profile: Path | None = None,
     record: Path | None = None,
     boot_entries: Path | None = None,
+    cache_key: Path | None = None,
 ) -> RolledBack | None:
     """Roll this machine back. Return ``None`` for ``--dry-run``."""
 
@@ -118,22 +125,23 @@ def rollback(
     boot_entries = boot_entries or BOOT_ENTRIES
     if to is not None and generation is not None:
         raise RecordError("give --to or --generation, not both", 3)
-    if exact and (fast or boot_only):
-        raise RecordError("--exact cannot combine with --fast or --boot-only", 3)
     if fast and boot_only:
         raise RecordError("give --fast or --boot-only, not both", 3)
 
     name = machine_name(facts)
-    changes = workspace.watched_changes(root)
-    if exact and not changes:
-        stray = workspace.tree_changes(root)
-        if stray:
-            raise RecordError("--exact replaces every tracked file, but the tree has changes:\n" + "\n".join(stray))
+    if exact:
+        emit("warning: --exact is deprecated. The default rollback now restores the whole workspace tree.")
+    key = workspace.written_key_file(root, name, cache_key or CACHE_KEY_PATH)
+    changes = workspace.watched_changes(root)  # includes an ignored watched file that exists
+    seen = {change.path for change in changes}
+    changes += [c for c in workspace.uncommitted_changes(root, skip=(key,) if key else ()) if c.path not in seen]
     if changes and not boot_only:
         listing = "; ".join(change.text() for change in changes)
-        raise RecordError(f"uncommitted changes to watched files ({listing}). Commit or discard them first.")
-    if changes and boot_only:
-        pass  # --boot-only touches no file, so it needs no clean tree.
+        raise RecordError(
+            f"uncommitted changes in the workspace ({listing}). Rollback restores the whole workspace tree. "
+            "Commit or discard them first."
+        )
+    # --boot-only touches no file, so it needs no clean tree.
 
     current = current_toplevel(profile)
     head = workspace.head(root)
@@ -158,7 +166,7 @@ def rollback(
         emit("This is for recovery. Restart to use it. The profile and the files stay as they are.")
         return RolledBack(head, target, None, entry_name)
 
-    diff = workspace.diff_text(root, target, exact=exact)
+    diff = workspace.diff_text(root, target)
     emit(diff if diff else "the files already equal the target commit; the rollback commit will be empty")
     if dry_run:
         emit("dry run: nothing changed")
@@ -173,11 +181,11 @@ def rollback(
                 f"{chosen.entry.toplevel}. Run the rollback without --fast."
             )
 
-    workspace.restore(root, target, exact=exact)
+    workspace.restore(root, target)
     try:
         if fast:
             assert chosen is not None
-            commit = workspace.commit_restore(root, f"rollback to {target_short}", exact=exact)
+            commit = workspace.commit_restore(root, f"rollback to {target_short}")
             applied = activate(
                 run,
                 chosen.entry.toplevel,
@@ -191,12 +199,12 @@ def rollback(
         else:
             top = build_toplevel(root, name, run)
             emit(f"built {top}")
-            commit = workspace.commit_restore(root, f"rollback to {target_short}", exact=exact)
+            commit = workspace.commit_restore(root, f"rollback to {target_short}")
             applied = activate(run, top, commit, False, emit, profile=profile, record=record)
     except RecordError:
         # A restore that is neither committed nor applied must not stay in the tree.
         if workspace.head(root) == head:
-            workspace.undo_restore(root, exact=exact)
+            workspace.undo_restore(root)
         raise
     emit(f"committed {workspace.short(root, commit)}: rollback to {target_short}")
     return RolledBack(commit, target, applied)

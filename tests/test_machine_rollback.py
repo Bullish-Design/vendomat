@@ -115,11 +115,11 @@ def test_rollback_refuses_when_only_dirty_entries_remain(world: World):
         world.rollback()
 
 
-@pytest.mark.parametrize("name", ["vendomat.yaml", "devenv.lock", "devenv.nix"])
+@pytest.mark.parametrize("name", ["vendomat.yaml", "devenv.lock", "devenv.nix", "notes.txt"])
 def test_rollback_refuses_an_uncommitted_change(world: World, name: str):
     (world.root / name).write_text("edit\n")
     calls = len(world.machine.calls)
-    with pytest.raises(RecordError, match=f"uncommitted changes to watched files .*{name}") as info:
+    with pytest.raises(RecordError, match=f"uncommitted changes in the workspace .*{name}") as info:
         world.rollback()
     assert info.value.code == 1
     assert len(world.machine.calls) == calls and (world.root / name).read_text() == "edit\n"
@@ -171,7 +171,6 @@ def test_rollback_by_generation(world: World):
 def test_usage_errors_exit_with_status_3(world: World):
     calls = (
         lambda: world.rollback(to="x", generation=1),
-        lambda: world.rollback(exact=True, fast=True),
         lambda: world.rollback(fast=True, boot_only=True),
     )
     for call in calls:
@@ -189,19 +188,98 @@ def test_dry_run_shows_the_diff_and_changes_nothing(world: World):
     assert "dry run: nothing changed" in said and git(world.root, "status", "--porcelain") == ""
 
 
-def test_exact_restores_every_tracked_file(world: World):
+def test_the_default_rollback_restores_a_file_that_is_not_watched(world: World):
+    # R55: the whole tree goes back. A module that the hatch imports (`nixos/x.nix`) is part of it.
+    (world.root / "nixos").mkdir()
+    (world.root / "nixos" / "x.nix").write_text("{ later = true; }\n")
+    git(world.root, "add", "nixos")
+    git(world.root, "commit", "--quiet", "-m", "module")
     commit_file(world.root, "notes.txt", "later\n", "notes")
-    done = world.rollback(to=world.first, exact=True)
+    done = world.rollback(to=world.first)
     assert done is not None
+    assert not (world.root / "nixos" / "x.nix").exists()  # the target lacked it
+    assert (world.root / "notes.txt").read_text() == "one\n"
+    assert git(world.root, "diff", world.first, "HEAD") == ""
+    assert git(world.root, "log", "-1", "--format=%s") == f"rollback to {world.first[:12]}"
+    assert git(world.root, "status", "--porcelain") == ""
+
+
+def test_the_default_rollback_restores_a_changed_module_file(world: World):
+    (world.root / "nixos").mkdir()
+    (world.root / "nixos" / "x.nix").write_text("{ v = 1; }\n")
+    git(world.root, "add", "nixos")
+    git(world.root, "commit", "--quiet", "-m", "module one")
+    target = workspace.head(world.root)
+    (world.root / "nixos" / "x.nix").write_text("{ v = 2; }\n")
+    git(world.root, "commit", "--quiet", "-am", "module two")
+    world.rollback(to=target)
+    assert (world.root / "nixos" / "x.nix").read_text() == "{ v = 1; }\n"
+
+
+def test_rollback_refuses_a_new_untracked_file(world: World):
+    (world.root / "scratch.txt").write_text("new\n")
+    calls = len(world.machine.calls)
+    with pytest.raises(RecordError, match=r"untracked: scratch\.txt"):
+        world.rollback(to=world.first)
+    assert len(world.machine.calls) == calls and (world.root / "scratch.txt").exists()
+
+
+def test_rollback_allows_a_file_that_git_ignores(world: World):
+    (world.root / ".devenv").mkdir()
+    (world.root / ".devenv" / "state").write_text("cache\n")
+    assert world.rollback(to=world.first) is not None
+
+
+def test_rollback_allows_the_key_file_that_apply_wrote(world: World):
+    world.machine.cache_key.write_text("box:AAAA=\n")
+    world.apply(cache_key=world.machine.cache_key)
+    assert git(world.root, "status", "--porcelain") == "?? .machines/"
+    done = world.rollback(to=world.first, cache_key=world.machine.cache_key)
+    assert done is not None
+    assert git(world.root, "status", "--porcelain") == "?? .machines/"  # the key stays uncommitted
+
+
+def test_exact_is_a_deprecated_alias_of_the_default(world: World):
+    commit_file(world.root, "notes.txt", "later\n", "notes")
+    said: list[str] = []
+    done = world.rollback(said, to=world.first, exact=True)
+    assert done is not None
+    assert any("--exact is deprecated" in line for line in said)
     assert (world.root / "notes.txt").read_text() == "one\n"
     assert git(world.root, "diff", world.first, "HEAD") == ""
     assert git(world.root, "log", "-1", "--format=%s") == f"rollback to {world.first[:12]}"
 
 
-def test_exact_refuses_a_change_to_any_tracked_file(world: World):
+def test_exact_still_refuses_a_change_to_any_tracked_file(world: World):
     (world.root / "notes.txt").write_text("edit\n")
-    with pytest.raises(RecordError, match="--exact replaces every tracked file"):
+    with pytest.raises(RecordError, match="uncommitted changes in the workspace"):
         world.rollback(to=world.first, exact=True)
+
+
+def test_a_rollback_in_a_subdirectory_workspace_leaves_the_rest_of_the_repository_alone(tmp_path: Path):
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    sub.mkdir()
+    for name in ("vendomat.yaml", "devenv.lock", "devenv.nix"):
+        (sub / name).write_text((top / name).read_text())
+    commit = lambda: git(top, "commit", "--quiet", "-m", "m")  # noqa: E731
+    git(top, "add", "-A")
+    commit()
+    machine = Machine(tmp_path / "m")
+    apply(sub, emit=lambda _: None, **machine.kwargs())
+    first = git(top, "rev-parse", "HEAD")
+    (sub / "devenv.nix").write_text('{ marker = "two"; }\n')
+    (sub / "extra.nix").write_text("{ }\n")
+    git(top, "add", "-A")
+    commit()
+    apply(sub, emit=lambda _: None, **machine.kwargs())
+    (top / "notes.txt").write_text("outside change\n")  # outside the root: allowed, and kept
+    done = rollback(sub, emit=lambda _: None, boot_entries=machine.boot, **machine.kwargs())
+    assert done is not None and done.target_commit == first
+    assert not (sub / "extra.nix").exists() and (sub / "devenv.nix").read_text() == "{ }\n"
+    assert (top / "notes.txt").read_text() == "outside change\n"
+    assert git(top, "status", "--porcelain") == "M notes.txt"
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix", "proj/extra.nix"]
 
 
 def test_fast_moves_the_profile_builds_nothing_and_still_commits(world: World):
@@ -313,3 +391,10 @@ def test_the_cli_passes_the_options_and_maps_exit_status(world: World, monkeypat
 
 def test_entries_are_plain_data():
     assert Entry(1, "/nix/store/a", "c", False, "t").line().startswith('{"generation":1,')
+
+
+def test_rollback_help_describes_the_whole_tree_and_marks_exact_deprecated():
+    result = CliRunner().invoke(app, ["rollback", "--help"])
+    assert result.exit_code == 0
+    text = " ".join(result.output.replace("│", " ").split())
+    assert "whole workspace tree" in text and "Deprecated" in text and "--exact" in text

@@ -581,6 +581,9 @@ Steps:
       `devenv machines deploy NAME`.
    2. Refuse uncommitted changes to `vendomat.yaml`, `devenv.lock`, and the hatch files unless
       `--dirty` (D6). R49 changes this step: apply builds first, then commits the watched files (`VMT-166`).
+      R55 narrows it (`VMT-182`): before the build, apply also refuses every other uncommitted change under
+      the workspace root, tracked or new. Git-ignored files and the `.machines/NAME/cache-key.pub` file that
+      apply wrote do not count. `--dirty` allows these changes and records the generation as dirty.
    3. `devenv build machines.NAME.build.nixos`.
    4. `/run/wrappers/bin/sudo nix-env --profile /nix/var/nix/profiles/system --set TOP`.
    5. `/run/wrappers/bin/sudo TOP/bin/switch-to-configuration switch`.
@@ -594,11 +597,11 @@ Steps:
       `--to REV`, or `--generation N`.
    3. Refuse uncommitted changes, an unknown commit, or a commit missing from the repository.
       Show the diff first.
-   4. Restore `vendomat.yaml`, `devenv.lock`, and the hatch files from that commit, and commit
-      them as `rollback to REV`. A bare working-copy restore is not allowed: the next apply would
+   4. Restore the whole workspace tree from that commit (R55, `VMT-182`; path-scoped to the workspace
+      root), and commit it as `rollback to REV`. A bare working-copy restore is not allowed: the next apply would
       silently roll forward (W9 R3).
    5. Apply.
-   6. Options: `--exact` checks out REV and gives the identical earlier store path; `--fast` does
+   6. Options: `--exact` is a deprecated alias of the default (R55); `--fast` does
       a profile rollback plus switch and still commits; `--boot-only` runs `bootctl set-oneshot`
       for recovery only.
 4. Do not set `system.configurationRevision` (`VMT-110`).

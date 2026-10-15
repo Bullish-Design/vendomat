@@ -248,6 +248,38 @@ def test_a_watched_file_edited_during_the_build_is_not_committed_or_activated(tm
     assert not machine.record.exists() and not machine.profile.exists()
 
 
+@pytest.mark.parametrize("dirty", [False, True])
+@pytest.mark.parametrize("change", ["edit", "create"])
+def test_a_file_that_is_not_watched_edited_during_the_build_is_refused(tmp_path: Path, dirty: bool, change: str):
+    # R55: the check covers the whole tree under the root, not only the four watched files.
+    root = make_workspace(tmp_path / "ws")
+    (root / "nixos").mkdir()
+    (root / "nixos" / "x.nix").write_text("{ }\n")
+    git(root, "add", "-A")
+    git(root, "commit", "--quiet", "-m", "module")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")
+    machine = Machine(tmp_path / "m")
+    original = machine.run
+
+    def run(argv, **kw):
+        result = original(argv, **kw)
+        if argv[0].endswith("devenv") and argv[1] == "build":
+            if change == "edit":
+                (root / "nixos" / "x.nix").write_text("{ saved = true; }\n")
+            else:
+                (root / "nixos" / "new.nix").write_text("{ }\n")
+        return result
+
+    machine.run = run  # ty: ignore[invalid-assignment]
+    name = "nixos/x.nix" if change == "edit" else "nixos/new.nix"
+    with pytest.raises(RecordError, match=f"{name} changed during the build.*Nothing was committed or activated"):
+        apply(root, dirty_ok=dirty, emit=lambda _: None, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") == before
+    assert [call[1] for call in machine.calls] == ["build"]
+    assert not machine.record.exists() and not machine.profile.exists()
+
+
 def test_a_config_commit_stays_when_activation_fails_later(tmp_path: Path):
     # D9: the commit records the configuration that the owner asked for. A failed switch does not undo it.
     root = make_workspace(tmp_path / "ws")
@@ -261,12 +293,165 @@ def test_a_config_commit_stays_when_activation_fails_later(tmp_path: Path):
     assert git(root, "status", "--porcelain") == "" and not machine.record.exists()
 
 
-def test_apply_ignores_a_change_to_a_file_that_is_not_watched(tmp_path: Path):
+def test_apply_refuses_a_changed_tracked_file_that_is_not_watched(tmp_path: Path):
+    # R55: a record is a whole commit. A change that apply would not commit stops it before the build.
     root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ x = 1; }\n")  # a watched change does not hide the other one
     (root / "notes.txt").write_text("two\n")
     machine = Machine(tmp_path / "m")
+    with pytest.raises(
+        RecordError, match=r"(?s)modified: notes\.txt.*Commit these paths or remove them.*Nothing was built"
+    ) as info:
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert info.value.code == 1
+    assert machine.calls == [] and not machine.record.exists()
+    assert git(root, "rev-list", "--count", "HEAD") == "1"  # no commit, not even of the watched file
+
+
+def test_apply_refuses_a_new_untracked_file(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "nixos").mkdir()
+    (root / "nixos" / "x.nix").write_text("{ }\n")
+    machine = Machine(tmp_path / "m")
+    with pytest.raises(RecordError, match=r"untracked: nixos/x\.nix"):
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert machine.calls == []
+
+
+def test_apply_refuses_a_staged_file_and_names_every_path(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "notes.txt").write_text("staged\n")
+    git(root, "add", "notes.txt")
+    (root / "extra.txt").write_text("new\n")
+    machine = Machine(tmp_path / "m")
+    with pytest.raises(RecordError) as info:
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert "notes.txt" in str(info.value) and "extra.txt" in str(info.value)
+    assert machine.calls == []
+
+
+def test_apply_refuses_a_deleted_file_that_is_not_watched(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "notes.txt").unlink()
+    machine = Machine(tmp_path / "m")
+    with pytest.raises(RecordError, match=r"deleted: notes\.txt"):
+        apply(root, emit=lambda _: None, **machine.kwargs())
+
+
+def test_apply_allows_a_file_that_git_ignores(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / ".devenv").mkdir()
+    (root / ".devenv" / "state").write_text("cache\n")  # the workspace .gitignore holds `.devenv*`
+    machine = Machine(tmp_path / "m")
+    result = apply(root, emit=lambda _: None, **machine.kwargs())
+    assert result.dirty is False and lines(machine)[0]["dirty"] is False
+    assert git(root, "rev-list", "--count", "HEAD") == "1"
+
+
+def test_apply_allows_a_clean_tree_and_commits_only_the_watched_files(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ x = 4; }\n")
+    (root / "devenv.lock").write_text("{}\n")
+    machine = Machine(tmp_path / "m")
     apply(root, emit=lambda _: None, **machine.kwargs())
+    assert sorted(git(root, "show", "--format=", "--name-only", "HEAD").splitlines()) == ["devenv.lock", "devenv.nix"]
+    assert git(root, "status", "--porcelain") == ""
+
+
+def test_the_key_file_that_a_previous_apply_wrote_does_not_block_the_next_apply(tmp_path: Path):
+    # VMT-161: apply writes `.machines/NAME/cache-key.pub` and never commits it. R55 must not make
+    # that output stop the next apply, whether the file is new or a tracked file that apply changed.
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "status", "--porcelain") == "?? .machines/"
+    result = apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # new file
+    assert result.generation == 1 and len(lines(machine)) == 2
+    git(root, "add", ".machines")
+    git(root, "commit", "--quiet", "-m", "publish key")
+    machine.cache_key.write_text("box:BBBB=\n")
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # writes a changed key
+    assert git(root, "status", "--porcelain") == "M .machines/box/cache-key.pub"
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # tracked and modified
+    assert len(lines(machine)) == 4
+    assert all(line["dirty"] is False for line in lines(machine))
+
+
+def test_the_key_file_of_another_machine_or_without_a_key_source_is_a_change(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    other = root / ".machines" / "other"
+    other.mkdir(parents=True)
+    (other / "cache-key.pub").write_text("other:CCCC=\n")
+    with pytest.raises(RecordError, match=r"untracked: \.machines/other/cache-key\.pub"):
+        apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    (other / "cache-key.pub").unlink()
+    own = root / ".machines" / "box"
+    own.mkdir(parents=True)
+    (own / "cache-key.pub").write_text("hand-made\n")
+    absent = tmp_path / "no-such-key"  # a machine with `serve: false` has no key file
+    with pytest.raises(RecordError, match=r"untracked: \.machines/box/cache-key\.pub"):
+        apply(root, emit=lambda _: None, cache_key=absent, **machine.kwargs())
+    assert machine.calls == []
+
+
+def test_apply_with_dirty_allows_other_changes_and_records_dirty(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    (root / "notes.txt").write_text("two\n")
+    (root / "extra.txt").write_text("new\n")
+    machine = Machine(tmp_path / "m")
+    said: list[str] = []
+    result = apply(root, dirty_ok=True, emit=said.append, **machine.kwargs())
+    [entry] = lines(machine)
+    assert result.dirty is True and entry["dirty"] is True and entry["commit"] == before
+    assert git(root, "rev-parse", "HEAD") == before  # --dirty makes no commit
+    assert any("notes.txt" in line and "extra.txt" in line for line in said if line.startswith("warning"))
+    assert git(root, "status", "--porcelain").splitlines() == ["M notes.txt", "?? extra.txt"]
+
+
+def test_apply_with_dirty_and_a_clean_tree_records_clean(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    apply(root, dirty_ok=True, emit=lambda _: None, **machine.kwargs())
     assert lines(machine)[0]["dirty"] is False
+
+
+def test_a_subdirectory_workspace_ignores_a_change_outside_the_workspace_root(tmp_path: Path):
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    sub.mkdir()
+    for name in ("vendomat.yaml", "devenv.lock", "devenv.nix"):
+        (sub / name).write_text((top / name).read_text())
+    git(top, "add", "-A")
+    git(top, "commit", "--quiet", "-m", "workspace in a subdirectory")
+    (top / "notes.txt").write_text("changed outside\n")  # tracked, outside the root
+    (top / "elsewhere.txt").write_text("new outside\n")  # untracked, outside the root
+    (sub / "devenv.nix").write_text("{ x = 5; }\n")
+    machine = Machine(tmp_path / "m")
+    result = apply(sub, emit=lambda _: None, **machine.kwargs())
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix"]
+    assert result.commit == git(top, "rev-parse", "HEAD")
+    assert git(top, "status", "--porcelain").splitlines() == ["M notes.txt", "?? elsewhere.txt"]
+
+
+def test_a_subdirectory_workspace_refuses_a_change_inside_the_workspace_root(tmp_path: Path):
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    (sub / "nixos").mkdir(parents=True)
+    for name in ("vendomat.yaml", "devenv.lock", "devenv.nix"):
+        (sub / name).write_text((top / name).read_text())
+    (sub / "nixos" / "x.nix").write_text("{ }\n")
+    git(top, "add", "-A")
+    git(top, "commit", "--quiet", "-m", "workspace in a subdirectory")
+    (sub / "nixos" / "x.nix").write_text("{ changed = true; }\n")
+    machine = Machine(tmp_path / "m")
+    with pytest.raises(RecordError) as info:
+        apply(sub, emit=lambda _: None, **machine.kwargs())
+    assert "modified: nixos/x.nix" in str(info.value) and "proj/" not in str(info.value)
+    assert machine.calls == []
 
 
 def test_apply_with_dirty_goes_on_and_marks_the_line(tmp_path: Path):
@@ -296,16 +481,23 @@ def test_a_failed_build_changes_nothing(tmp_path: Path):
     assert not machine.record.exists() and not machine.profile.exists()
 
 
-def test_apply_commits_only_watched_paths_and_preserves_other_staged_files(tmp_path: Path):
-    root = make_workspace(tmp_path / "ws")
-    (root / "devenv.nix").write_text("{ x = 4; }\n")
-    (root / "notes.txt").write_text("later\n")
-    git(root, "add", "notes.txt")
+def test_apply_commits_only_watched_paths_and_keeps_a_staged_file_outside_the_root(tmp_path: Path):
+    # A staged file inside the root now stops apply (R55). One outside the root stays staged and uncommitted.
+    top = make_workspace(tmp_path / "repo")
+    sub = top / "proj"
+    sub.mkdir()
+    for name in ("vendomat.yaml", "devenv.lock", "devenv.nix"):
+        (sub / name).write_text((top / name).read_text())
+    git(top, "add", "-A")
+    git(top, "commit", "--quiet", "-m", "workspace in a subdirectory")
+    (sub / "devenv.nix").write_text("{ x = 4; }\n")
+    (top / "notes.txt").write_text("later\n")
+    git(top, "add", "notes.txt")
     machine = Machine(tmp_path / "m")
-    result = apply(root, emit=lambda _: None, **machine.kwargs())
-    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
-    assert git(root, "status", "--porcelain") == "M  notes.txt"
-    assert result.commit == git(root, "rev-parse", "HEAD")
+    result = apply(sub, emit=lambda _: None, **machine.kwargs())
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix"]
+    assert git(top, "status", "--porcelain") == "M  notes.txt"
+    assert result.commit == git(top, "rev-parse", "HEAD")
 
 
 def test_a_failed_switch_writes_no_record_and_says_how_to_go_back(tmp_path: Path):
@@ -385,7 +577,20 @@ def test_the_cli_refuses_an_ignored_watched_file(tmp_path: Path, monkeypatch: py
 def test_apply_help_describes_configuration_commits_and_dirty_mode():
     result = CliRunner().invoke(app, ["apply", "--help"])
     assert result.exit_code == 0
-    assert "committing them" in result.output and "must still be force-added" in result.output
+    text = " ".join(result.output.replace("│", " ").split())
+    assert "A record is always a whole commit" in text and "must still be force-added" in text
+    assert "allows other changes" in text and "without a commit" in text
+
+
+def test_the_cli_refuses_another_uncommitted_file_with_exit_status_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = make_workspace(tmp_path / "ws")
+    (root / "notes.txt").write_text("two\n")
+    machine = Machine(tmp_path / "m")
+    monkeypatch.setattr("vendomat.cli.machine_name", lambda: "box")
+    monkeypatch.setattr(apply_module, "FACTS_PATH", machine.facts)
+    result = CliRunner().invoke(app, ["apply", "--root", str(root)])
+    assert result.exit_code == 1
+    assert "vendomat apply: uncommitted changes outside" in result.output and "notes.txt" in result.output
 
 
 def test_the_cli_maps_a_missing_workspace_to_exit_status_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

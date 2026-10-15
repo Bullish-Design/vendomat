@@ -101,80 +101,93 @@ def test_the_root_is_the_nearest_directory_with_a_workspace_file(tmp_path: Path)
     assert info.value.code == 3
 
 
-def test_restore_returns_the_watched_files_to_an_earlier_commit(tmp_path: Path):
+def test_restore_returns_the_whole_tree_to_an_earlier_commit(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     first = workspace.head(root)
     commit_file(root, "devenv.nix", "{ x = 2; }\n", "second")
     commit_file(root, "notes.txt", "two\n", "notes")
-    workspace.restore(root, first, exact=False)
+    workspace.restore(root, first)
     assert (root / "devenv.nix").read_text() == "{ }\n"
-    assert (root / "notes.txt").read_text() == "two\n"  # not a watched file
+    assert (root / "notes.txt").read_text() == "one\n"  # R55: not only the watched files
     commit = workspace.commit_restore(root, "rollback to x")
     assert git(root, "log", "-1", "--format=%s") == "rollback to x"
     assert commit == workspace.head(root)
     assert git(root, "status", "--porcelain") == ""
+    assert git(root, "diff", first, "HEAD") == ""
 
 
-def test_restore_removes_a_watched_file_that_the_target_lacks(tmp_path: Path):
+def test_restore_removes_a_file_that_the_target_lacks(tmp_path: Path):
     root = make_workspace(tmp_path / "ws", {".gitignore": ".devenv*\n"})
     first = workspace.head(root)
     commit_file(root, "devenv.local.nix", "{ }\n", "add local")
-    workspace.restore(root, first, exact=False)
-    assert not (root / "devenv.local.nix").exists()
+    (root / "nixos").mkdir()
+    commit_file(root, "nixos/x.nix", "{ }\n", "add module")
+    workspace.restore(root, first)
+    assert not (root / "devenv.local.nix").exists() and not (root / "nixos" / "x.nix").exists()
     workspace.commit_restore(root, "rollback to x")
-    assert git(root, "ls-files", "devenv.local.nix") == ""
-
-
-def test_exact_restores_every_tracked_file_and_removes_added_ones(tmp_path: Path):
-    root = make_workspace(tmp_path / "ws")
-    first = workspace.head(root)
-    commit_file(root, "notes.txt", "two\n", "notes")
-    commit_file(root, "extra.txt", "x\n", "extra")
-    workspace.restore(root, first, exact=True)
-    assert (root / "notes.txt").read_text() == "one\n"
-    assert not (root / "extra.txt").exists()
-    workspace.commit_restore(root, "rollback to x", exact=True)
+    assert git(root, "ls-files", "devenv.local.nix", "nixos") == ""
     assert git(root, "diff", first, "HEAD") == ""
 
 
 def test_a_restore_that_changes_nothing_still_makes_a_commit(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     before = workspace.head(root)
-    workspace.restore(root, before, exact=False)
+    workspace.restore(root, before)
     after = workspace.commit_restore(root, "rollback to x")
     assert after != before and git(root, "rev-list", "--count", "HEAD") == "2"
 
 
-def test_a_watched_restore_does_not_commit_an_unrelated_staged_file(tmp_path: Path):
-    root = make_workspace(tmp_path / "ws")
-    first = workspace.head(root)
-    commit_file(root, "devenv.nix", "{ x = 2; }\n", "second")
-    (root / "notes.txt").write_text("staged elsewhere\n")
-    git(root, "add", "notes.txt")
-    workspace.restore(root, first, exact=False)
-    workspace.commit_restore(root, "rollback to first")
-    assert git(root, "show", "--format=", "--name-only", "HEAD").splitlines() == ["devenv.nix"]
-    assert git(root, "status", "--porcelain") == "M  notes.txt"
+def test_a_restore_is_scoped_to_the_workspace_root(tmp_path: Path):
+    # The workspace is the subdirectory `proj`. Files outside it keep their state, staged or not.
+    top, sub = make_subdirectory_workspace(tmp_path)
+    first = workspace.head(sub)
+    commit_file(sub, "devenv.nix", "{ x = 2; }\n", "second")
+    commit_file(sub, "extra.nix", "{ }\n", "extra")
+    commit_file(top, "notes.txt", "two\n", "outside")
+    (top / "notes.txt").write_text("staged outside\n")
+    git(top, "add", "notes.txt")
+    workspace.restore(sub, first)
+    assert (sub / "devenv.nix").read_text() == "{ }\n" and not (sub / "extra.nix").exists()
+    assert (top / "notes.txt").read_text() == "staged outside\n"
+    workspace.commit_restore(sub, "rollback to first")
+    assert sorted(git(top, "show", "--format=", "--name-only", "HEAD").splitlines()) == [
+        "proj/devenv.nix",
+        "proj/extra.nix",
+    ]
+    assert git(top, "status", "--porcelain") == "M  notes.txt"
+
+
+def test_a_restore_does_not_commit_an_unrelated_staged_file_outside_the_root(tmp_path: Path):
+    top, sub = make_subdirectory_workspace(tmp_path)
+    first = workspace.head(sub)
+    commit_file(sub, "devenv.nix", "{ x = 2; }\n", "second")
+    (top / "notes.txt").write_text("staged elsewhere\n")
+    git(top, "add", "notes.txt")
+    workspace.restore(sub, first)
+    workspace.commit_restore(sub, "rollback to first")
+    assert git(top, "show", "--format=", "--name-only", "HEAD").splitlines() == ["proj/devenv.nix"]
+    assert git(top, "status", "--porcelain") == "M  notes.txt"
 
 
 def test_undo_restore_returns_to_head(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     first = workspace.head(root)
     commit_file(root, "devenv.nix", "{ x = 2; }\n", "second")
-    workspace.restore(root, first, exact=False)
-    assert workspace.watched_changes(root)
-    workspace.undo_restore(root, exact=False)
-    assert workspace.watched_changes(root) == [] and (root / "devenv.nix").read_text() == "{ x = 2; }\n"
+    commit_file(root, "extra.txt", "x\n", "extra")
+    workspace.restore(root, first)
+    assert workspace.watched_changes(root) and not (root / "extra.txt").exists()
+    workspace.undo_restore(root)
+    assert workspace.tree_changes(root) == []
+    assert (root / "devenv.nix").read_text() == "{ x = 2; }\n" and (root / "extra.txt").exists()
 
 
-def test_the_diff_shows_the_change_and_stays_off_the_other_files(tmp_path: Path):
+def test_the_diff_shows_the_change_to_the_whole_tree(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     first = workspace.head(root)
     commit_file(root, "devenv.nix", "{ x = 2; }\n", "second")
     commit_file(root, "notes.txt", "two\n", "notes")
-    text = workspace.diff_text(root, first, exact=False)
-    assert "devenv.nix" in text and "x = 2" in text and "notes.txt" not in text
-    assert "notes.txt" in workspace.diff_text(root, first, exact=True)
+    text = workspace.diff_text(root, first)
+    assert "devenv.nix" in text and "x = 2" in text and "notes.txt" in text
 
 
 def test_a_workspace_in_a_subdirectory_sees_its_own_changes_and_not_those_of_the_top(tmp_path: Path):
@@ -241,10 +254,18 @@ def test_a_watched_path_that_equals_head_makes_no_commit(tmp_path: Path, case: s
     assert workspace.head(root) == before
 
 
-def test_the_fingerprint_changes_with_a_watched_file_and_with_head(tmp_path: Path):
+def test_the_fingerprint_changes_with_any_file_of_the_tree_and_with_head(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     first = workspace.fingerprint(root)
-    (root / "notes.txt").write_text("not watched\n")
+    (root / "notes.txt").write_text("changed\n")  # R55: a tracked file that is not watched counts
+    assert workspace.fingerprint(root) != first
+    (root / "notes.txt").write_text("one\n")
+    assert workspace.fingerprint(root) == first
+    (root / "new.txt").write_text("new\n")  # a new file counts
+    assert workspace.fingerprint(root) != first
+    (root / "new.txt").unlink()
+    (root / ".devenv").mkdir()
+    (root / ".devenv" / "state").write_text("cache\n")  # an ignored file does not count
     assert workspace.fingerprint(root) == first
     (root / "devenv.nix").write_text("{ x = 1; }\n")
     assert workspace.fingerprint(root) != first
@@ -254,9 +275,40 @@ def test_the_fingerprint_changes_with_a_watched_file_and_with_head(tmp_path: Pat
     assert workspace.fingerprint(root)[0] != first[0]
 
 
-def test_exact_lists_only_the_tracked_changes_of_the_workspace_directory(tmp_path: Path):
+def test_the_fingerprint_of_a_subdirectory_workspace_covers_only_its_own_files(tmp_path: Path):
+    top, sub = make_subdirectory_workspace(tmp_path)
+    first = workspace.fingerprint(sub)
+    (top / "notes.txt").write_text("outside\n")
+    assert workspace.fingerprint(sub) == first
+    (sub / "devenv.lock").write_text("changed\n")
+    assert workspace.fingerprint(sub) != first
+
+
+def test_tree_changes_lists_only_the_changes_of_the_workspace_directory(tmp_path: Path):
     top, sub = make_subdirectory_workspace(tmp_path)
     (top / "notes.txt").write_text("changed outside\n")
+    (top / "new-outside.txt").write_text("x\n")
     assert workspace.tree_changes(sub) == []
     (sub / "devenv.nix").write_text("{ x = 1; }\n")
-    assert workspace.tree_changes(sub) == [" M proj/devenv.nix"]
+    (sub / "new.nix").write_text("{ }\n")
+    got = {change.path: change.status for change in workspace.tree_changes(sub)}
+    assert got == {"devenv.nix": " M", "new.nix": "??"}
+
+
+def test_tree_changes_skips_ignored_files_and_gives_a_rename_as_two_names(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / ".devenv").mkdir()
+    (root / ".devenv" / "state").write_text("cache\n")
+    assert workspace.tree_changes(root) == []
+    git(root, "mv", "notes.txt", "moved.txt")
+    got = {change.path: change.status for change in workspace.tree_changes(root)}
+    assert got == {"notes.txt": "D ", "moved.txt": "A "}
+    assert [c.path for c in workspace.uncommitted_changes(root, skip=("moved.txt",))] == ["notes.txt"]
+
+
+def test_the_key_file_is_apply_output_only_with_a_key_source(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    source = tmp_path / "key.pub"
+    assert workspace.written_key_file(root, "box", source) is None
+    source.write_text("box:AAAA=\n")
+    assert workspace.written_key_file(root, "box", source) == ".machines/box/cache-key.pub"

@@ -4,9 +4,10 @@ The command runs on the machine. It does the steps that devenv's deploy worker d
 
 1. read the machine name from ``/etc/devenv/machine-facts.json`` (the catalog sets
    ``networking.hostName`` to the machine name, R21);
-2. refuse ignored watched files unless they are explicitly force-added;
+2. refuse ignored watched files unless they are explicitly force-added, and refuse every other
+   uncommitted change under the workspace root (R55, ``VMT-182``), unless ``--dirty``;
 3. ``devenv build machines.NAME.build.nixos``;
-4. commit the allowlisted watched files, unless ``--dirty``;
+4. commit the four watched files, unless ``--dirty``;
 5. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
 6. ``sudo TOP/bin/switch-to-configuration switch``;
 7. append one line to the generation record (see ``record.py``), as root.
@@ -113,21 +114,46 @@ def deploy_argv(name: str) -> list[str]:
     return [devenv_binary(), "machines", "deploy", name]
 
 
-def dirty_apply(root: Path, *, allow: bool, emit: Emit) -> bool:
-    """Return whether this apply skips its config commit; ignored files always need explicit force-add."""
+def other_changes(root: Path, name: str, cache_key: Path | None = None) -> list[workspace.Change]:
+    """Uncommitted changes under ``root`` that are not one of the four watched files (R55).
 
-    changes = workspace.watched_changes(root)
+    Two kinds of path do not count: a file that Git ignores, and the cache key file that an earlier
+    apply wrote for this machine (``VMT-161``). Apply must not block on its own output.
+    """
+
+    key = workspace.written_key_file(root, name, cache_key or CACHE_KEY_PATH)
+    skip = (*workspace.WATCHED, *([key] if key else []))
+    return workspace.uncommitted_changes(root, skip=skip)
+
+
+def dirty_apply(root: Path, name: str, *, allow: bool, emit: Emit, cache_key: Path | None = None) -> bool:
+    """Return whether this apply skips its commit.
+
+    Ignored watched files always need an explicit force-add. Without ``--dirty``, any other uncommitted
+    change stops the apply before the build, because a record is a whole commit (R55). With ``--dirty``,
+    watched and other changes are allowed, and the record marks the generation dirty.
+    """
+
+    changes = [change for change in workspace.watched_changes(root) if change.status != "!!"]
     workspace.refuse_ignored_watched(root)
-    changes = [change for change in changes if change.status != "!!"]
-    if not changes or not allow:
+    other = other_changes(root, name, cache_key)
+    if other and not allow:
+        listing = "\n".join(f"  {change.text()}" for change in other)
+        raise workspace.WorkspaceError(
+            "uncommitted changes outside vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix:\n"
+            f"{listing}\n"
+            "A record names one whole commit. Commit these paths or remove them, then apply again. "
+            "Or run `vendomat apply --dirty` to apply them without a commit. Nothing was built."
+        )
+    if not (changes or other) or not allow:
         return False
-    listing = "; ".join(change.text() for change in changes)
+    listing = "; ".join(change.text() for change in [*changes, *other])
     emit(f"warning: applying uncommitted changes ({listing}); the record marks this generation dirty")
     return True
 
 
 def refuse_changed_during_build(root: Path, before: tuple[str, dict[str, str | None]]) -> None:
-    """Refuse when a watched file or HEAD changed during the build.
+    """Refuse when a file of the tree under the root or HEAD changed during the build.
 
     The system was built from the earlier content. A commit now would record files that nobody built.
     """
@@ -135,11 +161,12 @@ def refuse_changed_during_build(root: Path, before: tuple[str, dict[str, str | N
     after = workspace.fingerprint(root)
     if after == before:
         return
-    names = [name for name in workspace.WATCHED if after[1][name] != before[1][name]]
+    names = sorted(name for name in {*before[1], *after[1]} if before[1].get(name) != after[1].get(name))
     if after[0] != before[0]:
         names.append("HEAD")
+    shown = ", ".join(names[:10]) + (f", and {len(names) - 10} more" if len(names) > 10 else "")
     raise RecordError(
-        f"{', '.join(names)} changed during the build, so the built system does not match the files. "
+        f"{shown} changed during the build, so the built system does not match the files. "
         "Nothing was committed or activated, and no record line was written. Apply again.",
         1,
     )
@@ -291,7 +318,7 @@ def publish_cache_key(root: Path, name: str, emit: Emit, source: Path | None = N
         key = source.read_text()
     except OSError:
         return False
-    target = root / ".machines" / name / "cache-key.pub"
+    target = root / workspace.cache_key_path(name)
     try:
         if target.read_text() == key:
             return False
@@ -317,7 +344,7 @@ def apply(
     """Activate this machine's configuration from the workspace at ``root``."""
 
     name = machine_name(facts)
-    dirty = dirty_apply(root, allow=dirty_ok, emit=emit)
+    dirty = dirty_apply(root, name, allow=dirty_ok, emit=emit, cache_key=cache_key)
     # Precondition: the workspace has a commit. A dirty apply records this commit.
     commit = workspace.head(root)
     if not dirty and workspace.watched_changes(root):
