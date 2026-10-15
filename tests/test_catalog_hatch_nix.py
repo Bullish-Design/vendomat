@@ -172,6 +172,31 @@ def test_explain_maps_machine_trusted_interfaces_to_the_sharing_option(tmp_path:
     assert report["nix"] == []
 
 
+def test_explain_maps_each_setting_to_its_module_option(tmp_path: Path):
+    # R60, VMT-183: the key `settings.MODULE.FIELD` sets `vendomat.settings.MODULE.FIELD`. A setting that only
+    # Nix writes stays in the Nix list.
+    nix = """\
+{ lib, ... }: {
+  options.vendomat.settings.greeting.text = lib.mkOption { type = lib.types.str; default = "unset"; };
+  options.vendomat.settings.greeting.other = lib.mkOption { type = lib.types.str; default = "unset"; };
+  options.vendomat.settings.marker.label = lib.mkOption { type = lib.types.str; default = "unset"; };
+  config.vendomat.settings.greeting.other = "from nix";
+  config.vendomat.settings.marker.label = lib.mkForce "forced";
+}
+"""
+    yaml = "settings:\n  greeting:\n    text: Hello\n  marker:\n    label: yaml\n"
+    report = read(tmp_path, "explain", yaml=yaml, nix=nix, local="{ }\n", load=True)
+    entries = {e["key"]: e for e in report["yaml"]}
+    text = entries["settings.greeting.text"]
+    assert text["option"] == "vendomat.settings.greeting.text"
+    assert (text["value"], text["files"]) == ("Hello", ["vendomat.yaml"])
+    assert (text["line"], text["column"]) == (3, 5)
+    # A `mkForce` in devenv.nix wins over the YAML text, as for every other key.
+    label = entries["settings.marker.label"]
+    assert (label["value"], label["files"]) == ("forced", ["devenv.nix"])
+    assert {e["option"]: e["value"] for e in report["nix"]} == {"vendomat.settings.greeting.other": "from nix"}
+
+
 def test_explain_names_the_file_that_wins_and_lists_the_options_only_nix_sets(tmp_path: Path):
     # R27: a `mkForce` in devenv.nix replaces vendomat.yaml as the source; a merged option lists both files.
     (tmp_path / "extra.nix").write_text('{ env.EXTRA = "e"; }\n')

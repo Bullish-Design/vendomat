@@ -11,7 +11,7 @@ accepts the new one.
 ## Workspaces
 
 A workspace lists its routine settings in `vendomat.yaml`: `programs`, `env`, `languages` (Python,
-JavaScript, Rust), `services` (`postgres`, `redis`), and `machines`. A Nix function in the Vendomat
+JavaScript, Rust), `services` (`postgres`, `redis`), `machines`, and `settings`. A Nix function in the Vendomat
 source (`devenv/parse.nix`) reads the file. The catalog module (`devenv/devenv.nix`) maps each key to
 a native devenv option. No devenv fork binary and no unsafe Nix setting is involved. An edit of
 `vendomat.yaml` shows in the next shell with no other step.
@@ -30,6 +30,15 @@ vendomat update         # add the lines a newer template needs, then run devenv 
   `FILE.yaml:LINE:COL:`.
 - `machines.NAME.programs` lists nixpkgs package names for that machine only. The machine's own NixOS
   evaluation resolves them into `environment.systemPackages`. Top-level `programs` stays the shell's list.
+- `settings: MODULE: FIELD: text` sets the option `vendomat.settings.MODULE.FIELD` of an authored module
+  (R60, `VMT-183`). The catalog declares no such option: the authored module declares its own with
+  `mkOption`. A module name and a field name each match `[A-Za-z_][A-Za-z0-9_-]*`. Every value is text.
+  The catalog converts nothing, so an option of another type must accept text. Declare `types.str`, or a
+  conversion such as `types.coercedTo types.str (s: s == "true") types.bool`. A plain `types.bool` gives a
+  type error that names `vendomat.yaml`. A field with no declared option gives
+  `vendomat.yaml:LINE:COL: settings.MODULE.FIELD: no module declares the option ...`. A plain value of
+  `devenv.nix` for the same option conflicts, and the error names both files. `vendomat explain` maps each
+  key to its option.
 - Inside the pinned shell, `VENDOMAT_TEMPLATE` names the template of the imported Vendomat source.
   `vendomat new` and `vendomat update` use it there. Outside the shell, the bundled template applies.
 - The template supplies `devenv.yaml`. The user MAY edit `devenv.nix` and `devenv.local.nix`. Shell

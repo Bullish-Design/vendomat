@@ -205,7 +205,7 @@ bogus: x
     assert "languages.javascript.version: nixpkgs has no Node.js 99" in by_line["10"]
     assert 'services.postgres.enable must be "true" or "false", found "maybe"' in by_line["13"]
     assert 'env.GREETING must be text, found a list ["hello"]' in by_line["15"]
-    assert "bogus: unknown key (known: env, languages, machines, programs, services)" in by_line["17"]
+    assert "bogus: unknown key (known: env, languages, machines, programs, services, settings)" in by_line["17"]
 
 
 def test_a_syntax_fault_reads_file_line_column_reason(tmp_path: Path):
@@ -662,3 +662,144 @@ def test_error_lines_come_first_and_match_one_pattern(tmp_path: Path):
     assert len(lines) == 2
     for line in lines:
         assert re.match(r"^vendomat\.yaml:\d+:\d+: \S", line), line
+
+
+# --- settings (R60, VMT-183) --------------------------------------------------------------------
+
+
+def authored(definitions: str = "") -> str:
+    """An authored module: it declares its options, and ``definitions`` is more config (a Nix attribute set body).
+
+    ``greeting.text`` is plain text. ``flags.on`` and ``flags.limit`` read text and give a bool and an int:
+    the module owns the conversion (VMT-183).
+    """
+    return f"""\
+{{ lib, ... }}: {{
+  options.vendomat.settings.greeting.text = lib.mkOption {{ type = lib.types.str; default = "unset"; }};
+  options.vendomat.settings.flags.on = lib.mkOption {{
+    type = lib.types.coercedTo lib.types.str (s: s == "true") lib.types.bool;
+    default = false;
+  }};
+  options.vendomat.settings.flags.limit = lib.mkOption {{
+    type = lib.types.coercedTo lib.types.str lib.toInt lib.types.int;
+    default = 0;
+  }};
+  options.vendomat.settings.my-mod.some_field = lib.mkOption {{ type = lib.types.str; default = "unset"; }};
+  config = {{ {definitions} }};
+}}
+"""
+
+
+AUTHORED = authored()
+
+
+def test_settings_map_to_the_options_of_the_authored_module(tmp_path: Path):
+    text = (
+        "settings:\n  greeting:\n    text: Hello from YAML\n"
+        '  flags:\n    on: "true"\n    limit: "42"\n  my-mod:\n    some_field: x\n'
+    )
+    settings = summary(tmp_path, text, extra=AUTHORED)["settings"]
+    assert settings == {
+        "greeting": {"text": "Hello from YAML"},
+        "flags": {"on": True, "limit": 42},
+        "my-mod": {"some_field": "x"},
+    }
+    # Without the key, the options keep their defaults and the catalog defines nothing.
+    assert summary(tmp_path, "", extra=AUTHORED)["settings"]["greeting"] == {"text": "unset"}
+    assert summary(tmp_path, "", extra=None)["settings"] == {}
+
+
+def test_a_setting_text_stays_text_for_a_string_option(tmp_path: Path):
+    settings = summary(tmp_path, "settings:\n  greeting:\n    text: 3.10\n", extra=AUTHORED)["settings"]
+    assert settings["greeting"]["text"] == "3.10"
+
+
+@pytest.mark.parametrize("name", ["1bad", "a.b", "-x", "a b", "ü"])
+def test_a_bad_module_name_names_its_file_line_and_path(tmp_path: Path, name: str):
+    result = evaluate(tmp_path, f'settings:\n  "{name}":\n    field: x\n')
+    assert result.returncode != 0
+    [line] = fault_lines(result.stderr)
+    assert line.startswith("vendomat.yaml:2:3: ") and f"settings.{name}: the name is not a module name" in line, line
+
+
+@pytest.mark.parametrize("name", ["1bad", "a.b", "-x", "a b", "ü"])
+def test_a_bad_field_name_names_its_file_line_and_path(tmp_path: Path, name: str):
+    result = evaluate(tmp_path, f'settings:\n  mod:\n    "{name}": x\n')
+    assert result.returncode != 0
+    [line] = fault_lines(result.stderr)
+    assert line.startswith("vendomat.yaml:3:5: ") and f"settings.mod.{name}: the name is not a field name" in line, line
+
+
+def test_names_with_underscore_and_dash_are_good(tmp_path: Path):
+    text = "settings:\n  _a-b_c:\n    X-1_y: v\n"
+    extra = "{ lib, ... }: { options.vendomat.settings._a-b_c.X-1_y = lib.mkOption { type = lib.types.str; }; }"
+    assert summary(tmp_path, text, extra=extra)["settings"] == {"_a-b_c": {"X-1_y": "v"}}
+
+
+def test_a_setting_that_is_not_text_fails_with_its_position(tmp_path: Path):
+    text = "settings:\n  greeting:\n    a:\n      - x\n    b:\n      c: d\n    text: fine\n  flat: text\n"
+    result = evaluate(tmp_path, text, extra=AUTHORED)
+    assert result.returncode != 0
+    lines = fault_lines(result.stderr)
+    assert len(lines) == 3, lines
+    assert lines[0].startswith("vendomat.yaml:3:") and "settings.greeting.a must be text, found a list" in lines[0]
+    assert lines[1].startswith("vendomat.yaml:5:") and "settings.greeting.b must be text, found a map" in lines[1]
+    assert lines[2].startswith("vendomat.yaml:8:") and "settings.flat must be a map, found" in lines[2]
+
+
+def test_settings_that_is_not_a_map_fails(tmp_path: Path):
+    result = evaluate(tmp_path, "settings: nope\n", extra=AUTHORED)
+    [line] = fault_lines(result.stderr)
+    assert line.startswith("vendomat.yaml:1:") and "settings must be a map" in line
+
+
+def test_a_field_that_no_module_declares_names_the_file_line_and_option(tmp_path: Path):
+    text = "settings:\n  greeting:\n    text: hi\n    nope: x\n  ghost:\n    field: y\n"
+    result = evaluate(tmp_path, text, extra=AUTHORED)
+    assert result.returncode != 0
+    lines = fault_lines(result.stderr)
+    assert len(lines) == 2, lines
+    assert lines[0].startswith("vendomat.yaml:4:5: settings.greeting.nope: no module declares the option ")
+    assert "vendomat.settings.greeting.nope" in lines[0]
+    assert lines[1].startswith("vendomat.yaml:6:5: settings.ghost.field: no module declares the option ")
+    # With no module at all, the catalog gives the same error.
+    [only] = fault_lines(evaluate(tmp_path, "settings:\n  greeting:\n    text: hi\n").stderr)
+    assert only.startswith("vendomat.yaml:3:5: settings.greeting.text: no module declares the option ")
+
+
+def test_a_submodule_option_above_the_field_counts_as_a_declaration(tmp_path: Path):
+    extra = """\
+{ lib, ... }: {
+  options.vendomat.settings.grouped = lib.mkOption {
+    type = lib.types.submodule { options.text = lib.mkOption { type = lib.types.str; }; };
+    default = { };
+  };
+}
+"""
+    assert summary(tmp_path, "settings:\n  grouped:\n    text: hi\n", extra=extra)["settings"] == {
+        "grouped": {"text": "hi"}
+    }
+
+
+def test_a_setting_and_a_nix_definition_conflict_and_name_both_files(tmp_path: Path):
+    # R23: the YAML value is a plain definition, so a plain Nix value conflicts. `_file` names the YAML file.
+    extra = authored('vendomat.settings.greeting.text = "from nix";')
+    result = evaluate(tmp_path, "settings:\n  greeting:\n    text: from yaml\n", extra=extra)
+    assert result.returncode != 0
+    assert "vendomat.settings.greeting.text" in result.stderr and "conflicting definition values" in result.stderr
+    assert "vendomat.yaml" in result.stderr and "user.nix" in result.stderr
+
+
+def test_a_nix_default_yields_to_the_setting(tmp_path: Path):
+    extra = authored('vendomat.settings.greeting.text = lib.mkDefault "from nix";')
+    settings = summary(tmp_path, "settings:\n  greeting:\n    text: from yaml\n", extra=extra)["settings"]
+    assert settings["greeting"]["text"] == "from yaml"
+
+
+def test_text_for_a_bool_option_without_a_conversion_is_a_type_error_that_names_the_file(tmp_path: Path):
+    # The catalog converts nothing (VMT-183). A module that wants a bool declares the conversion itself.
+    extra = "{ lib, ... }: { options.vendomat.settings.flags.on = lib.mkOption { type = lib.types.bool; }; }"
+    result = evaluate(tmp_path, 'settings:\n  flags:\n    on: "true"\n', extra=extra)
+    assert result.returncode != 0
+    assert "A definition for option `vendomat.settings.flags.on' is not of type `boolean'" in result.stderr
+    assert "vendomat.yaml" in result.stderr

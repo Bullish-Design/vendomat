@@ -53,7 +53,7 @@ def test_the_template_vendomat_yaml_is_an_empty_catalog_with_comments():
     # The example sits under a bare `#` line. Remove the leading `# ` and it is a valid catalog.
     lines = text.splitlines()
     example = "\n".join(line.removeprefix("# ").removeprefix("#") for line in lines[lines.index("#") + 1 :])
-    assert set(parse(example)) == {"programs", "languages", "services", "env", "machines"}
+    assert set(parse(example)) == {"programs", "languages", "services", "env", "machines", "settings"}
 
 
 def test_the_template_ignores_the_devenv_state():

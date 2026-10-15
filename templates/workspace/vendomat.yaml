@@ -21,3 +21,6 @@
 #   server:
 #     trustedInterfaces:
 #       - eth1
+# settings:  # for an authored module that declares these options
+#   greeting:
+#     text: hello

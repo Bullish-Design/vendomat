@@ -46,6 +46,7 @@ let
     in
     if p == [ "programs" ] then { option = [ "packages" ]; merge = true; }
     else if n == 2 && at 0 == "env" then { option = p; merge = false; }
+    else if n == 3 && at 0 == "settings" then { option = [ "vendomat" "settings" (at 1) (at 2) ]; merge = false; }
     else if fixed ? ${dotted} then { option = fixed.${dotted}; merge = false; }
     else if n == 3 && at 0 == "machines" && at 2 == "serve" then { option = [ "vendomat" "serve" (at 1) ]; merge = false; }
     else if n == 3 && at 0 == "machines" && at 2 == "programs" then
@@ -140,7 +141,7 @@ let
       merged = isMachine || (nat != null && nat.merge);
       files =
         # `vendomat.serve` is a Vendomat option that the catalog derives from the key, so the key's file is the source.
-        if option == null || builtins.head option == "vendomat" then [ "vendomat.yaml" ]
+        if option == null || lib.take 2 option == [ "vendomat" "serve" ] then [ "vendomat.yaml" ]
         else
           # The catalog's own definition of a machine's `nixos` is a function, so a path inside it is not
           # visible as a definition. A merged key is set by vendomat.yaml by definition.

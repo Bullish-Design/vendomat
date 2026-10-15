@@ -61,9 +61,18 @@ let
   interfaceName = scalar "an interface name (1 to 15 letters, digits, '.', '-', '_', '@', ':')"
     (s: builtins.match "[A-Za-z0-9._@:-]{1,15}" s != null);
 
+  # A module name and a field name of `settings` (R60): a Nix identifier, with '-' allowed after the first character.
+  settingName = "[A-Za-z_][A-Za-z0-9_-]*";
+
   schema = map' {
     programs = list "a nixpkgs attribute name" (s: s != "");
     env = each "an environment variable name" (k: builtins.match "[A-Za-z_][A-Za-z0-9_]*" k != null) text;
+    # The settings of an authored module (R60): `settings: MODULE: FIELD: text`. The catalog declares no option.
+    settings = each "a module name (letters, digits, '_', '-'; no digit first)"
+      (k: builtins.match settingName k != null)
+      (each "a field name (letters, digits, '_', '-'; no digit first)"
+        (k: builtins.match settingName k != null)
+        text);
     languages = map' {
       python = map' {
         enable = bool;
@@ -169,7 +178,32 @@ let
   pyFaults = lib.optionals (shapeOk pyPath version && pyPackages != { } && !(pyPackages ? ${pyVersion}))
     [ (fault pyPath "value" "${show pyPath}: nixpkgs-python has no Python ${pyVersion}") ];
 
-  faultList = check [ ] schema raw ++ programFaults ++ machineProgramFaults ++ jsFaults ++ pyFaults;
+  # A setting needs an option. Some module must declare `vendomat.settings.MODULE.FIELD`, or an option above it
+  # (a `submodule` or `attrsOf` option). The module system would also reject an undeclared option, but its
+  # text gives no line. A path that the check cannot read (a bad shape) gives no fault here: `check` reports it.
+  declared = m: f:
+    let
+      go = node: rest:
+        if lib.isOption node then true
+        else if rest == [ ] || !builtins.isAttrs node || !(node ? ${builtins.head rest}) then false
+        else go node.${builtins.head rest} (builtins.tail rest);
+    in
+    go options [ "vendomat" "settings" m f ];
+  settingsRaw = raw.settings or { };
+  settingFaults =
+    if !builtins.isAttrs settingsRaw then [ ]
+    else lib.concatLists (lib.mapAttrsToList
+      (m: fields:
+        if !builtins.isAttrs fields then [ ]
+        else lib.concatLists (lib.mapAttrsToList
+          (f: _:
+            let p = [ "settings" m f ]; in
+            lib.optional (builtins.match settingName m != null && builtins.match settingName f != null && shapeOk p text && !(declared m f))
+              (fault p "key" "${show p}: no module declares the option vendomat.settings.${m}.${f} (an authored module declares it with mkOption)"))
+          fields))
+      settingsRaw);
+
+  faultList = check [ ] schema raw ++ programFaults ++ machineProgramFaults ++ jsFaults ++ pyFaults ++ settingFaults;
   faults = map (f: f.text) (lib.sort (a: b: a.pos < b.pos) faultList);
   guard = v: if faults != [ ] then throw ("\n" + lib.concatStringsSep "\n" faults) else v;
 
@@ -252,6 +286,13 @@ let
     services.redis = lib.mkIf (guard (on [ "services" "redis" ])) { enable = true; };
 
     machines = guard (lib.mapAttrs machine machines);
+
+    # The settings of authored modules (R60). Each value is text and a plain definition (R23). The authored
+    # module declares the options. An option of another type must accept text (see the README). The catalog
+    # defines `vendomat.settings` only when the file has the key, because the module system rejects a
+    # definition without an option, even an empty map. The condition sits below `vendomat`, so that the read
+    # of `devenv.root` does not need `raw` (W4: the top-level names of this set cannot depend on `raw`).
+    vendomat = lib.optionalAttrs (raw ? settings) { settings = guard raw.settings; };
   };
 in
 {

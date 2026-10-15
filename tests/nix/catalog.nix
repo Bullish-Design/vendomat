@@ -124,6 +124,8 @@ let
   summary = {
     packages = map (p: p.pname) config.packages;
     inherit (config) env;
+    # The settings of authored modules (R60): what the authored modules' options hold.
+    settings = config.vendomat.settings or { };
     python = config.languages.python;
     javascript = {
       inherit (config.languages.javascript) enable;

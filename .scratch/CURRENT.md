@@ -56,6 +56,10 @@ checks are `opt:NAME` tasks in `nix/tasks.nix`.
 (owner approval in session). It adds the catalog key `trustedInterfaces` (R52, `VMT-173`) and the project 21
 contracts (R49 to R51). Evidence: [RELEASE-0.9.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.9.0.md).
 
+**R60, 2026-10-15.** The catalog key `settings: MODULE: FIELD: text` (R60, `VMT-183`) is on `main` and in no release yet.
+It maps to `vendomat.settings.MODULE.FIELD`. The authored module declares its options and converts text itself.
+Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.md).
+
 ## Final design: project 21 — Vendomat and Basix, separated
 
 **Current status, 2026-10-14.** R39 (2026-10-13): the new system configures no Attic;

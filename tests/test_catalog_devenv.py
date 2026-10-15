@@ -484,6 +484,82 @@ def test_machine_programs_resolve_with_the_package_set_of_the_machine(mws: Path)
     assert not any(re.search(r"-jq-[0-9]", path) for path in paths), paths
 
 
+GREETING_MODULE = """\
+{ config, lib, ... }:
+let
+  cfg = config.vendomat.settings.greeting;
+in
+{
+  options.vendomat.settings.greeting = {
+    text = lib.mkOption { type = lib.types.str; default = "unset"; };
+    # YAML gives text. The module converts it itself (VMT-183).
+    loud = lib.mkOption {
+      type = lib.types.coercedTo lib.types.str (s: s == "true") lib.types.bool;
+      default = false;
+    };
+  };
+  config.env.DEMO_GREETING = if cfg.loud then lib.toUpper cfg.text else cfg.text;
+}
+"""
+
+
+def authored_workspace(ws: Path, settings: str) -> None:
+    (ws / "greeting.nix").write_text(GREETING_MODULE)
+    (ws / "devenv.nix").write_text("{ imports = [ ./greeting.nix ]; }\n")
+    (ws / "vendomat.yaml").write_text(settings)
+
+
+def test_settings_in_vendomat_yaml_reach_an_authored_module_on_real_devenv(ws: Path, monkeypatch: pytest.MonkeyPatch):
+    # R60, VMT-183. The module declares two options. `settings` sets both as plain definitions from the YAML file.
+    authored_workspace(ws, 'settings:\n  greeting:\n    text: hello world\n    loud: "true"\n')
+    done = run(["devenv", "eval", "env.DEMO_GREETING", "vendomat.settings.greeting.loud"], ws)
+    assert done.returncode == 0, done.stderr[-3000:]
+    values = json.loads(done.stdout)
+    assert values["env.DEMO_GREETING"] == "HELLO WORLD"
+    assert values["vendomat.settings.greeting.loud"] is True
+    # `vendomat explain` maps each key to its option, names the file, and does not list them as Nix-only.
+    monkeypatch.setenv("VENDOMAT_DEVENV", shutil.which("devenv") or "devenv")
+    report = explain.read_report(ws)
+    entries = {e["key"]: e for e in report["yaml"]}
+    assert entries["settings.greeting.text"]["option"] == "vendomat.settings.greeting.text"
+    text = entries["settings.greeting.text"]
+    assert (text["value"], text["files"], text["line"], text["column"]) == ("hello world", ["vendomat.yaml"], 3, 5)
+    assert entries["settings.greeting.loud"]["option"] == "vendomat.settings.greeting.loud"
+    assert entries["settings.greeting.loud"]["value"] is True
+    assert not [e for e in report["nix"] if e["option"].startswith("vendomat.settings")]
+
+
+def test_a_setting_that_no_module_declares_fails_real_devenv_with_the_yaml_position_and_option(ws: Path):
+    authored_workspace(ws, "settings:\n  greeting:\n    text: hi\n    colour: red\n  ghost:\n    field: x\n")
+    done = run(["devenv", "eval", "env.DEMO_GREETING"], ws)
+    assert done.returncode != 0
+    for line in (
+        "vendomat.yaml:4:5: settings.greeting.colour: no module declares the option vendomat.settings.greeting.colour",
+        "vendomat.yaml:6:5: settings.ghost.field: no module declares the option vendomat.settings.ghost.field",
+    ):
+        assert line in done.stderr
+
+
+def test_a_setting_and_a_devenv_nix_definition_conflict_on_real_devenv_and_name_both_files(ws: Path):
+    authored_workspace(ws, "settings:\n  greeting:\n    text: from yaml\n")
+    (ws / "devenv.nix").write_text('{ imports = [ ./greeting.nix ]; vendomat.settings.greeting.text = "from nix"; }\n')
+    done = run(["devenv", "eval", "env.DEMO_GREETING"], ws)
+    assert done.returncode != 0
+    assert "vendomat.settings.greeting.text" in done.stderr and "conflicting definition values" in done.stderr
+    assert "vendomat.yaml" in done.stderr and "devenv.nix" in done.stderr
+
+
+def test_text_for_a_bool_option_with_no_conversion_fails_real_devenv_and_names_the_yaml_file(ws: Path):
+    authored_workspace(ws, 'settings:\n  greeting:\n    loud: "true"\n')
+    (ws / "greeting.nix").write_text(
+        GREETING_MODULE.replace('lib.types.coercedTo lib.types.str (s: s == "true") lib.types.bool', "lib.types.bool")
+    )
+    done = run(["devenv", "eval", "env.DEMO_GREETING"], ws)
+    assert done.returncode != 0
+    assert "is not of type" in done.stderr and "vendomat.settings.greeting.loud" in done.stderr
+    assert "vendomat.yaml" in done.stderr
+
+
 def test_a_machines_key_that_is_not_a_map_fails_real_devenv_evaluation_with_the_yaml_position(ws: Path):
     (ws / "vendomat.yaml").write_text("machines: foo\n")
     done = run(["devenv", "eval", "devenv.root"], ws)
