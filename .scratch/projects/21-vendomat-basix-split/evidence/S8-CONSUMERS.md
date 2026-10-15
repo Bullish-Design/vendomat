@@ -115,8 +115,8 @@ The `secrets/` directory was never read.
 
 ## R60 follow-up: the demo settings in `vendomat.yaml` (2026-10-15)
 
-Open item 3 is answered by R60 (`VMT-183`, [R60-SETTINGS](R60-SETTINGS.md)). The demo change is prepared and
-**not landed**, because the released `v0.9.0` has no `settings` key.
+Open item 3 is answered by R60 (`VMT-183`, [R60-SETTINGS](R60-SETTINGS.md)). The demo change was prepared and
+waited for a release. It is **landed** (below), because `v0.10.0` carries the `settings` key.
 
 - Workspace: `/home/andrew/Documents/Projects/vendomat-demo/.gitman/workspaces/move-settings-to-yaml`
   (change "Move module settings to vendomat.yaml (needs a Vendomat release with R60)", parent demo `main`
@@ -188,3 +188,15 @@ tripwire now relies on the missing `target.host` because the refusal by mode (pa
    from the server role (R57); commit `.machines/NAME/cache-key.pub` after the first `apply` (needs the owner's yes, R61);
    commit `facter.json` after the real install (blocked until Basix B7, R54).
 4. Run `devenv eval` on both machines before and after every `vendomat update` (R59).
+
+### Landed on v0.10.0 (2026-10-15)
+
+Vendomat v0.10.0 carries R60 ([RELEASE-0.10.0](RELEASE-0.10.0.md)). The demo change landed as `bb6bad05bf63` on
+the demo `main` and `origin`. The demo now uses the catalog `settings` key on `v0.10.0`.
+
+- `devenv.local.yaml` is deleted, and its line left the demo repository's `.git/info/exclude`.
+- `devenv update vendomat` moved only the `vendomat` node, from `9b8885e3` (v0.9.0) to `c6b36c1e2010` (v0.10.0).
+- `scripts/smoke`: exit 0, `PASS`. `devenv shell -- true`: exit 0. `vendomat explain` maps `settings.greeting.text`
+  and `settings.marker.label` to their options, from `vendomat.yaml`, and prints "Set only in Nix: (none)".
+- The first smoke run failed: the store lacked the `greeting` input path. `nix flake prefetch` restored it.
+- Raw logs: `~/.local/state/vendomat/p21/2026-10-15/release-0-10-0/` (`demo-*`). The demo record is in its `EVALUATION.md`.

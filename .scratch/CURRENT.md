@@ -56,9 +56,11 @@ checks are `opt:NAME` tasks in `nix/tasks.nix`.
 (owner approval in session). It adds the catalog key `trustedInterfaces` (R52, `VMT-173`) and the project 21
 contracts (R49 to R51). Evidence: [RELEASE-0.9.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.9.0.md).
 
-**R60, 2026-10-15.** The catalog key `settings: MODULE: FIELD: text` (R60, `VMT-183`) is on `main` and in no release yet.
+**R60, 2026-10-15.** The catalog key `settings: MODULE: FIELD: text` (R60, `VMT-183`) is in release v0.10.0 (below).
 It maps to `vendomat.settings.MODULE.FIELD`. The authored module declares its options and converts text itself.
 Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.md).
+
+**Release v0.10.0, 2026-10-15.** Vendomat v0.10.0 is published: tag `v0.10.0` and `release` are at `c6b36c1e` (owner approval in session). It adds R55 (whole-commit `apply` and `rollback`), R60 (`settings`), and the end of the `vendomat.toml` flow (S8 step 3). vendomat-demo pins it (`bb6bad05`). Evidence: [RELEASE-0.10.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.10.0.md).
 
 ## Final design: project 21 — Vendomat and Basix, separated
 
