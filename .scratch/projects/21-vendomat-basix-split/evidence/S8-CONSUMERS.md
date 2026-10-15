@@ -131,3 +131,60 @@ Open item 3 is answered by R60 (`VMT-183`, [R60-SETTINGS](R60-SETTINGS.md)). The
   languages, machines, programs, services)`.
 - To land it: after the owner releases a Vendomat with R60, run `devenv update vendomat` in the workspace,
   delete `devenv.local.yaml`, run `scripts/smoke`, and land the change.
+
+## S8 step 1 done: nix-systems moved (2026-10-15, later)
+
+The owner approved rulings R53 to R61 and option (c) (no `testee` pin in nix-systems). The agent landed
+the move with Gitman. Raw logs, drvPath lists, and closure comparisons:
+`~/.local/state/vendomat/p21/2026-10-15/s8/move/`. Tools: devenv 2.4.0 (host binary), Vendomat `release`
+`9b8885e3` (v0.9.0), devenv modules `061c2184`. Run VMs with disposable files under
+`/mnt/shared/nix-systems/s8/` (deleted afterward). No install, `apply`, `nixos-rebuild`, or activation ran. The
+`secrets/` directory was never read (the repository's own harness encrypts a test file at test time).
+
+| Step | Result |
+| --- | --- |
+| N1 (R53) | `f6de84c91ec1` was already on nix-systems `main` as `58bc8867` when this work began (landed by someone else; its check was not run or seen by this agent). The workspace was gone. |
+| Baseline (R56) | nix-systems `e8a55e0f`: `server.nix` installs docman as a package. `server` did not evaluate before (option `vendomat` missing). |
+| Move | nix-systems `9419924d` on `main`, pushed. |
+
+**drvPath** (`devenv eval machines.NAME.build.nixos.drvPath`, no build):
+
+| Machine | Baseline `e8a55e0f` | Move `9419924d` |
+| --- | --- | --- |
+| framework | `s29rq0ml5zrgnjd85scv0azbwv1px16a` | `iq83gnj3bxjpb6429jq18gfpfl1dx1b6` |
+| server | `dk83lsxfw6f6g1i6rn61ys44csy7yj7i` | `ap0g9dfv0zfrigr08l61kffj796n65m3` |
+
+**Named differences (BOOT-010).** `framework`: Harmonia only (51 new and 8 changed derivations: harmonia-3.3.0 with
+its crates, `harmonia.toml`, the Harmonia and key units, the `/var/lib/vendomat` tmpfiles rules, and the assembly
+derivations). With `serve: "false"` the framework value equals the baseline. `server`: the same set, the firewall scripts
+(TCP 5000 on `tailscale0`, R52), the host tools (fork `devenv-wrapped-2.4.0` becomes nixpkgs `devenv-2.4.0` from the
+Vendomat release; `vendomat` and the launcher `0.7.0-rc.1` become `0.9.0`), and the removal of the `testee` package
+(option c). `system-path` differs only in those entries. nixpkgs (`e7439b6b`), home-manager, disko, sops-nix, and the
+other personal tool tags did not change. `devenv-cli` is gone from the lock. The lock lost only the `testee` node in the
+last step.
+
+**Checks.** `tests/run` (lock-and-build with the CACHE-010 settings comparison, `core-vm`, `vm-flow` 31 steps with the
+framework tripwire): all passed. `tests/services/services-vm` (the production `server.nix` with the test overlay): 62 PASS,
+1 OBSERVED (Tailscale Serve start without a tailnet), 0 failed, including the new check 9 (Harmonia answers with a key
+named `server`; TCP 5000 opens on `tailscale0` only). Changes to the checks: no loopback collection, no `vendomat sync`
+or `check`, no library face, no closure build of a real machine; `tests/disk` is deleted (it tested patch 0006; R54); the
+tripwire now relies on the missing `target.host` because the refusal by mode (patch 0005) is retired.
+
+**Facts that bite.**
+- The integrate gate (`testee_integrate_gate.py`) treats any `Bullish-Design/testee` text in `devenv.yaml` or `devenv.nix` as
+  a Testee repository, and Testee 0.8 rejects a `devenv.yaml` with a `testee` input (`module_not_supported`). nix-systems
+  defines no Testee tasks, so `testee verify` gives NO VERDICT (`not defined: check:lint, check:format, check:types,
+  test:full`). With the `testee` input gone the gate does not apply and the push passes. Its check stays `tests/run`.
+- Host condition, not fixed: about 120 leaked `hindsight-coding-agents` node processes use up the user's 8 MiB
+  `RLIMIT_MEMLOCK`, and qemu 11.1.1 stops with `Failed to initialize io_uring: Cannot allocate memory`. The VM runs used
+  `systemd-run --user -p SystemCallFilter=~io_uring_setup -p SystemCallErrorNumber=ENOSYS` (script in the log directory).
+- Origin of nix-systems still has the stale branch `v6-services-rerun` and the bookmarks `v6-server-role`, `v6-step6-vm`,
+  `v6-step7-disk`, `v6-step7-disk-evidence`, `v6-step8-services`. Left alone by owner instruction.
+
+**Open items after the move.**
+1. S8 step 3 (remove the TOML flow here) is unblocked: no consumer uses `vendomat.toml` now.
+2. S8 step 2 (nix-meta module import) waits for project 22 and the V4 backlog.
+3. Later, separate nix-systems changes: remove Attic (R39), Home Manager (project 22 R8), and the other personal tools
+   from the server role (R57); commit `.machines/NAME/cache-key.pub` after the first `apply` (needs the owner's yes, R61);
+   commit `facter.json` after the real install (blocked until Basix B7, R54).
+4. Run `devenv eval` on both machines before and after every `vendomat update` (R59).

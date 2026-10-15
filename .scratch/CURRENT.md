@@ -76,7 +76,7 @@ S1 is done (2026-10-14): tag `v2.4.0-vendomat-modules.1` (commit 061c2184) is pu
 
 S2 is built (2026-10-14): Vendomat's flake output `packages.x86_64-linux.devenv` is `/nix/store/0ca6h7n4d4yrmj044idsnl7fjpg48l9v-devenv-2.4.0` (NAR hash `sha256-ef9WVFzW+JIst6xnUUi+42MCv1ePgF2/ksi7juhWmn4=`), kept under a GC root in `~/.local/state/vendomat/roots/`. The host runs it since 2026-10-14 (R48): nix-meta `main` `cf8ef3cc` installs it, and the owner switched `server` ([evidence](projects/21-vendomat-basix-split/evidence/S2-HOST-BINARY.md)).
 
-S8 step 1 is partly done (2026-10-15): vendomat-demo runs on `vendomat.yaml` and the S3 template (demo `main` `85e6c725`); nix-systems is not moved (unlanded workspace `v6-services-rerun` and no catalog home for `vendomat.inventory`); see [S8-CONSUMERS](projects/21-vendomat-basix-split/evidence/S8-CONSUMERS.md).
+S8 step 1 is done (2026-10-15): vendomat-demo (`main` `85e6c725`) and nix-systems (`main` `9419924d`) run on `vendomat.yaml` and the S3 template; the VM checks of nix-systems pass. Step 3 (remove the TOML flow) is unblocked; step 2 waits for project 22 and the V4 backlog; see [S8-CONSUMERS](projects/21-vendomat-basix-split/evidence/S8-CONSUMERS.md).
 
 S5, the Vendomat side: steps 1 and 2 are done (2026-10-14). The collection hook accepts the `release` branch in every repository (R37, `VMT-171`), and `devenv/parse.nix` imports with a plain file name (R38, `VMT-164`). Step 3, the Basix fixtures, runs from the Basix repository. The live hooks under `~/vendor/` are not updated, and `~/vendor/basix` does not exist (owner gate). The evidence is [S5-BASIX](projects/21-vendomat-basix-split/evidence/S5-BASIX.md).
 
