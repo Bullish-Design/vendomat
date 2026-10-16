@@ -11,7 +11,7 @@ Update the VM test to expect that. Then rerun `opt:machines-vm`. Basix moves its
 
 | Item | Value |
 | --- | --- |
-| Release commit | to be recorded after the release |
+| Release commit | `74caad2d90a2ea74eec842d31265e37bc20154a4` ("Release Vendomat 0.11.2: a missing vendomat.watch means no extra files (R64, VMT-284)") |
 | Tag `v0.11.2` | the release commit (lightweight tag, as `v0.11.1`) |
 | `release` branch | the release commit, a fast-forward from `f86403bd` (`v0.11.1`) |
 
@@ -36,4 +36,17 @@ Evidence for R64: [R64-WATCH-MISSING](R64-WATCH-MISSING.md).
 | --- | --- | --- |
 | `opt:machines-vm` | `20261016T150342Z-e4c94a8a015c` | 12 passed |
 | `opt:catalog-devenv` | `20261016T151008Z-ea493b63da88` | PASS |
-| `testee verify` | to be recorded | |
+| `testee verify` | `20261016T151519Z-98609026a439` (tree `880bec855e`, commit `74caad2d90`) | GREEN 4/4 |
+
+## Proof after the push
+
+`git ls-remote git://server/vendomat` shows `refs/heads/release` and `refs/tags/v0.11.2` at `74caad2d90a2`. `git ls-remote` on GitHub `origin` shows neither ref. `main` went to `origin`.
+
+## Commands
+
+```
+jj tag set v0.11.2 -r 74caad2d90a2
+jj git push --remote collection --tag v0.11.2
+jj bookmark set release -r 74caad2d90a2
+jj git push --remote collection --bookmark release
+```
