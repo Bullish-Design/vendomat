@@ -1,6 +1,12 @@
-# The test machine has no network. Each input is a path in the Nix store, filled in by the harness
-# from the pins of tools.nix: nixpkgs (the pin of Vendomat's flake.lock), disko, and nixos-facter-modules.
+# The test machine has no network. Each input is a path, filled in by the harness: nixpkgs (the pin of
+# Vendomat's flake.lock), disko, and nixos-facter-modules come from tools.nix. `vendomat` is a copy of the
+# catalog and the template of this repository (a plain source, as in the catalog tests). Like a real
+# workspace, the fixture imports `vendomat/devenv` (R64, refinement 1). A real workspace takes `devenv` and
+# `nixpkgs` from `vendomat` with `follows`; the fixture names them, because the machine is offline.
 inputs:
+  vendomat:
+    url: path:@VENDOMAT@
+    flake: false
   devenv:
     url: path:@DEVENV@
   nixpkgs:
@@ -12,3 +18,5 @@ inputs:
         follows: nixpkgs
   nixos-facter-modules:
     url: path:@FACTER@
+imports:
+  - vendomat/devenv

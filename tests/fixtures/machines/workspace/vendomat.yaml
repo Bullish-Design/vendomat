@@ -1,3 +1,4 @@
-# Fixture stand-in. The machine config of this fixture lives in the hatch file devenv.nix.
+# Fixture. A real workspace has this file too. The catalog reads it and adds the sharing module
+# (Harmonia and the cache key unit) to the machine. The rest of the machine lives in the hatch file devenv.nix.
 machines:
-  box: {}
+  box:

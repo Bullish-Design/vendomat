@@ -48,6 +48,33 @@ module older than R62. Before this fix, `apply` could not run in that workspace.
   the match. The real-devenv test is opt-in (`opt:catalog-devenv`), because real devenv needs the
   network, so the normal gate does not catch a reworded text. A probe that evaluates the option with a
   default is cleaner. It is deferred, because `devenv eval` takes attribute paths only.
-- **Refinement 1 deferred.** The VM fixture workspace still does not import the catalog module. An
-  import adds the sharing module (Harmonia) to the fixture machine. The VM test assumes a machine
-  without it (a stand-in cache key, the download counts), so the change needs a test redesign.
+- **Refinement 1 done** (see below). The no-module case stays covered by the unit fixtures in `tests/test_machine_watch.py` and by the opt-in real-devenv test `opt:catalog-devenv`.
+
+## Refinement 1: the VM fixture imports the catalog
+
+**Date:** 2026-10-16. **Rows:** `VMT-285`, `VMT-286`. **Owner approval (verbatim, in session):** "Great, agreed and approved. Permission granted for all changes. Kick off parallel background sonnet subagents to implement this." Recorded as an R64 follow-up.
+
+### Change
+
+- `devenv.yaml.in` adds the input `vendomat` (`path:`, `flake: false`, a copy of `devenv/` and `templates/workspace/`) and `imports: - vendomat/devenv`. A real workspace uses a flake `vendomat` and `follows` for `devenv` and `nixpkgs`. The fixture names `devenv` and `nixpkgs` as paths, because the machine is offline.
+- `vendomat.yaml` keeps `machines: box:` (the empty entry of R51). The flow form `{}` is refused by the parser.
+- The harness copies the catalog source to the work directory and to the machine at the same path, as it does for the module tree.
+
+### Changed assertions
+
+| Test | Old form | New form | Reason |
+| --- | --- | --- | --- |
+| `test_apply_a_gives_the_same_path_...` | The harness wrote the stand-in key `box:AAAA=` to `/var/lib/vendomat/cache-key.pub`; the test compared the copy with it; the harness then deleted the file. | The test reads the key that the sharing module made at first boot, checks its shape (`box:BASE64`), and compares the committed `.machines/box/cache-key.pub` with it. The file stays. | The stand-in existed because the fixture machine had no sharing module. |
+| `test_apply_a_gives_the_same_path_...` | none | After apply, no failed unit, and `curl http://127.0.0.1:5000/nix-cache-info` answers. | New proof that Harmonia runs with the real key. |
+| `test_the_machine_runs_system_a_before_any_command` | none | `vendomat-cache-key.service` and `harmonia.socket` are active; the key file starts with `box:`. | New proof of the sharing module at first boot. |
+
+Every other assertion is unchanged. The download counts needed no new baseline: the harness cache counts only requests that reach it, and Harmonia's paths are in system A, which the image holds. The counts are 0 for the same-path apply and the rollbacks, and above 0 for `hello` (A-prime, and 11 after the garbage collection).
+
+### Checks
+
+| Check | Run | Result |
+| --- | --- | --- |
+| `testee verify` | tree `2875c64091` | GREEN |
+| `opt:machines-vm` | `20261016T152444Z-32ec6cecc98f` | 12 passed, 436 s |
+
+The first `opt:machines-vm` try (run `20261016T152411Z-e71495708282`) failed in setup: the fixture `vendomat.yaml` used `{}`, and the parser refuses flow style. Observation only; the next run fixed it.

@@ -201,6 +201,11 @@ def _setup(w: World, work: Path) -> Iterator[World]:
         w.sh(["nix-instantiate", "--eval", "--strict", "--json", str(FIXTURE / "tools.nix"), "-A", "sources"]).stdout
     )
 
+    # The catalog: a copy of `devenv/` and the template at a fixed path, imported as `vendomat/devenv`.
+    catalog = work / "vendomat-src"
+    shutil.copytree(ROOT / "devenv", catalog / "devenv")
+    shutil.copytree(ROOT / "templates" / "workspace", catalog / "templates" / "workspace")
+
     # The module tree: a copy at a fixed path. The machine gets the same copy at the same path.
     modules = work / "modules"
     if DEVENV_TREE_OVERRIDE:
@@ -252,6 +257,7 @@ def _setup(w: World, work: Path) -> Iterator[World]:
     yaml = (fixture / "devenv.yaml.in").read_text()
     for mark, value in {
         "@DEVENV@": str(modules),
+        "@VENDOMAT@": str(catalog),
         "@NIXPKGS@": sources["nixpkgs"]["path"],
         "@DISKO@": sources["disko"]["path"],
         "@FACTER@": sources["nixos-facter-modules"]["path"],
@@ -307,6 +313,7 @@ def _setup(w: World, work: Path) -> Iterator[World]:
     vm.ok("root", "loginctl enable-linger tester root")
     vm.ok("root", f"mkdir -p {work}")
     vm.ok("root", f"tar -C {work} -xf -", stdin=_modules_tar(modules))
+    vm.ok("root", f"tar -C {work} -xf -", stdin=_modules_tar(catalog))
     vm.ok("tester", "mkdir -p ws && tar -C ws -xf -", stdin=tar_bytes(ws))
     vm.ok("tester", "git config --global user.name tester && git config --global user.email tester@example.invalid")
     vm.ok("tester", "cd ws && git init -q -b main && git add -A && git commit -q -m 'system A'")
@@ -320,10 +327,10 @@ def _setup(w: World, work: Path) -> Iterator[World]:
     yield w
 
 
-def _modules_tar(modules: Path) -> bytes:
+def _modules_tar(tree: Path) -> bytes:
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w") as archive:
-        archive.add(modules, arcname="modules")
+        archive.add(tree, arcname=tree.name)
     return buffer.getvalue()
 
 
@@ -338,6 +345,12 @@ def test_the_machine_runs_system_a_before_any_command(world: World) -> None:
     assert state["gens"].split() == ["1"]
     facts = json.loads(world.machine.ok("tester", "cat /etc/devenv/machine-facts.json"))
     assert facts["hostname"] == "box"
+    # The catalog gives the machine its sharing module (R39): the key unit ran and Harmonia is up.
+    units = world.machine.ok(
+        "root", "systemctl is-active vendomat-cache-key.service harmonia.socket; ls -l /var/lib/vendomat/cache-key.pub"
+    )
+    assert units.split().count("active") == 2, units
+    assert world.machine.ok("tester", "cat /var/lib/vendomat/cache-key.pub").startswith("box:")
     assert world.record() == []
     world.log.result(f"baseline: {state}")
 
@@ -366,13 +379,13 @@ def test_apply_build_failure_and_ignored_config_do_not_change_the_machine(world:
 
 def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world: World) -> None:
     began = world.downloads()
-    # The sharing module makes this file at first boot. The fixture machine has no such module, so
-    # the harness writes a stand-in key and checks that apply copies it into the workspace.
-    world.machine.ok("root", "install -d /var/lib/vendomat && echo 'box:AAAA=' > /var/lib/vendomat/cache-key.pub")
+    # The sharing module of the catalog made this file at first boot. Apply copies it into the workspace.
+    key = world.machine.ok("tester", "cat /var/lib/vendomat/cache-key.pub").strip()
+    assert re.fullmatch(r"box:[A-Za-z0-9+/]+=*", key), key
     rc, out = world.vendomat("apply")
     assert rc == 0, out
     assert "wrote .machines/box/cache-key.pub and put it in the commit" in out, out
-    assert world.machine.ok("tester", "cd ws && cat .machines/box/cache-key.pub").strip() == "box:AAAA="
+    assert world.machine.ok("tester", "cd ws && cat .machines/box/cache-key.pub").strip() == key
     assert world.git("status --porcelain") == "", "apply commits the key with the configuration (VMT-282)"
     state = world.state()
     assert state["profile"] == world.tops["A"] and state["gens"].split() == ["1"]
@@ -384,7 +397,9 @@ def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world
     assert world.git("show --format= --name-only HEAD") == ".machines/box/cache-key.pub"
     # The later steps compare trees with commit A. The key commit is now the first commit of the system.
     world.commits["A"] = line["commit"]
-    world.machine.ok("root", "rm /var/lib/vendomat/cache-key.pub")
+    # The key stays: it belongs to the machine. Harmonia still runs, and no unit failed.
+    assert state["failed"].strip("[] ") == "", state
+    assert "StoreDir: /nix/store" in world.machine.ok("tester", "curl -s http://127.0.0.1:5000/nix-cache-info")
     world.log.result(f"apply A: record {line}")
 
 
