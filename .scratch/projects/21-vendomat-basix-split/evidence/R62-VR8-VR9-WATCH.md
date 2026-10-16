@@ -11,7 +11,7 @@ The ledger skips `VMT-185` to `VMT-279` because Basix reserves `BSX-240` to `BSX
 | --- | --- |
 | VR8 (more watched files) | Resolved by R62 and `VMT-280`. On `main`. No release carries it. |
 | VR9 (first error line first in `apply`) | Resolved by `VMT-281`. On `main`. No release carries it. |
-| VR10 (the `cache-key.pub` commit message, `BSX-253`) | Open: `VMT-282`. No ruling, no change. |
+| VR10 (the `cache-key.pub` commit message, `BSX-253`) | Resolved later by R63 (`VMT-282`, `VMT-283`). See [R63-VR10-KEY-COMMIT](R63-VR10-KEY-COMMIT.md). |
 
 ## The option (proposed name, now proved by the fixtures below)
 

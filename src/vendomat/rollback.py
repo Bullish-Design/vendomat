@@ -9,7 +9,8 @@ A lasting rollback changes the files, not only the machine. The command:
    ``VMT-280``), an unknown commit, and a recorded commit that the repository no longer holds;
 3. shows the diff that the restore makes;
 4. restores the whole workspace tree from the target commit, scoped to the workspace root (R55,
-   ``VMT-182``);
+   ``VMT-182``). The public cache key file of this machine stays as it is: it belongs to the machine
+   and not to a past configuration (``VMT-282``);
 5. builds, commits the restore as ``rollback to REV``, and activates.
 
 ``--exact`` was the whole-tree restore before R55. The default is now the same, so ``--exact`` is a
@@ -141,6 +142,7 @@ def rollback(
             watched = watch_paths(root, run)
         except RecordError as exc:
             emit(f"warning: cannot read vendomat.watch, so only the four fixed files count as watched:\n{exc}")
+    keep = (key,) if key else ()  # the machine's own public key stays as it is (VMT-282)
     changes = workspace.watched_changes(root, watched)  # includes an ignored watched file that exists
     seen = {change.path for change in changes}
     changes += [c for c in workspace.uncommitted_changes(root, skip=(key,) if key else ()) if c.path not in seen]
@@ -175,7 +177,7 @@ def rollback(
         emit("This is for recovery. Restart to use it. The profile and the files stay as they are.")
         return RolledBack(head, target, None, entry_name)
 
-    diff = workspace.diff_text(root, target)
+    diff = workspace.diff_text(root, target, keep)
     emit(diff if diff else "the files already equal the target commit; the rollback commit will be empty")
     if dry_run:
         emit("dry run: nothing changed")
@@ -190,7 +192,7 @@ def rollback(
                 f"{chosen.entry.toplevel}. Run the rollback without --fast."
             )
 
-    workspace.restore(root, target)
+    workspace.restore(root, target, keep)
     try:
         if fast:
             assert chosen is not None

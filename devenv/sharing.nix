@@ -15,7 +15,7 @@
 # A machine with peers (`vendomat.sharing.peers`) substitutes from them. It keeps cache.nixos.org.
 # It sets `fallback = true` and a short connect timeout, so a peer that is off never blocks a build.
 #
-# Publication of the public key: the workspace commits the file `.machines/NAME/cache-key.pub`.
+# Publication of the public key: `vendomat apply` commits the file `.machines/NAME/cache-key.pub` (VMT-282).
 # The catalog reads that file and gives every other machine a peer entry. A machine whose key is
 # not committed yet gets no peer entry. An install needs no key.
 { config, lib, pkgs, ... }:

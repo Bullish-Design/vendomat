@@ -367,17 +367,20 @@ def test_apply_a_gives_the_same_path_adds_no_generation_and_records_a_line(world
     world.machine.ok("root", "install -d /var/lib/vendomat && echo 'box:AAAA=' > /var/lib/vendomat/cache-key.pub")
     rc, out = world.vendomat("apply")
     assert rc == 0, out
-    assert "wrote .machines/box/cache-key.pub; commit it" in out, out
+    assert "wrote .machines/box/cache-key.pub and put it in the commit" in out, out
     assert world.machine.ok("tester", "cd ws && cat .machines/box/cache-key.pub").strip() == "box:AAAA="
-    assert world.git("status --porcelain") == "?? .machines/", "apply copies the key and never commits it"
+    assert world.git("status --porcelain") == "", "apply commits the key with the configuration (VMT-282)"
     state = world.state()
     assert state["profile"] == world.tops["A"] and state["gens"].split() == ["1"]
     assert world.downloads() == began, "system A is in the store: nothing to fetch"
     [line] = world.record()
     assert line["generation"] == 1 and line["toplevel"] == world.tops["A"]
-    assert line["commit"] == world.commits["A"] and line["dirty"] is False
-    assert "failed units: none" in out and "generation 1 is active" in out
-    # The key file stays. It is untracked, and the next apply must not stop for it (R55, VMT-161).
+    assert world.git("rev-parse HEAD^") == world.commits["A"], "the key commit sits on commit A (VMT-282)"
+    assert line["commit"] == world.git("rev-parse HEAD") and line["dirty"] is False
+    assert world.git("show --format= --name-only HEAD") == ".machines/box/cache-key.pub"
+    # The later steps compare trees with commit A. The key commit is now the first commit of the system.
+    world.commits["A"] = line["commit"]
+    world.machine.ok("root", "rm /var/lib/vendomat/cache-key.pub")
     world.log.result(f"apply A: record {line}")
 
 

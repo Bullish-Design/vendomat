@@ -266,11 +266,22 @@ def _commit_paths(root: Path, changes: list[Change], watched: Sequence[str] = WA
     raise WorkspaceError("the workspace has no tracked configuration path to commit")
 
 
-def commit_watched(root: Path, message: str = "vendomat apply configuration", watched: Sequence[str] = WATCHED) -> str:
-    """Commit the current allowlisted workspace configuration without committing other staged files."""
+def commit_watched(
+    root: Path,
+    message: str = "vendomat apply configuration",
+    watched: Sequence[str] = WATCHED,
+    extra: Sequence[str] = (),
+) -> str:
+    """Commit the current allowlisted workspace configuration without committing other staged files.
+
+    ``extra`` names more paths that the same commit takes when they have a change (``VMT-282``: the
+    public cache key that apply wrote). Other paths stay out of the commit.
+    """
 
     refuse_ignored_watched(root, watched)
     changes = watched_changes(root, watched)
+    if extra:
+        changes += [change for change in tree_changes(root) if change.path in extra]
     if not changes:
         return head(root)
     paths = _commit_paths(root, changes, watched)
@@ -319,9 +330,10 @@ def cache_key_path(name: str) -> str:
 def written_key_file(root: Path, name: str, source: Path) -> str | None:
     """The path of the key file that apply writes for this machine, or ``None``.
 
-    Apply copies the machine's public key from ``source`` into the workspace after each activation
-    and never commits it. The file is apply's own output, so a change to it must not stop the next
-    apply, whatever it holds: apply writes it again from ``source``. A machine with no ``source``
+    Apply copies the machine's public key from ``source`` into the workspace and commits it with the
+    configuration (``VMT-282``). An apply with ``--dirty`` makes no commit, so it leaves the file
+    uncommitted. The file is apply's own output, so a change to it must not stop the next apply or a
+    rollback, whatever it holds: apply writes it again from ``source``. A machine with no ``source``
     (``serve: false``) has no such output, and its key file counts as a change of the user.
     """
 
@@ -334,22 +346,32 @@ def uncommitted_changes(root: Path, *, skip: tuple[str, ...] = ()) -> list[Chang
     return [change for change in tree_changes(root) if change.path not in skip]
 
 
-def diff_text(root: Path, rev: str) -> str:
-    """The change that a restore of the workspace tree from ``rev`` makes: the stat, then the patch."""
+def _scope(keep: Sequence[str]) -> list[str]:
+    """The pathspecs of the workspace tree without the paths in ``keep``."""
 
-    stat = git(root, "diff", "--no-color", "--stat", "HEAD", rev, "--", ".").stdout
-    patch = git(root, "diff", "--no-color", "HEAD", rev, "--", ".").stdout
+    return [".", *(f":(exclude,literal){path}" for path in keep)]
+
+
+def diff_text(root: Path, rev: str, keep: Sequence[str] = ()) -> str:
+    """The change that a restore of the workspace tree from ``rev`` makes: the stat, then the patch.
+
+    The paths in ``keep`` are not part of the change (see ``restore``).
+    """
+
+    stat = git(root, "diff", "--no-color", "--stat", "HEAD", rev, "--", *_scope(keep)).stdout
+    patch = git(root, "diff", "--no-color", "HEAD", rev, "--", *_scope(keep)).stdout
     return (stat + "\n" + patch).strip()
 
 
-def restore(root: Path, rev: str) -> None:
+def restore(root: Path, rev: str, keep: Sequence[str] = ()) -> None:
     """Make every tracked file under ``root`` equal to ``rev``, in index and tree.
 
     ``git restore --source`` also removes a tracked file that ``rev`` lacks. New files that Git does
-    not track stay. Paths outside ``root`` stay as they are.
+    not track stay. Paths outside ``root`` stay as they are. The paths in ``keep`` stay as they are
+    too: the public cache key belongs to the machine and not to a past configuration (``VMT-282``).
     """
 
-    git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", ".")
+    git(root, "restore", f"--source={rev}", "--staged", "--worktree", "--", *_scope(keep))
 
 
 def undo_restore(root: Path) -> None:

@@ -62,7 +62,9 @@ Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.
 
 **Release v0.10.0, 2026-10-15.** Vendomat v0.10.0 is published: tag `v0.10.0` and `release` are at `c6b36c1e` (owner approval in session). It adds R55 (whole-commit `apply` and `rollback`), R60 (`settings`), and the end of the `vendomat.toml` flow (S8 step 3). vendomat-demo pins it (`bb6bad05`). Evidence: [RELEASE-0.10.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.10.0.md).
 
-**R62, 2026-10-15.** The list option `vendomat.watch` (R62, `VMT-280`) adds workspace files to the files that `apply` and `rollback` watch. `apply` and `rollback` print the first fault line of a workspace file first (`VMT-281`). Both are on `main` and in release v0.11.0 (below). Basix requests VR8 and VR9 are resolved; VR10 is open (`VMT-282`). Evidence: [R62-VR8-VR9-WATCH](projects/21-vendomat-basix-split/evidence/R62-VR8-VR9-WATCH.md).
+**R62, 2026-10-15.** The list option `vendomat.watch` (R62, `VMT-280`) adds workspace files to the files that `apply` and `rollback` watch. `apply` and `rollback` print the first fault line of a workspace file first (`VMT-281`). Both are on `main` and in release v0.11.0 (below). Basix requests VR8 and VR9 are resolved. Evidence: [R62-VR8-VR9-WATCH](projects/21-vendomat-basix-split/evidence/R62-VR8-VR9-WATCH.md).
+
+**R63, 2026-10-16.** `vendomat apply` writes the public cache key before its commit and puts it in that commit (R63, `VMT-282`, `VMT-283`). It no longer asks the user to commit the key. `rollback` keeps the key file. Basix request VR10 is resolved. Evidence: [R63-VR10-KEY-COMMIT](projects/21-vendomat-basix-split/evidence/R63-VR10-KEY-COMMIT.md).
 
 **Release v0.11.0, 2026-10-15.** Vendomat v0.11.0 is published to the local cache only: tag `v0.11.0` and `release` are at `b614b643` (owner approval in session; no GitHub push of the tag or `release`). It adds R62 (`vendomat.watch`, `VMT-280`) and `VMT-281`. Evidence: [RELEASE-0.11.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.11.0.md).
 

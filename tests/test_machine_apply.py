@@ -358,24 +358,114 @@ def test_apply_allows_a_clean_tree_and_commits_only_the_watched_files(tmp_path: 
     assert git(root, "status", "--porcelain") == ""
 
 
-def test_the_key_file_that_a_previous_apply_wrote_does_not_block_the_next_apply(tmp_path: Path):
-    # VMT-161: apply writes `.machines/NAME/cache-key.pub` and never commits it. R55 must not make
-    # that output stop the next apply, whether the file is new or a tracked file that apply changed.
+def key_commits(root: Path) -> list[str]:
+    return git(root, "log", "--format=%s", "--", ".machines/box/cache-key.pub").splitlines()
+
+
+def test_apply_commits_a_new_key_in_the_same_commit_and_leaves_the_tree_clean(tmp_path: Path):
+    # VMT-282: apply writes the key before its commit and puts it in that commit. No user step.
+    root = make_workspace(tmp_path / "ws")
+    (root / "devenv.nix").write_text("{ x = 5; }\n")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    said: list[str] = []
+    result = apply(root, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "status", "--porcelain") == ""
+    assert sorted(git(root, "show", "--format=", "--name-only", "HEAD").splitlines()) == [
+        ".machines/box/cache-key.pub",
+        "devenv.nix",
+    ]
+    assert result.commit == git(root, "rev-parse", "HEAD") == lines(machine)[0]["commit"]
+    assert git(root, "rev-list", "--count", "HEAD") == "2"
+    [wrote] = [line for line in said if line.startswith("wrote ")]
+    assert "commit it" not in wrote and "put it in the commit" in wrote
+
+
+def test_apply_commits_a_key_when_no_watched_file_changed(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     machine = Machine(tmp_path / "m")
     machine.cache_key.write_text("box:AAAA=\n")
     apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
-    assert git(root, "status", "--porcelain") == "?? .machines/"
-    result = apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # new file
-    assert result.generation == 1 and len(lines(machine)) == 2
-    git(root, "add", ".machines")
-    git(root, "commit", "--quiet", "-m", "publish key")
+    assert git(root, "show", "--format=", "--name-only", "HEAD") == ".machines/box/cache-key.pub"
+    assert git(root, "status", "--porcelain") == ""
+    assert lines(machine)[0]["commit"] == git(root, "rev-parse", "HEAD")
+
+
+def test_apply_with_the_same_key_makes_no_commit_and_says_nothing_about_it(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    before = git(root, "rev-parse", "HEAD")
+    said: list[str] = []
+    apply(root, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") == before and git(root, "status", "--porcelain") == ""
+    assert not any(line.startswith("wrote ") for line in said)
+
+
+def test_apply_commits_a_changed_key(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
     machine.cache_key.write_text("box:BBBB=\n")
-    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # writes a changed key
-    assert git(root, "status", "--porcelain") == "M .machines/box/cache-key.pub"
-    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())  # tracked and modified
-    assert len(lines(machine)) == 4
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "status", "--porcelain") == ""
+    assert git(root, "show", "HEAD:.machines/box/cache-key.pub") == "box:BBBB="
+    assert len(key_commits(root)) == 2
     assert all(line["dirty"] is False for line in lines(machine))
+
+
+def test_apply_commits_a_key_file_that_an_earlier_version_left_uncommitted(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    (root / ".machines" / "box").mkdir(parents=True)
+    (root / ".machines" / "box" / "cache-key.pub").write_text("box:AAAA=\n")  # equal, untracked
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "status", "--porcelain") == "" and len(key_commits(root)) == 1
+
+
+def test_apply_with_dirty_writes_the_key_and_makes_no_commit(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    before = git(root, "rev-parse", "HEAD")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    (root / "notes.txt").write_text("two\n")  # a change outside the watched files makes the apply dirty
+    said: list[str] = []
+    apply(root, dirty_ok=True, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "rev-parse", "HEAD") == before
+    assert git(root, "status", "--porcelain").splitlines() == ["M notes.txt", "?? .machines/"]
+    assert any(line.startswith("wrote ") and "uncommitted" in line for line in said)
+    git(root, "checkout", "--", "notes.txt")
+    # The next apply does not stop for that file, and commits it.
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    assert git(root, "status", "--porcelain") == "" and len(key_commits(root)) == 1
+
+
+def test_a_file_of_another_machine_still_stops_apply_after_a_key_commit(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    other = root / ".machines" / "other"
+    other.mkdir()
+    (other / "cache-key.pub").write_text("other:CCCC=\n")  # a file of the user stays out of the commit
+    machine.cache_key.write_text("box:BBBB=\n")
+    with pytest.raises(RecordError, match=r"untracked: \.machines/other/cache-key\.pub"):
+        apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+
+
+def test_apply_without_a_committer_refuses_before_the_build_when_only_the_key_is_new(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.cache_key.write_text("box:AAAA=\n")
+    no_committer(monkeypatch)
+    with pytest.raises(Exception, match="committer"):
+        apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
+    assert machine.calls == [] and not (root / ".machines").exists()
 
 
 def test_the_key_file_of_another_machine_or_without_a_key_source_is_a_change(tmp_path: Path):
@@ -605,40 +695,6 @@ def test_the_cli_maps_a_missing_workspace_to_exit_status_3(tmp_path: Path, monke
     assert result.exit_code == 3 and "no workspace here" in result.output
 
 
-def test_apply_copies_the_cache_key_into_the_workspace_and_asks_for_a_commit(tmp_path: Path):
-    root = make_workspace(tmp_path / "ws")
-    machine = Machine(tmp_path / "m")
-    machine.cache_key.write_text("box:AAAA=\n")
-    said: list[str] = []
-    apply(root, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
-    target = root / ".machines" / "box" / "cache-key.pub"
-    assert target.read_text() == "box:AAAA=\n"
-    assert said[-1] == "wrote .machines/box/cache-key.pub; commit it so that your other machines trust this one"
-    # The command does not commit. The file is untracked, and it does not make the next apply dirty.
-    assert git(root, "status", "--porcelain") == "?? .machines/"
-    said.clear()
-    apply(root, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
-    assert not any("cache-key.pub" in line for line in said), "same content: no copy, no message"
-
-
-def test_apply_copies_a_changed_cache_key_and_never_commits(tmp_path: Path):
-    root = make_workspace(tmp_path / "ws")
-    machine = Machine(tmp_path / "m")
-    machine.cache_key.write_text("box:AAAA=\n")
-    apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
-    git(root, "add", ".machines")
-    git(root, "commit", "--quiet", "-m", "publish key")
-    head = git(root, "rev-parse", "HEAD")
-    machine.cache_key.write_text("box:BBBB=\n")
-    said: list[str] = []
-    apply(root, emit=said.append, cache_key=machine.cache_key, **machine.kwargs())
-    assert (root / ".machines" / "box" / "cache-key.pub").read_text() == "box:BBBB=\n"
-    assert any("commit it" in line for line in said)
-    assert (
-        git(root, "rev-parse", "HEAD") == head and git(root, "status", "--porcelain") == "M .machines/box/cache-key.pub"
-    )
-
-
 def test_apply_without_a_cache_key_writes_nothing(tmp_path: Path):
     # A machine with `serve: false` makes no key.
     root = make_workspace(tmp_path / "ws")
@@ -647,13 +703,17 @@ def test_apply_without_a_cache_key_writes_nothing(tmp_path: Path):
     assert not (root / ".machines").exists()
 
 
-def test_a_failed_switch_does_not_publish_the_key(tmp_path: Path):
+def test_a_failed_switch_leaves_the_key_in_the_commit_like_the_configuration(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     machine = Machine(tmp_path / "m", fail={"switch-to-configuration"})
     machine.cache_key.write_text("box:AAAA=\n")
     with pytest.raises(RecordError):
         apply(root, emit=lambda _: None, cache_key=machine.cache_key, **machine.kwargs())
-    assert not (root / ".machines").exists()
+    # VMT-282: the commit comes before the switch, so the key shares the fate of the configuration.
+    assert git(root, "status", "--porcelain") == "" and git(root, "show", "--format=", "--name-only", "HEAD") == (
+        ".machines/box/cache-key.pub"
+    )
+    assert not machine.record.exists() or lines(machine) == []
 
 
 def test_a_switch_that_exits_4_is_active_with_a_warning_and_is_recorded(tmp_path: Path):

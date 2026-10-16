@@ -122,8 +122,9 @@ def other_changes(
 ) -> list[workspace.Change]:
     """Uncommitted changes under ``root`` that are not a watched file (R55).
 
-    Two kinds of path do not count: a file that Git ignores, and the cache key file that an earlier
-    apply wrote for this machine (``VMT-161``). Apply must not block on its own output.
+    Two kinds of path do not count: a file that Git ignores, and the cache key file of this machine
+    (``VMT-161``, ``VMT-282``). Apply writes that file again from the machine and commits it, so it
+    must not block on its own output.
     """
 
     key = workspace.written_key_file(root, name, cache_key or CACHE_KEY_PATH)
@@ -367,29 +368,38 @@ def activate(
     return Applied(number, top, commit, dirty, failed)
 
 
-def publish_cache_key(root: Path, name: str, emit: Emit, source: Path | None = None) -> bool:
-    """Copy the machine's public cache key to ``.machines/NAME/cache-key.pub`` in the workspace.
+def pending_cache_key(root: Path, name: str, source: Path | None = None) -> str | None:
+    """Return the public key text that the next apply must put in the workspace, or ``None``.
 
-    The other machines read that committed file to trust this machine's cache. Copy it only when the
-    file is missing or differs, and tell the user to commit it. Never commit it. A machine with no
-    key (``serve: false``) has no source file, and nothing happens. Return whether the file changed.
+    The text is pending when the file is missing, differs from the machine's key, or has an
+    uncommitted change (a file that an apply of an earlier version left). A machine with no key
+    (``serve: false``) has no source file, so nothing is pending.
     """
 
     source = source or CACHE_KEY_PATH
     try:
         key = source.read_text()
     except OSError:
-        return False
-    target = root / workspace.cache_key_path(name)
+        return None
+    path = workspace.cache_key_path(name)
     try:
-        if target.read_text() == key:
-            return False
+        same = (root / path).read_text() == key
     except OSError:
-        pass
+        same = False
+    if same and not any(change.path == path for change in workspace.tree_changes(root)):
+        return None
+    return key
+
+
+def write_cache_key(root: Path, name: str, key: str) -> str:
+    """Write the public cache key to ``.machines/NAME/cache-key.pub`` and return that path."""
+
+    path = workspace.cache_key_path(name)
+    target = root / path
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(key)
-    emit(f"wrote .machines/{name}/cache-key.pub; commit it so that your other machines trust this one")
-    return True
+    if not target.is_file() or target.read_text() != key:
+        target.write_text(key)
+    return path
 
 
 def apply(
@@ -410,7 +420,8 @@ def apply(
     dirty = dirty_apply(root, name, allow=dirty_ok, emit=emit, cache_key=cache_key, watched=watched)
     # Precondition: the workspace has a commit. A dirty apply records this commit.
     commit = workspace.head(root)
-    if not dirty and workspace.watched_changes(root, watched):
+    key = pending_cache_key(root, name, cache_key)
+    if not dirty and (key is not None or workspace.watched_changes(root, watched)):
         # Apply commits after the build. Find out now that the commit can be made (no build is wasted).
         workspace.require_commit_identity(root)
     before = workspace.fingerprint(root, watched)
@@ -418,8 +429,12 @@ def apply(
     top = build_toplevel(root, name, run)
     emit(f"built {top}")
     refuse_changed_during_build(root, before, watched)
+    # VMT-282: the public key goes in before the commit, so that one commit holds the configuration
+    # and the key, and the working copy stays clean. The build has read the files already.
+    written = write_cache_key(root, name, key) if key is not None else None
     if not dirty:
-        commit = workspace.commit_watched(root, watched=watched)
-    applied = activate(run, top, commit, dirty, emit, profile=profile, record=record)
-    publish_cache_key(root, name, emit, cache_key)
-    return applied
+        commit = workspace.commit_watched(root, watched=watched, extra=(written,) if written else ())
+    if written:
+        how = "left it uncommitted (--dirty)" if dirty else "put it in the commit"
+        emit(f"wrote {written} and {how}")
+    return activate(run, top, commit, dirty, emit, profile=profile, record=record)

@@ -312,3 +312,30 @@ def test_the_key_file_is_apply_output_only_with_a_key_source(tmp_path: Path):
     assert workspace.written_key_file(root, "box", source) is None
     source.write_text("box:AAAA=\n")
     assert workspace.written_key_file(root, "box", source) == ".machines/box/cache-key.pub"
+
+
+def test_commit_watched_takes_the_extra_paths_that_have_a_change_and_no_other_file(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    (root / ".machines" / "box").mkdir(parents=True)
+    (root / ".machines" / "box" / "cache-key.pub").write_text("box:AAAA=\n")
+    (root / "stray.txt").write_text("x\n")
+    key = ".machines/box/cache-key.pub"
+    commit = workspace.commit_watched(root, extra=(key,))
+    assert commit == git(root, "rev-parse", "HEAD")
+    assert git(root, "show", "--format=", "--name-only", "HEAD") == key
+    assert git(root, "status", "--porcelain") == "?? stray.txt"
+    assert workspace.commit_watched(root, extra=(key,)) == commit  # no change: no second commit
+
+
+def test_restore_and_diff_text_leave_a_kept_path_alone(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    first = git(root, "rev-parse", "HEAD")
+    (root / "notes.txt").write_text("two\n")
+    (root / "keep.txt").write_text("kept\n")
+    git(root, "add", "-A")
+    git(root, "commit", "--quiet", "-m", "second")
+    assert "keep.txt" not in workspace.diff_text(root, first, ("keep.txt",))
+    workspace.restore(root, first, ("keep.txt",))
+    assert (root / "notes.txt").read_text() == "one\n"
+    assert (root / "keep.txt").read_text() == "kept\n"
+    assert git(root, "status", "--porcelain") == "M  notes.txt"

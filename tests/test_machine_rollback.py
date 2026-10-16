@@ -230,13 +230,28 @@ def test_rollback_allows_a_file_that_git_ignores(world: World):
     assert world.rollback(to=world.first) is not None
 
 
-def test_rollback_allows_the_key_file_that_apply_wrote(world: World):
+def test_rollback_keeps_the_key_file_that_apply_committed(world: World):
+    # VMT-282: a rollback to a commit with no key must not delete the key of the machine.
     world.machine.cache_key.write_text("box:AAAA=\n")
     world.apply(cache_key=world.machine.cache_key)
-    assert git(world.root, "status", "--porcelain") == "?? .machines/"
+    key = ".machines/box/cache-key.pub"
+    assert git(world.root, "status", "--porcelain") == ""
+    assert git(world.root, "ls-tree", "--name-only", world.first, "--", key) == ""  # the target has no key
     done = world.rollback(to=world.first, cache_key=world.machine.cache_key)
     assert done is not None
-    assert git(world.root, "status", "--porcelain") == "?? .machines/"  # the key stays uncommitted
+    assert (world.root / key).read_text() == "box:AAAA=\n"
+    assert git(world.root, "status", "--porcelain") == ""
+    assert git(world.root, "ls-files", "--", key) == key
+
+
+def test_rollback_allows_a_key_file_that_a_dirty_apply_left(world: World):
+    world.machine.cache_key.write_text("box:AAAA=\n")
+    (world.root / "notes.txt").write_text("dirty\n")
+    world.apply(dirty_ok=True, cache_key=world.machine.cache_key)
+    git(world.root, "checkout", "--", "notes.txt")
+    assert git(world.root, "status", "--porcelain") == "?? .machines/"
+    assert world.rollback(to=world.first, cache_key=world.machine.cache_key) is not None
+    assert git(world.root, "status", "--porcelain") == "?? .machines/"
 
 
 def test_exact_is_a_deprecated_alias_of_the_default(world: World):
