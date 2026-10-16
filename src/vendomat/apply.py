@@ -210,15 +210,31 @@ def failure_text(kind: str, argv: Sequence[str], result: Result) -> str:
     return "\n".join([*body, f"devenv {' '.join(argv[1:])} failed (exit {result.returncode}){where}"])
 
 
+def watch_attribute_missing(result: Result) -> bool:
+    """True when ``devenv eval vendomat.watch`` failed only because the option does not exist.
+
+    devenv 2.4.0 exits 1 and prints ``attribute `devenv.config.vendomat.watch` not found``. A fault in a
+    workspace file prints another reason first, so it does not match.
+    """
+
+    text = f"{result.stderr}\n{result.stdout}"
+    return result.returncode == 1 and f"attribute `devenv.config.{WATCH_ATTRIBUTE}` not found" in text
+
+
 def watch_paths(root: Path, run: Runner) -> tuple[str, ...]:
     """The files to watch: the four fixed files and the paths of ``vendomat.watch`` (R62).
 
     The command evaluates the workspace, so a fault in a workspace file stops here, with its first line first.
+    A workspace whose modules do not declare the option (they predate R62) has no extra files: the function
+    returns the four fixed files and prints nothing. Only the exact "attribute not found" failure counts as
+    missing. Any other failure, such as a syntax error, stops with exit 2.
     """
 
     argv = [devenv_binary(), "eval", WATCH_ATTRIBUTE]
     result = run(argv, cwd=root, timeout=BUILD_TIMEOUT)
     if result.returncode != 0:
+        if watch_attribute_missing(result):
+            return workspace.extend_watched(root, [])
         raise RecordError(failure_text("watch", argv, result), 2)
     text = result.stdout.strip()
     try:

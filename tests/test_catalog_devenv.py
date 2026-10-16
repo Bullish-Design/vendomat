@@ -307,6 +307,24 @@ def test_a_watch_path_outside_the_workspace_is_refused_on_a_real_devenv(ws: Path
     assert "vendomat.watch" in str(info.value) and "outside.yaml" in str(info.value)
 
 
+def test_a_workspace_without_the_module_gives_the_error_that_apply_treats_as_missing(
+    ws: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # v0.11.2 (R64): `apply` matches the error text of devenv when the option is missing. This test runs the
+    # pinned devenv on a workspace that does not import the catalog. A devenv that rewords the message fails here.
+    from vendomat.apply import Result, run_command, watch_attribute_missing, watch_paths
+    from vendomat.workspace import WATCHED
+
+    real_env(monkeypatch)
+    yaml = (ws / "devenv.yaml").read_text()
+    assert "imports:\n  - vendomat/devenv\n" in yaml
+    (ws / "devenv.yaml").write_text(yaml.replace("imports:\n  - vendomat/devenv\n", ""))
+    done = run(["devenv", "eval", "vendomat.watch"], ws)
+    assert done.returncode == 1, done.stderr[-2000:]
+    assert watch_attribute_missing(Result(done.returncode, done.stdout, done.stderr)), done.stderr[-2000:]
+    assert watch_paths(ws, run_command) == WATCHED
+
+
 def test_apply_prints_the_fault_line_of_a_real_evaluation_first(
     ws: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

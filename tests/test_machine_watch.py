@@ -292,3 +292,48 @@ def test_a_long_failure_without_a_fault_line_is_cut(tmp_path: Path):
     assert lines[0] == "line 1"
     assert any(line.startswith("... (") and "more lines)" in line for line in lines)
     assert len(lines) <= 42
+
+
+# --- a module that predates R62 (v0.11.2) --------------------------------------------------------------
+
+# The text is a recording of devenv 2.4.0 (the VM run 20261016T144016Z-503c03d7b4fe). The opt-in test
+# `test_catalog_devenv.py::test_a_workspace_without_the_module_gives_the_error_that_apply_treats_as_missing`
+# checks it against the pinned devenv, because `test:full` cannot run devenv (it needs the network).
+MISSING = (
+    "  × Failed to get attribute 'devenv.config.vendomat.watch': attribute `devenv.config.vendomat.watch` not found\n"
+)
+SYNTAX = "       at /ws/devenv.nix:1:13:\nerror: syntax error, unexpected end of file\n"
+
+
+def test_a_missing_watch_attribute_means_the_four_fixed_files(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.eval_result = Result(1, "", MISSING)
+    assert watch_paths(root, machine.run) == WATCHED
+    (root / "devenv.nix").write_text("{ changed = true; }\n")
+    said: list[str] = []
+    apply(root, emit=said.append, **machine.kwargs())
+    assert committed_names(root) == ["devenv.nix"]
+    assert machine.calls[0][1:] == ["build", "machines.box.build.nixos"]
+    assert said == [] or not any("watch" in line for line in said)
+
+
+def test_a_syntax_error_stops_apply_with_the_first_line_first(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.eval_result = Result(1, "", SYNTAX)
+    with pytest.raises(RecordError) as info:
+        apply(root, emit=lambda _: None, **machine.kwargs())
+    assert info.value.code == 2
+    first = str(info.value).splitlines()
+    assert first[0] == "syntax error, unexpected end of file"
+    assert first[1].endswith("devenv.nix:1:13")
+    assert machine.calls == []
+
+
+def test_another_exit_code_with_the_missing_text_is_still_a_fault(tmp_path: Path):
+    root = make_workspace(tmp_path / "ws")
+    machine = Machine(tmp_path / "m")
+    machine.eval_result = Result(2, "", MISSING)
+    with pytest.raises(RecordError):
+        watch_paths(root, machine.run)

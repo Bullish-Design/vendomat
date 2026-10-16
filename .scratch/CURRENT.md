@@ -70,6 +70,8 @@ Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.
 
 **Release v0.11.1, 2026-10-16.** Vendomat v0.11.1 is published to the local cache only: tag `v0.11.1` and `release` (owner approval in session; no GitHub push of the tag or `release`). It adds R63 (`VMT-282`, `VMT-283`). Evidence: [RELEASE-0.11.1](projects/21-vendomat-basix-split/evidence/RELEASE-0.11.1.md).
 
+**R64 and release v0.11.2, 2026-10-16.** `opt:machines-vm` found that `apply` stopped in any workspace whose modules predate `vendomat.watch`. R64 (`VMT-284`) makes a missing option mean "no extra files". `opt:machines-vm` now passes 12 of 12. Vendomat v0.11.2 is published to the local cache only. Basix moves its pin at its next rc. Evidence: [R64-WATCH-MISSING](projects/21-vendomat-basix-split/evidence/R64-WATCH-MISSING.md), [RELEASE-0.11.2](projects/21-vendomat-basix-split/evidence/RELEASE-0.11.2.md).
+
 **Patch 0003 fix, 2026-10-15.** The offline entry failed when the store lacked a locked input's path and two inputs shared one source (`VMT-184`). The fix is in `0003.patch`; new binary `s3x37wa0x8y3c9wkkzjbgpk44z2sgbx5-devenv-2.4.0`. Evidence: [P0003-MISSING-PATH](projects/21-vendomat-basix-split/evidence/P0003-MISSING-PATH.md).
 
 ## Final design: project 21 — Vendomat and Basix, separated

@@ -347,7 +347,11 @@ def test_apply_build_failure_and_ignored_config_do_not_change_the_machine(world:
     world.write_hatch("A-prime")
     world.machine.ok("tester", "cd ws && printf '{ invalid = ' > devenv.nix")
     rc, out = world.vendomat("apply")
-    assert rc != 0 and "build machines.box.build.nixos failed" in out, out
+    # The syntax error stops apply at the watch read (`devenv eval vendomat.watch`), before the build. The
+    # first lines name the place (VMT-281). Nothing was built, committed, or activated (v0.11.2).
+    assert rc == 2, out
+    assert "devenv.nix:1:13" in "\n".join(out.splitlines()[:3]), out
+    assert "devenv eval vendomat.watch failed" in out and "build machines.box.build.nixos" not in out, out
     assert world.git("status --porcelain") == " M devenv.nix"
     assert world.state() == before and world.record() == []
     world.git("checkout -- devenv.nix")
@@ -392,8 +396,8 @@ def test_apply_a_prime_builds_in_the_machine_and_boots_clean(world: World) -> No
     rc, out = world.vendomat("apply")
     assert rc == 1 and "added: notes.txt" in out and "Nothing was built" in out, out
     assert world.state() == before and len(world.record()) == 1
-    assert world.git("status --porcelain") == " M devenv.nix\nA  notes.txt\n?? .machines/", (
-        "the refusal changes nothing; the key file of apply A did not count as a change"
+    assert world.git("status --porcelain") == " M devenv.nix\nA  notes.txt", (
+        "the refusal changes nothing; apply A committed its key file (R63)"
     )
     world.git("commit -q -m 'add notes' -- notes.txt")
     began = world.downloads()
@@ -402,8 +406,7 @@ def test_apply_a_prime_builds_in_the_machine_and_boots_clean(world: World) -> No
     world.commits["A-prime"] = world.git("rev-parse HEAD")
     assert world.git("log -1 --format=%s") == "vendomat apply configuration"
     assert world.git("show --format= --name-only HEAD") == "devenv.nix"
-    assert world.git("status --porcelain") == "?? .machines/", "apply leaves its trust key outside the config commit"
-    world.machine.ok("tester", "cd ws && rm -rf .machines")
+    assert world.git("status --porcelain") == "", "apply leaves a clean working copy; the key is committed (R63)"
     assert world.downloads() > began, "A-prime needs paths from the cache (hello)"
     state = world.state()
     # The machine builds the same system path as the host, although the workspace path differs.
@@ -529,10 +532,8 @@ def test_fast_moves_the_profile_builds_nothing_and_still_commits(world: World) -
     assert state["gens"].split() == [str(n) for n in range(1, 8)], "no new generation"
     assert default_generation(state) == 6 and state["failed"].strip("[] ") == ""
     assert world.git("log -1 --format=%s") == f"rollback to {world.commits['R2'][:12]}"
-    # The apply before wrote the trust key into the workspace (the whole-tree rollback R2 removed a tracked
-    # copy). The key stays untracked, and it did not stop the rollback (R55, VMT-161).
-    assert world.git("rev-parse HEAD") != head and world.git("status --porcelain") == "?? .machines/"
-    world.machine.ok("tester", "cd ws && rm -rf .machines")
+    # R63: rollback keeps the committed trust key as it is, so the working copy stays clean.
+    assert world.git("rev-parse HEAD") != head and world.git("status --porcelain") == ""
     assert world.git(f"diff {world.commits['R2']} HEAD") == "", "the whole tree matches the system"
     line = world.record()[-1]
     assert line["generation"] == 6 and line["commit"] == world.git("rev-parse HEAD") and line["dirty"] is False
