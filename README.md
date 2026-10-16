@@ -1,7 +1,7 @@
 # Vendomat
 
 Vendomat composes one owner's development workspaces and NixOS machines from native devenv,
-NixOS, and Home Manager modules. Release `0.10.0` adds the catalog key `settings`, whole-commit `apply` and `rollback`, and `push` without
+NixOS, and Home Manager modules. Release `0.11.0` adds the list option `vendomat.watch`. `apply` and `rollback` print the first fault line of a workspace file first. Release `0.10.0` added the catalog key `settings`, whole-commit `apply` and `rollback`, and `push` without
 its pre-push check. It removes the `vendomat.toml` flow: the old verbs now exit 3. Release `0.9.0` added the machine key `trustedInterfaces`, an empty
 machine entry in `vendomat.yaml`, machine `programs`, the `release` branch in the collection hook, and
 the Basix contracts. It retires the old binary fork. Release `0.8.0` added the `vendomat.yaml` catalog.
