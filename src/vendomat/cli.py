@@ -171,10 +171,11 @@ def apply_command(
 ) -> None:
     """Build this machine, commit watched config, then activate it. No SSH.
 
-    A record is always a whole commit. Before the build, apply refuses any uncommitted change under
-    the workspace root other than vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix. This
+    A record is always a whole commit. The watched files are vendomat.yaml, devenv.lock, devenv.nix,
+    devenv.local.nix, and the files that a module names in the option vendomat.watch. Before the build,
+    apply refuses any uncommitted change under the workspace root other than the watched files. This
     covers tracked and new files. Commit or remove them first. Files that Git ignores do not count.
-    After a successful build, apply commits those four files before activation. --dirty skips that
+    After a successful build, apply commits the watched files before activation. --dirty skips that
     commit, allows other changes, and records the generation as dirty, so rollback skips it. An
     ignored watched file must be force-added or removed first.
     """

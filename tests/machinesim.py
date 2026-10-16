@@ -54,6 +54,19 @@ def make_workspace(root: Path, files: dict[str, str] | None = None) -> Path:
     return root
 
 
+def fake_devenv(base: Path, watch: list[str] | None = None) -> str:
+    """The path of a script that stands for ``devenv`` where a CLI test cannot inject a runner.
+
+    It answers ``devenv eval vendomat.watch`` and fails on any other call.
+    """
+
+    script = base / "fake-devenv"
+    answer = json.dumps({"vendomat.watch": watch or []})
+    script.write_text(f'#!/bin/sh\n[ "$1 $2" = "eval vendomat.watch" ] && {{ echo \'{answer}\'; exit 0; }}\nexit 9\n')
+    script.chmod(0o755)
+    return str(script)
+
+
 def commit_file(root: Path, name: str, text: str, message: str) -> str:
     (root / name).write_text(text)
     git(root, "add", name)
@@ -72,6 +85,10 @@ class Machine:
     fail: set[str] = field(default_factory=set)
     failed_units: str = ""
     codes: dict[str, int] = field(default_factory=dict)
+    #: The value of ``vendomat.watch`` that ``devenv eval vendomat.watch`` prints. The eval calls go to ``evals``.
+    watch: list[str] = field(default_factory=list)
+    evals: list[list[str]] = field(default_factory=list)
+    eval_result: Result | None = None
 
     def __post_init__(self) -> None:
         self.profiles = self.base / "profiles"
@@ -114,13 +131,16 @@ class Machine:
     # The commands.
     def build_path(self, root: Path) -> str:
         digest = hashlib.sha256()
-        for name in workspace.WATCHED:
+        for name in (*workspace.WATCHED, *self.watch):
             file = root / name
             digest.update(file.read_bytes() if file.is_file() else b"-")
         return f"/nix/store/{digest.hexdigest()[:32]}-nixos-system-{self.name}"
 
     def run(self, argv, *, cwd=None, input=None, capture=True, timeout=None) -> Result:  # noqa: A002
         argv = list(argv)
+        if argv[0].endswith("devenv") and argv[1:] == ["eval", "vendomat.watch"]:
+            self.evals.append(argv)  # the watch list is read apart from the commands that change the machine
+            return self.eval_result or Result(0, json.dumps({"vendomat.watch": self.watch}) + "\n")
         self.calls.append(argv)
         self.inputs.append(input)
         key = " ".join(argv[1:3]) if argv[0] == SUDO else " ".join(argv[:2])

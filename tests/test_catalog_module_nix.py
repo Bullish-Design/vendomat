@@ -803,3 +803,20 @@ def test_text_for_a_bool_option_without_a_conversion_is_a_type_error_that_names_
     assert result.returncode != 0
     assert "A definition for option `vendomat.settings.flags.on' is not of type `boolean'" in result.stderr
     assert "vendomat.yaml" in result.stderr
+
+
+def test_a_module_adds_files_to_the_watch_list(tmp_path: Path):
+    # R62, VMT-280: the default is empty, and lists from several modules merge.
+    assert summary(tmp_path, "", read="watch") == []
+    one = '{ vendomat.watch = [ "extra.yaml" "sub/dir/more.yaml" ]; }'
+    assert summary(tmp_path, "", read="watch", extra=one) == ["extra.yaml", "sub/dir/more.yaml"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", "/etc/passwd", "../outside.yaml", "a/../b", "a//b", "./x", "a/", ".git/config", ":(top)x", "*.yaml", "a[1]"],
+)
+def test_the_watch_list_refuses_a_path_outside_the_workspace(tmp_path: Path, path: str):
+    result = evaluate(tmp_path, "", read="watch", extra=f'{{ vendomat.watch = [ "{path}" ]; }}')
+    assert result.returncode != 0
+    assert "vendomat.watch" in result.stderr and "is not of type `a file path below the workspace root" in result.stderr

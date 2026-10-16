@@ -5,8 +5,8 @@ A lasting rollback changes the files, not only the machine. The command:
 1. reads the generation record (``record.py``) and picks a target: the newest earlier clean entry
    with a different system path, or ``--to REV``, or ``--generation N``;
 2. refuses any uncommitted change under the workspace root (tracked or new; Git-ignored files and the
-   cache key file that apply wrote do not count), an unknown commit, and a recorded commit that the
-   repository no longer holds;
+   cache key file that apply wrote do not count), an ignored file that ``vendomat.watch`` names (R62,
+   ``VMT-280``), an unknown commit, and a recorded commit that the repository no longer holds;
 3. shows the diff that the restore makes;
 4. restores the whole workspace tree from the target commit, scoped to the workspace root (R55,
    ``VMT-182``);
@@ -41,6 +41,7 @@ from .apply import (
     machine_name,
     run_command,
     sudo,
+    watch_paths,
 )
 from .record import RECORD_PATH, Choice, RecordError, choose, read_entries
 
@@ -132,7 +133,15 @@ def rollback(
     if exact:
         emit("warning: --exact is deprecated. The default rollback now restores the whole workspace tree.")
     key = workspace.written_key_file(root, name, cache_key or CACHE_KEY_PATH)
-    changes = workspace.watched_changes(root)  # includes an ignored watched file that exists
+    watched = workspace.WATCHED
+    if not boot_only:
+        # The rollback restores the whole tree, so it needs the watch list only to name an ignored watched
+        # file. A workspace that does not evaluate must still roll back: the restore may repair it.
+        try:
+            watched = watch_paths(root, run)
+        except RecordError as exc:
+            emit(f"warning: cannot read vendomat.watch, so only the four fixed files count as watched:\n{exc}")
+    changes = workspace.watched_changes(root, watched)  # includes an ignored watched file that exists
     seen = {change.path for change in changes}
     changes += [c for c in workspace.uncommitted_changes(root, skip=(key,) if key else ()) if c.path not in seen]
     if changes and not boot_only:

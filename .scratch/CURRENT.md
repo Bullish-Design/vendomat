@@ -62,6 +62,8 @@ Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.
 
 **Release v0.10.0, 2026-10-15.** Vendomat v0.10.0 is published: tag `v0.10.0` and `release` are at `c6b36c1e` (owner approval in session). It adds R55 (whole-commit `apply` and `rollback`), R60 (`settings`), and the end of the `vendomat.toml` flow (S8 step 3). vendomat-demo pins it (`bb6bad05`). Evidence: [RELEASE-0.10.0](projects/21-vendomat-basix-split/evidence/RELEASE-0.10.0.md).
 
+**R62, 2026-10-15.** The list option `vendomat.watch` (R62, `VMT-280`) adds workspace files to the files that `apply` and `rollback` watch. `apply` and `rollback` print the first fault line of a workspace file first (`VMT-281`). Both are on `main` and in no release. Basix requests VR8 and VR9 are resolved; VR10 is open (`VMT-282`). Evidence: [R62-VR8-VR9-WATCH](projects/21-vendomat-basix-split/evidence/R62-VR8-VR9-WATCH.md).
+
 **Patch 0003 fix, 2026-10-15.** The offline entry failed when the store lacked a locked input's path and two inputs shared one source (`VMT-184`). The fix is in `0003.patch`; new binary `s3x37wa0x8y3c9wkkzjbgpk44z2sgbx5-devenv-2.4.0`. Evidence: [P0003-MISSING-PATH](projects/21-vendomat-basix-split/evidence/P0003-MISSING-PATH.md).
 
 ## Final design: project 21 — Vendomat and Basix, separated

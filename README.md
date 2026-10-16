@@ -39,6 +39,14 @@ vendomat update         # add the lines a newer template needs, then run devenv 
   `vendomat.yaml:LINE:COL: settings.MODULE.FIELD: no module declares the option ...`. A plain value of
   `devenv.nix` for the same option conflicts, and the error names both files. `vendomat explain` maps each
   key to its option.
+- A module can add workspace files to the files that `vendomat apply` and `vendomat rollback` watch (R62,
+  `VMT-280`). It sets the list option `vendomat.watch`, for example `vendomat.watch = [ "extra.yaml" ];`.
+  Each path is relative to the workspace root, with no leading `/`, no `..` part, no glob character, and no
+  symlink that leaves the workspace. The default is empty, so the four fixed files stay watched
+  (`vendomat.yaml`, `devenv.lock`, `devenv.nix`, `devenv.local.nix`). Apply commits a watched file after the
+  build. Apply and rollback refuse an uncommitted or ignored watched file by name. The commands read the
+  list with `devenv eval vendomat.watch`. A failed evaluation prints the first fault line of a workspace
+  file first (`VMT-281`), then the rest of the trimmed text.
 - Inside the pinned shell, `VENDOMAT_TEMPLATE` names the template of the imported Vendomat source.
   `vendomat new` and `vendomat update` use it there. Outside the shell, the bundled template applies.
 - The template supplies `devenv.yaml`. The user MAY edit `devenv.nix` and `devenv.local.nix`. Shell

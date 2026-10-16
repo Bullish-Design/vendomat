@@ -7,7 +7,8 @@
 #   nix-instantiate --extra-experimental-features flakes --eval --strict --json tests/nix/catalog.nix \
 #     --argstr root DIR --argstr repo REPO --argstr nixpkgs REV --argstr read summary
 #
-# `read` picks one of: summary, shell (the text of `enterShell`), explain (the data of `vendomat explain`), root.
+# `read` picks one of: summary, shell (the text of `enterShell`), explain (the data of `vendomat explain`), root,
+# watch (the option `vendomat.watch`).
 #
 # Optional arguments:
 #   pythons  Comma-separated Python versions of a stub `nixpkgs-python` input. Empty means no such input.
@@ -155,4 +156,5 @@ in
   shell = config.enterShell;
   explain = config.vendomat.explain;
   root = config.devenv.root;
+  watch = config.vendomat.watch;
 }.${read}

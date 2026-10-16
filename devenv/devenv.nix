@@ -240,6 +240,20 @@ let
           { url = "http://${peerHost name m}:5000"; publicKey = lib.trim (builtins.readFile (keyFile name)); })
       machines);
 
+  # A path that `vendomat.watch` accepts (R62). Keep in step with `workspace.check_watch_path` in the Python code.
+  watchPathOk = p:
+    let parts = lib.splitString "/" p; in
+    p != ""
+    && !(lib.hasPrefix "/" p)
+    && !(lib.hasPrefix ":" p)
+    && !(lib.hasSuffix "/" p)
+    && builtins.match ".*[*?[\\].*" p == null
+    && !(lib.hasInfix "\n" p)
+    && !(lib.elem "" parts)
+    && !(lib.elem "." parts)
+    && !(lib.elem ".." parts)
+    && !(lib.elem ".git" parts);
+
   machine = name: m:
     {
       # The facts file holds networking.hostName, so the machine name must equal it (R21).
@@ -300,6 +314,22 @@ in
   imports = [{ _file = file; config = mapping; }];
 
   options.vendomat = {
+    # The files that `vendomat apply` and `vendomat rollback` watch, beyond the four fixed ones (R62, VMT-280). A
+    # module that keeps its settings in its own file adds that file here. The commands read this option with
+    # `devenv eval vendomat.watch`. A path is relative to the workspace root, with no `..` and no leading `/`.
+    # The Python commands check the same rule again and also refuse a symlink that leaves the workspace.
+    watch = lib.mkOption {
+      type = lib.types.listOf ((lib.types.addCheck lib.types.str watchPathOk) // {
+        description = "a file path below the workspace root (no leading /, no .. part, no glob character)";
+      });
+      default = [ ];
+      example = [ "extra.yaml" ];
+      description = ''
+        Workspace files, besides vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix, that
+        `vendomat apply` commits and `vendomat rollback` restores. They also count in the refusal of
+        uncommitted changes. Lists from several modules merge.
+      '';
+    };
     parsed = lib.mkOption {
       type = lib.types.raw;
       internal = true;

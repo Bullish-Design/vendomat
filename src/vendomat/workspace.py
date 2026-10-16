@@ -6,9 +6,10 @@ machine and every clone shares (R30).
 
 A record is always a whole commit (R55, ``VMT-182``). The watched files are the four files that
 apply commits: ``vendomat.yaml``, ``devenv.lock``, and the hatch files ``devenv.nix`` and
-``devenv.local.nix``. Apply commits those paths after a successful build; an ignored one must be
-force-added first. Any other uncommitted change under the workspace root, tracked or new, stops
-apply before the build. Git-ignored files and the cache key file that apply writes do not count.
+``devenv.local.nix``. A module can add more files with the option ``vendomat.watch`` (R62, ``VMT-280``).
+Apply commits those paths after a successful build; an ignored one must be force-added first. Any
+other uncommitted change under the workspace root, tracked or new, stops apply before the build.
+Git-ignored files and the cache key file that apply writes do not count.
 ``--dirty`` skips the commit, allows other changes, and marks the generation dirty. Rollback
 restores the whole workspace tree.
 """
@@ -18,12 +19,13 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from .record import RecordError
 
-#: The files that decide what a machine runs. Extend this tuple when the catalog counts a new hatch file.
+#: The files that decide what a machine runs. A module adds more with the option ``vendomat.watch`` (R62).
 WATCHED = ("vendomat.yaml", "devenv.lock", "devenv.nix", "devenv.local.nix")
 
 #: Root markers, strongest first.
@@ -32,6 +34,48 @@ ROOT_MARKERS = ("vendomat.yaml", "devenv.yaml")
 
 class WorkspaceError(RecordError):
     """A fault or a refusal about the workspace. ``code`` is the CLI exit status."""
+
+
+_BAD_CHARS = frozenset("*?[\\\n\r\0")
+
+
+def check_watch_path(root: Path, path: str) -> str:
+    """Return the normal form of one path of ``vendomat.watch``, or refuse it (R62).
+
+    A path is relative to the workspace root. It has no leading ``/`` or ``:``, no empty, ``.``, ``..``, or
+    ``.git`` part, and no glob character. A symlink must not lead out of the workspace. The Nix type in
+    ``devenv/devenv.nix`` (``watchPathOk``) holds the same rule for the text. Keep the two in step.
+    """
+
+    parts = path.split("/")
+    problem = None
+    if not path:
+        problem = "it is empty"
+    elif path.startswith(("/", ":")):
+        problem = "it must be relative to the workspace root"
+    elif any(part in ("", ".", "..", ".git") for part in parts):
+        problem = "it has an empty, `.`, `..`, or `.git` part"
+    elif _BAD_CHARS & set(path):
+        problem = "it has a glob or control character"
+    else:
+        base = root.resolve()
+        target = (base / path).resolve()
+        if target != base and base not in target.parents:
+            problem = "it leads out of the workspace"
+        elif target.is_dir():
+            problem = "it is a directory; name the files"
+    if problem is not None:
+        raise WorkspaceError(f"vendomat.watch: {path!r} is not a file path below the workspace root: {problem}", 2)
+    return path
+
+
+def extend_watched(root: Path, extra: Sequence[str]) -> tuple[str, ...]:
+    """The four fixed files, then the checked paths of ``vendomat.watch``, without repeats."""
+
+    names = dict.fromkeys(WATCHED)
+    for path in extra:
+        names.setdefault(check_watch_path(root, path))
+    return tuple(names)
 
 
 @dataclass(frozen=True)
@@ -108,7 +152,7 @@ def _prefix(root: Path) -> str:
     return git(root, "rev-parse", "--show-prefix").stdout.strip()
 
 
-def watched_changes(root: Path) -> list[Change]:
+def watched_changes(root: Path, watched: Sequence[str] = WATCHED) -> list[Change]:
     """Watched files that differ from HEAD. An ignored file that exists counts.
 
     ``git status`` names paths from the repository top, not from ``root``. A workspace may sit in a
@@ -116,7 +160,7 @@ def watched_changes(root: Path) -> list[Change]:
     one change for each name.
     """
 
-    proc = git(root, "status", "--porcelain", "-z", "--ignored=matching", "--untracked-files=all", "--", *WATCHED)
+    proc = git(root, "status", "--porcelain", "-z", "--ignored=matching", "--untracked-files=all", "--", *watched)
     prefix = _prefix(root)
     entries = proc.stdout.split("\0")
     changes: list[Change] = []
@@ -132,12 +176,12 @@ def watched_changes(root: Path) -> list[Change]:
             names.append(entries[index] if index < len(entries) else "")
             index += 1
         for name in names:
-            if name.startswith(prefix) and name[len(prefix) :] in WATCHED:
+            if name.startswith(prefix) and name[len(prefix) :] in watched:
                 changes.append(Change(name[len(prefix) :], status))
     return changes
 
 
-def _tree_paths(root: Path) -> list[str]:
+def _tree_paths(root: Path, watched: Sequence[str] = WATCHED) -> list[str]:
     """The files under ``root`` that a build can read: tracked files and new files that Git does not ignore.
 
     The names are relative to ``root`` (``git ls-files`` run in ``root`` does this). A watched file
@@ -146,7 +190,7 @@ def _tree_paths(root: Path) -> list[str]:
 
     proc = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ".")
     names = {name for name in proc.stdout.split("\0") if name}
-    names.update(name for name in WATCHED if (root / name).exists() or (root / name).is_symlink())
+    names.update(name for name in watched if (root / name).exists() or (root / name).is_symlink())
     return sorted(names)
 
 
@@ -164,16 +208,16 @@ def _file_hash(file: Path) -> str | None:
     return digest.hexdigest()
 
 
-def fingerprint(root: Path) -> tuple[str, dict[str, str | None]]:
+def fingerprint(root: Path, watched: Sequence[str] = WATCHED) -> tuple[str, dict[str, str | None]]:
     """The commit at HEAD and the content hash of every file of the tree under ``root``.
 
-    The tree is the tracked files, the new files that Git does not ignore, and the four watched
+    The tree is the tracked files, the new files that Git does not ignore, and the watched
     files (``None`` for a missing watched file). A file that a build can read must not change during
     the build (R55).
     """
 
-    hashes: dict[str, str | None] = {name: None for name in WATCHED}
-    for name in _tree_paths(root):
+    hashes: dict[str, str | None] = {name: None for name in watched}
+    for name in _tree_paths(root, watched):
         hashes[name] = _file_hash(root / name)
     return head(root), hashes
 
@@ -194,10 +238,10 @@ def require_commit_identity(root: Path) -> None:
         )
 
 
-def refuse_ignored_watched(root: Path) -> None:
+def refuse_ignored_watched(root: Path, watched: Sequence[str] = WATCHED) -> None:
     """Ignored watched files must be explicitly force-added before they can be applied."""
 
-    ignored = [change.path for change in watched_changes(root) if change.status == "!!"]
+    ignored = [change.path for change in watched_changes(root, watched) if change.status == "!!"]
     if ignored:
         names = ", ".join(ignored)
         raise WorkspaceError(
@@ -210,26 +254,26 @@ def _tracked(root: Path, path: str) -> bool:
     return git(root, "ls-files", "--error-unmatch", "--", path, check=False).returncode == 0
 
 
-def _commit_paths(root: Path, changes: list[Change]) -> tuple[str, ...]:
+def _commit_paths(root: Path, changes: list[Change], watched: Sequence[str] = WATCHED) -> tuple[str, ...]:
     """Return changed watched paths, or one tracked path for an empty rollback commit."""
 
     paths = tuple(dict.fromkeys(change.path for change in changes))
     if paths:
         return paths
-    for path in WATCHED:
+    for path in watched:
         if _tracked(root, path):
             return (path,)
     raise WorkspaceError("the workspace has no tracked configuration path to commit")
 
 
-def commit_watched(root: Path, message: str = "vendomat apply configuration") -> str:
+def commit_watched(root: Path, message: str = "vendomat apply configuration", watched: Sequence[str] = WATCHED) -> str:
     """Commit the current allowlisted workspace configuration without committing other staged files."""
 
-    refuse_ignored_watched(root)
-    changes = watched_changes(root)
+    refuse_ignored_watched(root, watched)
+    changes = watched_changes(root, watched)
     if not changes:
         return head(root)
-    paths = _commit_paths(root, changes)
+    paths = _commit_paths(root, changes, watched)
     # `git add` stops on a pathspec that matches nothing. The old name of a staged rename is such a path:
     # it is gone from the tree and the index, and the rename already staged its deletion.
     present = [path for path in paths if (root / path).exists() or _tracked(root, path)]

@@ -4,13 +4,15 @@ The command runs on the machine. It does the steps that devenv's deploy worker d
 
 1. read the machine name from ``/etc/devenv/machine-facts.json`` (the catalog sets
    ``networking.hostName`` to the machine name, R21);
-2. refuse ignored watched files unless they are explicitly force-added, and refuse every other
+2. read the watched files: the four fixed ones and the paths of the option ``vendomat.watch`` (R62,
+   ``VMT-280``), with ``devenv eval vendomat.watch``;
+3. refuse ignored watched files unless they are explicitly force-added, and refuse every other
    uncommitted change under the workspace root (R55, ``VMT-182``), unless ``--dirty``;
-3. ``devenv build machines.NAME.build.nixos``;
-4. commit the four watched files, unless ``--dirty``;
-5. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
-6. ``sudo TOP/bin/switch-to-configuration switch``;
-7. append one line to the generation record (see ``record.py``), as root.
+4. ``devenv build machines.NAME.build.nixos``;
+5. commit the watched files, unless ``--dirty``;
+6. ``sudo nix-env --profile /nix/var/nix/profiles/system --set TOP``;
+7. ``sudo TOP/bin/switch-to-configuration switch``;
+8. append one line to the generation record (see ``record.py``), as root.
 
 A name that is not this machine passes through to ``devenv machines deploy NAME``. The workspace
 commit is never written into the system (``VMT-110``).
@@ -26,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import workspace
+from .errortrim import save_log, trim
 from .record import RECORD_PATH, Entry, RecordError, now
 
 FACTS_PATH = Path("/etc/devenv/machine-facts.json")
@@ -114,19 +117,29 @@ def deploy_argv(name: str) -> list[str]:
     return [devenv_binary(), "machines", "deploy", name]
 
 
-def other_changes(root: Path, name: str, cache_key: Path | None = None) -> list[workspace.Change]:
-    """Uncommitted changes under ``root`` that are not one of the four watched files (R55).
+def other_changes(
+    root: Path, name: str, cache_key: Path | None = None, watched: Sequence[str] = workspace.WATCHED
+) -> list[workspace.Change]:
+    """Uncommitted changes under ``root`` that are not a watched file (R55).
 
     Two kinds of path do not count: a file that Git ignores, and the cache key file that an earlier
     apply wrote for this machine (``VMT-161``). Apply must not block on its own output.
     """
 
     key = workspace.written_key_file(root, name, cache_key or CACHE_KEY_PATH)
-    skip = (*workspace.WATCHED, *([key] if key else []))
+    skip = (*watched, *([key] if key else []))
     return workspace.uncommitted_changes(root, skip=skip)
 
 
-def dirty_apply(root: Path, name: str, *, allow: bool, emit: Emit, cache_key: Path | None = None) -> bool:
+def dirty_apply(
+    root: Path,
+    name: str,
+    *,
+    allow: bool,
+    emit: Emit,
+    cache_key: Path | None = None,
+    watched: Sequence[str] = workspace.WATCHED,
+) -> bool:
     """Return whether this apply skips its commit.
 
     Ignored watched files always need an explicit force-add. Without ``--dirty``, any other uncommitted
@@ -134,13 +147,13 @@ def dirty_apply(root: Path, name: str, *, allow: bool, emit: Emit, cache_key: Pa
     watched and other changes are allowed, and the record marks the generation dirty.
     """
 
-    changes = [change for change in workspace.watched_changes(root) if change.status != "!!"]
-    workspace.refuse_ignored_watched(root)
-    other = other_changes(root, name, cache_key)
+    changes = [change for change in workspace.watched_changes(root, watched) if change.status != "!!"]
+    workspace.refuse_ignored_watched(root, watched)
+    other = other_changes(root, name, cache_key, watched)
     if other and not allow:
         listing = "\n".join(f"  {change.text()}" for change in other)
         raise workspace.WorkspaceError(
-            "uncommitted changes outside vendomat.yaml, devenv.lock, devenv.nix, and devenv.local.nix:\n"
+            f"uncommitted changes outside the watched files ({', '.join(watched)}):\n"
             f"{listing}\n"
             "A record names one whole commit. Commit these paths or remove them, then apply again. "
             "Or run `vendomat apply --dirty` to apply them without a commit. Nothing was built."
@@ -152,13 +165,15 @@ def dirty_apply(root: Path, name: str, *, allow: bool, emit: Emit, cache_key: Pa
     return True
 
 
-def refuse_changed_during_build(root: Path, before: tuple[str, dict[str, str | None]]) -> None:
+def refuse_changed_during_build(
+    root: Path, before: tuple[str, dict[str, str | None]], watched: Sequence[str] = workspace.WATCHED
+) -> None:
     """Refuse when a file of the tree under the root or HEAD changed during the build.
 
     The system was built from the earlier content. A commit now would record files that nobody built.
     """
 
-    after = workspace.fingerprint(root)
+    after = workspace.fingerprint(root, watched)
     if after == before:
         return
     names = sorted(name for name in {*before[1], *after[1]} if before[1].get(name) != after[1].get(name))
@@ -172,14 +187,61 @@ def refuse_changed_during_build(root: Path, before: tuple[str, dict[str, str | N
     )
 
 
+#: The longest trimmed failure text that a command prints. The full text goes to the log file.
+FAILURE_LINES = 40
+WATCH_ATTRIBUTE = "vendomat.watch"
+
+
+def failure_text(kind: str, argv: Sequence[str], result: Result) -> str:
+    """The text of a failed ``devenv`` command, trimmed as ``VMT-117`` says (R62, ``VMT-281``).
+
+    The lines ``FILE.yaml:LINE:COL: reason`` come first, then the text after the last ``error:`` line, then
+    one line that names the command and the file of the full trace. A failure with no ``error:`` line keeps
+    its last lines.
+    """
+
+    raw = (result.stderr or result.stdout).strip()
+    body = trim(raw).splitlines()
+    if len(body) > FAILURE_LINES:
+        body = [*body[:FAILURE_LINES], f"... ({len(body) - FAILURE_LINES} more lines)"]
+    log = save_log(kind, f"$ {' '.join(argv)}\n(exit {result.returncode})\n{result.stderr}\n{result.stdout}")
+    where = f"; the full trace is in {log}" if log else ""
+    return "\n".join([*body, f"devenv {' '.join(argv[1:])} failed (exit {result.returncode}){where}"])
+
+
+def watch_paths(root: Path, run: Runner) -> tuple[str, ...]:
+    """The files to watch: the four fixed files and the paths of ``vendomat.watch`` (R62).
+
+    The command evaluates the workspace, so a fault in a workspace file stops here, with its first line first.
+    """
+
+    argv = [devenv_binary(), "eval", WATCH_ATTRIBUTE]
+    result = run(argv, cwd=root, timeout=BUILD_TIMEOUT)
+    if result.returncode != 0:
+        raise RecordError(failure_text("watch", argv, result), 2)
+    text = result.stdout.strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("\n{")
+        try:
+            data = json.loads(text[start + 1 :] if start >= 0 else text)
+        except json.JSONDecodeError as exc:
+            raise RecordError(f"devenv eval {WATCH_ATTRIBUTE} printed no JSON: {text[:200]!r}", 2) from exc
+    paths = data.get(WATCH_ATTRIBUTE) if isinstance(data, dict) else None
+    if not isinstance(paths, list) or not all(isinstance(path, str) for path in paths):
+        raise RecordError(f"devenv eval {WATCH_ATTRIBUTE} printed no list of paths: {text[:200]!r}", 2)
+    return workspace.extend_watched(root, paths)
+
+
 def build_toplevel(root: Path, name: str, run: Runner) -> str:
     """Build ``machines.NAME.build.nixos`` and return the system path."""
 
     attr = f"machines.{name}.build.nixos"
-    result = run([devenv_binary(), "build", attr], cwd=root, timeout=BUILD_TIMEOUT)
+    argv = [devenv_binary(), "build", attr]
+    result = run(argv, cwd=root, timeout=BUILD_TIMEOUT)
     if result.returncode != 0:
-        tail = (result.stderr or result.stdout).strip().splitlines()[-12:]
-        raise RecordError(f"devenv build {attr} failed (exit {result.returncode}):\n" + "\n".join(tail), 2)
+        raise RecordError(failure_text("build", argv, result), 2)
     top = ""
     try:
         parsed = json.loads(result.stdout)
@@ -344,19 +406,20 @@ def apply(
     """Activate this machine's configuration from the workspace at ``root``."""
 
     name = machine_name(facts)
-    dirty = dirty_apply(root, name, allow=dirty_ok, emit=emit, cache_key=cache_key)
+    watched = watch_paths(root, run)
+    dirty = dirty_apply(root, name, allow=dirty_ok, emit=emit, cache_key=cache_key, watched=watched)
     # Precondition: the workspace has a commit. A dirty apply records this commit.
     commit = workspace.head(root)
-    if not dirty and workspace.watched_changes(root):
+    if not dirty and workspace.watched_changes(root, watched):
         # Apply commits after the build. Find out now that the commit can be made (no build is wasted).
         workspace.require_commit_identity(root)
-    before = workspace.fingerprint(root)
+    before = workspace.fingerprint(root, watched)
     emit(f"machine {name}: building machines.{name}.build.nixos")
     top = build_toplevel(root, name, run)
     emit(f"built {top}")
-    refuse_changed_during_build(root, before)
+    refuse_changed_during_build(root, before, watched)
     if not dirty:
-        commit = workspace.commit_watched(root)
+        commit = workspace.commit_watched(root, watched=watched)
     applied = activate(run, top, commit, dirty, emit, profile=profile, record=record)
     publish_cache_key(root, name, emit, cache_key)
     return applied

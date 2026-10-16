@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from machinesim import SUDO, Machine, commit_file, git, make_workspace
+from machinesim import SUDO, Machine, commit_file, fake_devenv, git, make_workspace
 from typer.testing import CliRunner
 
 from vendomat import apply as apply_module
@@ -524,7 +524,7 @@ def test_the_build_output_may_be_a_plain_path(tmp_path: Path):
     original = machine.run
 
     def run(argv, **kw):
-        if argv[0].endswith("devenv"):
+        if argv[0].endswith("devenv") and argv[1] == "build":
             return apply_module.Result(0, f"building\n{plain}\n")
         return original(argv, **kw)
 
@@ -536,7 +536,10 @@ def test_the_build_output_may_be_a_plain_path(tmp_path: Path):
 def test_a_build_that_prints_no_path_is_a_fault(tmp_path: Path):
     root = make_workspace(tmp_path / "ws")
     machine = Machine(tmp_path / "m")
-    machine.run = lambda argv, **kw: apply_module.Result(0, "nothing\n")  # ty: ignore[invalid-assignment]
+    original = machine.run
+    machine.run = lambda argv, **kw: (  # ty: ignore[invalid-assignment]
+        apply_module.Result(0, "nothing\n") if argv[1] == "build" else original(argv, **kw)
+    )
     with pytest.raises(RecordError, match="printed no system path"):
         apply(root, emit=lambda _: None, **machine.kwargs())
 
@@ -564,6 +567,7 @@ def test_apply_with_the_name_of_another_machine_runs_the_devenv_deploy(tmp_path:
 
 
 def test_the_cli_refuses_an_ignored_watched_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("VENDOMAT_DEVENV", fake_devenv(tmp_path))
     root = make_workspace(tmp_path / "ws")
     (root / "devenv.local.nix").write_text("{ }\n")
     machine = Machine(tmp_path / "m")
@@ -583,6 +587,7 @@ def test_apply_help_describes_configuration_commits_and_dirty_mode():
 
 
 def test_the_cli_refuses_another_uncommitted_file_with_exit_status_1(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("VENDOMAT_DEVENV", fake_devenv(tmp_path))
     root = make_workspace(tmp_path / "ws")
     (root / "notes.txt").write_text("two\n")
     machine = Machine(tmp_path / "m")

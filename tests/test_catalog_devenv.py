@@ -274,6 +274,68 @@ in {
     assert "basix.yaml" in log.read_text()
 
 
+def watch_module(ws: Path, paths: str) -> None:
+    """A module of the workspace (here its `devenv.nix`) that adds files to the watched set (R62)."""
+    (ws / "devenv.nix").write_text(f"{{ vendomat.watch = [ {paths} ]; }}\n")
+
+
+def real_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run `apply`'s own runner like a user does: without the variables of the repository's venv."""
+    for name in ("UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV", "VENDOMAT_DEVENV", "VENDOMAT_HIDE_ADVANCED"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_a_module_adds_files_to_the_watch_list_on_a_real_devenv(ws: Path, monkeypatch: pytest.MonkeyPatch):
+    # R62, VMT-280: `apply` and `rollback` read the list with this command, through their own runner.
+    from vendomat.apply import run_command, watch_paths
+    from vendomat.workspace import WATCHED
+
+    real_env(monkeypatch)
+    assert watch_paths(ws, run_command) == WATCHED  # needs VENDOMAT_DEVENV or devenv on PATH
+    watch_module(ws, '"extra.yaml" "basix.yaml"')
+    assert watch_paths(ws, run_command) == (*WATCHED, "extra.yaml", "basix.yaml")
+
+
+def test_a_watch_path_outside_the_workspace_is_refused_on_a_real_devenv(ws: Path, monkeypatch: pytest.MonkeyPatch):
+    from vendomat.apply import run_command, watch_paths
+    from vendomat.record import RecordError
+
+    real_env(monkeypatch)
+    watch_module(ws, '"../outside.yaml"')
+    with pytest.raises(RecordError) as info:
+        watch_paths(ws, run_command)
+    assert "vendomat.watch" in str(info.value) and "outside.yaml" in str(info.value)
+
+
+def test_apply_prints_the_fault_line_of_a_real_evaluation_first(
+    ws: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    # R62, VMT-281 (request VR9): the line of the workspace file comes before the trace.
+    from vendomat.apply import run_command, watch_paths
+    from vendomat.record import RecordError
+
+    real_env(monkeypatch)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    (ws / "basix.yaml").write_text("machines:\n  learner:\n    profile: [\n")
+    (ws / "devenv.nix").write_text(
+        """\
+{ inputs, ... }:
+let
+  parse = import "${inputs.vendomat}/devenv/parse.nix";
+  parsed = parse "basix.yaml" (builtins.readFile ./basix.yaml);
+in {
+  _module.check = builtins.deepSeq parsed true;
+  vendomat.watch = [ "basix.yaml" ];
+}
+"""
+    )
+    with pytest.raises(RecordError) as info:
+        watch_paths(ws, run_command)
+    lines = str(info.value).splitlines()
+    assert lines[0].startswith("basix.yaml:3:") and "flow style is not accepted" in lines[0], lines
+    assert lines[-1].startswith("devenv eval vendomat.watch failed (exit ")
+
+
 def test_update_writes_the_lines_and_devenv_locks_them(ws: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # R25, VMT-094: the added lines are valid devenv.yaml, and `devenv update` accepts them. The template here
     # adds a path input, so no network is needed.
