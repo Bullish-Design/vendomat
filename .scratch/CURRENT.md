@@ -74,6 +74,8 @@ Evidence: [R60-SETTINGS](projects/21-vendomat-basix-split/evidence/R60-SETTINGS.
 
 **R64 follow-up, 2026-10-16.** The VM fixture workspace of `opt:machines-vm` now imports the catalog module like a real workspace, and the check proves the real cache key and Harmonia (`VMT-285`, `VMT-286`; `VMT-161` real key proved). Run `20261016T152444Z-32ec6cecc98f`: 12 passed. No code of `src/` changed, so no release. Evidence: [R64-WATCH-MISSING](projects/21-vendomat-basix-split/evidence/R64-WATCH-MISSING.md).
 
+**R65, 2026-10-16.** The opt-in check `opt:machines-trust` boots two machines made by the real catalog on one private link. Alpha runs `vendomat apply` and commits its cache key. The workspace repository carries the commit to beta. After beta applies, it trusts that key and substitutes a path that only alpha has from the Harmonia of alpha, with the signature checked. A wrong key or no key is refused (`VMT-290` to `VMT-294`; testee run `20261016T155146Z-2c1a2073fb8c`, 8 passed). The real-machine half of R61 stays open. Evidence: [R65-MACHINES-TRUST](projects/21-vendomat-basix-split/evidence/R65-MACHINES-TRUST.md).
+
 **Patch 0003 fix, 2026-10-15.** The offline entry failed when the store lacked a locked input's path and two inputs shared one source (`VMT-184`). The fix is in `0003.patch`; new binary `s3x37wa0x8y3c9wkkzjbgpk44z2sgbx5-devenv-2.4.0`. Evidence: [P0003-MISSING-PATH](projects/21-vendomat-basix-split/evidence/P0003-MISSING-PATH.md).
 
 ## Final design: project 21 — Vendomat and Basix, separated

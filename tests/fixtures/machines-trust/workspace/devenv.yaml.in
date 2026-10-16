@@ -1,0 +1,20 @@
+# The test machines have no network. Each input is a path. The harness fills in the marks from the
+# pins of tests/fixtures/machines/tools.nix (nixpkgs, disko, nixos-facter-modules), the module tree of the
+# devenv input, and a copy of the catalog of this checkout (`vendomat`).
+inputs:
+  vendomat:
+    url: path:@VENDOMAT@
+    flake: false
+  devenv:
+    url: path:@DEVENV@
+  nixpkgs:
+    url: path:@NIXPKGS@
+  disko:
+    url: path:@DISKO@
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+  nixos-facter-modules:
+    url: path:@FACTER@
+imports:
+  - vendomat/devenv

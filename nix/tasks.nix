@@ -134,6 +134,23 @@ in
     '';
   };
 
+  # Opt-in VM proof of cache-key trust between two machines (R61, R65). It builds two NixOS machines through the
+  # real catalog (`vendomat/devenv`) and devenv Machines, boots both in QEMU on one private link, and runs the real
+  # `vendomat apply` on each. It proves that beta trusts the committed key of alpha and substitutes a path that only
+  # alpha has from the Harmonia of alpha, and that a wrong key or no key is refused. It needs /dev/kvm. Files go under
+  # /mnt/shared/vendomat-p21/trust; the harness deletes them at the end. Run `testee verify opt:machines-trust`.
+  # The raw logs go under ~/.local/state/vendomat/p21/<date>/s7/machines-trust/.
+  tasks."opt:machines-trust" = optIn {
+    timeout_s = 5400;
+    script = ''
+      ${hostEnv}
+      export VENDOMAT_MACHINES_TRUST=1
+      export PATH="/run/current-system/sw/bin:${pkgs.nix}/bin:${pkgs.git}/bin:$PATH:/etc/profiles/per-user/$(id -un)/bin"
+      export VENDOMAT_MACHINES_TRUST_LOGS="$HOME/.local/state/vendomat/p21/$(date -u +%F)/s7/machines-trust/run-$(date -u +%H%M%SZ)"
+      ${venvBin}/python -m pytest -q -s tests/test_machines_trust.py --junitxml="$out/machines-trust.junit.xml"
+    '';
+  };
+
   # Opt-in real devenv task for the hatch line, `vendomat explain`, the trimmed error, and `vendomat update`
   # (project 24, S3 part 2). It runs stock devenv from PATH on a workspace that imports the catalog of this
   # repository and the module source of the `devenv` input. The input is the one that flake.lock

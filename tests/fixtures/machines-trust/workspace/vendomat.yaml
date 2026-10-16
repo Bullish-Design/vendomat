@@ -1,0 +1,11 @@
+# Fixture. Two machines on one workspace. Each is virtual (no hardware report) and opens its cache
+# port on the private link `lan0` only (VMT-173).
+machines:
+  alpha:
+    virtual: "true"
+    trustedInterfaces:
+      - lan0
+  beta:
+    virtual: "true"
+    trustedInterfaces:
+      - lan0
